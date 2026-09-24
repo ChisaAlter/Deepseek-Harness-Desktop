@@ -49,6 +49,18 @@ describe('wrapOpenPath', () => {
     expect(original).not.toHaveBeenCalled()
   })
 
+  it('preserves the requested mini presentation through the desktop opener', async () => {
+    const openInSurfaces = vi.fn(() => true)
+    const workspaces = service(vi.fn(async () => {}))
+    wrapOpenPath(workspaces, {
+      takeoverEnabled: () => true,
+      currentSessionId: () => 'sess-1',
+      openInSurfaces,
+    })
+    await workspaces.openPath('/tmp/proj/site/index.html', { sessionId: 'sess-2', presentation: 'mini' })
+    expect(openInSurfaces).toHaveBeenCalledWith('/tmp/proj/site/index.html', 'sess-2', { presentation: 'mini' })
+  })
+
   it('falls through without a current session', async () => {
     const original = vi.fn(async () => {})
     const workspaces = service(original)

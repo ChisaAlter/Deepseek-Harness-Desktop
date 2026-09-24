@@ -305,6 +305,45 @@ function growthDeps(t, overrides = {}) {
   };
 }
 
+test('DSH config write retries after save mutates memory then throws', (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const zlib = require('node:zlib');
+  const sessionsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pet-dsh-retry-'));
+  t.after(() => fs.rmSync(sessionsDir, { recursive: true, force: true }));
+  const log = path.join(sessionsDir, 'ws-a', 'sess-a', 'session.jsonl.zstd');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  fs.writeFileSync(log, zlib.zstdCompressSync(Buffer.from(JSON.stringify({ type: 'turn/start', data: { turn: 1 } }) + '\n')));
+  const timers = [];
+  t.mock.method(global, 'setInterval', (fn, ms) => {
+    const timer = { fn, ms, unref() {} };
+    timers.push(timer);
+    return timer;
+  });
+  t.mock.method(global, 'clearInterval', () => {});
+  let writes = 0;
+  let committed;
+  const deps = live2dDeps({ sessionsDir, saveConfig: (next) => {
+    writes += 1;
+    if (writes === 1) { throw new Error('temporary config lock'); }
+    committed = next.live2dPet.dsh;
+  } });
+  const manager = createLive2dPetManager(deps);
+  t.after(() => manager.dispose());
+  manager.show();
+  const tick = timers.find((timer) => timer.ms === 2000)?.fn;
+  assert.equal(typeof tick, 'function');
+  tick();
+  assert.equal(writes, 1);
+  assert.equal(committed, undefined);
+  assert.equal(Object.keys(manager.getState().dsh.files).length, 0);
+  tick();
+  assert.equal(writes, 2);
+  assert.equal(Object.keys(committed.files).length, 1);
+  assert.equal(deps.win.sends.filter(([channel, payload]) => channel === 'shell:live2d-dsh' && payload.state === 'working').length, 1);
+});
+
 test('growth ipc is authorized like every other pet channel', (t) => {
   const { deps } = growthDeps(t);
   const manager = createLive2dPetManager(deps);
@@ -859,7 +898,7 @@ test('cursor hold keeps the window clickable inside the padded pet frame', (t) =
   assert.deepEqual(deps.win.ignoreCalls.at(-1), [false, undefined]);
 });
 
-test('cursor hold tracks the reported body rect with a 24px pad', (t) => {
+test('cursor hold releases close to the reported body instead of swallowing nearby clicks', (t) => {
   let point = { x: 200, y: 200 };
   const deps = live2dDeps({
     sessionsDir: '',
@@ -873,13 +912,11 @@ test('cursor hold tracks the reported body rect with a 24px pad', (t) => {
   deps.electron.ipcMain.handlers.get('shell:live2d-roam')(
     authorizedEvent(deps), { x: 10, y: 10, w: 50, h: 50 });
   deps.win.ignoreCalls.length = 0;
-  // 10px inside the padded zone (right edge = 60 + 24) → hold engages.
-  point = { x: 70, y: 50 };
+  // A small margin absorbs sway without blocking neighboring controls.
+  point = { x: 65, y: 50 };
   manager.pollCursor();
   assert.deepEqual(deps.win.ignoreCalls.at(-1), [false, undefined]);
-  // 11px beyond the padded edge: under the old frame+48 zone this point was
-  // still held — now the ring releases and clicks reach the window below.
-  point = { x: 95, y: 50 };
+  point = { x: 70, y: 50 };
   manager.pollCursor();
   assert.deepEqual(deps.win.ignoreCalls.at(-1), [true, { forward: true }]);
 });

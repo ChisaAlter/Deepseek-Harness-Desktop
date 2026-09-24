@@ -28,12 +28,14 @@ import {
 } from './viewport.ts'
 import { DEFAULT_DEVICE_VIEWPORT } from './viewportPresets.ts'
 import css from './PreviewPanel.module.css'
-import { closeMiniPlayer, clearMiniPlayer, notifyMiniPlayerLayout, openMiniPlayer, setMiniPlayerRuntime, setMiniPlayerSuspended, useMiniPlayer } from './mini-player-state.ts'
+import { closeMiniPlayer, clearMiniPlayer, notifyMiniPlayerLayout, openMiniPlayer, readMiniPlayer, setMiniPlayerLabel, setMiniPlayerRuntime, setMiniPlayerSuspended, useMiniPlayer } from './mini-player-state.ts'
+import { miniPlayerLabelFromUrl } from './mini-player-label.ts'
 
 /** Must match ui-user-terminal; client packages cannot share a value export. */
 const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 /** Must match ui-user-terminal; client packages cannot share a value export. */
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
+const PENDING_PREVIEW_PRESENTATION_KEY = 'dshd-pending-preview-presentation'
 const DISCOVER_INTERVAL_MS = 3_000
 
 export type PreviewPanelProps =
@@ -299,7 +301,10 @@ export function PreviewPanel({
     return () => {
       observer?.disconnect()
       window.removeEventListener('resize', sync)
-      void previewHide(previewId).catch(ignoreOverlayIpcFailure)
+      const current = readMiniPlayer()
+      if (!current.open || current.previewId !== previewId) {
+        void previewHide(previewId).catch(ignoreOverlayIpcFailure)
+      }
     }
   }, [previewId, active, occluded, overlayOpen, pipOpen, miniPlayer.open, previewHide, previewResize, previewShow])
 
@@ -352,6 +357,8 @@ export function PreviewPanel({
     if (result.id !== undefined) setPreviewId(result.id)
     if (result.url !== undefined) {
       setUrl(result.url)
+      const current = readMiniPlayer()
+      if (current.open && current.previewId !== null) setMiniPlayerLabel(current.previewId, miniPlayerLabelFromUrl(result.url))
       if (!focusedRef.current) setDraft(result.url)
     }
     setCanGoBack(result.canGoBack === true)
@@ -375,7 +382,7 @@ export function PreviewPanel({
     })
   }, [onPreviewStateChange])
 
-  const launch = (next: string): void => {
+  const launch = (next: string, presentation?: 'mini'): void => {
     let trimmed: string
     try {
       trimmed = normalizePreviewUrl(next)
@@ -396,29 +403,38 @@ export function PreviewPanel({
         ? { url: trimmed, scope: cwd ?? 'shared' }
         : { url: trimmed, bounds, scope: cwd ?? 'shared' })
       : previewNavigate(currentId, trimmed)
-    void opened.then((result) => { applyNavRef.current(result) }).catch(() => { setMessage(t('rejected')) })
+    void opened.then((result) => {
+      applyNavRef.current(result)
+      if (result.ok && presentation === 'mini') {
+        const id = result.id ?? currentId
+        if (id !== null && id !== undefined) openMiniPlayer(id, miniPlayerLabelFromUrl(trimmed))
+      }
+    }).catch(() => { setMessage(t('rejected')) })
   }
 
   useEffect(() => {
     try {
       const pending = sessionStorage.getItem(PENDING_PREVIEW_URL_KEY)
       if (pending !== null && pending.length > 0) {
+        const presentation = sessionStorage.getItem(PENDING_PREVIEW_PRESENTATION_KEY) === 'mini' ? 'mini' : undefined
         sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
-        launch(pending)
+        sessionStorage.removeItem(PENDING_PREVIEW_PRESENTATION_KEY)
+        launch(pending, presentation)
       }
     } catch {
       // sessionStorage can throw in a locked browser profile.
     }
     const onOpen = (event: Event): void => {
-      const detail = (event as CustomEvent<{ url?: string } | undefined>).detail
+      const detail = (event as CustomEvent<{ url?: string; presentation?: 'mini' } | undefined>).detail
       const next = detail?.url
       if (typeof next !== 'string' || next.length === 0) return
       try {
         sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
+        sessionStorage.removeItem(PENDING_PREVIEW_PRESENTATION_KEY)
       } catch {
         // sessionStorage can throw in a locked browser profile.
       }
-      launch(next)
+      launch(next, detail?.presentation)
     }
     window.addEventListener(OPEN_SURFACE_EVENT, onOpen)
     return () => { window.removeEventListener(OPEN_SURFACE_EVENT, onOpen) }
@@ -648,7 +664,7 @@ export function PreviewPanel({
               onClick={() => {
                 if (previewId === null) return
                 if (miniPlayer.open) closeMiniPlayer()
-                else openMiniPlayer(previewId)
+                else openMiniPlayer(previewId, miniPlayerLabelFromUrl(url))
               }}
             >
               <IconRightUpOutline16 size={14} />

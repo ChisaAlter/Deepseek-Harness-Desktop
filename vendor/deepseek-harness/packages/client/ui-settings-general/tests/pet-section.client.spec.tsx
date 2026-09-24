@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// 桌宠 section：从 desktop config 读 live2dPet，经 shell:live2d-pet-settings
+// 鲸鱼娘 section：从 desktop config 读 live2dPet，经 shell:live2d-pet-settings
 // 通道回写（主进程规范化+持久化+推送到宠物窗）；whaleAssistantEnabled 走
 // 通用 saveConfig（自带 Harness 重启分支）。
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -33,6 +33,10 @@ function mount(opts?: {
     renderSlot: opts?.renderSlot ?? (() => null),
   } as PetSectionProps
   render(<PetSection {...props} />)
+}
+
+function openDesktopTab() {
+  fireEvent.click(screen.getByRole('tab', { name: en['pet.tab.desktop'] }))
 }
 
 const NORMALIZED = {
@@ -77,6 +81,7 @@ describe('PetSection', () => {
   it('loads live2dPet from the config and writes switches through saveLive2dPetSettings', async () => {
     const { saveLive2dPetSettings } = shellWith()
     mount()
+    openDesktopTab()
     const wander = await screen.findByRole('switch', { name: en['pet.wander'] })
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: en['pet.wander'] }).getAttribute('aria-checked')).toBe('true')
@@ -92,6 +97,7 @@ describe('PetSection', () => {
   it('shows/hides the overlay through the pet channel and resets to defaults', async () => {
     const { saveLive2dPetSettings } = shellWith()
     mount()
+    openDesktopTab()
     const toggle = await screen.findByRole('switch', { name: en['pet.enabled'] })
     expect(toggle.getAttribute('aria-checked')).toBe('true')
     fireEvent.click(toggle)
@@ -117,6 +123,7 @@ describe('PetSection', () => {
         },
       }),
     })
+    openDesktopTab()
     const select = await screen.findByRole('button', { name: en['pet.lookModel'] })
     fireEvent.click(select)
     const item = await screen.findByRole('menuitem', { name: 'Custom / Qwen VL Max' })
@@ -136,6 +143,7 @@ describe('PetSection', () => {
       whaleAssistantEnabled: false,
     })
     mount()
+    openDesktopTab()
     const select = await screen.findByRole('button', { name: en['pet.lookModel'] })
     await waitFor(() => {
       expect(select.textContent).toContain('old-p / gone-vl')
@@ -162,6 +170,7 @@ describe('PetSection', () => {
         },
       }),
     })
+    openDesktopTab()
     const select = await screen.findByRole('button', { name: en['pet.lookModel'] })
     fireEvent.click(select)
     fireEvent.click(await screen.findByRole('menuitem', { name: en['pet.lookModelOff'] }))
@@ -175,13 +184,14 @@ describe('PetSection', () => {
   it('merges size+opacity into one row and shows a single personality select', async () => {
     shellWith()
     mount()
+    expect(screen.getByRole('heading', { name: en['pet.nav'] })).toBeTruthy()
+    openDesktopTab()
     await screen.findByRole('switch', { name: en['pet.enabled'] })
     // One merged row — the two selects keep their own aria labels.
     expect(screen.getByText(en['pet.scaleOpacity'])).toBeTruthy()
     expect(screen.getByRole('button', { name: en['pet.scale'] })).toBeTruthy()
     expect(screen.getByRole('button', { name: en['pet.opacity'] })).toBeTruthy()
-    // The assistant's personality select is gone — this is the only one.
-    expect(screen.getAllByRole('button', { name: en['pet.personality'] })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: en['pet.personality'] })).toBeTruthy()
     // Self-talk and wander ride the shared autonomy row.
     expect(screen.getByText(en['pet.autonomy'])).toBeTruthy()
     expect(screen.getByRole('switch', { name: en['pet.selfTalk'] })).toBeTruthy()
@@ -191,6 +201,7 @@ describe('PetSection', () => {
   it('maps lockPosition + shiftToDrag onto one drag-mode select', async () => {
     const { saveLive2dPetSettings } = shellWith()
     mount()
+    openDesktopTab()
     const select = await screen.findByRole('button', { name: en['pet.dragMode'] })
     expect(select.textContent).toContain(en['pet.dragFree'])
     fireEvent.click(select)
@@ -208,6 +219,7 @@ describe('PetSection', () => {
       whaleAssistantEnabled: false,
     })
     mount()
+    openDesktopTab()
     const select = await screen.findByRole('button', { name: en['pet.dragMode'] })
     expect(select.textContent).toContain(en['pet.dragShift'])
     fireEvent.click(select)

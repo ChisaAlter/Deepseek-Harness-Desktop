@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE — throwaway. Not part of mobile/web, not packaged into the APK, not served to phones.
+  Question: what should the Android + web remote look like if redesigned after the Claude mobile app?
+  Three variants switchable via ?variant=A|B|C (and ?theme=light|dark), fake data only.
+    A — Claude 原样：暖纸底 + 衬线标题/正文 + 陶土色标记 + 底部大圆角面板
+    B — Claude 结构 + DeepSeek 基线 token：同 A 的结构，换回 --dsw-alias-* 色、无衬线、品牌蓝
+    C — 工作台结构（基线 token）：首页即最近会话，无抽屉，贴底输入条，模型/权限整页内联控件
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PROTOTYPE · 手机远程 Claude 风格重设计</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #d9d9de; color: #111; padding: 24px 24px 120px;
+}
+.canvas-head { max-width: 1200px; margin: 0 0 20px; }
+.canvas-head h1 { margin: 0 0 6px; font-size: 18px; line-height: 26px; }
+.canvas-head p { margin: 0; font-size: 13px; line-height: 20px; color: #444; }
+.rail { display: flex; gap: 28px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
+.cell { flex: none; display: flex; flex-direction: column; gap: 10px; }
+.cell-label { font-size: 12px; line-height: 18px; color: #333; font-weight: 600; }
+.cell-note { font-size: 11px; line-height: 16px; color: #555; max-width: 360px; }
+
+/* ———————————————— Theme tables (prototype-only, per variant) ———————————————— */
+.phone {
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-display: var(--font-body);
+  --font-answer: var(--font-body);
+  --display-weight: 600;
+  --mono: 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+}
+/* A: Claude-faithful warm paper */
+.v-A.light {
+  --bg: #FAF9F5; --surface: #FFFFFF; --surface-2: #F0EEE6; --surface-3: #E8E6DC;
+  --text: #1F1E1D; --text-2: #5E5D59; --text-3: #8A8984;
+  --border: rgba(31,30,29,.08); --border-2: rgba(31,30,29,.14);
+  --primary: #1F1E1D; --on-primary: #FFFFFF; --mark: #D97757; --select: #2F5FB3;
+  --badge-bg: #E3ECFA; --badge: #2F5FB3; --ok: #3D8B4F; --warn-bg: #F7EEDC; --warn: #9A6212;
+  --mask: rgba(20,20,19,.32); --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.06);
+}
+.v-A.dark {
+  --bg: #262624; --surface: #30302E; --surface-2: #3A3A37; --surface-3: #454541;
+  --text: #F5F4EE; --text-2: #C3C2B7; --text-3: #8F8E86;
+  --border: rgba(255,255,255,.07); --border-2: rgba(255,255,255,.12);
+  --primary: #F5F4EE; --on-primary: #1F1E1D; --mark: #D97757; --select: #8FB2F0;
+  --badge-bg: #2D3A52; --badge: #A9C3F2; --ok: #7CC48C; --warn-bg: #3B3222; --warn: #E3B066;
+  --mask: rgba(0,0,0,.5); --shadow: 0 1px 2px rgba(0,0,0,.2), 0 6px 20px rgba(0,0,0,.25);
+}
+.v-A {
+  --font-display: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', Georgia, serif;
+  --font-answer: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', Georgia, serif;
+  --display-weight: 500;
+}
+/* B + C: DeepSeek baseline values (mirror mobile/web/tokens.css) */
+.v-B.light, .v-C.light {
+  --bg: rgb(249,250,251); --surface: rgb(255,255,255); --surface-2: rgb(241,243,245); --surface-3: rgb(235,238,242);
+  --text: rgb(15,17,21); --text-2: rgb(97,102,107); --text-3: rgb(129,133,140);
+  --border: rgba(0,0,0,.04); --border-2: rgba(0,0,0,.10);
+  --primary: rgb(15,17,21); --on-primary: #fff; --mark: rgb(65,118,230); --select: rgb(65,118,230);
+  --badge-bg: rgb(228,237,253); --badge: rgb(65,118,230); --ok: rgb(34,197,94); --warn-bg: rgb(254,245,231); --warn: rgb(245,158,11);
+  --mask: rgba(0,0,0,.24); --shadow: 0 4px 12px rgba(0,0,0,.02), 0 2px 8px rgba(0,0,0,.04);
+}
+.v-B.dark, .v-C.dark {
+  --bg: rgb(21,21,23); --surface: rgb(35,35,36); --surface-2: rgb(44,44,46); --surface-3: rgb(53,54,56);
+  --text: rgb(249,250,251); --text-2: rgb(207,211,214); --text-3: rgb(173,178,184);
+  --border: rgba(255,255,255,.06); --border-2: rgba(255,255,255,.12);
+  --primary: rgb(249,250,251); --on-primary: rgb(15,17,21); --mark: rgb(103,158,254); --select: rgb(103,158,254);
+  --badge-bg: rgb(53,54,56); --badge: rgb(103,158,254); --ok: rgb(34,197,94); --warn-bg: rgb(39,36,31); --warn: rgb(247,173,49);
+  --mask: rgba(0,0,0,.5); --shadow: 0 4px 12px rgba(0,0,0,.2);
+}
+
+/* ———————————————— Phone shell ———————————————— */
+.phone {
+  position: relative; width: 360px; height: 760px; overflow: hidden;
+  border-radius: 28px; background: var(--bg); color: var(--text);
+  font-family: var(--font-body); font-size: 15px; line-height: 22px;
+  box-shadow: 0 0 0 8px #111, 0 20px 40px rgba(0,0,0,.25);
+  display: flex; flex-direction: column;
+}
+.status { flex: none; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 12px; font-weight: 600; }
+.status span:last-child { letter-spacing: 1px; }
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+.ic { width: 20px; height: 20px; flex: none; }
+.ic-sm { width: 16px; height: 16px; flex: none; }
+.hit { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; }
+.hit:hover { background: var(--surface-2); }
+
+.topbar { flex: none; height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
+.topbar-title { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 18px; line-height: 26px; }
+.topbar-right { display: flex; }
+
+/* Hero (empty draft) */
+.hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 0 32px; text-align: center; }
+.hero-mark { width: 44px; height: 44px; color: var(--mark); }
+.hero h2 { margin: 0; font-family: var(--font-display); font-weight: var(--display-weight); font-size: 26px; line-height: 34px; }
+.v-B .hero h2 { font-size: 22px; line-height: 30px; }
+.hero-sub { font-size: 13px; line-height: 20px; color: var(--text-3); }
+.ws-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; background: var(--surface-2); font-size: 13px; color: var(--text-2); }
+
+/* Floating composer card (A/B) */
+.composer {
+  flex: none; margin: 0 10px 10px; border-radius: 24px; background: var(--surface);
+  border: 1px solid var(--border-2); box-shadow: var(--shadow); padding: 8px;
+}
+.strip { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 14px; background: var(--surface-2); font-size: 13px; color: var(--text-2); }
+.strip b { font-weight: 500; color: var(--text); }
+.strip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.strip .act { margin-left: auto; color: var(--select); font-weight: 500; }
+.draft { padding: 12px 8px 10px; font-size: 16px; line-height: 24px; color: var(--text-3); }
+.draft.filled { color: var(--text); }
+.c-row { display: flex; align-items: center; gap: 8px; }
+.round { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); flex: none; }
+.pill { height: 40px; padding: 0 14px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pill .sub { color: var(--text-3); }
+.send { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); flex: none; }
+.spacer { flex: 1; }
+
+/* Drawer */
+.overlay { position: absolute; inset: 0; background: var(--mask); }
+.drawer {
+  position: absolute; inset: 0 auto 0 0; width: 300px; background: var(--bg);
+  border-radius: 0 24px 24px 0; display: flex; flex-direction: column; padding: 32px 0 16px;
+}
+.drawer-brand { padding: 20px 24px 16px; font-family: var(--font-display); font-weight: var(--display-weight); font-size: 26px; line-height: 34px; display: flex; align-items: center; gap: 10px; }
+.v-B .drawer-brand { font-size: 20px; }
+.drawer-brand svg { color: var(--mark); width: 24px; height: 24px; }
+.nav { display: flex; align-items: center; gap: 16px; height: 52px; padding: 0 24px; font-size: 16px; }
+.nav:hover { background: var(--surface-2); }
+.nav .count { margin-left: auto; font-size: 12px; color: var(--text-3); }
+.divider { height: 1px; margin: 8px 16px; background: var(--border-2); }
+.sec { padding: 12px 24px 6px; font-size: 14px; color: var(--text-3); }
+.recent { display: flex; align-items: flex-start; gap: 14px; padding: 10px 24px; }
+.recent .bullet { margin-top: 8px; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--text-3); flex: none; }
+.recent .bullet.run { border-color: var(--select); background: var(--select); }
+.recent .r-main { min-width: 0; }
+.recent .r-title { font-size: 15px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent .r-sub { font-size: 12px; line-height: 16px; color: var(--text-3); }
+.recent.active { background: var(--surface-2); }
+.drawer-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--mark); color: #fff; font-size: 15px; font-weight: 600; }
+.new-btn { height: 48px; padding: 0 22px; border-radius: 24px; background: var(--primary); color: var(--on-primary); display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; }
+
+/* Conversation */
+.convo { flex: 1; min-height: 0; overflow: hidden; padding: 4px 18px 12px; display: flex; flex-direction: column; gap: 14px; }
+.git { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--border-2); font-size: 13px; color: var(--text-2); }
+.git b { color: var(--text); font-weight: 500; }
+.u { align-self: flex-end; max-width: 82%; padding: 10px 14px; border-radius: 20px; background: var(--surface-2); }
+.a { font-family: var(--font-answer); font-size: 16px; line-height: 27px; }
+.v-B .a, .v-C .a { font-size: 15px; line-height: 24px; }
+.a p { margin: 0 0 8px; }
+.a code { font-family: var(--mono); font-size: 13px; padding: 1px 5px; border-radius: 5px; background: var(--surface-2); }
+.flow { display: flex; flex-direction: column; gap: 2px; }
+.f-row { display: flex; align-items: center; gap: 8px; height: 30px; font-size: 13px; color: var(--text-2); font-family: var(--font-body); }
+.f-row .ic-sm { color: var(--text-3); }
+.f-row .f-sum { color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.f-row .ok { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-left: auto; flex: none; }
+.approval { flex: none; margin: 0 10px 10px; border-radius: 24px; background: var(--surface); border: 1px solid var(--border-2); box-shadow: var(--shadow); overflow: hidden; }
+.approval .ap-head { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--warn-bg); color: var(--warn); font-size: 13px; font-weight: 500; }
+.approval .ap-body { padding: 12px 16px 4px; }
+.approval .ap-cmd { font-family: var(--mono); font-size: 13px; line-height: 20px; color: var(--text-2); padding: 8px 10px; border-radius: 10px; background: var(--surface-2); margin-top: 6px; }
+.approval .ap-actions { display: flex; gap: 8px; padding: 12px 16px 14px; justify-content: flex-end; }
+.btn { height: 40px; padding: 0 18px; border-radius: 20px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; }
+.btn.primary { background: var(--primary); color: var(--on-primary); }
+.btn.ghost { border: 1px solid var(--border-2); }
+.btn.block { width: 100%; height: 48px; border-radius: 24px; font-size: 16px; }
+
+/* Bottom sheet (A/B model picker) */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg); border-radius: 28px 28px 0 0; padding: 8px 12px 18px; }
+.sheet-head { display: flex; align-items: center; height: 52px; }
+.sheet-head .t { flex: 1; text-align: center; font-family: var(--font-display); font-weight: var(--display-weight); font-size: 18px; margin-right: 44px; }
+.card { background: var(--surface); border-radius: 18px; border: 1px solid var(--border); overflow: hidden; }
+.card + .card { margin-top: 10px; }
+.m-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.m-row + .m-row { border-top: 1px solid var(--border); }
+.m-name { font-size: 16px; line-height: 24px; display: flex; align-items: center; gap: 8px; }
+.m-desc { font-size: 13px; line-height: 20px; color: var(--text-3); }
+.m-row.sel .m-name, .m-row.sel .m-desc { color: var(--select); }
+.m-row .check { margin-left: auto; color: var(--select); }
+.badge { font-size: 11px; line-height: 18px; padding: 0 8px; border-radius: 9px; background: var(--badge-bg); color: var(--badge); }
+.drill { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.drill .round { width: 40px; height: 40px; }
+.drill .d-main { flex: 1; min-width: 0; }
+.drill .d-t { font-size: 16px; line-height: 24px; }
+.drill .d-v { font-size: 13px; line-height: 20px; color: var(--select); }
+.drill .d-v.muted { color: var(--text-3); }
+.chev { color: var(--text-3); }
+
+/* Settings */
+.scroll { flex: 1; min-height: 0; overflow: hidden; padding: 4px 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.scroll > * { flex: none; }
+.ahead { display: inline-flex; align-items: center; gap: 1px; color: var(--text-3); }
+.ahead svg { width: 12px; height: 12px; }
+.acct { display: flex; align-items: center; justify-content: space-between; padding: 16px; }
+.acct b { font-weight: 500; font-size: 15px; }
+.tag-dark { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 10px; background: var(--primary); color: var(--on-primary); }
+.promo { padding: 18px 18px 16px; }
+.promo h3 { margin: 0 0 4px; font-size: 17px; line-height: 24px; font-weight: 600; }
+.promo p { margin: 0 0 12px; font-size: 14px; line-height: 21px; color: var(--text-2); }
+.promo .btn { height: 36px; }
+.s-row { display: flex; align-items: center; gap: 14px; padding: 13px 16px; }
+.s-row + .s-row { border-top: 1px solid var(--border); }
+.s-row .ic { color: var(--text-2); }
+.s-row .s-main { flex: 1; min-width: 0; }
+.s-row .s-t { font-size: 16px; line-height: 24px; }
+.s-row .s-v { font-size: 13px; line-height: 18px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-row.danger .s-t, .s-row.danger .ic { color: rgb(220,60,60); }
+.toggle { width: 44px; height: 26px; border-radius: 13px; background: var(--select); position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+
+/* Connect */
+.connect { flex: 1; display: flex; flex-direction: column; padding: 0 22px 20px; }
+.connect-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.connect-hero h2 { margin: 0; font-family: var(--font-display); font-weight: var(--display-weight); font-size: 26px; line-height: 34px; }
+.v-B .connect-hero h2 { font-size: 22px; line-height: 30px; }
+.connect-hero p { margin: 0; font-size: 14px; line-height: 21px; color: var(--text-2); max-width: 280px; }
+.saved-t { font-size: 13px; color: var(--text-3); padding: 0 4px 6px; }
+.saved { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.saved .pc { width: 36px; height: 36px; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); }
+.saved .s-main { flex: 1; min-width: 0; }
+.saved .s-t { font-size: 15px; line-height: 22px; }
+.saved .s-v { font-size: 12px; line-height: 16px; color: var(--text-3); }
+.foot-note { text-align: center; font-size: 12px; line-height: 18px; color: var(--text-3); margin-top: 12px; }
+.connecting { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-2); border-top-color: var(--text); }
+
+/* ———————————————— Variant C (workbench structure) ———————————————— */
+.c-top { flex: none; height: 56px; display: flex; align-items: center; gap: 4px; padding: 0 6px 0 14px; }
+.pc-switch { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border-2); font-size: 14px; font-weight: 500; }
+.pc-switch .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.c-greet { padding: 8px 20px 4px; }
+.c-greet h2 { margin: 0; font-size: 22px; line-height: 30px; font-weight: 600; }
+.c-greet p { margin: 2px 0 0; font-size: 13px; color: var(--text-3); }
+.chips { display: flex; gap: 8px; padding: 12px 20px 4px; overflow: hidden; }
+.chip { flex: none; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--surface); border: 1px solid var(--border-2); display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.chip.on { background: var(--primary); color: var(--on-primary); border-color: transparent; }
+.c-list { flex: 1; min-height: 0; overflow: hidden; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.s-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.s-card .h { display: flex; align-items: center; gap: 8px; }
+.s-card .t { font-size: 15px; line-height: 22px; font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.s-card .time { font-size: 12px; color: var(--text-3); flex: none; }
+.s-card .p { font-size: 13px; line-height: 19px; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.s-card .meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-3); }
+.s-card .run { color: var(--select); font-weight: 500; }
+.s-card .wait { color: var(--warn); font-weight: 500; }
+.dock { flex: none; background: var(--surface); border-top: 1px solid var(--border-2); padding: 10px 12px 12px; }
+.dock .field { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 6px 0 16px; border-radius: 22px; background: var(--surface-2); font-size: 16px; color: var(--text-3); }
+.dock .field .send { width: 34px; height: 34px; margin-left: auto; }
+.dock .tools { display: flex; align-items: center; gap: 6px; padding-top: 8px; }
+.tool { flex: none; height: 32px; padding: 0 10px; border-radius: 16px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.tool.shrink { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.tool.icon { padding: 0; width: 32px; justify-content: center; }
+.tool:hover { background: var(--surface-2); }
+.c-head { flex: none; display: flex; align-items: center; gap: 2px; padding: 4px 6px 8px 2px; border-bottom: 1px solid var(--border); }
+.c-head .h-main { flex: 1; min-width: 0; }
+.c-head .h-t { font-size: 16px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-head .h-s { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 18px; color: var(--text-3); }
+.search { margin: 4px 14px 8px; height: 44px; border-radius: 22px; background: var(--surface); border: 1px solid var(--border-2); display: flex; align-items: center; gap: 10px; padding: 0 16px; color: var(--text-3); font-size: 15px; }
+.seg { display: flex; margin: 0 14px 8px; padding: 3px; border-radius: 14px; background: var(--surface-2); }
+.seg > span { flex: 1; height: 34px; border-radius: 11px; display: grid; place-items: center; font-size: 14px; color: var(--text-2); }
+.seg > span.on { background: var(--surface); color: var(--text); font-weight: 500; box-shadow: var(--shadow); }
+.grp-h { display: flex; align-items: center; gap: 8px; padding: 10px 6px 4px; font-size: 13px; color: var(--text-3); }
+.grp-h b { color: var(--text-2); font-weight: 600; }
+.grp-h .n { margin-left: auto; }
+.row-flat { display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+.row-flat + .row-flat { border-top: 1px solid var(--border); }
+.row-flat .t { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-flat .time { font-size: 12px; color: var(--text-3); }
+.pg-h { flex: none; display: flex; align-items: center; height: 52px; padding: 0 6px; }
+.pg-h .t { flex: 1; font-size: 17px; font-weight: 600; text-align: center; margin-right: 44px; }
+.lbl { font-size: 13px; color: var(--text-3); padding: 6px 6px 6px; }
+.effort { display: flex; gap: 6px; padding: 12px; }
+.effort > span { flex: 1; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 14px; background: var(--surface-2); color: var(--text-2); }
+.effort > span.on { background: var(--primary); color: var(--on-primary); font-weight: 500; }
+.radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border-2); flex: none; margin-left: auto; }
+.radio.on { border: 6px solid var(--select); }
+.conn-hero { padding: 20px 18px; display: flex; flex-direction: column; gap: 12px; }
+.conn-hero .big { display: flex; align-items: center; gap: 12px; }
+.conn-hero .pc { width: 48px; height: 48px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); }
+.conn-hero .n { font-size: 18px; font-weight: 600; line-height: 26px; }
+.conn-hero .st { font-size: 13px; color: var(--ok); display: flex; align-items: center; gap: 6px; }
+.conn-hero .st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 13px; }
+.kv span:nth-child(odd) { color: var(--text-3); }
+.steps { display: flex; flex-direction: column; gap: 0; }
+.step { display: flex; gap: 14px; padding: 14px 16px; }
+.step + .step { border-top: 1px solid var(--border); }
+.step .num { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 13px; font-weight: 600; flex: none; }
+.step .num.on { background: var(--primary); color: var(--on-primary); }
+.step .st-t { font-size: 15px; line-height: 22px; font-weight: 500; }
+.step .st-d { font-size: 13px; line-height: 19px; color: var(--text-3); }
+.qr-illu { margin: 8px auto 0; width: 150px; height: 150px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border-2); display: grid; place-items: center; }
+
+/* ———————————————— Claude-measured sizing ————————————————
+   Measured from the Claude Android screenshots (460x1024 px ≈ 412x917 dp, ×0.896).
+   Frame now matches that device width so proportions compare 1:1.
+   composer: card margin 16, radius 22, round/pill/send 36; drawer: 90% width,
+   nav row 56, recents row 44 single-line, new-chat 44x~132; sheet rows ~64;
+   settings rows ~56; block buttons 44. */
+.phone { width: 412px; height: 917px; font-size: 15px; }
+.status { height: 36px; padding: 0 22px; }
+.topbar { height: 52px; padding: 0 8px; }
+.hit { width: 40px; height: 40px; border-radius: 10px; }
+.hero { gap: 16px; padding-bottom: 24px; }
+.hero-mark { width: 40px; height: 40px; }
+.v-B .hero h2 { font-size: 24px; line-height: 32px; font-weight: 500; }
+.ws-chip { height: 28px; padding: 0 10px; border-radius: 14px; font-size: 12px; gap: 4px; }
+.ws-chip .ic-sm { width: 14px; height: 14px; }
+.composer { margin: 0 16px 14px; border-radius: 22px; padding: 6px 10px 10px; }
+.draft { padding: 12px 6px 14px; font-size: 17px; line-height: 24px; }
+.c-row { gap: 8px; }
+.round, .send { width: 36px; height: 36px; }
+.round .ic, .send .ic { width: 18px; height: 18px; }
+.pill { height: 36px; padding: 0 14px; border-radius: 18px; font-size: 14px; }
+.drawer { width: 90%; border-radius: 0 20px 20px 0; padding: 40px 0 16px; }
+.drawer-brand { padding: 12px 24px 20px; }
+.v-B .drawer-brand { font-size: 24px; line-height: 32px; font-weight: 600; }
+.drawer-brand svg { width: 26px; height: 26px; }
+.nav { height: 56px; gap: 16px; font-size: 16px; }
+.divider { margin: 8px 20px; background: var(--border); }
+.sec { padding: 16px 24px 6px; font-size: 14px; }
+.recent { align-items: center; gap: 16px; padding: 0 24px; height: 44px; }
+.recent .bullet { margin-top: 0; width: 7px; height: 7px; }
+.recent .bullet.wait { border-color: var(--warn); background: var(--warn); }
+.recent .r-title { font-size: 15px; }
+.recent .r-sub { display: none; }
+.recent.active { background: none; }
+.recent.active .r-title { font-weight: 500; }
+.drawer-foot { padding: 0 20px; }
+.avatar { width: 44px; height: 44px; font-size: 15px; }
+.new-btn { height: 44px; padding: 0 20px; border-radius: 22px; font-size: 15px; gap: 6px; }
+.convo { padding: 4px 20px 12px; gap: 16px; }
+.git { height: 30px; padding: 0 10px; border-radius: 15px; gap: 5px; }
+.u { padding: 9px 14px; border-radius: 18px; font-size: 15px; line-height: 22px; }
+.v-B .a, .v-C .a { font-size: 16px; line-height: 26px; }
+.f-row { height: 28px; }
+.approval { margin: 0 16px 14px; border-radius: 22px; }
+.approval .ap-head { padding: 8px 16px; font-size: 12px; }
+.approval .ap-body { padding: 10px 16px 2px; font-size: 14px; }
+.approval .ap-actions { padding: 10px 12px 12px; }
+.btn { height: 36px; padding: 0 16px; border-radius: 18px; font-size: 14px; }
+.btn.block { height: 44px; border-radius: 22px; font-size: 15px; }
+.sheet { padding: 4px 14px 22px; border-radius: 28px 28px 0 0; }
+.sheet-head { height: 56px; }
+.sheet-head .t { font-size: 17px; font-weight: 600; }
+.card { border-radius: 16px; }
+.card + .card { margin-top: 12px; }
+.m-row { padding: 10px 16px; min-height: 64px; }
+.m-name { font-size: 16px; line-height: 22px; }
+.m-desc { font-size: 13px; line-height: 20px; }
+.drill { padding: 10px 16px; gap: 14px; }
+.drill .round { width: 36px; height: 36px; }
+.drill .d-t { font-size: 16px; line-height: 22px; }
+.scroll { padding: 4px 16px 16px; gap: 12px; }
+.acct { padding: 0 16px; height: 56px; }
+.acct b { font-size: 15px; }
+.tag-dark { font-size: 11px; padding: 1px 8px; border-radius: 9px; }
+.promo { padding: 16px 16px 16px; }
+.promo h3 { font-size: 16px; line-height: 24px; }
+.promo p { margin: 2px 0 12px; font-size: 14px; line-height: 20px; }
+.promo .btn { height: 34px; padding: 0 16px; border-radius: 17px; }
+.s-row { padding: 0 16px; min-height: 56px; gap: 16px; }
+.s-row .s-main { padding: 8px 0; }
+.s-row .s-t { font-size: 16px; line-height: 22px; }
+.connect { padding: 0 24px 24px; }
+.v-B .connect-hero h2 { font-size: 24px; line-height: 32px; font-weight: 500; }
+.connect-hero .hero-mark { width: 40px; height: 40px; }
+.saved { padding: 10px 16px; }
+.saved .pc { width: 36px; height: 36px; }
+/* Variant C inherits the same sizing table */
+.c-top { height: 52px; }
+.pc-switch { height: 32px; padding: 0 12px; border-radius: 16px; font-size: 14px; }
+.chip { height: 30px; padding: 0 12px; border-radius: 15px; font-size: 13px; }
+.dock .field { min-height: 40px; border-radius: 20px; }
+.dock .field .send { width: 32px; height: 32px; }
+.search { height: 40px; border-radius: 20px; }
+.seg > span { height: 32px; }
+.effort > span { height: 36px; border-radius: 10px; }
+/* ———————————————— Pass 2: one step tighter (user: still slightly too big) ———————————————— */
+.topbar { height: 48px; padding: 0 6px; }
+.hit { width: 36px; height: 36px; border-radius: 9px; }
+.hit .ic { width: 18px; height: 18px; }
+.hero { gap: 14px; }
+.hero-mark { width: 36px; height: 36px; }
+.v-B .hero h2 { font-size: 22px; line-height: 30px; }
+.ws-chip { height: 26px; padding: 0 9px; border-radius: 13px; }
+.composer { margin: 0 12px 12px; border-radius: 20px; padding: 4px 8px 8px; }
+.draft { padding: 10px 6px 12px; font-size: 16px; line-height: 22px; }
+.c-row { gap: 6px; }
+.round, .send { width: 32px; height: 32px; }
+.round .ic, .send .ic { width: 16px; height: 16px; }
+.pill { height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; }
+.drawer-brand { padding: 8px 20px 16px; }
+.v-B .drawer-brand { font-size: 21px; line-height: 28px; }
+.drawer-brand svg { width: 22px; height: 22px; }
+.nav { height: 48px; gap: 14px; padding: 0 20px; font-size: 15px; }
+.nav .ic { width: 18px; height: 18px; }
+.sec { padding: 12px 20px 4px; font-size: 13px; }
+.recent { height: 40px; padding: 0 20px; gap: 14px; }
+.recent .r-title { font-size: 14px; }
+.divider { margin: 6px 16px; }
+.drawer-foot { padding: 0 16px; }
+.avatar { width: 36px; height: 36px; font-size: 13px; }
+.new-btn { height: 38px; padding: 0 16px; border-radius: 19px; font-size: 14px; }
+.convo { padding: 4px 16px 12px; gap: 14px; }
+.git { height: 28px; padding: 0 9px; border-radius: 14px; font-size: 12px; }
+.u { padding: 8px 12px; border-radius: 16px; font-size: 14px; line-height: 21px; }
+.v-B .a, .v-C .a { font-size: 15px; line-height: 24px; }
+.f-row { height: 26px; font-size: 12px; }
+.approval { margin: 0 12px 12px; border-radius: 20px; }
+.approval .ap-body { font-size: 13px; }
+.approval .ap-cmd { font-size: 12px; padding: 6px 10px; }
+.btn { height: 32px; padding: 0 14px; border-radius: 16px; font-size: 13px; }
+.btn.block { height: 40px; border-radius: 20px; font-size: 14px; }
+.sheet { padding: 2px 12px 18px; border-radius: 24px 24px 0 0; }
+.sheet-head { height: 48px; }
+.sheet-head .t { font-size: 16px; margin-right: 36px; }
+.card { border-radius: 14px; }
+.card + .card { margin-top: 10px; }
+.m-row { min-height: 54px; padding: 8px 14px; gap: 10px; }
+.m-name { font-size: 15px; line-height: 21px; }
+.m-desc { font-size: 12px; line-height: 18px; }
+.m-row .check { width: 18px; height: 18px; }
+.drill { padding: 8px 14px; gap: 12px; }
+.drill .round { width: 32px; height: 32px; }
+.drill .round .ic { width: 16px; height: 16px; }
+.drill .d-t { font-size: 15px; line-height: 21px; }
+.drill .d-v { font-size: 12px; line-height: 18px; }
+.scroll { padding: 2px 12px 16px; gap: 10px; }
+.topbar-title { font-size: 17px; line-height: 24px; }
+.acct { height: 48px; padding: 0 14px; }
+.acct b { font-size: 14px; }
+.promo { padding: 14px; }
+.promo h3 { font-size: 15px; line-height: 22px; }
+.promo p { margin: 0 0 10px; font-size: 13px; line-height: 19px; }
+.promo .btn { height: 30px; padding: 0 14px; border-radius: 15px; font-size: 13px; }
+.s-row { min-height: 48px; padding: 0 14px; gap: 14px; }
+.s-row .ic { width: 18px; height: 18px; }
+.s-row .s-main { padding: 6px 0; }
+.s-row .s-t { font-size: 15px; line-height: 21px; }
+.s-row .s-v { font-size: 12px; line-height: 17px; }
+.connect { padding: 0 20px 20px; }
+.v-B .connect-hero h2 { font-size: 22px; line-height: 30px; }
+.connect-hero .hero-mark { width: 36px; height: 36px; }
+.connect-hero p { font-size: 13px; line-height: 20px; }
+.saved { padding: 8px 14px; gap: 10px; }
+.saved .pc { width: 32px; height: 32px; border-radius: 9px; }
+.saved .s-t { font-size: 14px; line-height: 20px; }
+.foot-note { font-size: 11px; }
+.c-top { height: 48px; }
+.pc-switch { height: 30px; font-size: 13px; }
+.chip { height: 28px; padding: 0 10px; font-size: 12px; }
+.dock .field { min-height: 36px; font-size: 15px; }
+.dock .field .send { width: 28px; height: 28px; }
+.tool { height: 28px; font-size: 12px; }
+.search { height: 36px; font-size: 14px; }
+.seg > span { height: 30px; font-size: 13px; }
+.effort > span { height: 32px; font-size: 13px; }
+.s-card .t { font-size: 14px; }
+.s-card .p { font-size: 12px; line-height: 18px; }
+.row-flat { padding: 9px 14px; }
+.row-flat .t { font-size: 14px; }
+/* Side-by-side Claude reference (toggle in the proto bar) */
+.ref { width: 412px; height: 917px; border-radius: 28px; box-shadow: 0 0 0 8px #444; display: block; }
+.pair { display: flex; gap: 20px; }
+
+/* ———————————————— Prototype switcher (not part of the design) ———————————————— */
+.proto-bar {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 99;
+  display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 999px;
+  background: #111; color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif; font-size: 13px;
+}
+.proto-bar button { color: #fff; width: 34px; height: 34px; border-radius: 50%; font-size: 16px; }
+.proto-bar button:hover { background: #333; }
+.proto-bar .lbl-v { padding: 0 10px; min-width: 300px; text-align: center; white-space: nowrap; }
+.proto-bar .theme { width: auto; padding: 0 14px; border-radius: 17px; background: #2a2a2a; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="canvas-head">
+  <h1 id="head-title"></h1>
+  <p id="head-desc"></p>
+</div>
+<div class="rail" id="rail"></div>
+
+<div class="proto-bar" id="proto-bar">
+  <button type="button" id="prev" aria-label="上一个变体">←</button>
+  <span class="lbl-v" id="bar-label"></span>
+  <button type="button" id="next" aria-label="下一个变体">→</button>
+  <button type="button" class="theme" id="theme">浅色 / 深色</button>
+  <button type="button" class="theme" id="ref">对照 Claude</button>
+</div>
+
+<script>
+// ———————————————— Icons (16/20px line icons, currentColor) ————————————————
+const I = {
+  menu: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M3 5.5h14M3 10h10M3 14.5h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  newc: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M10 3.5H5.5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="m9 11 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  more: '<svg class="ic" viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4.5" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="15.5" r="1.5"/></svg>',
+  plus: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  up: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M10 16V4M5 9l5-5 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  shield: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M10 2.5 4 5v4.5c0 3.6 2.6 6.6 6 8 3.4-1.4 6-4.4 6-8V5l-6-2.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  chat: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M4 14.5 3 17l3.2-1.1A7 7 0 1 0 4 14.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  folder: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.5l2 2H16A1.5 1.5 0 0 1 17.5 8v6.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5V6Z" stroke="currentColor" stroke-width="1.4"/></svg>',
+  branch: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><circle cx="4.5" cy="3.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="12.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="5" r="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 5v6M11.5 6.5c0 2.5-2 3.5-7 4.5" stroke="currentColor" stroke-width="1.3"/></svg>',
+  branchL: '<svg class="ic" viewBox="0 0 16 16" fill="none"><circle cx="4.5" cy="3.5" r="1.5" stroke="currentColor" stroke-width="1.2"/><circle cx="4.5" cy="12.5" r="1.5" stroke="currentColor" stroke-width="1.2"/><circle cx="11.5" cy="5" r="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5v6M11.5 6.5c0 2.5-2 3.5-7 4.5" stroke="currentColor" stroke-width="1.2"/></svg>',
+  file: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M5 2.5h6.5L15 6v11.5H5v-15Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 2.5V6.5h4" stroke="currentColor" stroke-width="1.4"/></svg>',
+  gear: '<svg class="ic" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  x: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  back: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M12.5 4 6.5 10l6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  chevR: '<svg class="ic-sm chev" viewBox="0 0 16 16" fill="none"><path d="m6 3.5 4.5 4.5L6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  chevD: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg class="ic check" viewBox="0 0 20 20" fill="none"><path d="m4.5 10.5 3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  clock: '<svg class="ic" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v4l2.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  dots: '<svg class="ic" viewBox="0 0 20 20" fill="currentColor"><circle cx="4.5" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="15.5" cy="10" r="1.5"/></svg>',
+  pc: '<svg class="ic" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M7 16.5h6M10 13.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  qr: '<svg class="ic" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="12" y="3" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="3" y="12" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M12 12h2v2h-2zM15 15h2v2h-2z" fill="currentColor"/></svg>',
+  link: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2L10 5.8M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  moon: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  plug: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M7 3v4M13 3v4M5 7h10v3a5 5 0 0 1-10 0V7ZM10 15v2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  spark: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M10 2.5v4M10 13.5v4M2.5 10h4M13.5 10h4M4.7 4.7l2.8 2.8M12.5 12.5l2.8 2.8M15.3 4.7l-2.8 2.8M7.5 12.5l-2.8 2.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  info: '<svg class="ic" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M10 9v4.5M10 6.5v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  logout: '<svg class="ic" viewBox="0 0 20 20" fill="none"><path d="M8 3.5H4.5v13H8M12 6.5 15.5 10 12 13.5M15.5 10H7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  search: '<svg class="ic" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="m13 13 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  terminal: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><path d="m3 5 3 3-3 3M8 11h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  read: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><path d="M4 2h5.5L12 4.5V14H4V2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+  edit: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><path d="M10.5 3 13 5.5 6 12.5H3.5V10L10.5 3Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+  think: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><path d="M8 2.5a4 4 0 0 0-2.5 7.1V11h5V9.6A4 4 0 0 0 8 2.5ZM6 13.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  pause: '<svg class="ic-sm" viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>',
+  img: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="6.5" r="1" fill="currentColor"/><path d="m3 12 3.5-3.5 2.5 2.5 1.5-1.5L13 12" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+  slash: '<svg class="ic-sm" viewBox="0 0 16 16" fill="none"><path d="m10 3-4 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+};
+// Brand marks: A = Claude-like radial spark (terracotta), B/C = abstract whale (DeepSeek blue).
+const MARK_SPARK = '<svg viewBox="0 0 48 48" fill="none" class="hero-mark">' +
+  Array.from({ length: 12 }, (_, i) => { const a = i * 30; return `<path d="M24 24 L24 ${i % 2 ? 7 : 4}" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" transform="rotate(${a} 24 24)"/>`; }).join('') + '</svg>';
+const MARK_WHALE = '<svg viewBox="0 0 48 48" fill="none" class="hero-mark"><path d="M6 27c0-8.3 7.6-15 17-15 7 0 12.5 3.6 15 9 2.3-.9 4.2-2.6 5.2-4.8.8 4-1 8-4.3 10.2C36.6 33.2 30.6 37 23 37 13.6 37 6 33.3 6 27Z" fill="currentColor"/><circle cx="16" cy="24" r="1.8" fill="var(--bg)"/></svg>';
+
+const DATA = {
+  pc: 'AYASE-PC', ws: 'Deepseek-Harness-Desktop', branch: 'main', ahead: 2,
+  recents: [
+    { t: '修复手机远程首连超时', ws: 'Deepseek-Harness-Desktop', time: '2 分钟', state: 'run', p: '已定位到 connect-lifecycle 的互斥入口，正在补回归测试…' },
+    { t: 'Git 顶栏创建并检出分支', ws: 'Deepseek-Harness-Desktop', time: '1 小时', state: 'wait', p: '等待审批：git push origin feature/git-create' },
+    { t: '用量统计热力图月历', ws: 'dsh-usage-panel', time: '昨天', state: '', p: '月历改为星期为列、每周为行，窄面板不再横向溢出。' },
+    { t: '鲸鱼娘气泡几何对齐', ws: 'Deepseek-Harness-Desktop', time: '周二', state: '', p: '气泡主体与尾巴合并为单条闭合轮廓，一次填充描边。' },
+    { t: '替尔泊肽后续三靶点药物', ws: '无工作区', time: '9月20日', state: '', p: '整理 GLP-1/GIP/GCG 三靶点在研管线与临床数据。' },
+  ],
+};
+
+const AHEAD = () => `<span class="ahead"><svg viewBox="0 0 12 12" fill="none"><path d="M6 10V2.5M3 5.5l3-3 3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>${DATA.ahead}</span>`;
+const status = () => '<div class="status"><span>7:59</span><span>▂▄▆ 75%</span></div>';
+const phone = (v, inner) => `<div class="phone v-${v} ${THEME}">${status()}${inner}</div>`;
+
+// ———————————————— Variant A / B (Claude structure) ————————————————
+function abComposer(v, { strip = false, filled = false } = {}) {
+  return `<div class="composer">
+    ${strip ? `<div class="strip"><span class="dot"></span><span>已连接 <b>${DATA.pc}</b> · HTTPS 中继</span><span class="act">切换</span></div>` : ''}
+    <div class="draft ${filled ? 'filled' : ''}">${filled ? '顺便把设置页也改成分组卡片' : '给 DeepSeek 发消息…'}</div>
+    <div class="c-row">
+      <span class="round">${I.plus}</span>
+      <span class="pill">deepseek-v4 <span class="sub">· 高</span></span>
+      <span class="spacer"></span>
+      <span class="round" title="权限：默认">${I.shield}</span>
+      <span class="send">${I.up}</span>
+    </div>
+  </div>`;
+}
+function abConnect(v) {
+  return phone(v, `<div class="topbar"><span></span><span class="topbar-right"><span class="hit">${I.info}</span></span></div>
+  <div class="connect">
+    <div class="connect-hero">
+      ${v === 'A' ? MARK_SPARK : MARK_WHALE}
+      <h2>连接到你的电脑</h2>
+      <p>在电脑端账户菜单打开「远程」，扫描弹窗里的二维码。</p>
+      <span class="connecting"><span class="spin"></span>正在连接电脑…</span>
+    </div>
+    <div class="saved-t">已保存的电脑</div>
+    <div class="card">
+      <div class="saved"><span class="pc">${I.pc}</span><span class="s-main"><div class="s-t">${DATA.pc}</div><div class="s-v">HTTPS 中继 · 上次 2 分钟前</div></span>${I.chevR}</div>
+      <div class="saved"><span class="pc">${I.pc}</span><span class="s-main"><div class="s-t">OFFICE-LAPTOP</div><div class="s-v">局域网 · 上次 3 天前</div></span>${I.chevR}</div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn primary block">${I.qr}&nbsp;扫描二维码</button>
+    <div style="height:10px"></div>
+    <button class="btn ghost block">${I.link}&nbsp;粘贴配对链接</button>
+    <div class="foot-note">配对密钥只保存在这台手机上</div>
+  </div>`);
+}
+function abHome(v) {
+  return phone(v, `<div class="topbar"><span class="hit">${I.menu}</span><span class="topbar-right"><span class="hit">${I.newc}</span></span></div>
+  <div class="hero">
+    ${v === 'A' ? MARK_SPARK : MARK_WHALE}
+    <h2>晚上好，今天做点什么</h2>
+    <span class="ws-chip">${I.folder.replace('class="ic"', 'class="ic-sm"')}${DATA.ws}${I.chevD}</span>
+  </div>
+  ${abComposer(v)}`);
+}
+function abDrawer(v) {
+  const recents = DATA.recents.slice(0, 5).map((r, i) => `<div class="recent ${i === 0 ? 'active' : ''}"><span class="bullet ${r.state}"></span><span class="r-main"><div class="r-title">${r.t}</div><div class="r-sub">${r.ws}${r.state === 'wait' ? ' · 等待审批' : ''}</div></span></div>`).join('');
+  return phone(v, `<div class="topbar"><span class="hit">${I.menu}</span></div>
+  <div class="hero"></div>${abComposer(v)}
+  <div class="overlay"></div>
+  <aside class="drawer">
+    <div class="drawer-brand">${v === 'A' ? '' : MARK_WHALE.replace('class="hero-mark"', '')}DeepSeek Harness</div>
+    <div class="nav">${I.chat}会话<span class="count">24</span></div>
+    <div class="nav">${I.folder}工作区<span class="count">3</span></div>
+    <div class="nav">${I.branchL}Git</div>
+    <div class="nav">${I.gear}设置</div>
+    <div class="divider"></div>
+    <div class="sec">最近</div>
+    ${recents}
+    <div class="drawer-foot"><span class="avatar">A</span><span class="new-btn">＋ 新会话</span></div>
+  </aside>`);
+}
+function abConvo(v, { approval = true } = {}) {
+  return `<div class="topbar"><span class="hit">${I.menu}</span><span class="git">${I.branch}<b>${DATA.branch}</b> ${AHEAD()} ${I.chevD}</span><span class="topbar-right"><span class="hit">${I.newc}</span><span class="hit">${I.more}</span></span></div>
+  <div class="convo">
+    <div class="u">把 mobile/web 的连接页改成 Claude 那种风格</div>
+    <div class="flow">
+      <div class="f-row">${I.think}思考 <span class="f-sum">· 12 秒</span></div>
+      <div class="f-row">${I.read}读取 <span class="f-sum">mobile/web/index.html</span><span class="ok"></span></div>
+      <div class="f-row">${I.edit}编辑 <span class="f-sum">mobile/web/app.css +48 −31</span><span class="ok"></span></div>
+      <div class="f-row">${I.terminal}Bash <span class="f-sum">node --test "mobile/web/**/*.test.js"</span><span class="ok"></span></div>
+    </div>
+    <div class="a"><p>连接页已改成居中问候加底部两颗胶囊按钮，已保存的电脑收进一张分组卡片。</p><p>292 项测试通过。要推送到 <code>main</code> 吗？</p></div>
+  </div>
+  ${approval ? `<div class="approval"><div class="ap-head"><span class="strip dot" style="width:8px;height:8px;border-radius:50%;background:currentColor;padding:0"></span>等待审批</div>
+    <div class="ap-body"><div>运行命令</div><div class="ap-cmd">git push origin main</div></div>
+    <div class="ap-actions"><span class="btn ghost">拒绝</span><span class="btn primary">允许一次</span></div></div>` : abComposer(v, { strip: false })}`;
+}
+function abConversation(v) { return phone(v, abConvo(v)); }
+function abModel(v) {
+  return phone(v, abConvo(v, { approval: false }) + `<div class="overlay"></div>
+  <div class="sheet">
+    <div class="sheet-head"><span class="hit">${I.x}</span><span class="t">选择模型</span></div>
+    <div class="card">
+      <div class="m-row"><div><div class="m-name">deepseek-v4-pro <span class="badge">推理</span></div><div class="m-desc">适合复杂重构与长链路任务</div></div></div>
+      <div class="m-row sel"><div><div class="m-name">deepseek-v4</div><div class="m-desc">日常编码的均衡选择</div></div>${I.check}</div>
+      <div class="m-row"><div><div class="m-name">deepseek-v4-flash</div><div class="m-desc">最快，适合小改动与问答</div></div></div>
+    </div>
+    <div class="card"><div class="drill"><span class="round">${I.clock}</span><span class="d-main"><div class="d-t">思考强度</div><div class="d-v">高</div></span>${I.chevR}</div></div>
+    <div class="card"><div class="drill"><span class="round">${I.shield}</span><span class="d-main"><div class="d-t">权限</div><div class="d-v muted">默认 · 编辑前询问</div></span>${I.chevR}</div></div>
+    <div class="card"><div class="drill"><span class="round">${I.dots}</span><span class="d-main"><div class="d-t">更多模型</div><div class="d-v muted">按提供方浏览 · 12 个</div></span>${I.chevR}</div></div>
+  </div>`);
+}
+function abSettings(v) {
+  const row = (ic, t, s, extra = '') => `<div class="s-row">${ic}<span class="s-main"><div class="s-t">${t}</div>${s ? `<div class="s-v">${s}</div>` : ''}</span>${extra || I.chevR}</div>`;
+  return phone(v, `<div class="topbar"><span class="hit">${I.menu}</span><span class="topbar-title">设置</span><span class="hit">${I.info}</span></div>
+  <div class="scroll">
+    <div class="card acct"><b>${DATA.pc}</b><span class="tag-dark">已连接</span></div>
+    <div class="card promo"><h3>${DATA.ws}</h3><p>${DATA.branch} · 领先 ${DATA.ahead} · 有未提交改动</p><span class="btn primary">打开工作区</span></div>
+    <div class="card">${row(I.chat, '通用设置', '语言 · 排队')}${row(I.shield, '权限', '默认 · 编辑前询问')}${row(I.spark, '模型', 'deepseek-v4 · 高')}</div>
+    <div class="card">${row(I.moon, '外观', '跟随系统')}${row(I.pc, '电脑外观', '背景图 · 毛玻璃')}</div>
+    <div class="card">${row(I.plug, 'MCP 与技能', '只读清单 · 电脑端管理')}${row(I.file, '文件', '浏览 · 只读预览')}</div>
+    <div class="card"><div class="s-row danger">${I.logout}<span class="s-main"><div class="s-t">断开这台设备</div></span></div></div>
+  </div>`);
+}
+
+// ———————————————— Variant C (workbench structure) ————————————————
+function cDock({ running = false } = {}) {
+  return `<div class="dock">
+    <div class="field">给 DeepSeek 发消息…<span class="send">${running ? I.pause : I.up}</span></div>
+    <div class="tools"><span class="tool icon">${I.img}</span><span class="tool icon">${I.slash}</span><span class="spacer"></span><span class="tool">${I.shield.replace('class="ic"', 'class="ic-sm"')}默认</span><span class="tool shrink">deepseek-v4 · 高 ${I.chevD}</span></div>
+  </div>`;
+}
+function cConnect() {
+  return phone('C', `<div class="pg-h"><span class="t" style="margin-right:0">连接电脑</span></div>
+  <div class="scroll">
+    <div class="card steps">
+      <div class="step"><span class="num on">1</span><span><div class="st-t">在电脑上打开「远程」</div><div class="st-d">Deepseek-Harness-Desktop → 账户菜单 → 远程</div></span></div>
+      <div class="step"><span class="num on">2</span><span><div class="st-t">扫描弹窗里的二维码</div><div class="st-d">系统相机或下方按钮都可以</div><div class="qr-illu">${I.qr.replace('class="ic"', 'style="width:64px;height:64px;color:var(--text-3)"')}</div></span></div>
+      <div class="step"><span class="num">3</span><span><div class="st-t">等待连接</div><div class="st-d"><span class="connecting"><span class="spin"></span>正在连接电脑…</span></div></span></div>
+    </div>
+    <div class="lbl">已保存的电脑</div>
+    <div class="card"><div class="saved"><span class="pc">${I.pc}</span><span class="s-main"><div class="s-t">${DATA.pc}</div><div class="s-v">HTTPS 中继 · 上次 2 分钟前</div></span><span class="btn ghost" style="height:32px;padding:0 12px;font-size:13px">重连</span></div></div>
+    <div style="display:flex;gap:8px;margin-top:auto"><button class="btn primary block" style="flex:1">扫描二维码</button><button class="btn ghost block" style="flex:1">粘贴链接</button></div>
+  </div>`);
+}
+function cHome() {
+  const cards = DATA.recents.slice(0, 4).map((r) => `<div class="s-card"><div class="h"><span class="t">${r.t}</span><span class="time">${r.time}</span></div><div class="p">${r.p}</div><div class="meta">${I.folder.replace('class="ic"', 'class="ic-sm"')}${r.ws}${r.state === 'run' ? ' · <span class="run">运行中</span>' : ''}${r.state === 'wait' ? ' · <span class="wait">等待审批</span>' : ''}</div></div>`).join('');
+  return phone('C', `<div class="c-top"><span class="pc-switch"><span class="dot"></span>${DATA.pc}${I.chevD}</span><span class="spacer"></span><span class="hit">${I.search}</span><span class="hit">${I.gear}</span></div>
+  <div class="c-greet"><h2>晚上好</h2><p>1 个会话运行中 · 1 个等待审批</p></div>
+  <div class="chips"><span class="chip on">全部</span><span class="chip">${I.folder.replace('class="ic"', 'class="ic-sm"')}Deepseek-Harness-Desktop</span><span class="chip">dsh-usage-panel</span></div>
+  <div class="c-list">${cards}</div>
+  ${cDock()}`);
+}
+function cSessions() {
+  const rows = (list) => list.map((r) => `<div class="row-flat"><span class="t">${r.t}</span>${r.state === 'run' ? '<span class="badge">运行中</span>' : ''}${r.state === 'wait' ? '<span class="badge" style="background:var(--warn-bg);color:var(--warn)">待审批</span>' : ''}<span class="time">${r.time}</span></div>`).join('');
+  return phone('C', `<div class="pg-h"><span class="hit">${I.back}</span><span class="t">会话</span></div>
+  <div class="search">${I.search}搜索会话内容</div>
+  <div class="seg"><span>全部</span><span class="on">按工作区</span><span>已归档</span></div>
+  <div class="scroll" style="gap:4px">
+    <div class="grp-h">${I.folder.replace('class="ic"', 'class="ic-sm"')}<b>Deepseek-Harness-Desktop</b><span class="n">＋</span></div>
+    <div class="card">${rows([DATA.recents[0], DATA.recents[1], DATA.recents[3]])}</div>
+    <div class="grp-h">${I.folder.replace('class="ic"', 'class="ic-sm"')}<b>dsh-usage-panel</b><span class="n">＋</span></div>
+    <div class="card">${rows([DATA.recents[2]])}</div>
+    <div class="grp-h"><b>无工作区</b></div>
+    <div class="card">${rows([DATA.recents[4]])}</div>
+  </div>`);
+}
+function cConversation() {
+  return phone('C', `<div class="c-head"><span class="hit">${I.back}</span><span class="h-main"><div class="h-t">修复手机远程首连超时</div><div class="h-s">${DATA.ws} · ${I.branch}${DATA.branch} ${AHEAD()}</div></span><span class="hit">${I.more}</span></div>
+  <div class="convo" style="padding-top:14px">
+    <div class="u">把 mobile/web 的连接页改成 Claude 那种风格</div>
+    <div class="flow">
+      <div class="f-row">${I.think}思考 <span class="f-sum">· 12 秒</span></div>
+      <div class="f-row">${I.read}读取 <span class="f-sum">mobile/web/index.html</span><span class="ok"></span></div>
+      <div class="f-row">${I.edit}编辑 <span class="f-sum">mobile/web/app.css +48 −31</span><span class="ok"></span></div>
+      <div class="f-row">${I.terminal}Bash <span class="f-sum">node --test "mobile/web/**/*.test.js"</span><span class="ok"></span></div>
+    </div>
+    <div class="a"><p>连接页已改成分步引导，已保存的电脑可以直接重连。</p><p>292 项测试通过。要推送到 <code>main</code> 吗？</p></div>
+  </div>
+  <div class="dock" style="padding:0">
+    <div class="approval" style="margin:0;border-radius:0;border:0;box-shadow:none"><div class="ap-head">等待审批 · 运行命令</div>
+    <div class="ap-body"><div class="ap-cmd" style="margin-top:0">git push origin main</div></div>
+    <div class="ap-actions"><span class="btn ghost" style="flex:1">拒绝</span><span class="btn primary" style="flex:1">允许一次</span></div></div>
+  </div>`);
+}
+function cModel() {
+  const m = (n, d, on, badge = '') => `<div class="m-row ${on ? 'sel' : ''}"><div><div class="m-name">${n}${badge}</div><div class="m-desc">${d}</div></div><span class="radio ${on ? 'on' : ''}"></span></div>`;
+  const p = (n, d, on) => `<div class="m-row"><div><div class="m-name" style="font-size:15px">${n}</div><div class="m-desc">${d}</div></div><span class="radio ${on ? 'on' : ''}"></span></div>`;
+  return phone('C', `<div class="pg-h"><span class="hit">${I.x}</span><span class="t">模型与权限</span></div>
+  <div class="scroll" style="gap:6px">
+    <div class="lbl">模型</div>
+    <div class="card">${m('deepseek-v4-pro', '适合复杂重构与长链路任务', false, ' <span class="badge">推理</span>')}${m('deepseek-v4', '日常编码的均衡选择', true)}${m('deepseek-v4-flash', '最快，适合小改动与问答', false)}<div class="m-row"><div class="m-desc">更多模型 · 按提供方浏览 12 个</div><span style="margin-left:auto">${I.chevR}</span></div></div>
+    <div class="lbl">思考强度</div>
+    <div class="card effort"><span>低</span><span>中</span><span class="on">高</span><span>最大</span></div>
+    <div class="lbl">权限</div>
+    <div class="card">${p('默认', '编辑文件与运行命令前询问', true)}${p('自动编辑', '文件改动直接应用，命令仍询问', false)}${p('完全访问', '不再询问', false)}</div>
+  </div>`);
+}
+function cSettings() {
+  const row = (ic, t, s, extra = '') => `<div class="s-row">${ic}<span class="s-main"><div class="s-t">${t}</div>${s ? `<div class="s-v">${s}</div>` : ''}</span>${extra || I.chevR}</div>`;
+  return phone('C', `<div class="pg-h"><span class="hit">${I.back}</span><span class="t">设置</span></div>
+  <div class="scroll">
+    <div class="card conn-hero">
+      <div class="big"><span class="pc">${I.pc}</span><span><div class="n">${DATA.pc}</div><div class="st">已连接 · 端到端加密</div></span></div>
+      <div class="kv"><span>通道</span><span>HTTPS 中继 · ayase.cn</span><span>桌面</span><span>Harness 已就绪</span><span>工作区</span><span>${DATA.ws}</span></div>
+    </div>
+    <div class="card">${row(I.chat, '通用设置', '语言 · 排队')}${row(I.moon, '外观', '跟随系统')}${row(I.pc, '电脑外观', '背景图 · 毛玻璃')}</div>
+    <div class="card">${row(I.plug, 'MCP 与技能', '只读清单 · 电脑端管理')}${row(I.file, '文件', '浏览 · 只读预览')}${row(I.info, '关于', 'Deepseek-Harness-Desktop')}</div>
+    <div class="card"><div class="s-row danger">${I.logout}<span class="s-main"><div class="s-t">断开这台设备</div></span></div></div>
+  </div>`);
+}
+
+// ———————————————— Variant table ————————————————
+const VARIANTS = {
+  A: {
+    name: 'Claude 原样（暖纸 + 衬线）',
+    desc: '最贴近截图：暖米色纸面、衬线标题与回答正文、陶土色星芒标记、底部大圆角「选择模型」面板、分组白卡设置。代价：整套推翻现行设计语言（另起色板、衬线、底部 sheet 都在禁止项里），且与桌面端观感脱节；Android WebView 的中文衬线字体依赖系统，部分机型会回退成宋体。',
+    screens: [
+      ['连接 / 配对（Android 原生 + Web 共用）', abConnect, '保持「正在连接电脑…」状态行与已保存电脑。'],
+      ['空白草稿首页', abHome, '居中问候 + 工作区 chip；输入卡顶部的升级条换成连接状态条。'],
+      ['抽屉', abDrawer, '品牌字标 + 一级导航 + 最近会话 + 底部「新会话」黑胶囊。'],
+      ['会话进行中 + 审批', abConversation, 'Git 胶囊居中；审批卡取代输入卡。'],
+      ['模型选择（底部面板）', abModel, '模型卡片列表 + 思考强度 / 权限 / 更多模型下钻行。'],
+      ['设置', abSettings, '连接卡 + 工作区卡（原升级卡位置）+ 分组白卡。'],
+    ],
+  },
+  B: {
+    name: 'Claude 结构 + DeepSeek 基线色',
+    desc: '结构、间距、圆角、层级都照 Claude；颜色换回 --dsw-alias-* 同值表（近白画布、白卡、近黑主按钮、品牌蓝选中），全部无衬线，标记用鲸鱼。仍需改设计语言的「手机远程交互」节（放开底部 sheet 与分组卡片），但 token 表不动，和桌面端一眼仍是同一产品。',
+    screens: [
+      ['连接 / 配对（Android 原生 + Web 共用）', abConnect, ''],
+      ['空白草稿首页', abHome, '', 'home'],
+      ['抽屉', abDrawer, '', 'drawer'],
+      ['会话进行中 + 审批', abConversation, ''],
+      ['模型选择（底部面板）', abModel, '', 'model'],
+      ['设置', abSettings, '', 'settings'],
+    ],
+  },
+  C: {
+    name: '工作台结构（基线色，无抽屉）',
+    desc: '只借 Claude 的留白、分组卡片和大触控面，结构换成编程 agent 优先：首页直接是最近会话卡片（带运行中 / 待审批状态）和工作区筛选，没有抽屉；会话列表是独立整页；输入条贴底通栏；模型、思考强度、权限在一个整页里内联选完，不用逐层下钻。',
+    screens: [
+      ['连接 / 配对（分步引导）', cConnect, ''],
+      ['首页 = 最近会话', cHome, '电脑切换在左上；状态一眼可见。'],
+      ['会话列表（整页，替代抽屉）', cSessions, '按工作区分组，搜索走 session.search。'],
+      ['会话进行中 + 审批', cConversation, '两行头部：标题 + 工作区 · Git。'],
+      ['模型与权限（整页内联）', cModel, '思考强度分段、权限单选直接在页内完成。'],
+      ['设置', cSettings, '顶部连接详情卡取代「这次连接」分组。'],
+    ],
+  },
+};
+
+// ———————————————— Switcher ————————————————
+const params = new URLSearchParams(location.search);
+delete VARIANTS.A; // Verdict 1: keep DSHD light/dark tokens, drop the Claude palette.
+let VARIANT = VARIANTS[params.get('variant')] ? params.get('variant') : 'B';
+let THEME = params.get('theme') === 'dark' ? 'dark' : 'light';
+let REF = params.get('ref') === '1';
+const KEYS = Object.keys(VARIANTS);
+
+function render() {
+  const v = VARIANTS[VARIANT];
+  document.getElementById('head-title').textContent = `PROTOTYPE · 变体 ${VARIANT} — ${v.name}`;
+  document.getElementById('head-desc').textContent = v.desc;
+  document.getElementById('bar-label').textContent = `${VARIANT} — ${v.name} · ${THEME === 'dark' ? '深色' : '浅色'}`;
+  document.getElementById('ref').textContent = REF ? '隐藏 Claude 对照' : '对照 Claude';
+  document.getElementById('rail').innerHTML = v.screens.map(([label, fn, note, ref]) => {
+    const refImg = REF && ref ? `<img class="ref" src="./ref/${ref}.jpg" alt="Claude ${ref}" />` : '';
+    return `<div class="cell"><div class="cell-label">${label}${refImg ? ' · 左：原型 / 右：Claude' : ''}</div><div class="pair">${fn(VARIANT)}${refImg}</div>${note ? `<div class="cell-note">${note}</div>` : ''}</div>`;
+  }).join('');
+}
+function go(delta) {
+  VARIANT = KEYS[(KEYS.indexOf(VARIANT) + delta + KEYS.length) % KEYS.length];
+  sync();
+}
+function sync() {
+  const q = new URLSearchParams({ variant: VARIANT, theme: THEME, ref: REF ? '1' : '0' });
+  history.replaceState(null, '', `?${q}`);
+  render();
+}
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+document.getElementById('theme').onclick = () => { THEME = THEME === 'dark' ? 'light' : 'dark'; sync(); };
+document.getElementById('ref').onclick = () => { REF = !REF; sync(); };
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
+});
+render();
+</script>
+</body>
+</html>

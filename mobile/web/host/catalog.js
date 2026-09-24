@@ -56,6 +56,8 @@ function toRow(session, workspace, archived) {
     projections: session.projections && typeof session.projections === 'object'
       ? session.projections
       : { values: {} },
+    lastActivityAt: typeof session.lastActivityAt === 'string' ? session.lastActivityAt
+      : typeof session.updatedAt === 'string' ? session.updatedAt : '',
     archived: archived === true,
     blank: isUntitledBlank(session),
   };

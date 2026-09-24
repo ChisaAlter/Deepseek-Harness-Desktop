@@ -1657,13 +1657,6 @@ async function runImport(options = {}) {
   const signal = options.signal;
   const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
   if (empty) {
-    writeJournal(journalFile, {
-      phase: 'done',
-      sourceHome: scan.sourceHome,
-      destHome: scan.destHome,
-      empty: true,
-      items: [],
-    });
     emitImportProgress(onProgress, { phase: 'done', done: 0, total: 0 });
     return {
       ok: true,

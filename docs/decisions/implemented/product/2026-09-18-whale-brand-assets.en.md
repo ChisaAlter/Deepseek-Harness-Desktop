@@ -10,7 +10,7 @@ The user supplied a transparent head and spinning loader. The pet-art generator 
 
 ## Decision
 
-`assets/whale-head.png` is the brand source for windows, taskbar, tray, and installer; `icon.svg` wraps it on a white rounded-square background (radius 22% of the side, head inset 4% on each edge), and existing commands generate PNG and ICO; the installer reads that generated PNG to produce BMPs without duplicating composition. The pet generator maintains only its fallback image. The boot center loads the unchanged `assets/whale-spin.svg`, keeping its 112px box and external-image embedding; reduced motion switches to the static head.
+`assets/whale-head.png` is the brand source for windows, taskbar, tray, and installer. `icon.svg` wraps it on a white rounded-square background (radius 22% of the side, head inset 4% on each edge), and existing commands generate PNG and ICO; the installer reads that generated PNG to produce BMPs without duplicating composition. The desktop and Web sidebars share a transparent copy of the source head: the head sits on the left, with “鲸屿 / WHALE ISLE” on the first line to its right and “BASED ON DEEPSEEK HARNESS” below. The 屿 glyph uses brand blue. The sidebar head has no square badge. The collapsed rail shows the panel icon. Theme tokens provide the light/dark difference. The pet generator maintains only its fallback image. The boot center loads the unchanged `assets/whale-spin.svg`, keeping its 112px box and external-image embedding; reduced motion switches to the static head.
 
 ## Alternatives considered
 
@@ -18,4 +18,4 @@ Replacing only generated icon.png/ICO minimizes edits but reverts on regeneratio
 
 ## Consequences
 
-Source PNG and loader SVG retain their original bytes for hash comparison; icons have a white background, transparent outer corners, and a fully proportioned head. Brand updates require icon and installer:assets regeneration; installed executable icons still require repackaging. Validation covers generated dimensions, animation frames, reduced motion, and existing installer contracts; this task does not publish an installer.
+Source PNG and loader SVG retain their original bytes for hash comparison; icons have a white background, transparent outer corners, and a fully proportioned head. The sidebar uses a transparent static Web copy of the head while retaining the existing brand slots and interactions. Brand updates require icon and installer:assets regeneration; installed executable icons still require repackaging. Validation covers generated dimensions, animation frames, reduced motion, existing installer contracts, and sidebar wordmark themes; this task does not publish an installer.

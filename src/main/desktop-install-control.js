@@ -252,6 +252,21 @@ function createHandler({ installPlugin, startHarness, desktop, restartDelayMs })
         sendJson(res, 200, await desktop.applyConfig(payload.patch));
         return;
       }
+      if (req.method === 'GET' && pathname === '/desktop/pet-settings') {
+        sendJson(res, 200, await desktop.petSettings());
+        return;
+      }
+      if (req.method === 'POST' && pathname === '/desktop/pet-settings') {
+        let payload;
+        try {
+          payload = JSON.parse(await readBody(req) || '{}');
+        } catch {
+          badRequest(res, 'invalid json');
+          return;
+        }
+        sendJson(res, 200, await desktop.applyPetSettings(payload.patch));
+        return;
+      }
       if (req.method === 'POST' && pathname === '/desktop/plugin') {
         await handleDesktopPlugin(req, res, desktop, ops);
         return;

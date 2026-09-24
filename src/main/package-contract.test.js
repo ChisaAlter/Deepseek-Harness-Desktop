@@ -77,6 +77,27 @@ test('manifest keeps the packaging contract after-pack depends on', () => {
   assert.equal(build.publish?.[0]?.repo, 'Deepseek-Harness-Desktop');
 });
 
+test('pet package excludes dormant assets without removing active fallbacks', () => {
+  const files = pkg.build.files;
+  for (const excluded of [
+    '!src/renderer/pet-live2d/avatar/model_hd.onnx',
+    '!src/renderer/pet-live2d/avatar/character_hd.png',
+    '!src/renderer/pet-live2d/rig/backup-v1/**',
+    '!src/renderer/pet-live2d/rig/master-v1.png',
+    '!src/renderer/pet-live2d/rig/shell-*.png',
+  ]) {
+    assert.ok(files.includes(excluded), `dormant pet asset reached the package: ${excluded}`);
+  }
+  const rig = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/renderer/pet-live2d/rig/manifest.json'), 'utf8'));
+  assert.equal(rig.master, undefined, 'the packaged rig manifest must not point to the excluded source master');
+  const activeRigFiles = [rig.body.file, rig.tail.file,
+    ...Object.values(rig.shells).map((entry) => entry.file)];
+  assert.deepEqual([...new Set(activeRigFiles)].sort(), ['shell.png', 'tail.png']);
+  for (const file of activeRigFiles) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'src/renderer/pet-live2d/rig', file)));
+  }
+});
+
 test('manifest packages the built-in dsh-remote vendor tree', () => {
   // scripts/after-pack.js asserts resources/vendor/dsh-remote at package time;
   // without this filter the built-in SSH remote workspace is missing from the
@@ -99,5 +120,5 @@ test('manifest keeps the NSIS installer branding contract', () => {
   assert.equal(nsis?.artifactName, 'Deepseek-Harness-Desktop-Setup-${version}.${ext}');
   assert.equal(nsis?.include, 'build/installer.nsh');
   assert.deepEqual(nsis?.installerLanguages, ['zh_CN', 'en_US']);
-  assert.equal(pkg.version, '0.3.2');
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
 });

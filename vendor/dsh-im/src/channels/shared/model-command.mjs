@@ -2,6 +2,7 @@ import { splitWorkspaceCommandMessage } from './workspace-command.mjs';
 import { t } from './i18n.mjs';
 import { WORKSPACE_SESSION_STALE } from './workspace-session.mjs';
 import { withSessionBindingLock } from './session-binding-lock.mjs';
+import { sharedWhaleSessionId } from './whale-session.mjs';
 
 const MODEL_COMMAND = /^\/model(?=$|\s)/i;
 const MODELS_COMMAND = /^\/models(?=$|\s)/i;
@@ -438,7 +439,8 @@ function modelErrorMessage(error, action) {
 
 async function boundSession(harness, state, key, options) {
   if (typeof state?.sessionFor !== 'function') return null;
-  const sessionId = state.sessionFor(key);
+  const whaleSessionId = await sharedWhaleSessionId(harness);
+  const sessionId = whaleSessionId ?? state.sessionFor(key);
   if (typeof sessionId !== 'string' || !sessionId) return null;
   if (typeof harness?.workspaceSession !== 'function') {
     throw new TypeError('Harness does not support workspace sessions');
@@ -447,7 +449,17 @@ async function boundSession(harness, state, key, options) {
   if (!session || typeof session.sessionExists !== 'function') {
     throw new TypeError('Harness returned an invalid workspace session');
   }
-  if (await session.sessionExists(options)) return { sessionId, session };
+  if (await session.sessionExists(options)) {
+    if (whaleSessionId && state.sessionFor(key) !== whaleSessionId) {
+      if (await state.setSession(key, whaleSessionId) === false) return null;
+    }
+    return { sessionId, session };
+  }
+  if (whaleSessionId) {
+    const error = new Error('The resident whale conversation is not available yet.');
+    error.code = 'whale-session-unavailable';
+    throw error;
+  }
   if (typeof state.clearSession === 'function' && state.sessionFor(key) === sessionId) {
     await state.clearSession(key);
   }

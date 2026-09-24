@@ -7,7 +7,7 @@
 
 ## 当前版本
 
-`0.3.1`（tag `v0.3.1`）是最近已发布版本；`0.3.2` 当前处于候选阶段，默认仅生成 Windows x64。Harness 钉 `dsh-v0.1.7-alpha.2`（SHA `00102833dfaee1da9f48a3a8eae9d34005a75218`）。候选运行完成后，必须把同一候选运行的 SHA、Desktop tests 结果和 Setup SHA256 写入发布记录，再使用 `publish.yml` 晋级；中文 / English 发布说明分别在 [release-notes.md](../../../.github/release-notes.md) / [release-notes.en.md](../../../.github/release-notes.en.md)。
+`0.3.2`（tag `v0.3.2`）是最近已发布版本；`0.3.3` 当前处于候选阶段，默认仅生成 Windows x64。Harness 钉 `dsh-v0.1.7-alpha.2`（SHA `00102833dfaee1da9f48a3a8eae9d34005a75218`）。候选运行完成后，必须把同一候选运行的 SHA、Desktop tests 结果和 Setup SHA256 写入发布记录，再使用 `publish.yml` 晋级；中文 / English 发布说明分别在 [release-notes.md](../../../.github/release-notes.md) / [release-notes.en.md](../../../.github/release-notes.en.md)。
 
 ## 用户路径（开发者）
 
@@ -39,7 +39,7 @@ npm run dist:mac      # macOS 真机
 ## 不变量
 
 - 验收表：每次发布前对 **CI 安装包 SHA** 走完 [production-acceptance-test-cases.md](../../qa/production-acceptance-test-cases.md)。禁止把源码钉写成已发包装钉；禁止用本机 dist 给该表打 Pass。  
-- `after-pack` 拍平 pnpm 树后，MCP SDK 必须仍能解析到 ajv major ≥ 8（版本冲突的兄弟依赖嵌回 `sdk/node_modules`）；禁止把已安装 runtime 的 `node_modules` 当源码提交。
+- `after-pack` 拍平 pnpm 树后，先以当前工作区完整运行时包替换同名旧包（缺少编译产物时失败）；旧包的 pnpm 宿主条目不再给新版包注入依赖，当前工作区与 vendored Cordis 包按源实例和发布文件比较完整依赖解析链，仅在冲突处补嵌套包并复验发布文件、依赖解析链和模块实例身份；同一源实例被拆分或不同源实例被合并均阻断构建，顶层版本或 peer 冲突不豁免，peer 在消费者一侧共享；两个仅供测试的包从发布树排除，若收集到的工作区或 vendored 包直接声明运行时依赖、或最终发布树仍含这两个包则构建失败；其他旧消费者仍按最终顶层版本补齐旧版嵌套包；最后运行真实 CLI 契约检查。MCP SDK 必须仍能解析到 ajv major ≥ 8（版本冲突的兄弟依赖嵌回 `sdk/node_modules`）。禁止把已安装 runtime 的 `node_modules` 当源码提交。当前工作区依赖重排仍有已知同源拆分，保持发布阻断并冻结后续开发；见[局部回退决定](../../decisions/implemented/architecture/2026-09-24-whale-performance-partial-rollback.md)。
 - `release.yml` 只负责候选构建、安装树冒烟和原始 artifact 上传；`publish.yml` 不重建二进制，而是在晋级前**校验同一候选 SHA 的 Desktop tests（test.yml）已绿**，否则拒绝发布，不能把后续文档提交当作已构建提交。
 - **阶段凭据**：`.dsh-build/build-stage-credentials.json` 记录 `native-system` / `host` / `client` / `web` 四个阶段各自的输入与产物身份（`size:mtime:ctime` manifest 摘要 + 路径绑定内容摘要）、内联的公开环境摘要与 schema 版本。复用条件是该阶段及其所有前序阶段都验证通过；manifest 命中走快路径，manifest 变动时用内容摘要兜底，所以 `touch` 与「字节相同的重建」仍算命中，而产物被篡改 / 截断 / 缺失、凭据缺失或 schema 不符一律 fail-closed 重跑。判定实现只有一份：`vendor/deepseek-harness/scripts/build-stage-credentials.mjs`，被 `scripts/build.ts`（经 `.d.mts`）与根 `scripts/prestart-ensure.mjs` 共用。稳态校验约 1.2 s，内容模式约 2.2 s；缓存只在进程内，不落盘。  
 - **`build:lib` 不再被 `build.ts` 调用**：它必然连跑 host 与 client 两个面，会让按面复用失效；`build.ts` 直接调用 `build:lib:host` / `build:lib:client`。手工构建仍可继续用 `build:lib`。  

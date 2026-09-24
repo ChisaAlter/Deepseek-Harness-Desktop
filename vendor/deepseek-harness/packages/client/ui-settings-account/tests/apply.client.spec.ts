@@ -148,6 +148,34 @@ it('uses the Desktop login carrier and exposes operation errors', async ({ start
   await expect(actions.signOut()).rejects.toThrow('account sign-out failed')
 }, 60_000)
 
+it('opens a waiting Desktop sign-in in the system browser once per attempt', async ({ start, mock }) => {
+  const openExternal = vi.fn().mockRejectedValueOnce(new Error('browser unavailable')).mockResolvedValue(true)
+  vi.stubGlobal('shell', { getConfig: vi.fn(), saveConfig: vi.fn(), openExternal })
+  const c = await start()
+  const actions = operations(c)
+  const id = 'browser-attempt' as SignInAttemptId
+  const waiting: AccountView = {
+    ...view,
+    attempt: { id, phase: 'waiting-browser', authorizeUrl: 'https://platform.deepseek.com/dsh/authorize?state=example' },
+  }
+  mock.remote.account.startSignIn.mockResolvedValue(ok({ ...view, attempt: { id, phase: 'initializing' } }))
+  await actions.start()
+  await c.mock.streams.opened('account/watch', 1)
+  c.mock.streams.push('account/watch', waiting)
+  await vi.waitFor(() => { expect(openExternal).toHaveBeenCalledOnce() })
+  expect(openExternal).toHaveBeenCalledWith('https://platform.deepseek.com/dsh/authorize?state=example&theme=light')
+  const changed = vi.fn()
+  actions.hooks.account.subscribe(changed)
+  c.mock.streams.push('account/watch', waiting)
+  await vi.waitFor(() => { expect(changed).toHaveBeenCalledOnce() })
+  expect(openExternal).toHaveBeenCalledOnce()
+  expect(actions.hooks.account.getSnapshot()).toMatchObject({ view: waiting, loginFailed: false })
+  c.mock.streams.push('account/watch', {
+    ...waiting, attempt: { ...waiting.attempt!, id: 'next-attempt' as SignInAttemptId },
+  })
+  await vi.waitFor(() => { expect(openExternal).toHaveBeenCalledTimes(2) })
+}, 60_000)
+
 it('uses the Desktop stream origin and exposes the native platform bridge', async ({ start, mock }) => {
   vi.stubGlobal('dshDesktop', {})
   const c = await start()

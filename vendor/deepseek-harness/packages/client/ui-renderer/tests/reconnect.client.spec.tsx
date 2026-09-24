@@ -7,6 +7,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 
 describe('assembled renderer connection recovery', () => {
   it('keeps the mounted root across a transport reconnect', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }))
+    onTestFinished(() => { vi.unstubAllGlobals() })
     const mock = RemoteMock.create().load(remoteDefaultResponses)
     const client = await TestClient.start({ roster: webApp }, mock, { mount: true })
     onTestFinished(() => client.dispose())

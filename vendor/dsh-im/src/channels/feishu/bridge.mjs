@@ -45,6 +45,7 @@ import {
 } from '../shared/preset-command.mjs';
 import { runWorkspaceCommand, resolveSessionListWorkspace, workspacePathSnapshot } from '../shared/workspace-command.mjs';
 import { askInWorkspaceSession } from '../shared/workspace-session.mjs';
+import { sharedWhaleSessionId } from '../shared/whale-session.mjs';
 import { deliverOutboundArtifacts } from '../shared/semantic/artifact-delivery.mjs';
 import {
   createDeliveryReceipt,
@@ -967,6 +968,10 @@ export class FeishuHarnessBridge {
       return;
     }
     if (commandText === '/new') {
+      if (await sharedWhaleSessionId(this.#harness)) {
+        await this.#send(event.message.chat_id, t('鲸鱼娘只有一条常驻对话，继续发送消息即可。'));
+        return;
+      }
       if (this.#queues.has(key) || this.#hasPendingInteraction(key)) {
         await this.#send(
           event.message.chat_id,

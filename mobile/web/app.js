@@ -15,6 +15,8 @@ import { visibleScreen } from './ui/chrome.js';
 import { backTarget, createNavigation } from './ui/navigation.js?v=20260906-interaction';
 import { createSurface, createFocusScope } from './ui/surfaces.js?v=20260907-desktop-mobile';
 import { sessionOwner } from './ui/session-owner.js?v=20260906-interaction';
+import { blankGreeting } from './ui/greeting.js';
+import { recentSessionRows } from './ui/recents.js';
 import { installComposerBehavior } from './ui/composer-behavior.js?v=20260906-interaction';
 import {
   channelLabel,
@@ -144,7 +146,13 @@ const hostLine = el('host-line');
 const gitPill = el('git-pill');
 const gitPillLabel = el('git-pill-label');
 const gitPillCount = el('git-pill-count');
-const runFlag = el('run-flag');
+const sessionsPage = el('sessions-page');
+const drawerStatus = el('drawer-status');
+const drawerRecents = el('drawer-recents');
+const navSessionsCount = el('nav-sessions-count');
+const drawerAccount = el('drawer-account');
+const blankGreetingEl = el('blank-greeting');
+const blankWorkspaceChipLabel = el('blank-workspace-chip-label');
 const connBanner = el('conn-banner');
 const bannerEl = el('banner');
 const logEl = el('log');
@@ -165,7 +173,7 @@ const approvalActions = el('approval-actions');
 const slashPop = el('slash-pop');
 const readonlyNote = el('readonly-note');
 const sessionList = el('session-list');
-const workspaceLine = el('workspace-line');
+
 const search = el('search');
 const settings = el('settings');
 const settingsBack = el('settings-back');
@@ -212,6 +220,7 @@ const state = {
   connected: false,
   settingsOpen: false,
   settingsPane: '',
+  sessionsOpen: false,
   drawerOpen: false,
   sessionEpoch: 0,
   sendBusy: false,
@@ -272,6 +281,7 @@ const state = {
   gitToast: '',
   gitDialog: '',
   pickerSheet: '',
+  pickerPage: '',
   gitConfirmAction: '',
   gitConfirmExtra: {},
   branches: [],
@@ -344,13 +354,17 @@ function backOneSurface() {
   } else if (target === 'directory') updateNewSession({ step: 'workspace', loading: false, error: '' });
   else if (target === 'newSession') state.newSession = null;
   else if (target === 'history') state.history = null;
-  else if (target === 'picker') state.pickerSheet = '';
+  else if (target === 'picker') {
+    if (state.pickerSheet === 'model' && state.pickerPage) state.pickerPage = '';
+    else state.pickerSheet = '';
+  }
   else if (target === 'attachment') state.attachOpen = false;
   else if (target === 'settingsPane') state.settingsPane = '';
   else if (target === 'settings') state.settingsOpen = false;
   else if (target === 'drawer') setDrawerOpen(false);
   else if (target === 'scan') { closeScan(); return; }
   else if (target === 'sessionMenu' || target === 'workspaceMenu') state[target] = '';
+  else if (target === 'sessions') state.sessionsOpen = false;
   renderSheet(); renderDialog(); renderLightbox(); renderScreen();
   if (state.settingsOpen) renderSettings();
 }
@@ -361,7 +375,7 @@ function scheduleNavigation() {
   queueMicrotask(() => {
     navigationQueued = false;
     const active = lightboxRoot.firstElementChild || dialogRoot.firstElementChild || sheetRoot.firstElementChild
-      || (state.settingsOpen ? settings : state.drawerOpen ? el('drawer') : null);
+      || (state.settingsOpen ? settings : state.sessionsOpen ? sessionsPage : state.drawerOpen ? el('drawer') : null);
     for (const child of phone.children) {
       child.inert = Boolean(active && child !== active && !child.contains(active));
     }
@@ -486,6 +500,12 @@ function renderSavedComputers() {
     open.type = 'button';
     open.className = 'saved-open';
     open.disabled = connectBusy;
+    const tile = document.createElement('span');
+    tile.className = 'saved-tile';
+    tile.setAttribute('aria-hidden', 'true');
+    tile.append(svgNode('<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><rect x="2.5" y="3.5" width="15" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M7 16.5h6M10 13.5v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'));
+    const main = document.createElement('span');
+    main.className = 'saved-main';
     const name = document.createElement('b');
     name.textContent = entry.serverId;
     const desc = document.createElement('span');
@@ -494,7 +514,8 @@ function renderSavedComputers() {
       entry.relayEndpoint,
       entry.savedAt ? new Date(entry.savedAt).toLocaleDateString('zh-CN') : '',
     ].filter(Boolean).join(' · ');
-    open.append(name, desc);
+    main.append(name, desc);
+    open.append(tile, main, svgNode('<svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="chev"><path d="m6 3.5 4.5 4.5L6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
     open.addEventListener('click', () => { void connectSaved(entry.serverId); });
     const forget = document.createElement('button');
     forget.type = 'button';
@@ -560,6 +581,26 @@ function renderScreen() {
   screenPermission.classList.toggle('hidden', name !== 'permission');
   screenChat.classList.toggle('hidden', name !== 'chat');
   settings.classList.toggle('hidden', !(name === 'chat' && state.settingsOpen));
+  sessionsPage.classList.toggle('hidden', !(name === 'chat' && state.sessionsOpen));
+  renderBlankHero();
+}
+
+function openSessionsPage() {
+  if (navigationBusy()) return;
+  state.pickerSheet = '';
+  state.pickerPage = '';
+  state.attachOpen = false;
+  state.newSession = null;
+  state.history = null;
+  state.sessionMenu = '';
+  state.workspaceMenu = '';
+  state.gitDialog = '';
+  clearExclusiveDialogs();
+  renderSheet(); renderDialog();
+  setDrawerOpen(false);
+  state.sessionsOpen = true;
+  renderSessions();
+  renderScreen();
 }
 
 function currentRow() {
@@ -575,7 +616,6 @@ function promoteHeldLive() {
 
 function syncRunning() {
   state.running = currentRow()?.running === true;
-  runFlag.classList.toggle('hidden', !state.running);
   sendBtn.classList.remove('hidden');
   sendBtn.setAttribute('aria-label', state.running ? '加入队列' : '发送消息');
   stopBtn.classList.toggle('hidden', !state.running);
@@ -622,12 +662,15 @@ function renderComposer() {
   const canSend = Boolean(draft.value.trim()) || state.attachments.length > 0;
   sendBtn.disabled = !canSend || composerOffline() || state.sendBusy;
   const accessLabel = currentModeState().currentLabel || '权限';
-  accessChip.firstChild.textContent = accessLabel;
-  accessChip.title = accessLabel;
+  // #access-chip's first child is a whitespace text node; the visually-hidden
+  // .chip-label span is the label slot (the shield icon stays visible alone).
+  accessChip.querySelector('.chip-label').textContent = accessLabel;
+  accessChip.title = `权限：${accessLabel}`;
+  accessChip.setAttribute('aria-label', `权限：${accessLabel}`);
   const modelLabel = currentModelState().label || '模型';
   // The label span (not a bare text node) is what lets the chip ellipsize
   // "model · effort" on a narrow phone instead of wrapping the tool row.
-  modelChip.firstChild.textContent = modelLabel;
+  modelChip.querySelector('.chip-label').textContent = modelLabel;
   modelChip.title = modelLabel;
   planChip.classList.toggle('hidden', !state.permission.planOn || Boolean(currentReadOnlyReason()));
   attachRail.classList.toggle('hidden', state.attachments.length === 0);
@@ -678,6 +721,8 @@ function renderHeader() {
   phone.dataset.sessionId = row?.sessionId || '';
   const showPill = store.gitTitle && (state.gitStatus.refName != null || state.gitStatus.isRepo === false);
   gitPill.classList.toggle('hidden', !showPill);
+  // The center slot is either the Git pill or the session title, never both.
+  chatTitle.classList.toggle('hidden', showPill);
   if (showPill) {
     const hasRef = state.gitStatus.refName != null;
     gitPillLabel.textContent = hasRef ? state.gitStatus.refName : 'Initialize Git';
@@ -832,8 +877,22 @@ function renderSessions() {
       onClick: () => { void runReconnectResync(); },
     }));
     sessionList.replaceChildren(...nodes);
+    renderDrawer(rows);
     return;
   }
+  // On the full-screen sessions page each group's rows live inside one card;
+  // the group head stays outside on the canvas.
+  const cardOfRows = (rowNodes) => {
+    const card = document.createElement('div');
+    card.className = 'card list-card';
+    card.append(...rowNodes);
+    return card;
+  };
+  const collectRows = (rows, options) => {
+    const sink = [];
+    appendGroupedRows(sink, rows, options);
+    return sink;
+  };
   if (query) {
     const hits = Array.isArray(state.searchHits) ? state.searchHits : [];
     if (state.searchLoading) {
@@ -841,9 +900,7 @@ function renderSessions() {
     } else if (!hits.length) {
       nodes.push(descNode('没有匹配的会话'));
     } else {
-      for (const hit of hits) {
-        nodes.push(sessionRowNode(hit, { subagentTag: isReadOnlyRow(hit) }));
-      }
+      nodes.push(cardOfRows(hits.map((hit) => sessionRowNode(hit, { subagentTag: isReadOnlyRow(hit) }))));
       if (state.searchHasMore) {
         nodes.push(descNode('还有更多结果，请改用更精确的词'));
       }
@@ -851,17 +908,23 @@ function renderSessions() {
   } else if (state.sessionView === 'grouped') {
     const { sections, ungrouped } = workspaceDrawerSections(rows, state.workspaces);
     for (const section of sections) {
-      nodes.push(workspaceHeadNode(section.workspace, { count: section.rows.length }));
+      const group = document.createElement('div');
+      group.className = 'ws-group';
+      group.append(workspaceHeadNode(section.workspace, { count: section.rows.length }));
       if (state.expandedWorkspaces[section.workspace.workspaceId] !== false) {
-        appendGroupedRows(nodes, section.rows, { inWorkspace: true });
+        group.append(cardOfRows(collectRows(section.rows, { inWorkspace: true })));
       }
+      nodes.push(group);
     }
     if (ungrouped.length) {
-      if (sections.length) nodes.push(descNode('无工作区文件夹', 'row-desc session-section-label'));
-      appendGroupedRows(nodes, ungrouped);
+      const group = document.createElement('div');
+      group.className = 'ws-group';
+      if (sections.length) group.append(descNode('无工作区文件夹', 'row-desc session-section-label'));
+      group.append(cardOfRows(collectRows(ungrouped)));
+      nodes.push(group);
     }
   } else {
-    appendGroupedRows(nodes, rows);
+    nodes.push(cardOfRows(collectRows(rows)));
   }
   if (state.transport === 'chisacode' && !query) {
     nodes.push(drawerFootButton(
@@ -876,6 +939,45 @@ function renderSessions() {
     nodes.push(drawerFootButton('已归档会话', { onClick: () => openHistorySheet() }));
   }
   sessionList.replaceChildren(...nodes);
+  renderDrawer(rows);
+}
+
+/** Drawer: status rows, 「最近」single-line sessions, nav count, account avatar. */
+function renderDrawer(visibleRows) {
+  const rows = Array.isArray(visibleRows)
+    ? visibleRows
+    : state.sessions.filter((row) => !row.archived && !isUntitledBlank(row));
+  navSessionsCount.textContent = String(rows.length);
+  drawerAccount.textContent = (state.hostName || '电').trim().charAt(0) || '电';
+  const statusNodes = [];
+  if (state.sessionsError) {
+    statusNodes.push(descNode(state.sessionsError));
+    statusNodes.push(drawerFootButton('重试', {
+      disabled: state.catalogBusy === true,
+      onClick: () => { void runReconnectResync(); },
+    }));
+  } else if (state.catalogBusy === true) {
+    statusNodes.push(descNode('正在同步会话…'));
+  }
+  drawerStatus.replaceChildren(...statusNodes);
+  drawerRecents.replaceChildren(...recentSessionRows(rows).map((row) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = `recent${row.sessionId === state.sessionId ? ' active' : ''}`;
+    const bullet = document.createElement('span');
+    bullet.className = 'bullet';
+    if (row.running === true) bullet.dataset.state = 'run';
+    else if (row.sessionId === state.sessionId && state.pendingApprovals.length) bullet.dataset.state = 'wait';
+    const title = document.createElement('span');
+    title.className = 'r-title';
+    title.textContent = sessionTitle(row);
+    item.append(bullet, title);
+    item.addEventListener('click', () => {
+      setDrawerOpen(false);
+      openSession(row.sessionId).catch((error) => showBanner(error.message));
+    });
+    return item;
+  }));
 }
 
 async function runSessionSearch(query) {
@@ -1573,6 +1675,7 @@ function renderApproval() {
   }
   for (const button of buttons) button.disabled = Boolean(pending.responding);
   approvalActions.replaceChildren(...buttons);
+  renderDrawer();
 }
 
 // —— 主机 RPC / shell —— //
@@ -1904,10 +2007,13 @@ function forceLogout(message, { forget = true } = {}) {
   state.gitRetry = null;
   state.commitFiles = null;
   state.pickerSheet = '';
+  state.pickerPage = '';
   state.attachOpen = false;
   state.lightbox = null;
   clearExclusiveDialogs();
   setDrawerOpen(false);
+  state.sessionsOpen = false;
+  state.settingsOpen = false;
   state.transport = '';
   state.chisacode = null;
   state.route = 'connect';
@@ -2192,6 +2298,7 @@ async function openSession(sessionId) {
   state.modelCatalogRaw = null;
   state.modelCatalog = { current: null, rows: [], failures: [] };
   state.pickerSheet = '';
+  state.pickerPage = '';
   state.attachOpen = false;
   clearExclusiveDialogs();
   renderSheet(); renderDialog();
@@ -2210,7 +2317,9 @@ async function openSession(sessionId) {
   if (state.catalogSessions) {
     applyHostCatalog({ sessions: state.catalogSessions, workspaces: state.workspaces });
   }
+  state.sessionsOpen = false;
   setDrawerOpen(false);
+  renderScreen();
   draft.value = restored.text;
   composerBehavior.reset();
   state.attachments = restored.attachments;
@@ -2256,13 +2365,20 @@ function renderBlankHero() {
   const empty = foldEvents(state.events).length === 0 && !state.timelineError && !state.timelineLoading;
   const row = currentRow();
   const canChange = empty && row && !row.archived && !currentReadOnlyReason();
+  // Keep the greeting fresh whenever the hero is (re)painted — including the
+  // initial no-session blank, where renderLog may not have run yet.
+  if (blankGreetingEl) blankGreetingEl.textContent = blankGreeting();
+  // While the hero is shown the (empty) log must not claim its flex:1 share,
+  // or the hero centers in only the lower half of the screen. Un-hiding the
+  // log stays renderLog's job, driven by real timeline rows.
+  if (!blankEl.classList.contains('hidden')) logEl.classList.add('hidden');
   if (!blankWorkspaceChip) return;
   blankWorkspaceChip.classList.toggle('hidden', !canChange);
   if (canChange) {
     // A no-directory task never shows the scratch directory path (desktop parity).
     const scratch = state.workspaces?.scratchCwd;
     const noDirectory = !row.workspaceTitle && (!row.cwd || (scratch && row.cwd === scratch));
-    blankWorkspaceChip.textContent = noDirectory ? '无工作区文件夹' : (row.workspaceTitle || row.cwd);
+    (blankWorkspaceChipLabel || blankWorkspaceChip).textContent = noDirectory ? '无工作区文件夹' : (row.workspaceTitle || row.cwd);
   }
 }
 
@@ -2313,6 +2429,7 @@ function updateNewSession(patch) {
 
 function startNewSessionChooser() {
   state.pickerSheet = '';
+  state.pickerPage = '';
   state.history = null;
   state.sessionMenu = '';
   state.workspaceMenu = '';
@@ -3710,6 +3827,7 @@ async function logoutDevice() {
 function openSettings(pane = '') {
   if (navigationBusy()) return;
   state.pickerSheet = '';
+  state.pickerPage = '';
   state.attachOpen = false;
   state.newSession = null;
   state.history = null;
@@ -3720,6 +3838,7 @@ function openSettings(pane = '') {
   renderSheet(); renderDialog();
   state.settingsOpen = true;
   state.settingsPane = pane;
+  state.sessionsOpen = false;
   if (pane === '模型') state.modelPane = null;
   setDrawerOpen(false);
   renderSettings();
@@ -3852,10 +3971,76 @@ function switchNode(on, onToggle) {
   return button;
 }
 
+const SETTINGS_ROW_ICONS = {
+  '通用设置': '<path d="M4 14.5 3 17l3.2-1.1A7 7 0 1 0 4 14.5Z"/>',
+  '权限': '<path d="M10 2.5 4 5v4.5c0 3.6 2.6 6.6 6 8 3.4-1.4 6-4.4 6-8V5l-6-2.5Z"/>',
+  '模型': '<path d="M10 2.5v4M10 13.5v4M2.5 10h4M13.5 10h4M4.7 4.7l2.8 2.8M12.5 12.5l2.8 2.8M15.3 4.7l-2.8 2.8M7.5 12.5l-2.8 2.8"/>',
+  '文件': '<path d="M5 2.5h6.5L15 6v11.5H5v-15Z"/><path d="M11 2.5V6.5h4"/>',
+  '外观': '<path d="M16 12.5A6.5 6.5 0 0 1 7.5 4a6.5 6.5 0 1 0 8.5 8.5Z"/>',
+  '电脑外观': '<rect x="2.5" y="3.5" width="15" height="10" rx="1.5"/><path d="M7 16.5h6M10 13.5v3"/>',
+  '界面设置': '<path d="M4 6.5h12M4 13.5h12"/><circle cx="8" cy="6.5" r="2"/><circle cx="13" cy="13.5" r="2"/>',
+  'MCP': '<path d="M7 3v4M13 3v4M5 7h10v3a5 5 0 0 1-10 0V7ZM10 15v2.5"/>',
+  '技能': '<path d="M4 3.5h9.5A2.5 2.5 0 0 1 16 6v10.5H6.5A2.5 2.5 0 0 1 4 14V3.5Z"/><path d="M4 14a2.5 2.5 0 0 1 2.5-2.5H16"/>',
+  '插件': '<path d="M8 3.5v3M8 13.5v3M3.5 8h3M13.5 8h3"/><path d="M5.5 5.5h9v9h-9z"/>',
+  '市场': '<path d="M4 7h12l-1 9.5H5L4 7Z"/><path d="M7.5 9.5a2.5 2.5 0 0 0 5 0"/>',
+  '关于': '<circle cx="10" cy="10" r="7"/><path d="M10 9v4.5M10 6.5v.01"/>',
+};
+
+function settingsRowIcon(pane) {
+  const path = SETTINGS_ROW_ICONS[pane] || SETTINGS_ROW_ICONS['关于'];
+  return `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${path}</g></svg>`;
+}
+
+function openSettingsRow(pane) {
+  state.settingsPane = pane;
+  if (pane === '工作区') {
+    refreshGit();
+    if (state.wsTab === 'files') openFilesPane();
+    else openChangesTab();
+  }
+  if (pane === '文件') openFilesPane();
+  if (pane === '模型') state.modelPane = null;
+  if (pane === 'MCP') void loadExtensions('mcp');
+  if (pane === '技能') void loadExtensions('skills');
+  renderSettings();
+}
+
 function renderSettingsHub() {
-  options.append(noticeNode(state.transport === 'chisacode'
-    ? '手机外观和会话选项只留在本机；电脑窗口设置请在电脑端操作。'
-    : '远程页上的改动只留在这次连接，不会写回电脑上的 settings.yaml。标了「电脑」的项会改 Host 窗口。'));
+  // Computer card: this phone's connected host + a 「已连接」tag.
+  const computer = document.createElement('button');
+  computer.type = 'button';
+  computer.className = 'group acct';
+  const host = document.createElement('b');
+  host.textContent = state.hostName;
+  const tag = document.createElement('span');
+  tag.className = 'acct-tag';
+  tag.textContent = '已连接';
+  computer.append(host, tag);
+  computer.addEventListener('click', () => openSettingsRow('连接详情'));
+  options.append(computer);
+
+  // Current workspace card (only when a workspace/title is known).
+  const row = currentRow();
+  const wsTitle = row?.workspaceTitle
+    || state.workspaces?.items?.find((item) => item?.title)?.title || '';
+  if (wsTitle) {
+    const card = document.createElement('div');
+    card.className = 'group promo';
+    const h = document.createElement('h3');
+    h.textContent = wsTitle;
+    const p = document.createElement('p');
+    p.textContent = gitStatusLine(state.gitStatus);
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'primary-btn promo-btn';
+    open.textContent = '打开工作区';
+    open.addEventListener('click', () => openSettingsRow('工作区'));
+    card.append(h, p, open);
+    options.append(card);
+  }
+
+  // One card per settings group, no group labels; rows already represented
+  // elsewhere (连接详情 / 工作区 / logout) are skipped.
   const groups = settingsGroups({
     channel: connectionLabel(),
     accessMode: currentModeState().currentLabel,
@@ -3864,55 +4049,59 @@ function renderSettingsHub() {
     remoteReadOnly: state.transport === 'chisacode',
   });
   for (const group of groups) {
-    const wrap = document.createElement('section');
-    wrap.className = 'set-section';
-    const label = document.createElement('p');
-    label.className = 'group-label';
-    label.textContent = group.label;
+    const rows = group.rows.filter((item) => (
+      !item.danger && item.action !== 'logout' && item.pane !== '连接详情' && item.pane !== '工作区'
+    ));
+    if (!rows.length) continue;
     const body = document.createElement('div');
     body.className = 'group';
-    for (const row of group.rows) {
+    for (const item of rows) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = `link-row${row.danger ? ' danger' : ''}`;
+      button.className = 'link-row';
+      button.append(svgNode(settingsRowIcon(item.pane)));
       const main = document.createElement('span');
       main.className = 'link-main';
       const title = document.createElement('span');
       title.className = 'link-title';
-      title.textContent = row.pane;
+      title.textContent = item.pane;
       const desc = document.createElement('span');
       desc.className = 'link-desc';
-      desc.textContent = row.desc;
+      desc.textContent = item.desc;
       main.append(title, desc);
-      button.append(main);
-      if (!row.danger) {
-        const chev = document.createElement('span');
-        chev.className = 'chev';
-        chev.textContent = '›';
-        button.append(chev);
-      }
-      button.addEventListener('click', () => {
-        if (row.action === 'logout') {
-          logoutDevice();
-          return;
-        }
-        state.settingsPane = row.pane;
-        if (row.pane === '工作区') {
-          refreshGit();
-          if (state.wsTab === 'files') openFilesPane();
-          else openChangesTab();
-        }
-        if (row.pane === '文件') openFilesPane();
-        if (row.pane === '模型') state.modelPane = null;
-        if (row.pane === 'MCP') void loadExtensions('mcp');
-        if (row.pane === '技能') void loadExtensions('skills');
-        renderSettings();
-      });
+      const chev = document.createElement('span');
+      chev.className = 'chev';
+      chev.textContent = '›';
+      button.append(main, chev);
+      button.addEventListener('click', () => openSettingsRow(item.pane));
       body.append(button);
     }
-    wrap.append(label, body);
-    options.append(wrap);
+    options.append(body);
   }
+
+  // Danger card at the bottom, then the notice as a bare caption.
+  const danger = document.createElement('div');
+  danger.className = 'group';
+  const dangerRow = document.createElement('button');
+  dangerRow.type = 'button';
+  dangerRow.className = 'link-row danger';
+  dangerRow.append(svgNode('<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M8 3.5H4.5v13H8M12 6.5 15.5 10 12 13.5M15.5 10H7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
+  const dangerMain = document.createElement('span');
+  dangerMain.className = 'link-main';
+  const dangerTitle = document.createElement('span');
+  dangerTitle.className = 'link-title';
+  dangerTitle.textContent = '断开这台设备';
+  dangerMain.append(dangerTitle);
+  dangerRow.append(dangerMain);
+  dangerRow.addEventListener('click', () => logoutDevice());
+  danger.append(dangerRow);
+  options.append(danger);
+
+  const notice = descNode(state.transport === 'chisacode'
+    ? '手机外观和会话选项只留在本机；电脑窗口设置请在电脑端操作。'
+    : '远程页上的改动只留在这次连接，不会写回电脑上的 settings.yaml。标了「电脑」的项会改 Host 窗口。',
+    'row-desc settings-note');
+  options.append(notice);
 }
 
 function renderPhoneAppearance() {
@@ -4521,6 +4710,7 @@ function renderSettings() {
   const pane = state.settingsPane;
   settingsTitle.textContent = pane || '设置';
   settingsBack.classList.toggle('hidden', !pane);
+  el('close-settings').classList.toggle('hidden', Boolean(pane));
   options.replaceChildren();
   if (!pane) {
     renderSettingsHub();
@@ -4638,11 +4828,14 @@ function sheetItem({ label, hint = '', enabled = true, onClick }) {
 
 function sheetLayer(title, closeSheet) {
   const task = Boolean(state.newSession || state.history || state.gitDialog === 'branch');
+  const bottom = !task && Boolean(state.pickerSheet || state.attachOpen);
   const anchor = state.pickerSheet ? 'composer' : state.gitDialog === 'menu' ? 'header' : 'viewport';
   const result = createSurface(document, {
-    title, task, variant: task ? 'task' : 'menu', anchor,
+    title, task, variant: task ? 'task' : bottom ? 'bottom' : 'menu', anchor,
     onClose: () => { if (!navigationBusy()) closeSheet(); },
-    onBack: task ? () => navigation.back() : null,
+    onBack: (task || (bottom && state.pickerSheet === 'model' && state.pickerPage))
+      ? () => navigation.back()
+      : null,
   });
   result.panel.setAttribute('aria-label', title);
   if (state.gitDialog && state.gitError) {
@@ -4845,15 +5038,16 @@ function pickerRow({ label, hint = '', current = false, enabled = true, onClick 
 
 function closePicker() {
   state.pickerSheet = '';
+  state.pickerPage = '';
   renderSheet();
 }
 
-/** 权限 picker: the composer chip's sheet (desktop PermissionSelect menu). */
-function renderModePickerSheet() {
-  const { layer, sheet } = sheetLayer('权限', closePicker);
+function modePickerCard() {
   const { modes, currentModeId } = currentModeState();
+  const card = document.createElement('div');
+  card.className = 'card';
   for (const mode of modes) {
-    sheet.append(pickerRow({
+    card.append(pickerRow({
       label: mode.label,
       hint: mode.desc || '',
       current: mode.id === currentModeId,
@@ -4863,49 +5057,138 @@ function renderModePickerSheet() {
       },
     }));
   }
+  return card;
+}
+
+/** 权限 picker: the composer chip's sheet (desktop PermissionSelect menu). */
+function renderModePickerSheet() {
+  const { layer, sheet } = sheetLayer('权限', closePicker);
+  sheet.append(modePickerCard());
   if (state.pickerError) sheet.append(descNode(state.pickerError, 'error'));
   sheetRoot.append(layer);
 }
 
-/** 模型 picker: models grouped by provider, plus the current model's thinking efforts. */
-function renderModelPickerSheet() {
-  const { layer, sheet } = sheetLayer('模型', closePicker);
-  if (!state.modelPane) loadModelPane();
-  const pane = state.modelPane;
-  const { current, rows } = state.modelCatalog;
-  const controls = document.createElement('div');
-  controls.className = 'picker-controls';
-  controls.append(descNode(modelChipLabel(current, rows), 'model-current'));
+const DRILL_ICONS = {
+  effort: '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v4l2.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  mode: '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5 4 5v4.5c0 3.6 2.6 6.6 6 8 3.4-1.4 6-4.4 6-8V5l-6-2.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  more: '<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="15.5" cy="10" r="1.5"/></svg>',
+};
+const DRILL_CHEVRON = '<svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function drillRow({ icon, title, value, accent = false, enabled = true, onClick }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'drill';
+  button.disabled = !enabled;
+  const round = document.createElement('span');
+  round.className = 'drill-icon';
+  round.append(svgNode(icon));
+  const main = document.createElement('span');
+  main.className = 'drill-main';
+  const t = document.createElement('span');
+  t.className = 'drill-title';
+  t.textContent = title;
+  main.append(t);
+  if (value) {
+    const v = document.createElement('span');
+    v.className = `drill-value${accent ? ' accent' : ''}`;
+    v.textContent = value;
+    main.append(v);
+  }
+  button.append(round, main, svgNode(DRILL_CHEVRON));
+  if (enabled) button.addEventListener('click', onClick);
+  return button;
+}
+
+function modelRowButton(row, current) {
+  const routable = isRoutable(row);
+  return pickerRow({
+    label: row.name,
+    hint: !routable ? '尚未配置，请在电脑端配置此模型' : (row.reasoning ? '可调整思考强度' : ''),
+    current: current?.provider === row.provider && current?.model === row.id,
+    enabled: !state.modelBusy && routable,
+    onClick: () => changeAgentModel(row.provider, row.id),
+  });
+}
+
+function setPickerPage(page) {
+  state.pickerPage = page;
+  renderSheet();
+}
+
+/** 模型 picker root page: current provider's models + 思考强度/权限/更多模型 drills. */
+function renderModelPickerRoot(sheet, { current, rows }) {
+  const efforts = effortsFor(current, rows);
+  const provider = current?.provider || rows[0]?.provider;
+  const providerRows = rows.filter((row) => row.provider === provider);
+  const card = document.createElement('div');
+  card.className = 'card';
+  for (const row of providerRows) card.append(modelRowButton(row, current));
+  if (!providerRows.length) card.append(descNode('没有可用模型', 'sheet-note'));
+  sheet.append(card);
+  if (efforts.length) {
+    const effortName = efforts.find((effort) => effort.id === current?.reasoningEffort)?.name
+      || current?.reasoningEffort || '';
+    const drillCard = document.createElement('div');
+    drillCard.className = 'card';
+    drillCard.append(drillRow({
+      icon: DRILL_ICONS.effort,
+      title: '思考强度',
+      value: effortName,
+      accent: true,
+      onClick: () => setPickerPage('effort'),
+    }));
+    sheet.append(drillCard);
+  }
+  const modeCard = document.createElement('div');
+  modeCard.className = 'card';
+  modeCard.append(drillRow({
+    icon: DRILL_ICONS.mode,
+    title: '权限',
+    value: currentModeState().currentLabel,
+    onClick: () => setPickerPage('mode'),
+  }));
+  sheet.append(modeCard);
+  const routableCount = rows.filter(isRoutable).length;
+  const moreCard = document.createElement('div');
+  moreCard.className = 'card';
+  moreCard.append(drillRow({
+    icon: DRILL_ICONS.more,
+    title: '更多模型',
+    value: `按提供方浏览 · ${routableCount} 个`,
+    onClick: () => setPickerPage('more'),
+  }));
+  sheet.append(moreCard);
+}
+
+/** 模型 picker「思考强度」page: effort rows with a trailing check. */
+function renderModelPickerEffort(sheet, { current, rows }) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  for (const effort of effortsFor(current, rows)) {
+    card.append(pickerRow({
+      label: effort.name || effort.id,
+      current: current?.reasoningEffort === effort.id,
+      enabled: !state.modelBusy,
+      onClick: () => {
+        if (current) changeAgentModel(current.provider, current.model, effort.id);
+      },
+    }));
+  }
+  sheet.append(card);
+}
+
+/** 模型 picker「更多模型」page: search field + provider-grouped full list. */
+function renderModelPickerMore(sheet, { current, rows, pane }) {
   const searchInput = fieldInput(state.modelQuery, '搜索模型或提供方', (value) => {
     state.modelQuery = value;
     renderRows();
   });
   searchInput.setAttribute('aria-label', '搜索模型');
   searchInput.classList.add('model-search');
-  controls.append(searchInput);
-  const efforts = effortsFor(current, rows);
-  if (efforts.length) {
-    const segment = document.createElement('div');
-    segment.className = 'effort-segment';
-    segment.setAttribute('aria-label', '思考强度');
-    for (const effort of efforts) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'effort-option';
-      button.disabled = state.modelBusy;
-      button.setAttribute('aria-pressed', String(current?.reasoningEffort === effort.id));
-      button.textContent = effort.name || effort.id;
-      button.addEventListener('click', () => {
-        if (current) changeAgentModel(current.provider, current.model, effort.id);
-      });
-      segment.append(button);
-    }
-    controls.append(segment);
-  }
-  if (state.pickerError) controls.append(descNode(state.pickerError, 'error'));
-  sheet.parentElement.insertBefore(controls, sheet);
+  sheet.append(searchInput);
   const list = document.createElement('div');
-  list.className = 'model-results';
+  list.className = 'card model-results';
   function renderRows() {
     list.replaceChildren();
     const query = state.modelQuery.trim().toLocaleLowerCase();
@@ -4916,17 +5199,22 @@ function renderModelPickerSheet() {
         provider = row.providerName;
         list.append(descNode(provider || '模型', 'sheet-title sheet-group'));
       }
-      const routable = isRoutable(row);
-      list.append(pickerRow({
-        label: row.name,
-        hint: !routable ? '尚未配置，请在电脑端配置此模型' : (row.reasoning ? '可调整思考强度' : ''),
-        current: current?.provider === row.provider && current?.model === row.id,
-        enabled: !state.modelBusy && routable,
-        onClick: () => changeAgentModel(row.provider, row.id),
-      }));
+      list.append(modelRowButton(row, current));
     }
     if (!matches.length && !pane?.loading) list.append(descNode('没有匹配的模型', 'sheet-note'));
   }
+  renderRows();
+  sheet.append(list);
+}
+
+/** 模型 picker: provider models on the root page, drills switch pages in place. */
+function renderModelPickerSheet() {
+  const pageTitles = { effort: '思考强度', mode: '权限', more: '更多模型' };
+  const { layer, sheet } = sheetLayer(pageTitles[state.pickerPage] || '选择模型', closePicker);
+  if (!state.modelPane) loadModelPane();
+  const pane = state.modelPane;
+  const { current, rows } = state.modelCatalog;
+  if (state.pickerError) sheet.append(descNode(state.pickerError, 'error'));
   if (pane?.loading && !rows.length) {
     const note = document.createElement('p');
     note.className = 'sheet-note';
@@ -4937,9 +5225,14 @@ function renderModelPickerSheet() {
     note.className = 'sheet-note sheet-error';
     note.textContent = `读取模型失败：${pane.error}`;
     sheet.append(note, sheetItem({ label: '重试', onClick: () => { loadModelPane(); renderSheet(); } }));
+  } else if (state.pickerPage === 'effort') {
+    renderModelPickerEffort(sheet, { current, rows });
+  } else if (state.pickerPage === 'mode') {
+    sheet.append(modePickerCard());
+  } else if (state.pickerPage === 'more') {
+    renderModelPickerMore(sheet, { current, rows, pane });
   } else {
-    renderRows();
-    sheet.append(list);
+    renderModelPickerRoot(sheet, { current, rows });
   }
   sheetRoot.append(layer);
 }
@@ -4957,6 +5250,7 @@ function openPicker(kind) {
   state.workspaceMenu = '';
   state.pickerError = '';
   state.modelQuery = '';
+  state.pickerPage = '';
   setDrawerOpen(false);
   clearExclusiveDialogs();
   state.attachOpen = false;
@@ -5012,15 +5306,18 @@ function renderSheet() {
     }
   }
   if (state.attachOpen) {
-    const { layer, sheet } = sheetLayer('添加', () => {
+    const { layer, sheet } = sheetLayer('添加附件', () => {
       state.attachOpen = false;
       renderSheet();
     });
-    sheet.append(
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.append(
       sheetItem({ label: '拍照', onClick: () => { state.attachOpen = false; renderSheet(); fileCamera.click(); } }),
       sheetItem({ label: '从相册选择', onClick: () => { state.attachOpen = false; renderSheet(); fileGallery.click(); } }),
       sheetItem({ label: '从工作区选文件', onClick: () => { state.attachOpen = false; renderSheet(); openSettings('文件'); openFilesPane(); } }),
     );
+    sheet.append(card);
     sheetRoot.append(layer);
     return;
   }
@@ -5632,17 +5929,28 @@ el('menu').addEventListener('click', () => {
   setDrawerOpen(!phone.hasAttribute('data-drawer'));
 });
 backdrop.addEventListener('click', () => setDrawerOpen(false));
-el('drawer-close').addEventListener('click', () => setDrawerOpen(false));
-el('new-session').addEventListener('click', () => {
-  createSession().catch((error) => showBanner(error.message));
-});
-el('open-workspace').addEventListener('click', () => {
+function openWorkspacePane() {
   openSettings('工作区');
   refreshGit();
   if (state.wsTab === 'files') openFilesPane();
   else openChangesTab();
+}
+el('new-session').addEventListener('click', () => {
+  createSession().catch((error) => showBanner(error.message));
 });
-el('open-settings').addEventListener('click', () => openSettings(''));
+el('new-chat-top').addEventListener('click', () => {
+  createSession().catch((error) => showBanner(error.message));
+});
+el('nav-sessions').addEventListener('click', () => openSessionsPage());
+el('nav-workspace').addEventListener('click', () => openWorkspacePane());
+el('nav-settings').addEventListener('click', () => openSettings(''));
+el('drawer-account').addEventListener('click', () => openSettings('连接详情'));
+el('sessions-back').addEventListener('click', () => {
+  navigation.back();
+});
+el('sessions-new').addEventListener('click', () => {
+  createSession().catch((error) => showBanner(error.message));
+});
 settingsBack.addEventListener('click', () => {
   navigation.back();
 });
@@ -5680,6 +5988,7 @@ stopBtn.addEventListener('click', () => cancelRun());
 el('attach-toggle').addEventListener('click', () => {
   if (navigationBusy()) return;
   state.pickerSheet = '';
+  state.pickerPage = '';
   state.newSession = null;
   state.attachOpen = !state.attachOpen;
   state.gitDialog = '';
@@ -5709,6 +6018,7 @@ gitPill.addEventListener('click', () => {
   // (branch switch + fetch / pull / commit / push / PR) in place.
   clearExclusiveDialogs();
   state.pickerSheet = '';
+  state.pickerPage = '';
   state.attachOpen = false;
   state.gitDialog = 'menu';
   renderSheet();

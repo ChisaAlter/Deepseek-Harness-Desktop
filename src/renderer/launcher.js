@@ -330,13 +330,140 @@ function desktopStateLabel(state) {
     error: '异常',
     stopped: '未运行',
     idle: '未运行',
+    'running-external': '运行中',
   };
   return labels[state] || String(state || '');
 }
 
 function desktopIsRunning(desktop) {
   const state = desktop?.state;
-  return state === 'ready' || state === 'starting';
+  return state === 'ready' || state === 'starting' || state === 'running-external';
+}
+
+// --- Download route + runtime install (slim package / missing runtime) -----
+
+let lastStatus = null;
+let installBusy = false;
+
+function selectedRoute() {
+  const picked = document.querySelector('input[name="dl-route"]:checked:not(:disabled)');
+  return picked ? picked.value : '';
+}
+
+// Both the home card and the settings row render from the same status payload
+// (status.routes / status.downloadRoute); unverified routes are visible but
+// not selectable per plan ("标注未完成" before real-file verification).
+function renderRouteControls(status) {
+  const routes = Array.isArray(status?.routes) ? status.routes : [];
+  const current = status?.downloadRoute || '';
+  const picker = $('route-picker');
+  if (picker) {
+    picker.innerHTML = routes.map((route) => `
+      <label class="route-card${route.verified ? '' : ' is-disabled'}">
+        <input type="radio" name="dl-route" value="${escapeHtml(route.id)}"
+          ${route.id === current ? 'checked' : ''} ${route.verified ? '' : 'disabled'} />
+        <span class="route-card-main">
+          <span class="route-card-name">${escapeHtml(route.label)}${route.verified ? '' : ' <span class="badge warn">未启用</span>'}</span>
+          <span class="route-card-desc">${escapeHtml(route.detail || '')}</span>
+        </span>
+      </label>`).join('');
+    picker.querySelectorAll('input[name="dl-route"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        void pageShell()?.saveLauncherConfig({ downloadRoute: input.value });
+      });
+    });
+  }
+  const seg = $('route-seg');
+  if (seg) {
+    seg.innerHTML = routes.map((route) => `
+      <button type="button" class="seg${route.id === current ? ' is-active' : ''}"
+        data-route="${escapeHtml(route.id)}" ${route.verified ? '' : 'disabled'}
+        title="${escapeHtml(route.detail || '')}${route.verified ? '' : '（待验证）'}">${escapeHtml(route.label)}</button>`).join('');
+    seg.querySelectorAll('[data-route]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          await pageShell()?.saveLauncherConfig({ downloadRoute: button.dataset.route });
+          void refreshStatus();
+        } catch (error) {
+          setHint(error && error.message ? error.message : '设置保存失败');
+        }
+      });
+    });
+  }
+}
+
+function renderInstallCard(status) {
+  const card = $('home-install');
+  if (!card) {
+    return;
+  }
+  const installed = status?.installed;
+  const launcherPackage = status?.launcherPackage === true;
+  const missing = Boolean(installed) && installed.registeredInstall === false;
+  // Slim package without a runtime: the start actions have nothing to drive.
+  const hideStart = launcherPackage && missing;
+  $('home-actions').hidden = hideStart;
+  card.hidden = !missing;
+  if (!missing) {
+    return;
+  }
+  $('install-lede').textContent = launcherPackage
+    ? '未检测到本机安装的桌面端。选择下载线路后安装，安装完成后可在本窗口启动。'
+    : '未检测到本机安装的正式版。可先下载安装（不影响当前源码运行），或直接启动源码版。';
+  renderRouteControls(status);
+}
+
+function installPhaseText(payload) {
+  const phases = {
+    resolve: '正在获取版本信息…',
+    verify: '正在校验安装包…',
+    install: '正在启动安装程序…',
+    'install-wait': payload?.installerDone ? '等待安装完成…' : '安装程序运行中…',
+  };
+  if (payload?.phase === 'download') {
+    return `${payload.differential ? '增量下载' : '下载'} ${payload.percent || 0}%`;
+  }
+  return phases[payload?.phase] || payload?.phase || '处理中';
+}
+
+async function installRuntime() {
+  const api = pageShell();
+  if (!api || installBusy) {
+    return;
+  }
+  const route = selectedRoute() || lastStatus?.downloadRoute || '';
+  if (!route) {
+    setHint('请先选择下载线路。');
+    return;
+  }
+  installBusy = true;
+  const progress = $('install-progress');
+  const btnInstall = $('btn-install-runtime');
+  const btnCancel = $('btn-install-cancel');
+  btnInstall.disabled = true;
+  btnCancel.hidden = false;
+  progress.hidden = false;
+  progress.textContent = '正在获取版本信息…';
+  try {
+    const result = await api.installRuntime({ route });
+    if (result?.status === 'installed' || result?.ok === true) {
+      progress.textContent = `安装完成${result?.installed?.version ? `：v${result.installed.version}` : ''}`;
+      setHint('桌面端已安装，可启动。');
+      void refreshStatus();
+    } else if (result?.cancelled) {
+      progress.textContent = result.message || '已取消';
+    } else {
+      progress.textContent = result?.message === 'no-installer'
+        ? '该版本未提供 Setup 安装包。'
+        : (result?.message || '安装失败');
+    }
+  } catch (error) {
+    progress.textContent = error && error.message ? error.message : String(error);
+  } finally {
+    installBusy = false;
+    btnInstall.disabled = false;
+    btnCancel.hidden = true;
+  }
 }
 
 async function refreshStatus() {
@@ -345,11 +472,19 @@ async function refreshStatus() {
     return;
   }
   const status = await api.launcherStatus();
-  const version = status?.version || status?.config?.appVersion || '';
+  lastStatus = status;
+  const launcherPackage = status?.launcherPackage === true;
+  // In the slim package "当前版本" is the managed desktop's version, not the
+  // launcher's own build number.
+  const version = launcherPackage
+    ? (status?.installed?.version || '')
+    : (status?.version || status?.config?.appVersion || '');
   const last = status?.lastStart;
   const desktop = status?.desktop;
   const recovery = status?.recovery || desktop?.pluginRecovery;
-  const bits = [`当前版本 ${version || '未知'}`];
+  const bits = [launcherPackage
+    ? `桌面端版本 ${version || '未安装'}`
+    : `当前版本 ${version || '未知'}`];
   if (desktop && desktop.state) {
     bits.push(`桌面端${desktopStateLabel(desktop.state)}`);
   }
@@ -362,6 +497,9 @@ async function refreshStatus() {
   $('home-status').textContent = bits.join(' · ');
   const btnStart = $('btn-start');
   btnStart.textContent = desktopIsRunning(desktop) ? '关闭桌面端' : '启动桌面端';
+  renderInstallCard(status);
+  renderRouteControls(status);
+  renderVersionsHead(status);
   renderHomeRecovery(status);
   const config = status?.config || await api.getConfig();
   $('opt-quit').checked = config.quitAfterStart !== false;
@@ -940,13 +1078,40 @@ async function refreshPlugins() {
   }
 }
 
+function renderVersionsHead(status) {
+  const lede = $('versions-lede');
+  const routeNode = $('versions-route');
+  if (!lede) {
+    return;
+  }
+  const routeId = status?.downloadRoute || '';
+  const routeName = routeId ? routeLabel(status?.routes, routeId) : '';
+  if (status?.launcherPackage) {
+    lede.textContent = routeName
+      ? `列出 ${routeName} 线路的正式版安装包。切换版本将下载对应 Setup 并安装桌面端，启动器保持运行。`
+      : '先在「设置 → 下载线路」或首页选择下载线路，再列出正式版安装包。';
+    if (routeNode) {
+      routeNode.hidden = !routeName;
+      routeNode.textContent = routeName ? `线路：${routeName}` : '';
+    }
+  } else {
+    lede.textContent = '列出 GitHub 正式版安装包。草稿不会出现在 latest；切换版本将下载对应 Setup 并启动安装程序。';
+    if (routeNode) {
+      routeNode.hidden = true;
+    }
+  }
+}
+
 async function installTag(tag, kind) {
   const api = pageShell();
   if (!api || !tag) {
     return;
   }
+  const launcherPackage = lastStatus?.launcherPackage === true;
   let message = `将安装 ${tag} 并替换当前应用，是否继续？`;
-  if (kind === 'update') {
+  if (launcherPackage) {
+    message = `将下载并安装 ${tag} 桌面端，是否继续？`;
+  } else if (kind === 'update') {
     message = `将更新到 ${tag}，Setup 会替换当前安装，是否继续？`;
   } else if (kind === 'switch') {
     message = `将切换到 ${tag}（较旧版本），Setup 会覆盖当前安装，是否继续？`;
@@ -957,7 +1122,16 @@ async function installTag(tag, kind) {
   $('update-progress').hidden = false;
   $('update-progress').textContent = '正在下载安装包…';
   const result = await api.installRelease(tag);
-  if (result && result.status === 'error') {
+  if (result?.status === 'installed' || (launcherPackage && result?.ok === true)) {
+    $('update-progress').textContent = `安装完成${result?.installed?.version ? `：v${result.installed.version}` : ''}`;
+    void refreshStatus();
+    return;
+  }
+  if (result?.cancelled) {
+    $('update-progress').textContent = result.message || '已取消';
+    return;
+  }
+  if (result && (result.status === 'error' || result.ok === false)) {
     $('update-progress').textContent = result.message === 'no-installer'
       ? '该版本未提供 Setup 安装包。'
       : (result.message || '安装失败');
@@ -1231,10 +1405,32 @@ function bind() {
   }
   if (api?.onUpdateProgress) {
     api.onUpdateProgress((payload) => {
+      const text = installPhaseText(payload);
       $('update-progress').hidden = false;
-      $('update-progress').textContent = payload?.phase === 'download'
-        ? `${payload.differential ? '增量下载' : '下载'} ${payload.percent || 0}%`
-        : (payload?.phase || '处理中');
+      $('update-progress').textContent = text;
+      const installProgress = $('install-progress');
+      if (installProgress && installBusy) {
+        installProgress.hidden = false;
+        installProgress.textContent = text;
+      }
+    });
+  }
+  if ($('btn-install-runtime')) {
+    $('btn-install-runtime').addEventListener('click', () => installRuntime());
+  }
+  if ($('btn-install-cancel')) {
+    $('btn-install-cancel').addEventListener('click', async () => {
+      const apiNow = pageShell();
+      try {
+        await apiNow?.cancelRuntimeInstall();
+      } catch {
+        // best effort — the install op resolves the cancel state itself
+      }
+      const progress = $('install-progress');
+      if (progress) {
+        progress.hidden = false;
+        progress.textContent = '正在取消…';
+      }
     });
   }
 }

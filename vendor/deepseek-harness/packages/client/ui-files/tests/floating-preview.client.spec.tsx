@@ -70,7 +70,7 @@ describe('FloatingPreviewButton', () => {
         t={t}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Floating preview' }))
+    fireEvent.click(screen.getByRole('button', { name: en['preview.floating'] }))
     await waitFor(() => {
       expect(previewOpenFileWindow).toHaveBeenCalledWith({
         cwd: '/tmp/resource',
@@ -89,7 +89,7 @@ describe('FloatingPreviewButton', () => {
         t={t}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Floating preview' }))
+    fireEvent.click(screen.getByRole('button', { name: en['preview.floating'] }))
     await waitFor(() => {
       expect(previewOpenFileWindow).toHaveBeenCalledWith({ absolutePath: '/tmp/a.ts' })
     })
@@ -104,7 +104,7 @@ describe('FloatingPreviewButton', () => {
         t={t}
       />,
     )
-    expect((screen.getByRole('button', { name: 'Floating preview' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: en['preview.floating'] }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('hides the action without the Desktop preload capability', () => {
@@ -115,7 +115,7 @@ describe('FloatingPreviewButton', () => {
         t={t}
       />,
     )
-    expect(screen.queryByRole('button', { name: 'Floating preview' })).toBeNull()
+    expect(screen.queryByRole('button', { name: en['preview.floating'] })).toBeNull()
   })
 
   it('leaves a dirty editor untouched when the floating viewer opens', async () => {
@@ -143,7 +143,7 @@ describe('FloatingPreviewButton', () => {
     )
     const editor = await screen.findByLabelText('src/a.ts') as HTMLTextAreaElement
     fireEvent.change(editor, { target: { value: 'unsaved draft' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Floating preview' }))
+    fireEvent.click(screen.getByRole('button', { name: en['preview.floating'] }))
     await waitFor(() => {
       expect(previewOpenFileWindow).toHaveBeenCalledWith({
         cwd: '/tmp/resource',
@@ -165,7 +165,7 @@ describe('FloatingPreviewButton', () => {
         t={t}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Floating preview' }))
+    fireEvent.click(screen.getByRole('button', { name: en['preview.floating'] }))
     view.rerender(
       <FloatingPreviewButton
         resourceAddress={sessionFileAddress('resource-session', 'src/a.ts')}
@@ -196,8 +196,8 @@ describe('FloatingPreviewButton', () => {
         t={t}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Floating preview' }))
-    expect((await screen.findByRole('alert')).textContent).toBe('Could not open the floating preview.')
+    fireEvent.click(screen.getByRole('button', { name: en['preview.floating'] }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Could not open the separate preview window.')
     expect(previewOpenFileWindow).toHaveBeenCalledTimes(1)
   })
 })

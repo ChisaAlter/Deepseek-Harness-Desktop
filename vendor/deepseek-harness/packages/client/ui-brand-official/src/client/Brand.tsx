@@ -1,19 +1,29 @@
-import { BrandWordmark, FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import css from './Brand.module.css'
 
 /**
- * Render the official mark with the presentation requested by its host surface.
- * @param props - Host-supplied mark presentation.
- * @returns the official whale mark.
+ * Suppress the image mark while occupying the sidebar slot so its fish fallback
+ * cannot reappear in official builds.
  */
-export function OfficialBrandMark({ size }: SidebarBrandMarkOwnerProps) {
-  return <FishLogo size={size} />
+export function OfficialBrandMark(_props: SidebarBrandMarkOwnerProps) {
+  return null
 }
 
 /**
- * Render the official name artwork without its independently slotted mark.
- * @returns the official name wordmark.
+ * Render the Whale Isle wordmark with the transparent head and Harness attribution.
+ * @returns the Whale Isle wordmark.
  */
 export function OfficialBrandName() {
-  return <BrandWordmark includeMark={false} />
+  return (
+    <span className={css.wordmark} data-whale-isle-brand="name">
+      <img className={css.avatar} src="/whale-isle-head.png" alt="" />
+      <span className={css.nameBlock}>
+        <span className={css.titleRow}>
+          <span className={css.chineseName}><span>鲸</span><span className={css.isleGlyph}>屿</span></span>
+          <span className={css.englishName}>WHALE ISLE</span>
+        </span>
+        <span className={css.attribution}>BASED ON DEEPSEEK HARNESS</span>
+      </span>
+    </span>
+  )
 }

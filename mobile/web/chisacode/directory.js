@@ -201,6 +201,7 @@ export {
   deleteMobileAgent,
   groupSessionRows,
   isReadOnlyRow,
+  isSubagentRow,
   listArchivedAgents,
   mergeAgentRows,
   regenerateMobileTitle,

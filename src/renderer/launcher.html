@@ -50,11 +50,23 @@
             <p class="lede" id="lede">检查更新并启动桌面端。数据导入、版本管理与插件排查可在左侧分区完成。</p>
           </header>
           <p class="status" id="home-status">正在读取状态…</p>
-          <div class="actions">
+          <div class="actions" id="home-actions">
             <button type="button" class="primary" id="btn-start">启动桌面端</button>
             <button type="button" class="ghost" id="btn-skip">跳过用户插件启动</button>
             <button type="button" class="ghost" id="btn-retry-full">恢复完整插件并启动</button>
           </div>
+          <section id="home-install" class="install-card" hidden>
+            <header class="install-head">
+              <h3>安装桌面端</h3>
+              <p class="lede" id="install-lede">未检测到本机安装的桌面端。选择下载线路后安装。</p>
+            </header>
+            <div class="route-picker" id="route-picker" role="radiogroup" aria-label="下载线路"></div>
+            <div class="actions">
+              <button type="button" class="primary" id="btn-install-runtime">下载并安装</button>
+              <button type="button" class="ghost" id="btn-install-cancel" hidden>取消</button>
+            </div>
+            <p class="progress" id="install-progress" hidden></p>
+          </section>
           <section id="home-recovery" class="recovery-board" hidden>
             <header class="recovery-head">
               <h3>恢复工作台</h3>
@@ -136,10 +148,11 @@
         <section id="panel-versions" class="panel" role="tabpanel" hidden>
           <header class="page-head">
             <h2>版本</h2>
-            <p class="lede">列出 GitHub 正式版安装包。草稿不会出现在 latest；切换版本将下载对应 Setup 并启动安装程序。</p>
+            <p class="lede" id="versions-lede">列出 GitHub 正式版安装包。草稿不会出现在 latest；切换版本将下载对应 Setup 并启动安装程序。</p>
           </header>
           <div class="actions">
             <button type="button" class="ghost" id="btn-refresh-releases">刷新列表</button>
+            <span class="row-meta" id="versions-route" hidden></span>
           </div>
           <section class="installed-card" id="installed-card">
             <div class="installed-card-main">
@@ -167,6 +180,13 @@
             <h2>设置</h2>
             <p class="lede">以下选项仅作用于启动器。完整应用设置请在桌面端中调整。</p>
           </header>
+          <div class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">下载线路</span>
+              <span class="switch-desc">桌面端安装与更新的下载来源。Gitee 国内线路待验证，暂未开放。</span>
+            </span>
+            <span class="route-seg" id="route-seg" role="radiogroup" aria-label="下载线路"></span>
+          </div>
           <label class="switch-row">
             <span class="switch-copy">
               <span class="switch-title">就绪后关闭启动器</span>

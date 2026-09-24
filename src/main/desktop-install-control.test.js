@@ -199,6 +199,33 @@ describe('desktop install control', { concurrency: false }, () => {
     assert.deepEqual(seen, [{ theme: 'ocean' }]);
   });
 
+  test('/desktop/pet-settings reads and writes through desktop ops with authentication', async () => {
+    const seen = [];
+    startDesktopInstallControl({
+      installPlugin: async () => ({ ok: true }),
+      startHarness: async () => {},
+      desktop: {
+        petSettings: () => ({ ok: true, settings: { personality: 'natural' } }),
+        applyPetSettings: (patch) => {
+          seen.push(patch);
+          return { ok: true, settings: { personality: 'genki' } };
+        },
+      },
+    });
+    const { url, token } = await desktopInstallReady();
+    const endpoint = new URL('/desktop/pet-settings', url);
+    assert.equal((await fetch(endpoint)).status, 401);
+    const read = await fetch(endpoint, { headers: { authorization: `Bearer ${token}` } });
+    assert.equal((await read.json()).settings.personality, 'natural');
+    const update = await fetch(endpoint, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ patch: { personality: 'genki' } }),
+    });
+    assert.equal((await update.json()).settings.personality, 'genki');
+    assert.deepEqual(seen, [{ personality: 'genki' }]);
+  });
+
   test('/desktop/plugin install by catalog id routes to installCatalog and restarts', async () => {
     const order = [];
     startDesktopInstallControl({

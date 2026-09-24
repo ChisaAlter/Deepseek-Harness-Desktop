@@ -17,6 +17,7 @@ export interface MiniPlayerRuntime {
 
 export interface MiniPlayerSnapshot {
   readonly previewId: string | null
+  readonly label: string | null
   readonly open: boolean
   readonly suspended: boolean
   readonly geometry: MiniPlayerGeometry | null
@@ -24,7 +25,7 @@ export interface MiniPlayerSnapshot {
   readonly revision: number
 }
 
-const EMPTY: MiniPlayerSnapshot = { previewId: null, open: false, suspended: false, geometry: null, runtime: null, revision: 0 }
+const EMPTY: MiniPlayerSnapshot = { previewId: null, label: null, open: false, suspended: false, geometry: null, runtime: null, revision: 0 }
 let snapshot = EMPTY
 const listeners = new Set<() => void>()
 
@@ -49,8 +50,13 @@ export function setMiniPlayerRuntime(previewId: string, runtime: MiniPlayerRunti
   publish({ ...snapshot, previewId, runtime })
 }
 
-export function openMiniPlayer(previewId: string): void {
-  publish({ ...snapshot, previewId, open: true })
+export function openMiniPlayer(previewId: string, label?: string): void {
+  publish({ ...snapshot, previewId, label: label || snapshot.label, open: true })
+}
+
+export function setMiniPlayerLabel(previewId: string, label: string): void {
+  if (snapshot.previewId !== previewId || snapshot.label === label) return
+  publish({ ...snapshot, label })
 }
 
 export function closeMiniPlayer(): void {

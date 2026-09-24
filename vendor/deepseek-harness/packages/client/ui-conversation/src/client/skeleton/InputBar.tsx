@@ -239,6 +239,7 @@ export const InputBar = memo(function InputBar({
   const intakeFiles = useCallback((files: readonly File[], directories?: ReadonlySet<File>): void => {
     if (subagent !== null || addFiles === undefined) return
     const rejected = directories === undefined ? [] : [...directories]
+    const accepted = directories === undefined ? files : files.filter(file => !directories.has(file))
     // One toast slot: collect every refusal from this batch into a single
     // announcement so a mixed folder + refused-file drop loses neither.
     const notices: string[] = []
@@ -248,11 +249,11 @@ export const InputBar = memo(function InputBar({
         ? t('file.directoryRejected', { name: first.name || t('file.label') })
         : t('file.directoriesRejected', { count: rejected.length }))
     }
-    if (files.length > 0) {
+    if (accepted.length > 0) {
       const refused = ((): string | null => {
         if (imageLimits !== undefined) {
           const mediaTypes = imageLimits.mediaTypes as readonly string[]
-          const images = files.filter(file => mediaTypes.includes(file.type))
+          const images = accepted.filter(file => mediaTypes.includes(file.type))
           const imageAttachments = attachments.filter(attachment => attachment.kind === 'image')
           if (imageAttachments.length + images.length > imageLimits.maxImagesPerMessage) {
             return t('image.tooMany', { count: imageLimits.maxImagesPerMessage })
@@ -266,7 +267,7 @@ export const InputBar = memo(function InputBar({
             return t('image.totalTooLarge', { size: imageSizeText(imageLimits.maxMessageImageBytes) })
           }
         }
-        return addFiles(files)
+        return addFiles(accepted)
       })()
       if (refused !== null) notices.push(refused)
     }

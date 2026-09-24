@@ -1,4 +1,4 @@
-/** File identity, Sidebar preview, and contributed native actions for one delivery. */
+/** File identity, in-app preview, and contributed native actions for one delivery. */
 import type { ReactNode } from 'react'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import { FileTypeIcon, fileExtension } from '@deepseek-ai/dsh-client-ui-primitives'

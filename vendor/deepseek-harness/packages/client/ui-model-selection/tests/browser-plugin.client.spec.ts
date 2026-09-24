@@ -385,6 +385,7 @@ describe('ui-model-selection dual entry', () => {
     const directory = b.ctx.modelDirectories.directoryFor(sid('s1'))
     try {
       expect(directory).not.toBe(oldDirectory)
+      await directory.load()
       expect(directory.store.getSnapshot().routable).toBe(false)
       expect(b.blockOf('s1')?.reason).toBe(zh['blocked.composer'])
       await first.fiber.dispose()
@@ -407,6 +408,7 @@ describe('ui-model-selection dual entry', () => {
       next: { provider: routable ? 'deepseek-official' : 'missing', model: 'replacement' } })
     const directory = b.ctx.modelDirectories.directoryFor(sid('s1'))
     try {
+      await directory.load()
       expect(directory.store.getSnapshot().routable).toBe(routable)
       const expected = b.blockOf('s1')
       await Promise.resolve().then(() => {

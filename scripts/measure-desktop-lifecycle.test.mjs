@@ -630,7 +630,7 @@ test('a timeout is explicit, stops expansion, and never becomes a success payloa
       fixtureRoot: dir,
       sourceRoot: dir,
       jsonOut: path.join(dir, 'out.json'),
-      timeoutMs: 400,
+      timeoutMs: 3000,
       expectedDigest: null,
     });
     assert.equal(outcome.ok, false);

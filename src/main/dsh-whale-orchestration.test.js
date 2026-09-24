@@ -20,6 +20,10 @@ let observe;
 let sessionTools;
 let desktopTools;
 let stickerTools;
+let whalePersona;
+let whalePreset;
+let profileTools;
+let whaleTools;
 
 const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-pulse-'));
 
@@ -70,6 +74,41 @@ test.before(async () => {
   sessionTools = await import(whaleLib('session-tools.js'));
   desktopTools = await import(whaleLib('desktop-tools.js'));
   stickerTools = await import(whaleLib('sticker-tools.js'));
+  whalePersona = await import(whaleLib('persona.js'));
+  whalePreset = await import(whaleLib('preset.js'));
+  profileTools = await import(whaleLib('profile-tools.js'));
+  whaleTools = await import(whaleLib('tools.js'));
+});
+
+test('configured whale name survives prompt assembly instead of a blank complete prefix', async () => {
+  const text = whalePersona.buildPersonaText({ name: '吃白饭的' });
+  assert.match(text, /^你当前的名字是「吃白饭的」。用户问你叫什么时，直接回答「吃白饭的」/);
+  assert.match(text, /「鲸鱼娘」是角色类型，不自动代替用户设置的名字/);
+  const runtimePersona = whalePreset.whalePresetDefinition(tmpHome).plugins.find((row) => row.id === 'persona');
+  assert.equal(runtimePersona.config.prefix, '');
+  assert.notEqual(runtimePersona.config.complete, true,
+    'complete:true on the empty prefix discards dsh-whale:persona at assembly');
+  const bundledPersona = fs.readFileSync(path.join(__dirname, '..', '..', 'vendor', 'dsh-whale', 'presets', 'whale-girl', 'agent.cordis.yml'), 'utf8');
+  assert.doesNotMatch(bundledPersona, /^\s+complete:\s+true\s*$/m);
+  const [{ default: SystemPrompt, renderPrompt }, { Context }] = await Promise.all([
+    import(pathToFileURL(path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness', 'packages', 'core', 'system-prompt', 'lib', 'index.js')).href),
+    import(pathToFileURL(path.join(__dirname, '..', '..', 'vendor', 'dsh-whale', 'node_modules', '@deepseek-ai', 'cordis', 'lib', 'index.js')).href),
+  ]);
+  const ctx = new Context();
+  try {
+    await ctx.plugin(SystemPrompt, {});
+    ctx.systemPrompt.section({
+      name: 'whale-preset:prefix', order: 0, text: runtimePersona.config.prefix,
+      ...(runtimePersona.config.complete ? { complete: true } : {}),
+    });
+    let currentName = '吃白饭的';
+    ctx.systemPrompt.section({ name: 'dsh-whale:persona', order: 20, text: () => whalePersona.buildPersonaText({ name: currentName }) });
+    assert.match(renderPrompt(await ctx.systemPrompt.assemble()), /你当前的名字是「吃白饭的」/);
+    currentName = '小饭鲸';
+    assert.match(renderPrompt(await ctx.systemPrompt.assemble()), /你当前的名字是「小饭鲸」/);
+  } finally {
+    await ctx.fiber.dispose();
+  }
 });
 
 // ── observe: watches / event buffer / schedules ────────────────
@@ -297,6 +336,41 @@ test('whale control tools call through with the right request shapes', async () 
   assert.equal(seen[4][1].saveAsDefault, false);
 });
 
+test('the whale cannot create or fork a second whale conversation', async () => {
+  const calls = [];
+  const { ctx, tools } = stubCtx({
+    create: async (request) => { calls.push(request); return { sessionId: 'new' }; },
+    fork: async (request) => { calls.push(request); return { sessionId: 'fork' }; },
+  });
+  whaleTools.apply(ctx);
+  assert.equal((await tools.get('whale_new_session').execute({ cwd: tmpHome, agentPreset: 'whale-girl' })).ok, false);
+  sessionTools.registerSessionTools(ctx, { getSelfId: () => 'resident-whale' });
+  assert.equal((await tools.get('whale_fork_session').execute({ sessionId: 'resident-whale' })).ok, false);
+  assert.deepEqual(calls, []);
+});
+
+test('whale profile settings use conflict-checked scope and preserve the resident id', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-profile-'));
+  const saved = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  try {
+    const { ctx, tools } = stubCtx(makeController());
+    profileTools.registerProfileTools(ctx);
+    const tool = tools.get('whale_profile_settings');
+    assert.equal((await tool.execute({ patch: { name: '吃白饭的' } })).ok, true);
+    const current = await tool.execute({});
+    assert.match(current.detail, /吃白饭的/);
+    assert.equal((await tool.execute({ patch: { sessionId: 'replacement' } })).ok, false);
+    const savedProfile = JSON.parse(fs.readFileSync(path.join(home, 'data', 'whale', 'settings.json'), 'utf8'));
+    assert.equal(savedProfile.sessionId, '');
+    assert.equal(savedProfile.imDefault, true);
+  } finally {
+    if (saved === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = saved;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test('whale tools degrade cleanly when the controller is unavailable', async () => {
   const { ctx, tools } = stubCtx(makeController());
   sessionTools.registerSessionTools(ctx);
@@ -422,6 +496,9 @@ test('desktop tools send the bearer token and map response bodies', async () => 
     if (String(url).endsWith('/desktop/config')) {
       return json({ ok: true, config: {} });
     }
+    if (String(url).endsWith('/desktop/pet-settings')) {
+      return json({ ok: true, settings: { personality: 'genki' } });
+    }
     return json({ ok: false, error: 'not found' }, 404);
   };
   try {
@@ -442,6 +519,10 @@ test('desktop tools send the bearer token and map response bodies', async () => 
     const conf = await tools.get('whale_desktop_config').execute({ patch: { theme: 'ocean' } });
     assert.equal(conf.ok, true);
     assert.deepEqual(calls[2].body, { patch: { theme: 'ocean' } });
+
+    const pet = await tools.get('whale_pet_settings').execute({ patch: { personality: 'genki' } });
+    assert.equal(pet.ok, true);
+    assert.deepEqual(calls[3].body, { patch: { personality: 'genki' } });
   } finally {
     globalThis.fetch = realFetch;
     delete process.env.DSH_DESKTOP_INSTALL_URL;

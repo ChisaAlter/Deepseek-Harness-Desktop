@@ -1,4 +1,5 @@
 import { withSessionBindingLock } from './session-binding-lock.mjs';
+import { sharedWhaleSessionId } from './whale-session.mjs';
 
 export const WORKSPACE_SESSION_STALE = 'workspace-session-stale';
 
@@ -48,13 +49,21 @@ export async function askInWorkspaceSession({
 }) {
   while (true) {
     try {
+      const whaleSessionId = await sharedWhaleSessionId(harness);
       const binding = await withSessionBindingLock(state, key, async () => {
-        let sessionId = state.sessionFor(key);
+        let sessionId = whaleSessionId ?? state.sessionFor(key);
         let session = sessionId ? workspaceSession(harness, sessionId) : null;
         if (!session || !(await sessionExists(session, existsOptions))) {
+          if (whaleSessionId) {
+            const error = new Error('The resident whale conversation is not available yet.');
+            error.code = 'whale-session-unavailable';
+            throw error;
+          }
           sessionId = await createSession(harness, createOptions);
           if (await state.setSession(key, sessionId) === false) return null;
           session = workspaceSession(harness, sessionId);
+        } else if (whaleSessionId && state.sessionFor(key) !== whaleSessionId) {
+          if (await state.setSession(key, whaleSessionId) === false) return null;
         }
         return { sessionId, session };
       });

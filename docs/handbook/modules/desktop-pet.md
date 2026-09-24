@@ -6,7 +6,7 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 
 ## 职责与非目标
 
-**职责：** 桌面 overlay 角色的完整生命周期——窗口/协议/坐标、部件木偶渲染管线（THA4 神经渲染为 fallback）、点击穿透交互、拖拽抛掷物理、台词气泡、状态面板、token 投喂成长、养成属性持久化。
+**职责：** 桌面 overlay 角色的完整生命周期——窗口/协议/坐标、THA4 实时渲染（部件木偶为 fallback）、点击穿透交互、拖拽抛掷物理、台词气泡、状态面板、token 投喂成长、养成属性持久化。
 
 **非目标：** 不注入 Harness DOM、不是插件、不是 BrowserView；无宠物商店/氪金/AI 对话/语音/多宠物；成长值只能来自真实 token 消耗，绝不读消息正文。
 
@@ -15,18 +15,22 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 | 操作 | 行为 |
 | --- | --- |
 | 启动后 | 默认关闭；在设置或托盘主动开启后，工作区右下角出现鲸鱼娘，空闲呼吸/眨眼/微动作，眼睛看向光标。已有明确开启的配置保留 |
-| 悬停 | 窗口从点击穿透切换为可交互（可点按、可抓）；离开约 24px 后恢复穿透 |
-| 点按 | 四种表情轮换；3 秒内连戳 4 次 → 生气状态 + 喷水 |
+| 悬停 | 窗口从点击穿透切换为可交互（可点按、可抓）；离开可见身体约 8px 后恢复穿透 |
+| 点按 | 戳碰动作与表情轮换；3 秒内连戳 4 次 → 生气状态 + 喷水 |
 | 拖拽 | 抓起（pick-up 悬挂状态、随速度倾斜）；松手速度慢 → 原地落下；快速甩出 → 弹道飞行、撞边反弹、地面摩擦停下；空中可再次抓住 |
 | 摸头 | 在她头顶 45% 区域来回扫（1.6s 内 3 次变向）→ 摸头反应状态 + 爱心 |
 | 右键 | 打开画布内绘制的状态卡（成长/投喂/属性/动作格），再点别处关闭 |
-| 投喂 | 状态卡【投喂 +N】：发光晶体落下 → 她跑过去吃 → 升级时庆祝 |
-| 睡觉 | 4 分钟无互动自动入睡（Zzz）；光标碰她或点按叫醒 |
+| 投喂 | 状态卡【投喂 +N】：发光晶体落下 → 她游过去 → 发现食物 → 进食 → 咀嚼 → 吃饱；升级时庆祝。当前饭碗留在地面，尚无合格的抱食姿态 |
+| 睡觉 | 约 3 分 45 秒无互动先变困倦，4 分钟播放入睡过渡再沉睡（Zzz）；困倦可被互动打断，沉睡时光标碰她或点按叫醒 |
 | 乱逛 | 按活跃档随机间隔自主游动（ease 插值 + 朝向镜像翻转）；瞬态位置经 `shell:live2d-roam` 同步交互热区，不写持久位置 |
 | 设置 | 状态卡「⚙ 设置」→ `shell:live2d-open-settings` 跳主窗 Settings `pet` 分区：体型/不透明度、性格四档、活跃三档、自语/乱逛/锁定/SHIFT拖/省电/音效等开关、看看模型（视觉路由下拉）、鲸鱼娘助理、恢复默认（宠物窗无本地设置 UI） |
 | 拖文件 | 文件拖到她身上 → 吃文件台词 + 撒花 + 少量饱食（每日限 5 次）；文件只计数不读写 |
 | 隐藏 | 状态卡「隐藏」或托盘「桌面宠物」checkbox；`live2dPet.enabled=false` 持久化 |
 | 多屏 | 拖拽越过屏幕边缘时 overlay 整体跳到光标所在显示器，拖拽不中断；跳屏去抖——光标须连续两次 relocate 轮询都在目标屏上才跳（快速甩出擦边不跳屏），轮询间隔 >400ms 视为新拖拽会话、计数清零 |
+
+当前只有一张正式身份母版和 THA4 实时变形。代码登记了 24 个动作标签和 12 个表情映射，但标签含别名和未触发程序，不能视为 24 套完成的动画；其中进食和甩出仍缺可辨的手部/全身新姿态。自主害羞仅在亲密度足够时出现，低落仅在心情较低时出现。ImageGen 关键姿态的桌面尺寸审查全部未通过，留在 `docs/qa/whale-animation-review/candidates/`，正式渲染未读取。`review-live/choreography/` 中抬饭碗和空中张眼是已回退的失败试验，不能当成正式功能或验收通过的美术。审查证据见同目录 `review-screen.png` 和 `review-live/contact.png`。
+
+审查目录的 `review-live/full-motion/` 是全部 36 段透明动态 WebP 的可播放导出（按动作取样 12–30 fps），仅供对照；正式桌宠仍实时推理，拖拽和甩动轨迹实时读取指针物理。导出逐帧检查无空帧及裁切，不能代替真正全身新姿态的美术验收。
 
 ## 架构总览
 
@@ -65,7 +69,7 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 
 ## 渲染管线
 
-### 部件木偶（part rig，主路径）
+### 部件木偶（part rig，ONNX 不可用时的 fallback）
 
 - 资产全部出自同一 2048² 主视觉（待机源图 Real-ESRGAN 4×）：`rig/` 下 `body`/`tail` + 六个表情头变体（表情头取自 THA4 离线渲染的表情帧再超分），`manifest.json` 携带主图 bbox 与锚点（颈部/尾根/脚底/抓取点）。
 - `drawRig` 每帧按锚点变换组装部件；`RIG_STATES` 表声明每状态运动程序（表情头选择 + 部件变换 + 全身 pivot：feet 整转 / grab 悬挂）。`stillCtl` 仍是状态持有器，alpha 兼作状态间插值权重。
@@ -94,9 +98,9 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 
 `states/*.webp` 十张整身立绘（pick-up / running / eat / sleep / react-head / angry / celebrate / star / greet / tail-swing），与 live 模型按 alpha 交叉淡化（7/s）。立绘占主导时命中区、气泡锚点、落地换算全部改用立绘的真实 alpha 盒。`pick-up` 是 `hang` 锚点——拎着时画在光标下方而不是 drawPos。仅当 rig 资产加载失败时接管；常态下这些状态由 `RIG_STATES` 部件程序呈现。
 
-### 脏矩形纪律
+### 绘制节拍与清除纪律
 
-每个绘制源（角色/立绘/粒子/投喂物/气泡/面板）登记的清除矩形必须完全覆盖自己的墨迹；先清后画；**禁止 `shadowBlur` 或任何越界绘制**（溢出像素在分层窗上逐帧叠成擦不掉的黑框）。兜底：每 ~1.5s 全画布清一次，任何泄漏的寿命不超 1.5s。
+恢复原有 `tickStill` 状态绘制、推理完成绘制与每 rAF 绘制关系，不设无人交互 60 fps 上限。推理启动间隔为 50 ms，只有用户开启省电且无交互五分钟后为 110 ms；睡眠不另设降频。Anime4K 由 HTML 静态脚本入口加载。Live 路径清理脏矩形并约每 1.5 秒全清兜底；rig fallback 每次全清，防止 Windows 分层透明窗残影。每个绘制源（角色/立绘/粒子/投喂物/气泡/面板）的清除矩形必须完全覆盖自己的墨迹，先清后画；**禁止 `shadowBlur` 或越界绘制**。DevTools 可用 `__dshdPetPerf.start()` / `.stop()` 采集内存中的推理、超分和绘制次数与 p50/p95 耗时，正常运行时不开启。
 
 ## 交互模型
 
@@ -108,8 +112,8 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 interactive = rendererInteractive || cursorInPetFrame
 ```
 
-- `rendererInteractive`：渲染器按自己的精确 alpha 命中（含 24px 退出迟滞、200ms 边缘防抖、拖拽中绝不退出）请求。
-- `cursorInPetFrame`：主进程光标进入宠物逻辑框 ±48px 的当拍即强制交互——渲染进程被推理占满时回路延迟可达数百 ms，等不起；光标停在该区域内时渲染器的退出请求不生效（她摇摆跑动时 alpha 盒会扫出停驻光标，接受那次退出会在飞行中的点击脚下穿洞）。离开该区域后渲染器标志重新说了算。
+- `rendererInteractive`：渲染器按真实绘制变换后的 alpha 盒命中（含 8px 退出迟滞、200ms 边缘防抖、拖拽中绝不退出）请求；清除绘制用的大方框不参与命中或气泡定位。
+- `cursorInPetFrame`：主进程光标进入上报身体轮廓外扩 8px 的当拍即强制交互——渲染进程被推理占满时回路延迟可达数百 ms，等不起；光标停在该区域内时渲染器的退出请求不生效。离开该区域后渲染器标志重新说了算。
 - `contextmenu` 无交互门——右键不受 flag 时序影响。
 
 ### 光标泵
@@ -126,7 +130,7 @@ interactive = rendererInteractive || cursorInPetFrame
 
 ### 睡眠与空闲
 
-4 分钟无互动 → sleep 状态 + Zzz（1.4–2.2s 一颗）。光标碰到或点按叫醒（`wake` care，心情 -7——吵醒她会闹别扭）。空闲 25–45s 随机小花招（star/celebrate/tail-swing 之一）；3–6 分钟一条闲聊气泡，受养成状态调制（见下）。
+4 分钟无互动 → sleep 状态 + Zzz（1.4–2.2s 一颗），睡眠沿用当前正常或省电推理节拍。光标碰到或点按叫醒（`wake` care，心情 -7——吵醒她会闹别扭）；每分钟成长值重扫的普通快照不算互动，不能叫醒她，只有实际投喂或升级才从该推送唤醒。空闲 25–45s 随机小花招（star/celebrate/tail-swing 之一）；3–6 分钟一条闲聊气泡，受养成状态调制（见下）。
 
 ## 状态面板（右键卡）
 
@@ -176,7 +180,7 @@ interactive = rendererInteractive || cursorInPetFrame
 - 气泡与角色同 Canvas：圆角主体 + 指向尾巴是**一条连续闭合轮廓**（一次填充一次描边）；12px/16px 行高、`--dsw-alias-*` token 取色；标点悬挂换行、最大宽 150px；头顶不够翻到下方并换尾巴指向；整只气泡限定在当前显示器内。时长 `min(2200 + 90×字数, 5600)`ms，尾 300ms 淡出。
 - 闲聊调度：**活跃三档**驱动随机间隔表——安静 6–12min / 均衡 2–4min / 活泼 40–80s；优先级 0，任何在显气泡/占用期/面板都让它空转下一槽（不欠账）；sleepy>0.5 时 40% 概率梦话；satiety<20 时 55% 喊饿；affectionLevel≥4 时 25% 黏人（人格 bias 微调）；否则 45% 时段类目 / 55% 随机 idle 话题。
 - **乱逛调度**：同张表另一行——安静 10–20min / 均衡 5–9min / 活泼 2–4min。`pet-wander.js` 选限界随机目标（x 沿当前朝向 60–240px、70% 顺向、撞边反向；y 在上 60% 高度带内）+ ease-in-out 滑步；游动中经 `shell:live2d-roam` 报瞬态屏幕矩形给主进程交互热区；忙态（睡/拖/抛/喂/面板）即取消当前腿；朝向经 `facing` 镜像到绘制。
-- **省电模式**：`powerSave` 开启且无交互 5 分钟后——推理节拍到 ~9fps、flourish 与乱逛挂起。
+- **省电模式**：`powerSave` 开启且无交互 5 分钟后——推理启动间隔到 110 ms、flourish 与乱逛挂起。
 
 ## DSH 联动（pet-dsh-watch）
 
@@ -195,7 +199,7 @@ interactive = rendererInteractive || cursorInPetFrame
 
 ## 快捷对话与看看屏幕（pet-chat）
 
-- **聊聊**：面板「💬 聊聊」→ `#pet-chat` DOM 对话卡（头像+名字+关闭头部、左右分侧消息线程、自动长高 textarea + 圆形发送钮；Enter 发送 / Shift+Enter 换行 / Esc 关 / IME 组合期 Enter 不发送；仅 ✕/Esc/再点「聊聊」收起，失焦不自收）。卡每帧重锚定跟随角色——头顶优先、顶边不足翻到脚下，锚定只用身体矩形（`petBodyBounds`）避免自我反馈；卡矩形并入 `petBounds` 交互区。宠物窗平时 `focusable:false`（绝不抢键），开卡经 `shell:live2d-chat-focus` 临时 `setFocusable(true)+focus()`，关框还原 + `blur()`；Windows 上 `blur()` 可能落空（前台让给桌面时渲染层 `hasFocus` 仍报 true），若 120ms 后仍持焦则移交主窗，防 noactivate 窗静默吃键。发送链路 → `shell:live2d-chat` → `pet-chat.js`。**助理开启时走共享会话**：`pet-chat.js` 先 POST `/dsh-whale` 的 `pet/chat`（harness loopback + cookie 认证）——插件侧 `controller.prompt` 进常驻会话、`ctx.on('session/event',{global:true})` 总线等本回合 `turn/end`（`data.source.rpcId` 认领、只计自己 turn 的 assistant/message）；仅传输层够不到插件才退回 `${baseUrl}/chat/completions` 直连（凭据 `loadConfig()` 现取、人格四档 system prompt、**内存 6 轮窗口不落盘**、30s 超时、截 240 字符）。会话级失败如实返回（卡上落「这轮没跑成」错误行，不伪造影子回复）。共享模式卡片头部多一行模型/推理下拉（`shell:live2d-chat-state` → `pet/state`：`controller.modelCatalog()` 组表 + `modelSelection` 投影 + 共享历史尾）与 ↗ 钮（`shell:live2d-open-whale` → 主窗开同一会话）；开卡回填历史、3s 轮询增量——两边消息互通。textarea 自适应长高（≤3 行封顶，scrollbar/resize 全藏，`overflow-y:auto`+`scrollbar-width:none`）。`chatEnabled=false` 时不触网直落 `chatFallback`。
+- **聊聊**：面板「💬 聊聊」→ `#pet-chat` DOM 对话卡（头像+名字+关闭头部、左右分侧消息线程、自动长高 textarea + 圆形发送钮；Enter 发送 / Shift+Enter 换行 / Esc 关 / IME 组合期 Enter 不发送；仅 ✕/Esc/再点「聊聊」收起，失焦不自收）。卡每帧重锚定跟随角色——头顶优先、顶边不足翻到脚下，锚定只用身体矩形（`petBodyBounds`）避免自我反馈；卡矩形并入 `petBounds` 交互区。宠物窗平时 `focusable:false`（绝不抢键），开卡经 `shell:live2d-chat-focus` 临时 `setFocusable(true)+focus()`，关框还原 + `blur()`；Windows 上 `blur()` 可能落空（前台让给桌面时渲染层 `hasFocus` 仍报 true），若 120ms 后仍持焦则移交主窗，防 noactivate 窗静默吃键。发送链路 → `shell:live2d-chat` → `pet-chat.js`。**助理开启时走共享会话**：`pet-chat.js` 先 POST `/dsh-whale` 的 `pet/chat`（harness loopback + cookie 认证）——插件侧 `controller.prompt` 进常驻会话、`ctx.on('session/event',{global:true})` 总线等本回合 `turn/end`（`data.source.rpcId` 认领、只计自己 turn 的 assistant/message）；仅传输层够不到插件才退回 `${baseUrl}/chat/completions` 直连（凭据 `loadConfig()` 现取、人格四档 system prompt、**内存 6 轮窗口不落盘**、30s 超时、截 240 字符）。会话级失败如实返回（卡上落「这轮没跑成」错误行，不伪造影子回复）。共享模式卡片线程下方有桌面端式单枚模型入口（模型名与思考档位并列），点开独立浮层首层选择模型/思考、次级显示 provider 分组模型或中文档位（当前项勾选、限高滚动、Escape 逐层返回；浮层不改变卡片高度）（`shell:live2d-chat-state` → `pet/state`：`controller.modelCatalog()` 组表 + `modelSelection` 投影 + 共享历史尾）与 ↗ 钮（`shell:live2d-open-whale` → 主窗开同一会话）；开卡回填历史、3s 轮询增量——两边消息互通。textarea 自适应长高（≤3 行封顶，scrollbar/resize 全藏，`overflow-y:auto`+`scrollbar-width:none`）。`chatEnabled=false` 时不触网直落 `chatFallback`。
 - **看看**：面板「👀 看看」→ `shell:live2d-look` → `desktopCapturer` 截宠物所在屏（≤768px JPEG70 纯内存）→ 视觉格式 `image_url` POST；视觉路由 `lookProvider`+`lookModel` 在 `pet` 分区下拉选择（候选=`session/modelCatalog` 中声明 image 输入的模型），线上请求按 `lookModel` 走桌面凭据端点（未配置→`lookFallback`）；4s 冷却。手动触发是唯一入口，无自动识屏。
 
 ## IPC 参考
@@ -273,7 +277,7 @@ preload `pet-live2d` 角色只暴露下表面（`window.shell`），主进程对
 }
 ```
 
-写盘时机：开关/拖拽提交/care 动作/投喂/重扫有变化时。崩溃最多重放一分钟。
+写盘时机：开关/拖拽提交/care 动作/投喂/重扫有变化时；`pet-dsh-watch` 每 2 秒轮询但只在日志游标、提醒或用量等持久字段变化时保存。超过配置游标上限时按规范化后的落盘投影比较，避免每轮重复保存。工作活跃时长只在内存累加，每分钟检查点一次，正常关闭时补存尾段；`usage-today.json` 只在业务快照改变时写入，原子替换失败下轮重试。崩溃最多丢失一分钟活跃时长。
 
 ## 安全边界
 

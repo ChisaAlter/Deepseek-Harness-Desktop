@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import type { JobsSnapshot, JobView, ObservedJob } from '@deepseek-ai/dsh-api-job-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
-  IconChevronDownOutlineRegular, IconStopFillRegular, StateDot, TerminalBlock, useDismissOnOutsidePointer,
+  IconChevronDownOutlineRegular, IconStopFillRegular, StateDot, TerminalBlock, useAnchoredPosition, useDismissOnOutsidePointer,
   type StateDotState, type TerminalBlockLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -46,8 +47,8 @@ export type JobListActionProps =
 /** Stable empty list so a session with no jobs keeps one array identity. */
 const NO_JOBS: readonly JobView[] = []
 
-/** Minimum gap kept between the popover and the viewport edges (the Menu primitive's portal margin). */
-const VIEWPORT_MARGIN = 12
+/** Hide the portaled panel until its first anchor measurement completes. */
+const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
 
 /** How long an armed kill waits for its confirming press before disarming. */
 const KILL_ARM_MS = 3_000
@@ -339,9 +340,14 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLUListElement>(null)
-  // Horizontal shift applied to the trigger-anchored popover so it stays
-  // inside the viewport (the stylesheet alone cannot see the anchor offset).
-  const [menuShift, setMenuShift] = useState(0)
+  const menuPosition = useAnchoredPosition({
+    open,
+    anchorRef: triggerRef,
+    panelRef: menuRef,
+    side: 'bottom',
+    gap: 5,
+    margin: 12,
+  })
 
   const rows = useMemo(() => ordered(jobs), [jobs])
   const liveRows = useMemo(() => rows.filter(isLive), [rows])
@@ -352,7 +358,7 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
   const settledExpanded = settledOpen ?? liveRows.length === 0
   const visibleCount = liveRows.length + settledRows.length
 
-  useDismissOnOutsidePointer(rootRef, open, setOpen)
+  useDismissOnOutsidePointer(rootRef, open, setOpen, menuRef)
 
   // The roster follows the mounted session: one stream while this control
   // lives, released with it.
@@ -365,32 +371,6 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
     const timer = setInterval(() => { setNow(Date.now()) }, 1_000)
     return () => { clearInterval(timer) }
   }, [open, liveRows.length])
-
-  // Fit the open popover to the viewport: shift left when the anchored width
-  // would cross the right edge, never past the left margin.
-  useLayoutEffect(() => {
-    if (!open) {
-      setMenuShift(0)
-      return
-    }
-    const fit = (): void => {
-      const root = rootRef.current
-      const menu = menuRef.current
-      /* v8 ignore next -- both refs are attached while the open popover renders. */
-      if (root === null || menu === null) return
-      const width = menu.offsetWidth
-      // Unlaid-out nodes (and jsdom) measure 0: keep the pure CSS anchor.
-      if (width === 0) return
-      const anchorLeft = root.getBoundingClientRect().left
-      setMenuShift(Math.max(
-        VIEWPORT_MARGIN - anchorLeft,
-        Math.min(0, window.innerWidth - VIEWPORT_MARGIN - width - anchorLeft),
-      ))
-    }
-    fit()
-    window.addEventListener('resize', fit)
-    return () => { window.removeEventListener('resize', fit) }
-  }, [open])
 
   // Observation follows visibility: the stream opens when an observable panel
   // expands and closes when it collapses, unmounts, or the popover closes.
@@ -526,8 +506,8 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
         <IconChevronDownOutlineRegular size={12} className={open ? css.triggerOpen : undefined} />
       </button>
       {open
-        ? (
-          <ul ref={menuRef} className={css.menu} style={{ left: menuShift }} aria-label={t('list.aria')}>
+        ? createPortal((
+          <ul ref={menuRef} className={css.menu} style={menuPosition ?? MEASURE_STYLE} aria-label={t('list.aria')}>
             {liveRows.length > 0
               ? <li className={css.sectionHeader} aria-hidden="true">{t('section.live')}</li>
               : null}
@@ -552,7 +532,7 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
               : null}
             {settledExpanded ? settledRows.map(item) : null}
           </ul>
-        )
+        ), document.body)
         : null}
     </div>
   )

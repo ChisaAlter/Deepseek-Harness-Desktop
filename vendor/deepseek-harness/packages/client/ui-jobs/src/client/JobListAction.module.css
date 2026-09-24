@@ -39,10 +39,9 @@
 }
 
 .menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
+  position: fixed;
   z-index: 100;
+  -webkit-app-region: no-drag;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;

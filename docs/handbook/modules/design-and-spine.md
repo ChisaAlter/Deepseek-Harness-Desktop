@@ -13,6 +13,8 @@
 
 ## 架构要点
 
+桌面与 Web 侧栏品牌由官方构建中的 `ui-brand-official` 两个侧栏槽位提供：标志槽位保持空位，名称槽位显示透明鲸鱼娘头像；右侧首行是蓝色「屿」的「鲸屿」与「WHALE ISLE」，下一行是「BASED ON DEEPSEEK HARNESS」。头像不带方形底板。收起态由面板图标承担展开提示。源图 `assets/whale-head.png` 也用于应用图标和安装器。合同见 [desktop-branding](../../features/desktop-branding.md)。
+
 | 层 | 用途 |
 | --- | --- |
 | Handbook | 蓝图 / 流程 / 模块当前态 |

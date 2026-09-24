@@ -43,9 +43,20 @@ test('mobile surfaces keep the desktop Menu, Modal, and task roles', () => {
   assert.equal(css.includes('.dialog-layer[data-compact]'), false);
 });
 
+test('composer-triggered choices use the bottom-sheet surface variant', () => {
+  // surfaces.js: 'bottom' renders a dialog panel with back/close-left header.
+  assert.match(surfaces, /surfaceVariant === 'bottom'/);
+  assert.match(surfaces, /surface-spacer/);
+  // sheetLayer routes picker + attach surfaces to 'bottom'; Git/session menus stay 'menu'.
+  assert.match(app, /const bottom = !task && Boolean\(state\.pickerSheet \|\| state\.attachOpen\)/);
+  assert.match(app, /variant: task \? 'task' : bottom \? 'bottom' : 'menu'/);
+  assert.match(css, /\.bottom-layer > \.sheet \{[\s\S]*?border-radius: 24px 24px 0 0;/);
+  assert.match(css, /@keyframes bottom-sheet-in/);
+});
+
 test('narrow composer remains one desktop-style tool row', () => {
   assert.match(css, /\.composer-row \{[\s\S]*?flex-wrap: nowrap;/);
-  assert.match(css, /\.chip \{[\s\S]*?height: 28px;[\s\S]*?border-radius: 24px;/);
+  assert.match(css, /\.chip \{[\s\S]*?height: 32px;[\s\S]*?border-radius: 16px;/);
   assert.match(css, /\.send \{[\s\S]*?width: 32px; height: 32px;/);
   assert.equal(css.includes('grid-template-columns: minmax(64px, 1fr)'), false);
   assert.equal(css.includes('.phone .icon-btn, .phone .surface-control, .phone .phone-menu, .phone .send {\n  width: 44px'), false);

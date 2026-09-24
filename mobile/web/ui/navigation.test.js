@@ -11,6 +11,24 @@ test('Back resolves only the top task, keeping business objects out of history',
   assert.equal(backTarget({}), 'root');
 });
 
+test('sessions page sits above the drawer but below sheets opened from it', () => {
+  assert.equal(backTarget({ sessionsOpen: true, drawerOpen: true }), 'sessions');
+  assert.equal(backTarget({ sessionsOpen: true }), 'sessions');
+  assert.equal(backTarget({ sessionsOpen: true, attachOpen: true }), 'attachment');
+  assert.equal(backTarget({ sessionsOpen: true, sessionMenu: 's1' }), 'sessionMenu');
+  assert.equal(backTarget({ sessionsOpen: true, pickerSheet: 'model' }), 'picker');
+  // Settings opened on top of the page still resolves to the page target:
+  // opening settings clears sessionsOpen in app.js, so they never coexist.
+  assert.equal(backTarget({ sessionsOpen: true, settingsOpen: true }), 'sessions');
+});
+
+test('model picker drill page keeps the picker back target until it closes', () => {
+  // BackTarget stays 'picker'; closeSurface maps a drill page back to the
+  // picker root instead of closing the sheet.
+  assert.equal(backTarget({ pickerSheet: 'model', pickerPage: 'effort' }), 'picker');
+  assert.equal(backTarget({ pickerSheet: 'model', pickerPage: '' }), 'picker');
+});
+
 function fixture() {
   const entries = [{ url: '/dshd/' }];
   let index = 0;

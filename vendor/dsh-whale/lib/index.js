@@ -50,7 +50,7 @@ const WhaleSchema = z.object({
   modelProvider: live(z.string().default('')),
   modelModel: live(z.string().default('')),
   modelReasoningEffort: live(z.string().default('')),
-  imDefault: live(z.boolean().default(false)),
+  imDefault: live(z.boolean().default(true)),
   sessionId: live(z.string().default('')),
 });
 export const Config = WhaleSchema;
@@ -226,42 +226,6 @@ function writeMemory(text) {
   const tmp = `${file}.tmp`;
   fs.writeFileSync(tmp, trimTo(text, MEMORY_MAX_CHARS), 'utf8');
   fs.renameSync(tmp, file);
-}
-
-/**
- * IM default binding: when `imDefault` is on, write `agentPreset` into every
- * dsh-im channel account that does not already choose one. Only absent/
- * empty values are filled — an explicit user choice is never overwritten;
- * `null` per dsh-im means "follow host default".
- */
-function applyImDefault(home, enabled) {
-  const root = path.join(home, 'integrations');
-  if (!fs.existsSync(root)) return { ok: true, touched: 0 };
-  let touched = 0;
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !entry.name.startsWith('dsh-')) continue;
-    const file = path.join(root, entry.name, 'config.json');
-    if (!fs.existsSync(file)) continue;
-    let doc;
-    try { doc = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { continue; }
-    if (!Array.isArray(doc?.accounts)) continue;
-    let dirty = false;
-    for (const account of doc.accounts) {
-      if (enabled && (account.agentPreset === undefined || account.agentPreset === '')) {
-        account.agentPreset = WHALE_PRESET_ID;
-        dirty = true;
-      } else if (!enabled && account.agentPreset === WHALE_PRESET_ID) {
-        delete account.agentPreset;
-        dirty = true;
-      }
-    }
-    if (!dirty) continue;
-    const tmp = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + '\n', 'utf8');
-    fs.renameSync(tmp, file);
-    touched += 1;
-  }
-  return { ok: true, touched };
 }
 
 // ── pet bridge ─────────────────────────────────────────────────
@@ -639,9 +603,6 @@ function registerRpc(ctx, scope) {
       case 'settings/update': {
         const patch = sanitizePatch(input);
         const next = await applyCatalogPatch(scope, patch);
-        if (Object.prototype.hasOwnProperty.call(patch, 'imDefault') && home) {
-          applyImDefault(home, patch.imDefault);
-        }
         if (patch.name && next.sessionId) {
           const controller = controllerFrom(ctx);
           controller?.setPresentation?.({
@@ -683,13 +644,15 @@ function registerRpc(ctx, scope) {
           ? await sessionSnapshot(controller, ensured.sessionId, PET_HISTORY_MAX + 8)
           : null;
         let catalog = null;
-        try { catalog = await controller?.modelCatalog?.(); } catch { catalog = null; }
+        if (input?.includeCatalog !== false) {
+          try { catalog = await controller?.modelCatalog?.(); } catch { catalog = null; }
+        }
         return {
           ok: true,
           sessionId: ensured.sessionId,
           name: (scope.get() ?? {}).name || '鲸鱼娘',
           model: selectedModelFrom(snapshot),
-          groups: catalogGroups(catalog),
+          ...(input?.includeCatalog === false ? {} : { groups: catalog ? catalogGroups(catalog) : null }),
           history: historyFromRecords(snapshot?.records),
         };
       }
@@ -807,9 +770,6 @@ export function apply(ctx) {
     ensureWhaleHome(home);
     const preset = ensureWhalePreset(home);
     if (!preset.ok) ctx.logger?.warn?.(`dsh-whale preset ensure failed: ${preset.error}`);
-    if (scope.get().imDefault === true) {
-      applyImDefault(home, true);
-    }
   }
 
   // Persona resolves from the live catalog per assemble — renaming or

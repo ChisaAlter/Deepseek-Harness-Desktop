@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-23 — 远程弹窗收束到账户菜单；源码应用 CDP 确认旧侧栏入口为 0、菜单入口可打开原弹窗并由 Esc 关闭。相关测试 76/76、两个插件类型检查通过；未改动或复测移动端配对链路。此前 2026-09-08 — 外出默认链路已迁移并部署为 `https://ayase.cn/dshd/` + `ayase.cn:443` TLS relay；公网资源目录与本地 fixture 一致，真实 daemon + 公网 relay + 公网 SPA 的配对、进入会话、坏 offer、无 hash、断线与清理 E2E 10/10。服务器容器 `healthy` / 0 restart。此前 2026-09-07 Ardot `Desktop-aligned v2` 的 Web 292 项、资源/QA 20 项、Android `test assembleDebug`、APK 资源审计及 debug 覆盖安装结论不变；本轮未执行真机相机、Android WebView、正式签名或安装包保留数据升级。 |
+| **last verified** | 2026-09-24 — 手机 Web 与 Android 连接／权限／扫码页改为 Claude 式结构（DSHD 浅色／深色 token 不变）。`mobile/web/**/*.test.js` 302/302、QA 服务与资源测试 20/20、Android `test :app:assembleDebug` 通过、`check:governance` 6/6；fake host 下真实 SPA 412×917 浅色／深色 10 个状态截图无控制台错误。未做真机、公网 relay 或 Android WebView 实机验收。此前 2026-09-23 — 远程弹窗收束到账户菜单；源码应用 CDP 确认旧侧栏入口为 0、菜单入口可打开原弹窗并由 Esc 关闭。相关测试 76/76、两个插件类型检查通过；未改动或复测移动端配对链路。此前 2026-09-08 — 外出默认链路已迁移并部署为 `https://ayase.cn/dshd/` + `ayase.cn:443` TLS relay；公网资源目录与本地 fixture 一致，真实 daemon + 公网 relay + 公网 SPA 的配对、进入会话、坏 offer、无 hash、断线与清理 E2E 10/10。服务器容器 `healthy` / 0 restart。此前 2026-09-07 Ardot `Desktop-aligned v2` 的 Web 292 项、资源/QA 20 项、Android `test assembleDebug`、APK 资源审计及 debug 覆盖安装结论不变；本轮未执行真机相机、Android WebView、正式签名或安装包保留数据升级。 |
 
 ## 当前改造轮次（2026-09-06）
 
@@ -128,7 +128,7 @@
 - Android WebView 用显式请求序号识别新扫码或重试，不因重组重新插入已消费的 offer；返回前台触发共享 SPA 的连接探测与目录同步。内置资源缺失或主页面加载失败必须可见，不能回落公网下载同名资源。
 - 手机目录转发保留全部 `session.list` 行和原始会话字段，投影只传 `title` / `sessionListMetadata`。模型、权限、计划与用量详情通过打开会话时的 history 按需获取，不能为每次首屏同步重复传输所有会话的详情；history、创建与搜索响应不受目录裁剪影响。目录失败必须可重试，不能假空列表。
 - **非 secure context 兼容**：`http://<LAN-IP>:3180` 禁止裸用 `crypto.randomUUID` / `crypto.subtle`；uuid 走 `getRandomValues` fallback；E2EE 保持 tweetnacl。
-- 设计语言仍抄 `--dsw-alias-*`；手机 Web 与 Android SPA 是桌面 Harness 的窄屏重排，不得另做 Material/iOS/通用移动皮肤。Sidebar、Menu、Modal、InputBar、PermissionSelect、ModelSelect 与 Git split control 的角色、token、字号、圆角和选中规则以 vendored 桌面组件为母版，手机只改排列、标签显隐与滚动容器。
+- 颜色仍只抄 `--dsw-alias-*` / `--dsw-specific-*`（浅色／深色同值表），不另起色板或衬线；页面结构按[设计语言「手机远程交互」](../design-language.md#手机远程交互)的 Claude 式结构：48px 顶栏、浮动输入卡、抽屉只做导航与「最近」、完整会话列表为全屏任务、输入框触发的选择用底部面板、设置为分组卡片。顶栏／行菜单仍是贴近触发器的 Menu，破坏性确认仍是居中 Modal。
 - 全量启动才启用内容搜索：`--patch` `desktop-session-search.patch.yml` 覆写 `session-query-sqlite` 为 `openAt: first-search` 与 `dsh-home/session-query.sqlite`。禁止把这次 opt-in 写进用户 `cordis.patch.yml`。skip 启动保持发版 `openAt: never`。
 
 ## Allowed touch
@@ -159,6 +159,7 @@
 ## Sources
 
 - Decision: [远程入口收束到账户菜单](../decisions/implemented/product/2026-09-23-remote-account-menu.md)
+- Decision: [手机远程改用 Claude 式页面结构](../decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)
 
 - 2026-09-08 新域名部署与公网 E2E：[远程服务器迁移记录](../qa/results/2026-09-08/remote-ayase-deployment.md)。
 

@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, SettingsSelect, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, SegmentedTabs, SettingsSelect, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { desktopShell } from './desktop-shell.ts'
@@ -88,7 +88,7 @@ function Row({ title, desc, children }: {
   )
 }
 
-/** Render the 桌宠 column: every control writes through on change. */
+/** Render the whale settings column: every control writes through on change. */
 export function PetSection({ t, modelCatalog, renderSlot }: PetSectionProps): ReactNode {
   const shell = desktopShell()
   const [enabled, setEnabled] = useState(true)
@@ -97,6 +97,7 @@ export function PetSection({ t, modelCatalog, renderSlot }: PetSectionProps): Re
   const [lookRoutes, setLookRoutes] = useState<readonly LookRoute[] | undefined>(undefined)
   const [lookLoadError, setLookLoadError] = useState('')
   const [error, setError] = useState('')
+  const [view, setView] = useState<'assistant' | 'desktop'>('assistant')
 
   useEffect(() => {
     let cancelled = false
@@ -208,155 +209,169 @@ export function PetSection({ t, modelCatalog, renderSlot }: PetSectionProps): Re
     <div className={css.section}>
       <h2 className={css.heading}>{t('pet.nav')}</h2>
       <p className={css.intro}>{t('pet.intro')}</p>
-      <div className={css.form}>
-        <Row title={t('pet.enabled')} desc={t('pet.enabledDesc')}>
-          <Switch
-            label={t('pet.enabled')}
-            checked={enabled}
-            onChange={(next: boolean) => { setEnabled(next); void save({ enabled: next }) }}
-          />
-        </Row>
-
-        <div className={css.group}>{t('pet.group.look')}</div>
-        <Row title={t('pet.scaleOpacity')}>
-          <SettingsSelect
-            variant="inline"
-            align="end"
-            aria-label={t('pet.scale')}
-            value={String(settings.scale ?? 1)}
-            options={SCALE_OPTIONS.map(v => ({ id: v, label: `${Math.round(Number(v) * 100)}%` }))}
-            onChange={(id) => patch({ scale: Number(id) })}
-          />
-          <SettingsSelect
-            variant="inline"
-            align="end"
-            aria-label={t('pet.opacity')}
-            value={String(settings.opacity ?? 1)}
-            options={OPACITY_OPTIONS.map(v => ({ id: v, label: `${Math.round(Number(v) * 100)}%` }))}
-            onChange={(id) => patch({ opacity: Number(id) })}
-          />
-        </Row>
-        <Row title={t('pet.personality')} desc={t('pet.personalityDesc')}>
-          <SettingsSelect
-            variant="inline"
-            align="end"
-            aria-label={t('pet.personality')}
-            value={settings.personality ?? 'natural'}
-            options={PERSONALITY_OPTIONS.map(([id, key]) => ({ id, label: t(key) }))}
-            onChange={(id) => patch({ personality: id })}
-          />
-        </Row>
-
-        <div className={css.group}>{t('pet.group.behavior')}</div>
-        <Row title={t('pet.activity')} desc={t('pet.activityDesc')}>
-          <SettingsSelect
-            variant="inline"
-            align="end"
-            aria-label={t('pet.activity')}
-            value={settings.activity ?? 'balanced'}
-            options={ACTIVITY_OPTIONS.map(([id, key]) => ({ id, label: t(key) }))}
-            onChange={(id) => patch({ activity: id })}
-          />
-        </Row>
-        <Row title={t('pet.autonomy')} desc={t('pet.autonomyDesc')}>
-          <span className={css.miniToggle}>
-            <span>{t('pet.selfTalk')}</span>
+      <SegmentedTabs
+        label={t('pet.nav')}
+        items={[
+          { value: 'assistant', label: t('pet.tab.assistant'), id: 'whale-settings-assistant-tab', panelId: 'whale-settings-assistant-panel' },
+          { value: 'desktop', label: t('pet.tab.desktop'), id: 'whale-settings-desktop-tab', panelId: 'whale-settings-desktop-panel' },
+        ]}
+        value={view}
+        onChange={setView}
+        className={css.tabs}
+      />
+      <div id="whale-settings-assistant-panel" role="tabpanel" aria-labelledby="whale-settings-assistant-tab" hidden={view !== 'assistant'} className={css.panel}>
+        <div className={css.form}>
+          <div className={css.group}>{t('pet.group.assistant')}</div>
+          <Row title={t('pet.whaleAssistant')} desc={t('pet.whaleAssistantDesc')}>
             <Switch
-              label={t('pet.selfTalk')}
-              checked={settings.selfTalk === true}
-              onChange={(next: boolean) => patch({ selfTalk: next })}
-            />
-          </span>
-          <span className={css.miniToggle}>
-            <span>{t('pet.wander')}</span>
-            <Switch
-              label={t('pet.wander')}
-              checked={settings.wander === true}
-              onChange={(next: boolean) => patch({ wander: next })}
-            />
-          </span>
-        </Row>
-        <Row title={t('pet.dragMode')} desc={t('pet.dragModeDesc')}>
-          <SettingsSelect
-            variant="inline"
-            align="end"
-            aria-label={t('pet.dragMode')}
-            value={settings.lockPosition === true
-              ? 'locked'
-              : settings.shiftToDrag === true ? 'shift' : 'free'}
-            options={DRAG_OPTIONS.map(([id, key]) => ({ id, label: t(key) }))}
-            onChange={(id) => patch(id === 'locked'
-              ? { lockPosition: true, shiftToDrag: false }
-              : id === 'shift'
-                ? { lockPosition: false, shiftToDrag: true }
-                : { lockPosition: false, shiftToDrag: false })}
-          />
-        </Row>
-        {TOGGLE_ROWS.map(([key, labelKey]) => (
-          <Row
-            key={key}
-            title={t(labelKey)}
-            desc={key === 'powerSave' ? t('pet.powerSaveDesc') : undefined}
-          >
-            <Switch
-              label={t(labelKey)}
-              checked={settings[key] === true}
-              onChange={(next: boolean) => patch({ [key]: next })}
+              label={t('pet.whaleAssistant')}
+              checked={whaleAssistant}
+              onChange={toggleWhale}
             />
           </Row>
-        ))}
+          {renderSlot('settings.pet.item', {})}
+        </div>
+      </div>
+      <div id="whale-settings-desktop-panel" role="tabpanel" aria-labelledby="whale-settings-desktop-tab" hidden={view !== 'desktop'} className={css.panel}>
+        <div className={css.form}>
+          <div className={css.group}>{t('pet.group.look')}</div>
+          <Row title={t('pet.enabled')} desc={t('pet.enabledDesc')}>
+            <Switch
+              label={t('pet.enabled')}
+              checked={enabled}
+              onChange={(next: boolean) => { setEnabled(next); void save({ enabled: next }) }}
+            />
+          </Row>
 
-        <div className={css.group}>{t('pet.group.link')}</div>
-        <Row title={t('pet.chat')} desc={t('pet.chatDesc')}>
-          <Switch
-            label={t('pet.chat')}
-            checked={settings.chatEnabled === true}
-            onChange={(next: boolean) => patch({ chatEnabled: next })}
-          />
-        </Row>
-        <Row title={t('pet.lookModel')} desc={t('pet.lookModelDesc')}>
-          <SettingsSelect
-            variant="inline"
-            align="end"
-            aria-label={t('pet.lookModel')}
-            value={lookCurrent}
-            placeholder={t('pet.lookModelOff')}
-            options={[
-              { id: '', label: t('pet.lookModelOff') },
-              ...stale === undefined ? [] : [stale],
-              ...known.map(route => ({
-                id: routeId(route.provider, route.model),
-                label: `${route.providerName} / ${route.modelName}`,
-              })),
-            ]}
-            onChange={onLookChange}
-          />
-        </Row>
-        {lookLoadError === ''
-          ? null
-          : <p className={css.error} role="status">{t('pet.lookModelLoadFailed', { message: lookLoadError })}</p>}
+          <Row title={t('pet.scaleOpacity')}>
+            <SettingsSelect
+              variant="inline"
+              align="end"
+              aria-label={t('pet.scale')}
+              value={String(settings.scale ?? 1)}
+              options={SCALE_OPTIONS.map(v => ({ id: v, label: `${Math.round(Number(v) * 100)}%` }))}
+              onChange={(id) => patch({ scale: Number(id) })}
+            />
+            <SettingsSelect
+              variant="inline"
+              align="end"
+              aria-label={t('pet.opacity')}
+              value={String(settings.opacity ?? 1)}
+              options={OPACITY_OPTIONS.map(v => ({ id: v, label: `${Math.round(Number(v) * 100)}%` }))}
+              onChange={(id) => patch({ opacity: Number(id) })}
+            />
+          </Row>
+          <Row title={t('pet.personality')} desc={t('pet.personalityDesc')}>
+            <SettingsSelect
+              variant="inline"
+              align="end"
+              aria-label={t('pet.personality')}
+              value={settings.personality ?? 'natural'}
+              options={PERSONALITY_OPTIONS.map(([id, key]) => ({ id, label: t(key) }))}
+              onChange={(id) => patch({ personality: id })}
+            />
+          </Row>
+          <div className={css.group}>{t('pet.group.behavior')}</div>
+          <Row title={t('pet.activity')} desc={t('pet.activityDesc')}>
+            <SettingsSelect
+              variant="inline"
+              align="end"
+              aria-label={t('pet.activity')}
+              value={settings.activity ?? 'balanced'}
+              options={ACTIVITY_OPTIONS.map(([id, key]) => ({ id, label: t(key) }))}
+              onChange={(id) => patch({ activity: id })}
+            />
+          </Row>
+          <Row title={t('pet.autonomy')} desc={t('pet.autonomyDesc')}>
+            <span className={css.miniToggle}>
+              <span>{t('pet.selfTalk')}</span>
+              <Switch
+                label={t('pet.selfTalk')}
+                checked={settings.selfTalk === true}
+                onChange={(next: boolean) => patch({ selfTalk: next })}
+              />
+            </span>
+            <span className={css.miniToggle}>
+              <span>{t('pet.wander')}</span>
+              <Switch
+                label={t('pet.wander')}
+                checked={settings.wander === true}
+                onChange={(next: boolean) => patch({ wander: next })}
+              />
+            </span>
+          </Row>
+          <Row title={t('pet.dragMode')} desc={t('pet.dragModeDesc')}>
+            <SettingsSelect
+              variant="inline"
+              align="end"
+              aria-label={t('pet.dragMode')}
+              value={settings.lockPosition === true
+                ? 'locked'
+                : settings.shiftToDrag === true ? 'shift' : 'free'}
+              options={DRAG_OPTIONS.map(([id, key]) => ({ id, label: t(key) }))}
+              onChange={(id) => patch(id === 'locked'
+                ? { lockPosition: true, shiftToDrag: false }
+                : id === 'shift'
+                  ? { lockPosition: false, shiftToDrag: true }
+                  : { lockPosition: false, shiftToDrag: false })}
+            />
+          </Row>
+          {TOGGLE_ROWS.map(([key, labelKey]) => (
+            <Row
+              key={key}
+              title={t(labelKey)}
+              desc={key === 'powerSave' ? t('pet.powerSaveDesc') : undefined}
+            >
+              <Switch
+                label={t(labelKey)}
+                checked={settings[key] === true}
+                onChange={(next: boolean) => patch({ [key]: next })}
+              />
+            </Row>
+          ))}
 
-        <div className={css.group}>{t('pet.group.assistant')}</div>
-        <Row title={t('pet.whaleAssistant')} desc={t('pet.whaleAssistantDesc')}>
-          <Switch
-            label={t('pet.whaleAssistant')}
-            checked={whaleAssistant}
-            onChange={toggleWhale}
-          />
-        </Row>
-        {renderSlot('settings.pet.item', {})}
+          <div className={css.group}>{t('pet.group.link')}</div>
+          <Row title={t('pet.chat')} desc={t('pet.chatDesc')}>
+            <Switch
+              label={t('pet.chat')}
+              checked={settings.chatEnabled === true}
+              onChange={(next: boolean) => patch({ chatEnabled: next })}
+            />
+          </Row>
+          <Row title={t('pet.lookModel')} desc={t('pet.lookModelDesc')}>
+            <SettingsSelect
+              variant="inline"
+              align="end"
+              aria-label={t('pet.lookModel')}
+              value={lookCurrent}
+              placeholder={t('pet.lookModelOff')}
+              options={[
+                { id: '', label: t('pet.lookModelOff') },
+                ...stale === undefined ? [] : [stale],
+                ...known.map(route => ({
+                  id: routeId(route.provider, route.model),
+                  label: `${route.providerName} / ${route.modelName}`,
+                })),
+              ]}
+              onChange={onLookChange}
+            />
+          </Row>
+          {lookLoadError === ''
+            ? null
+            : <p className={css.error} role="status">{t('pet.lookModelLoadFailed', { message: lookLoadError })}</p>}
 
-        <div className={css.actions}>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              void save({ reset: true })
-            }}
-          >
-            {t('pet.reset')}
-          </Button>
-          {error ? <span className={css.error} role="status">{t('pet.saveError', { message: error })}</span> : null}
+          <div className={css.actions}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void save({ reset: true })
+              }}
+            >
+              {t('pet.reset')}
+            </Button>
+            {error ? <span className={css.error} role="status">{t('pet.saveError', { message: error })}</span> : null}
+          </div>
         </div>
       </div>
     </div>

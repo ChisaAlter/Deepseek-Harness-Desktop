@@ -60,6 +60,8 @@ The Host binds private Platform sessions to the account provider lifetime. Remov
 
 The client distinguishes plugin disposal from terminal account-stream failure. RemoteStream aborts its signal after either outcome, so the plugin owns a separate disposal flag to preserve failure feedback while suppressing reports after unload.
 
+DSHD opens a waiting authorization link through its shell bridge when the account stream first publishes it. The attempt id prevents duplicate browser opens, and launch failure leaves the manual link and Host attempt available. Native Harness Desktop continues to open the link from its main-process account watcher.
+
 ## Verification
 
 Provider tests exercise real loopback callbacks, invalid state, delayed exchange cancellation, credential persistence, sign-out, and official-origin restrictions. Desktop tests cover the native action bridge and localized entry. Manual development integration uses the platform dev middleware Mock and the real Electron Host, including cancellation before browser approval. Production backend credentials and installer scheme registration require release-environment validation.

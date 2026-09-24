@@ -49,6 +49,9 @@ const DEFAULTS = {
   quitAfterStart: true,
   autoStartDesktop: true,
   askOnUpdate: true,
+  // Download route for the managed DSHD runtime ('' = user has not picked yet;
+  // enum mirrors src/launcher/release-source.js ROUTES keys).
+  downloadRoute: '',
   disabledPlugins: [],
   dshbotEnabled: false,
   // Whale assistant (R3) — off by default so it can never silently hijack
@@ -287,6 +290,7 @@ function normalizeLauncherSettings(config) {
     quitAfterStart: config.quitAfterStart !== false,
     autoStartDesktop: config.autoStartDesktop !== false,
     askOnUpdate: config.askOnUpdate !== false,
+    downloadRoute: ['github', 'gitee'].includes(config.downloadRoute) ? config.downloadRoute : '',
     disabledPlugins: normalizeDisabledPlugins(config.disabledPlugins),
   };
 }
@@ -300,6 +304,13 @@ function normalizeLauncherConfigPatch(patch) {
     if (['quitAfterStart', 'autoStartDesktop', 'askOnUpdate'].includes(key)) {
       if (typeof value !== 'boolean') {
         throw new TypeError(`${key} must be a boolean`);
+      }
+      next[key] = value;
+      continue;
+    }
+    if (key === 'downloadRoute') {
+      if (!['', 'github', 'gitee'].includes(value)) {
+        throw new TypeError('downloadRoute must be "", "github" or "gitee"');
       }
       next[key] = value;
       continue;

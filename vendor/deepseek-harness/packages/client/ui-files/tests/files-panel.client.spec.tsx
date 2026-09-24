@@ -2105,7 +2105,7 @@ describe('FilePreview', () => {
         t={t}
       />,
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Floating preview' }))
+    fireEvent.click(await screen.findByRole('button', { name: en['preview.floating'] }))
     await waitFor(() => {
       expect(previewOpenFileWindow).toHaveBeenCalledWith({
         cwd: '/tmp/proj',

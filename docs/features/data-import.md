@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `data-import` |
 | **status** | `active` |
+| **last verified (import task ownership)** | 2026-09-24 — 主进程在停内核前占用单任务锁；并发请求返回 `import-in-progress`，异常后可重试；空选择不创建 journal。`ipc` + `data-import` 89/89 通过。 |
 | **last verified (v3 gate)** | 2026-09-23 — `session.v3.jsonl(.zstd)` 与旧名共同参与浅探针、导入扫描和冲突识别；真实桌面 home 的 `probeImportHold` 为 `hold:false`，`data-import` + `launcher-gate` 51/51 通过。 |
 | **last verified** | 2026-09-20 — C1 性能基线（仅测量，无产品行为变更）：`probeImportHold` / `scanImport` / `listDir` 的函数级测量与判定见 `docs/decisions/proposed/testing/2026-09-20-desktop-performance-measurement.md` 与审计计划 Phase 6。此前 2026-09-20 — B3 持久化负路径：取消发生在最后一个会话拷贝之后或后续 skills/plugins/settings 阶段时，journal 必须保持 `copying` 供冷启动恢复，不能提前写 `done`；未完成会话只留完整已拷贝项与可清理的 `.import-tmp` 暂存目录。`node --test src/main/data-import.test.js` 26/26 通过。此前 2026-09-15 — 导入改异步可取消（`966bd84`）：拷贝阶段让出事件循环、逐项间响应 `shell:cancel-import`；启动器按阶段显示进度并给可续跑提示。`node --test data-import.test.js ipc.test.js` 81/81 通过。此前 2026-09-05 — 历史会话恢复与插件归因定向检查：Harness 工作区/API/旧缓存 121 项、桌面导入/恢复/打包单测 171 项通过；重新登记已有目录接纳导入历史，缓存格式错误不归咎用户插件。未执行候选安装包升级实测。此前：2026-08-25 — 新增设置白名单节 / 引用凭据 / `.agent-presets` / home `AGENTS.md` 导入；冷启动闸门改 shallow probe；导入页展示「将迁移/不迁移」说明 |
 
@@ -30,6 +31,7 @@
 - 导入会话保留原 `cwd`；已有桌面工作区不会触发首次启动的历史分组。导入后通过重新添加原目录恢复归属（新建或已登记目录均刷新索引，见 [no-directory-sessions](no-directory-sessions.md)）；不猜测迁移后的盘符或目录，不导入来源工作区内部 storage。
 - 列表展示可读写会话 header / `session/title`（明文 jsonl 或 Node 内置 zstd）；勾选与拷贝键仍是 sessions 相对路径 `rel`，不得用标题改名落盘。
 - `runImport` 必收勾选；省略选择 = 零写入。路径穿越与源根外技能路径拒绝落盘。
+- `shell:run-import` 只允许一个 active 任务，取消只作用于当前任务；完成或异常后释放任务锁。空选择也不创建 `userData/import-journal.json`。
 - 插件重装规格只允许 `github:owner/repo[#ref]` 或 `name@<semver>`（`installImportPlugin` 受控通道，仅主进程 LAUNCHER IPC 使用）；渲染进程 / 工具的 `installPlugin` 通道保持 github-only。
 - journal 在 `userData/import-journal.json`，不在 `dsh-home/sessions` 里。`recoverInterruptedImport` 只清 journal 自己的 destHome 且必须等于当前桌面 home；官方来源仍只读。
 - 已知权衡（MCP 凭据）：MCP merge 原样拷贝 header/token 进桌面 `mcp-servers.yaml`（明文，与官方 CLI 相同的落盘形态）；OAuth 类服务器的会话态/刷新令牌不迁移，导入后可能需在桌面端重新授权。桌面不回写官方文件。
@@ -58,6 +60,7 @@
 
 ## Sources
 
+- Decision: [启动器更新确认与导入任务归属](../decisions/implemented/bug-fix/2026-09-24-launcher-update-import-ownership.md)
 - Decision: [v3 会话日志参与桌面导入闸门](../decisions/implemented/bug-fix/2026-09-23-v3-session-import-gate.md)
 
 - Implementation：`src/main/data-import.js`、`src/renderer/launcher.js`

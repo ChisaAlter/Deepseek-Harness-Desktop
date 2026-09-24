@@ -72,8 +72,8 @@ async function bench(
   await ctx.plugin(SlotRegistry).await()
   const slots = ctx.get('slots') as SlotRegistry
   const declaration = declare(slots)
-  const layout = { openSurfaces: vi.fn(), closeRightbar: vi.fn() }
-  const originalOpen = vi.fn(async (_path: string, _options?: { line?: number; sessionId?: string }) => {})
+  const layout = { openSurfaces: vi.fn(), closeSurfaces: vi.fn(), closeRightbar: vi.fn() }
+  const originalOpen = vi.fn(async (_path: string, _options?: { line?: number; sessionId?: string; presentation?: 'mini' }) => {})
   const hostOpenPath = vi.fn(async () => ({ ok: true as const, value: { opened: true as const } }))
   const workspaces = { openPath: originalOpen }
   ctx.provide('layout', layout)
@@ -426,6 +426,33 @@ describe('ui-surfaces apply', () => {
         'http://127.0.0.1:9/tok/site/index.html',
       )
       expect(events).toEqual([{ kind: 'preview', url: 'http://127.0.0.1:9/tok/site/index.html', sessionId: 'sess-1' }])
+    } finally {
+      window.removeEventListener('dshd-open-surface', onOpen)
+      await b.fiber.dispose()
+    }
+  })
+
+  it('opens a delivered browser document in the mini player before the right panel', async () => {
+    const b = await bench({ mainView: 'sess-1' })
+    const openFile = bindOpenFile(b.slots)
+    const url = 'http://127.0.0.1:9/tok/site/index.html'
+    const previewWorkspaceFile = vi.fn(async () => ({ ok: true as const, url }))
+    const events: unknown[] = []
+    const onOpen = (event: Event) => { events.push((event as CustomEvent).detail) }
+    window.addEventListener('dshd-open-surface', onOpen)
+    sessionStorage.clear()
+    ;(window as Window & { shell?: unknown }).shell = {
+      listDir: async () => ({ ok: true }), previewWorkspaceFile,
+    }
+    try {
+      await b.workspaces.openPath('/tmp/proj/site/index.html', { presentation: 'mini' })
+      expect(previewWorkspaceFile).toHaveBeenCalledWith({ cwd: '/tmp/proj', relativePath: 'site/index.html' })
+      expect(openFile).not.toHaveBeenCalled()
+      expect(b.layout.closeSurfaces).toHaveBeenCalledOnce()
+      expect(b.layout.openSurfaces).not.toHaveBeenCalled()
+      expect(sessionStorage.getItem('dshd-pending-preview-url')).toBe(url)
+      expect(sessionStorage.getItem('dshd-pending-preview-presentation')).toBe('mini')
+      expect(events).toEqual([{ kind: 'preview', url, sessionId: 'sess-1', presentation: 'mini' }])
     } finally {
       window.removeEventListener('dshd-open-surface', onOpen)
       await b.fiber.dispose()

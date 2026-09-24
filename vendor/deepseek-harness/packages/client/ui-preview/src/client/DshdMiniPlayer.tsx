@@ -1,11 +1,12 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { IconChevronLeftOutline14, IconRightUpOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCloseOutline16, IconPanelRightOutline16, IconRightUpOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { NS } from './locales.ts'
 import {
   clampMiniPlayerPosition,
   clampMiniPlayerSize,
+  initialMiniPlayerGeometry,
   MINI_PLAYER_DEFAULT_SIZE,
   resizeMiniPlayerGeometry,
   type MiniPlayerResizeSide,
@@ -25,6 +26,8 @@ type Props = PropsRuntime<'shell.overlay'> & PropsLocale<typeof NS>
 
 interface DragState { pointerId: number; x: number; y: number; baseX: number; baseY: number }
 interface ResizeState { pointerId: number; x: number; y: number; base: MiniPlayerGeometry; side: MiniPlayerResizeSide }
+
+const RESIZE_SIDES: readonly MiniPlayerResizeSide[] = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw']
 
 function chatRect(): DOMRect | undefined {
   const node = document.querySelector('[data-conversation-scroll]')
@@ -50,7 +53,11 @@ export function DshdMiniPlayer({ t }: Props): ReactNode {
   const rootRef = useRef<HTMLElement>(null)
   const dragRef = useRef<DragState | null>(null)
   const resizeRef = useRef<ResizeState | null>(null)
-  const geometry = state.geometry ?? { ...MINI_PLAYER_DEFAULT_SIZE, x: 0, y: 0 }
+  const initialChat = chatRect()
+  const geometry = state.geometry ?? initialMiniPlayerGeometry({
+    width: initialChat?.width ?? MINI_PLAYER_DEFAULT_SIZE.width + 24,
+    height: initialChat?.height ?? MINI_PLAYER_DEFAULT_SIZE.height + 24,
+  })
 
   useEffect(() => {
     if (!state.open || state.previewId === null || state.suspended) return
@@ -59,8 +66,8 @@ export function DshdMiniPlayer({ t }: Props): ReactNode {
       const chat = chatRect()
       const frame = frameRect()
       if (!root || !chat || !frame) return
-      const currentGeometry = readMiniPlayer().geometry ?? { ...MINI_PLAYER_DEFAULT_SIZE, x: 0, y: 0 }
       const container = { width: Math.max(1, chat.width), height: Math.max(1, chat.height) }
+      const currentGeometry = readMiniPlayer().geometry ?? initialMiniPlayerGeometry(container)
       const size = clampMiniPlayerSize(currentGeometry, container)
       const position = clampMiniPlayerPosition(currentGeometry, size, container)
       const next = { ...position, ...size }
@@ -81,9 +88,6 @@ export function DshdMiniPlayer({ t }: Props): ReactNode {
       observer?.disconnect()
       window.removeEventListener('resize', sync)
       window.removeEventListener('scroll', sync, true)
-      const runtime = readMiniPlayer().runtime
-      const id = readMiniPlayer().previewId
-      if (runtime && id) void runtime.previewHide(id)
     }
   }, [state.open, state.previewId, state.revision, state.suspended])
 
@@ -106,7 +110,8 @@ export function DshdMiniPlayer({ t }: Props): ReactNode {
     const id = readMiniPlayer().previewId
     if (!runtime || !id) return
     const off = subscribeMiniPlayer(() => {
-      if (!readMiniPlayer().open || readMiniPlayer().suspended) void runtime.previewHide(id)
+      const current = readMiniPlayer()
+      if (current.open && current.suspended && current.previewId === id) void runtime.previewHide(id)
     })
     return off
   }, [state.previewId])
@@ -132,14 +137,14 @@ export function DshdMiniPlayer({ t }: Props): ReactNode {
     dragRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
-  const onResizeDown = (event: ReactPointerEvent<HTMLButtonElement>, side: MiniPlayerResizeSide): void => {
+  const onResizeDown = (event: ReactPointerEvent<HTMLDivElement>, side: MiniPlayerResizeSide): void => {
     if (event.button !== 0) return
     resizeRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, base: geometry, side }
     event.currentTarget.setPointerCapture(event.pointerId)
     event.preventDefault()
     event.stopPropagation()
   }
-  const onResizeMove = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+  const onResizeMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const resize = resizeRef.current
     const chat = chatRect()
     if (!resize || resize.pointerId !== event.pointerId || !chat) return
@@ -148,7 +153,7 @@ export function DshdMiniPlayer({ t }: Props): ReactNode {
       y: event.clientY - resize.y,
     }, resize.side, { width: chat.width, height: chat.height }))
   }
-  const onResizeEnd = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+  const onResizeEnd = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (resizeRef.current?.pointerId !== event.pointerId) return
     resizeRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
@@ -158,17 +163,22 @@ export function DshdMiniPlayer({ t }: Props): ReactNode {
   const left = frame && chat ? chat.left - frame.left + geometry.x : geometry.x
   const top = frame && chat ? chat.top - frame.top + geometry.y : geometry.y
 
+  const label = state.label || t('title')
   return (
-    <section ref={rootRef} className={css.miniPlayer} data-preview-mini-player aria-label="dshd mini-player" style={{ left, top, width: geometry.width, height: geometry.height }}>
+    <section ref={rootRef} className={css.miniPlayer} data-preview-mini-player aria-label={state.label || t('miniTitle')} style={{ left, top, width: geometry.width, height: geometry.height }}>
       <div className={css.miniPlayerChrome} onPointerDown={onDragDown} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}>
-        <span className={css.miniPlayerTitle}>dshd mini-player</span>
-        <Tooltip label={t('miniRestore')} side="bottom"><button type="button" className={css.icon} aria-label={t('miniRestore')} onClick={() => { readMiniPlayer().runtime?.restore?.(); closeMiniPlayer() }}><IconChevronLeftOutline14 size={14} /></button></Tooltip>
+        <span className={css.miniPlayerTitle} title={label}>{label}</span>
+        <div className={css.miniPlayerActions}>
+          <Tooltip label={t('miniRestore')} side="bottom"><button type="button" className={css.icon} aria-label={t('miniRestore')} onPointerDown={(event) => event.stopPropagation()} onClick={() => { readMiniPlayer().runtime?.restore?.(); closeMiniPlayer() }}><IconPanelRightOutline16 size={14} /></button></Tooltip>
+          <Tooltip label={t('miniClose')} side="bottom"><button type="button" className={css.icon} aria-label={t('miniClose')} onPointerDown={(event) => event.stopPropagation()} onClick={closeMiniPlayer}><IconCloseOutline16 size={14} /></button></Tooltip>
+        </div>
       </div>
       <div className={css.miniPlayerViewport} data-preview-mini-player-viewport>
         <BrowserSurfaceSlot><div className={css.miniPlayerPlaceholder}><IconRightUpOutline16 size={16} /></div></BrowserSurfaceSlot>
       </div>
-      {(['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'] as const).map((side) => (
-        <button key={side} type="button" className={css.miniPlayerResize} data-side={side} aria-label={t('miniResize')} onPointerDown={(event) => onResizeDown(event, side)} onPointerMove={onResizeMove} onPointerUp={onResizeEnd} onPointerCancel={onResizeEnd} />
+      {RESIZE_SIDES.map((side) => (
+        <div key={side} className={css.miniPlayerResizeHandle} data-resize-side={side} aria-hidden="true"
+          onPointerDown={(event) => onResizeDown(event, side)} onPointerMove={onResizeMove} onPointerUp={onResizeEnd} onPointerCancel={onResizeEnd} />
       ))}
     </section>
   )

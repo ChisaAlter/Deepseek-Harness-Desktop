@@ -27,6 +27,9 @@ const { DESKTOP_PET_FEATURE, configureDesktopPet, getDesktopPet } = require('./d
 const { LIVE2D_PET_FEATURE, configureLive2dPet, getLive2dPet } = require('./desktop-live2d');
 const { checkUpdate, installUpdate, setGithubTokenProvider, currentVersion } = require('./update');
 const { probeImportHold, recoverInterruptedImport } = require('./data-import');
+const { isLauncherPackage } = require('../launcher/product');
+const runtimeInstall = require('../launcher/runtime-install');
+const installDetect = require('../launcher/install-detect');
 const {
   shouldCloseLauncherAfterDesktopStart,
   writeLastDesktopStart,
@@ -308,16 +311,33 @@ async function confirmUnverifiedColdStart(info) {
   return result.response === 0;
 }
 
+// Slim-package cold start talks to the managed runtime: route-aware checks,
+// installs that keep the launcher alive, and external process start.
+function gateInstallUpdate(onProgress, check) {
+  if (isLauncherPackage()) {
+    return runtimeInstall.installRuntime(
+      check && check.tag ? { tag: check.tag } : {},
+      onProgress,
+      { confirmUnverified: confirmUnverifiedColdStart },
+    );
+  }
+  return installUpdate(onProgress, {
+    confirmUnverified: confirmUnverifiedColdStart,
+    expectedCheck: check,
+  });
+}
+
 function runColdStartGate() {
   const userDataDir = app.getPath('userData');
+  const launcherPackage = isLauncherPackage();
   return runLauncherColdStartGate({
     config: loadConfig(),
     userDataDir,
     isPackaged: app.isPackaged,
-    checkUpdate,
-    installUpdate: (onProgress) => installUpdate(onProgress, {
-      confirmUnverified: confirmUnverifiedColdStart,
-    }),
+    checkUpdate: launcherPackage
+      ? () => runtimeInstall.checkDesktopUpdate()
+      : checkUpdate,
+    installUpdate: gateInstallUpdate,
     confirmUpdate: async (check) => {
       const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
         type: 'question',
@@ -334,7 +354,10 @@ function runColdStartGate() {
     sendToLauncher,
     recoverInterruptedImport: () => recoverInterruptedImport({ userDataDir }),
     probeImportHold,
-    startDesktop: () => startDesktopFromLauncher(),
+    startDesktop: launcherPackage
+      ? () => runtimeInstall.startExternalDesktop()
+      : () => startDesktopFromLauncher(),
+    drainParkedUpdateCheck: () => drainParkedUpdateCheck.drain({ generation: getLauncherWindow() }),
     log: (line, level) => dsh.log(line, level),
   });
 }
@@ -468,9 +491,7 @@ const drainParkedUpdateCheck = createParkedUpdateDrainer({
       });
       return result.response === 0;
     },
-    installUpdate: (onProgress) => installUpdate(onProgress, {
-      confirmUnverified: confirmUnverifiedColdStart,
-    }),
+    installUpdate: gateInstallUpdate,
     openLauncher,
     sendToLauncher,
     alreadyVisible: true,
@@ -622,6 +643,25 @@ if (!gotLock) {
             return { ok: false, error: String(error?.message ?? error) };
           }
         },
+        petSettings: () => {
+          const pet = getLive2dPet();
+          if (!pet) return { ok: false, error: 'whale settings are unavailable' };
+          return { ok: true, settings: pet.getSettings(), enabled: Boolean(loadConfig().live2dPet?.enabled) };
+        },
+        applyPetSettings: (patch) => {
+          const pet = getLive2dPet();
+          if (!pet) return { ok: false, error: 'whale settings are unavailable' };
+          const allowed = new Set([
+            'scale', 'opacity', 'personality', 'activity', 'selfTalk', 'wander',
+            'lockPosition', 'shiftToDrag', 'powerSave', 'clickSound', 'chatEnabled',
+            'lookProvider', 'lookModel',
+          ]);
+          if (!patch || typeof patch !== 'object' || Array.isArray(patch)
+            || Object.keys(patch).some((key) => !allowed.has(key))) {
+            return { ok: false, error: 'unknown or invalid whale setting' };
+          }
+          return { ok: true, settings: pet.applySettings({ patch }) };
+        },
         installCatalog: (id, options = {}) => recordMarketplaceOperation('install', id, (record) => (
           installMarketplacePlugin(id, {
             allowBuilds: Array.isArray(options.allowBuilds) ? options.allowBuilds : [],
@@ -701,7 +741,17 @@ if (!gotLock) {
 
     const launcherWin = await prepareLauncher();
     bindLauncherClose(launcherWin);
-    await runColdStartGate();
+    if (process.argv.includes('--dshd-from-launcher')) {
+      // Spawned by the slim launcher package: its gate already decided — go
+      // straight to the desktop start instead of opening a second gate.
+      if (process.argv.includes('--skip-user-plugins')
+        && harness && typeof harness.writePluginSkip === 'function') {
+        harness.writePluginSkip(new Error('launcher-skip-user-plugins'));
+      }
+      await startDesktopFromLauncher();
+    } else {
+      await runColdStartGate();
+    }
     if (qaEnv('DSH_SMOKE')) {
       // QA / smoke orchestration lives in ./smoke and is only required inside
       // this gate: a production start never loads the QA drivers.

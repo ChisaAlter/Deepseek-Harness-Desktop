@@ -1,4 +1,4 @@
-/* 桌宠 section: flat Setting-Cell rows, same rhythm as the whale settings
+/* Whale settings: flat Setting-Cell rows, same rhythm as the assistant settings
    page (hairline separators, title/desc left, control right, max 880). */
 
 .section {
@@ -20,6 +20,19 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
+}
+
+.tabs {
+  width: min(100%, 360px);
+  margin: 12px 0 8px;
+}
+
+.panel {
+  width: 100%;
+}
+
+.panel[hidden] {
+  display: none;
 }
 
 .form {

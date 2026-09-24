@@ -3,6 +3,7 @@
   "pairs": [
     "docs/i18n/README",
     "docs/design-language",
+    "docs/design-language-mobile",
     "docs/motion",
     ".github/release-notes",
     "CONTRIBUTING",

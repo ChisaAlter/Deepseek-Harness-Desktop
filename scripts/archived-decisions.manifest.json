@@ -5,6 +5,9 @@
     "docs/decisions/archived/product/2026-09-20-pet-live-head-states.md": "29b425e7d4b0e7dde6443d740273756eedd9759268554f11628464d2f386d795",
     "docs/decisions/archived/product/2026-09-20-pet-part-rig.en.md": "ee3f7e4051b8e765f63cd1bf044b4e887509f5a90f9ec7841d6e37b3e354870a",
     "docs/decisions/archived/product/2026-09-20-pet-part-rig.i18n.yaml": "3fd6121374cb473acb31d289962a80ef49f8a6c2e7115c7fc2bbd688bd4fe746",
-    "docs/decisions/archived/product/2026-09-20-pet-part-rig.md": "4c35f5cfcebe6b6fb4a6c3969560045c70adf81d3badb5a210923885e4ab1104"
+    "docs/decisions/archived/product/2026-09-20-pet-part-rig.md": "4c35f5cfcebe6b6fb4a6c3969560045c70adf81d3badb5a210923885e4ab1104",
+    "docs/decisions/archived/product/2026-09-24-whale-chat-model-picker.en.md": "b16587a463e9a4823323ecaae09c65fcd378e380bb8e692b4aae330f321e2238",
+    "docs/decisions/archived/product/2026-09-24-whale-chat-model-picker.i18n.yaml": "df4bf0a53660a418f3337fcb1790a94aecf8f6c8d75d73896733cd265e1e1c37",
+    "docs/decisions/archived/product/2026-09-24-whale-chat-model-picker.md": "892afe205c9ea199a7fc7e6842e53744b18c98f1c86ba511015263a63a2ebac3"
   }
 }

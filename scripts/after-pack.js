@@ -69,6 +69,12 @@ const DEV_ONLY_NAMES = new Set([
   'husky',
   'lint-staged',
 ]);
+// These workspace packages are test helpers. All known consumers declare
+// them only in devDependencies; do not ship their Vitest closures.
+const DEV_ONLY_WORKSPACE_NAMES = new Set([
+  '@deepseek-ai/dsh-client-test-runtime',
+  '@deepseek-ai/dsh-session-snapshot',
+]);
 
 /**
  * Fail-closed completeness check used before reusing a packaged plugin tree.
@@ -361,13 +367,16 @@ function isShippedPresetMarkdown(src, root, base) {
  * - flat: 拍平模式——.pnpm store 条目提升到 node_modules/<pkg>（短路径，避免 NSIS
  *   长路径失败），全部内容保留（不丢包）
  */
-function collectFiles(root, destRoot, expandNested = false, flat = false) {
+function collectFiles(root, destRoot, expandNested = false, flat = false, omitRootDirs = null) {
   const files = [];
   const ancestors = new Set();
   const visitedDirectories = new Set();
   const topNodeModules = path.join(path.resolve(destRoot), 'node_modules');
 
   function walk(src, dest) {
+    if (omitRootDirs && omitRootDirs.has(path.relative(root, src).split(path.sep)[0])) {
+      return;
+    }
     if (shouldSkip(src, root, expandNested)) {
       return;
     }
@@ -432,6 +441,83 @@ function collectFiles(root, destRoot, expandNested = false, flat = false) {
 
   walk(path.resolve(root), path.resolve(destRoot));
   return files;
+}
+
+// Flattening can encounter both a workspace symlink and an older published
+// package with the same name. Replace the entire package before calculating
+// nested version isolation, so the manifest and all runtime files agree.
+async function overlayWorkspaceRuntimePackages(harnessSrc, harnessDest) {
+  const roots = [];
+  const packagesDir = path.join(harnessSrc, 'packages');
+  if (fs.existsSync(packagesDir)) {
+    for (const group of fs.readdirSync(packagesDir, { withFileTypes: true })) {
+      if (!group.isDirectory()) { continue; }
+      const groupDir = path.join(packagesDir, group.name);
+      roots.push(groupDir);
+      for (const pkg of fs.readdirSync(groupDir, { withFileTypes: true })) {
+        if (pkg.isDirectory()) { roots.push(path.join(groupDir, pkg.name)); }
+      }
+    }
+  }
+  const appsDir = path.join(harnessSrc, 'apps');
+  if (fs.existsSync(appsDir)) {
+    for (const app of fs.readdirSync(appsDir, { withFileTypes: true })) {
+      if (app.isDirectory()) { roots.push(path.join(appsDir, app.name)); }
+    }
+  }
+  const vendorDir = path.join(harnessSrc, 'vendor');
+  if (fs.existsSync(vendorDir)) {
+    for (const pkg of fs.readdirSync(vendorDir, { withFileTypes: true })) {
+      if (pkg.isDirectory()) { roots.push(path.join(vendorDir, pkg.name)); }
+    }
+  }
+  let files = 0;
+  let packages = 0;
+  const sources = [];
+  for (const source of roots) {
+    const manifestFile = path.join(source, 'package.json');
+    if (!fs.existsSync(manifestFile)) { continue; }
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    for (const name of runtimeDependencyEntries(manifest).keys()) {
+      if (DEV_ONLY_WORKSPACE_NAMES.has(name)) {
+        throw new Error(`测试专用包被运行时依赖引用: ${manifest.name} → ${name}`);
+      }
+    }
+  }
+  for (const source of roots) {
+    const manifestFile = path.join(source, 'package.json');
+    const lib = path.join(source, 'lib');
+    if (!fs.existsSync(manifestFile)) { continue; }
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    if (!manifest.name) { continue; }
+    const target = path.join(harnessDest, 'node_modules', ...manifest.name.split('/'));
+    const nodeModules = path.resolve(harnessDest, 'node_modules');
+    const resolvedTarget = path.resolve(target);
+    if (!resolvedTarget.startsWith(nodeModules + path.sep)) {
+      throw new Error(`工作区包目标越界: ${resolvedTarget}`);
+    }
+    if (DEV_ONLY_WORKSPACE_NAMES.has(manifest.name)) {
+      fs.rmSync(longPath(resolvedTarget), { recursive: true, force: true });
+      const mirror = path.resolve(harnessDest, path.relative(harnessSrc, source));
+      if (!mirror.startsWith(path.resolve(harnessDest) + path.sep)) {
+        throw new Error(`测试专用包目标越界: ${mirror}`);
+      }
+      fs.rmSync(longPath(mirror), { recursive: true, force: true });
+      continue;
+    }
+    if (!fs.existsSync(path.join(target, 'package.json'))) { continue; }
+    if (!fs.existsSync(lib)) {
+      throw new Error(`工作区运行时包缺少编译产物: ${source}`);
+    }
+    const packageFiles = collectFiles(source, target, false, false,
+      new Set(['node_modules', 'src', 'tests', '__tests__']));
+    fs.rmSync(longPath(resolvedTarget), { recursive: true, force: true });
+    await copyFiles(packageFiles, 32);
+    files += packageFiles.length;
+    packages += 1;
+    sources.push({ name: manifest.name, source, target, manifest });
+  }
+  return { packages, files, sources };
 }
 
 /** 并发复制（fs.copyFile 总是解引用链接，复制目标内容；EBUSY 重试以对抗杀软扫描） */
@@ -540,11 +626,14 @@ function hostPackageFromPnpmEntry(entryName) {
  * @param {string} nmDest - packaged `node_modules`
  * @returns {{ src: string, dest: string }[]}
  */
-function collectPnpmFlattenFiles(storeDir, nmDest) {
+function collectPnpmFlattenFiles(storeDir, nmDest, workspaceNames = new Set()) {
   const flattened = [];
   const seen = new Set();
   const flattenPkg = (pkgDir, destDir) => {
     if (!fs.existsSync(path.join(pkgDir, 'package.json'))) {
+      return;
+    }
+    if (DEV_ONLY_WORKSPACE_NAMES.has(JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8')).name)) {
       return;
     }
     if (seen.has(destDir) || fs.existsSync(path.join(destDir, 'package.json'))) {
@@ -601,6 +690,11 @@ function collectPnpmFlattenFiles(storeDir, nmDest) {
       continue;
     }
     const host = hostPackageFromPnpmEntry(entry.name);
+    // A store entry for an older published workspace package is not the
+    // dependency graph of the package that replaced it in the release tree.
+    if (workspaceNames.has(host.name) || DEV_ONLY_WORKSPACE_NAMES.has(host.name)) {
+      continue;
+    }
     const hostDest = destForPackageName(nmDest, host.name);
     for (const sibling of listNodeModulesPackages(entryNm)) {
       if (sibling.name === host.name) {
@@ -760,19 +854,250 @@ async function repairFlattenedCommanderEsm(harnessSrc, harnessDest) {
   return copied;
 }
 
-async function repairFlattenedVersionIsolation(harnessSrc, harnessDest) {
+async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspaceSources = []) {
   const storeDir = path.join(harnessSrc, 'node_modules', '.pnpm');
   const nmDest = path.join(harnessDest, 'node_modules');
-  if (!fs.existsSync(storeDir) || !fs.existsSync(nmDest)) {
+  if (!fs.existsSync(nmDest)) {
     return 0;
   }
-  const flattened = collectPnpmFlattenFiles(storeDir, nmDest);
+  const workspaceNames = new Set(workspaceSources.map((item) => item.name));
+  const workspaceByName = new Map(workspaceSources.map((item) => [item.name, item.source]));
+  for (const item of workspaceSources) {
+    const declared = new Set([
+      ...Object.keys(item.manifest.dependencies || {}),
+      ...Object.keys(item.manifest.optionalDependencies || {}),
+      ...Object.keys(item.manifest.peerDependencies || {}),
+    ]);
+    for (const name of declared) {
+      const sourceDep = resolvePackageFrom(item.source, name, harnessSrc);
+      if (!sourceDep) {
+        if (Object.hasOwn(item.manifest.dependencies || {}, name)) {
+          throw new Error(`工作区必需依赖缺失: ${item.name} → ${name}`);
+        }
+        continue;
+      }
+    }
+  }
+  const flattened = collectPnpmFlattenFiles(storeDir, nmDest, workspaceNames);
   const nested = flattened.filter((item) => isNestedIsolationDest(nmDest, item.dest));
-  if (nested.length === 0) {
-    return 0;
+  if (nested.length) {
+    console.log(`补全拍平缺失的版本隔离嵌套: ${nested.length} 个文件`);
   }
-  console.log(`补全拍平缺失的版本隔离嵌套: ${nested.length} 个文件`);
-  return copyFiles(nested, 32);
+  let copied = await copyFiles(nested, 32);
+  const graphCache = new Map();
+  const fileCache = new Map();
+  const graphActive = new Set();
+  const packageKey = (source, target) => `${realOf(source)}\0${path.resolve(target)}`;
+  const fileMatches = (source, target) => {
+    const key = packageKey(source, target);
+    if (!fileCache.has(key)) {
+      fileCache.set(key, samePublishedPackageFiles(source, target, harnessSrc));
+    }
+    return fileCache.get(key);
+  };
+  const invalidateAfterCopy = (changed) => {
+    const pathOf = (key) => key.slice(key.indexOf('\0') + 1);
+    for (const key of fileCache.keys()) {
+      const target = pathOf(key);
+      if (target === changed || target.startsWith(changed + path.sep)) { fileCache.delete(key); }
+    }
+    graphCache.clear();
+  };
+  const graphMatches = (source, target) => {
+    if (!target) { return false; }
+    const key = packageKey(source, target);
+    if (graphCache.has(key)) { return graphCache.get(key); }
+    if (graphActive.has(key)) { return true; } // same cycle, checked on unwind
+    if (!fileMatches(source, target)) { return false; }
+    graphActive.add(key);
+    let matches = true;
+    const manifest = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8'));
+    for (const [name, kind] of runtimeDependencyEntries(manifest)) {
+      const sourceDep = resolvePackageFrom(source, name, harnessSrc);
+      if (!sourceDep) {
+        if (kind === 'required') { matches = false; break; }
+        continue;
+      }
+      const targetDep = resolvePackageFrom(target, name, harnessDest);
+      if (!targetDep || !graphMatches(realOf(sourceDep), targetDep)) {
+        matches = false;
+        break;
+      }
+    }
+    graphActive.delete(key);
+    graphCache.set(key, matches);
+    return matches;
+  };
+  const visited = new Set();
+  // A published package can have several consumers, but a second source
+  // instance (including a peer variant with identical files) needs its own
+  // module location. Remember which source claimed each flattened location.
+  const targetSource = new Map(workspaceSources.map((item) => [path.resolve(item.target), realOf(item.source)]));
+  const invalidateVisitedAfterCopy = (changed) => {
+    for (const key of visited) {
+      const target = key.slice(key.indexOf('\0') + 1);
+      if (target === changed || target.startsWith(changed + path.sep)) { visited.delete(key); }
+    }
+    for (const target of targetSource.keys()) {
+      if (target === changed || target.startsWith(changed + path.sep)) { targetSource.delete(target); }
+    }
+  };
+  const ensureDependencies = async (source, target, depth = 0) => {
+    if (depth > 32) { throw new Error(`工作区依赖隔离未收敛: ${source}`); }
+    const key = `${realOf(source)}\0${path.resolve(target)}`;
+    if (visited.has(key)) { return; }
+    visited.add(key);
+    const manifest = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8'));
+    for (const [name, kind] of runtimeDependencyEntries(manifest)) {
+      const sourceDep = resolvePackageFrom(source, name, harnessSrc);
+      if (!sourceDep) {
+        if (kind === 'required') { throw new Error(`工作区必需依赖缺失: ${manifest.name} → ${name}`); }
+        continue;
+      }
+      const desired = realOf(sourceDep);
+      const workspaceSource = workspaceByName.get(name);
+      if (workspaceSource && realOf(workspaceSource) === desired) {
+        // This exact workspace instance has its own root in workspaceSources.
+        // Keep one shared module instance; its dependencies are repaired there.
+        continue;
+      }
+      const candidate = resolvePackageFrom(target, name, harnessDest);
+      const candidatePath = candidate && path.resolve(candidate);
+      if (candidatePath && (!targetSource.has(candidatePath) || targetSource.get(candidatePath) === desired)
+          && graphMatches(desired, candidate)) {
+        targetSource.set(candidatePath, desired);
+        continue;
+      }
+      const dependencyOwner = kind === 'peer' ? peerOwnerOf(target) : target;
+      if (kind === 'peer' && dependencyOwner === harnessDest) {
+        throw new Error(`顶层 peer 依赖冲突: ${manifest.name} → ${name}`);
+      }
+      const nestedDest = destForPackageName(path.join(dependencyOwner, 'node_modules'), name);
+      const resolvedNested = path.resolve(nestedDest);
+      if (!resolvedNested.startsWith(path.resolve(harnessDest) + path.sep)) {
+        throw new Error(`工作区依赖目标越界: ${resolvedNested}`);
+      }
+      const omit = runtimeOmitRootDirs(desired, harnessSrc);
+      const packageFiles = collectFiles(desired, nestedDest, false, false, omit);
+      fs.rmSync(longPath(resolvedNested), { recursive: true, force: true });
+      copied += await copyFiles(packageFiles, 32);
+      invalidateAfterCopy(resolvedNested);
+      invalidateVisitedAfterCopy(resolvedNested);
+      targetSource.set(resolvedNested, desired);
+      await ensureDependencies(desired, nestedDest, depth + 1);
+    }
+  };
+  for (let pass = 0; pass < 4; pass += 1) {
+    const before = copied;
+    visited.clear();
+    for (const item of workspaceSources) {
+      await ensureDependencies(item.source, item.target);
+    }
+    graphCache.clear();
+    const invalid = workspaceSources.find((item) => !graphMatches(item.source, item.target));
+    if (!invalid) {
+      const sourceTargets = new Map();
+      const targetSources = new Map();
+      const checked = new Set();
+      const checkIdentity = (source, target) => {
+        const sourceKey = realOf(source);
+        const targetKey = path.resolve(target);
+        const name = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8')).name;
+        if (!sourceTargets.has(sourceKey)) { sourceTargets.set(sourceKey, new Set()); }
+        sourceTargets.get(sourceKey).add(targetKey);
+        const previousSource = targetSources.get(targetKey);
+        if (previousSource && previousSource !== sourceKey) {
+          throw new Error(`工作区依赖实例被合并: ${name} (${previousSource} / ${sourceKey})`);
+        }
+        targetSources.set(targetKey, sourceKey);
+        const key = `${sourceKey}\0${targetKey}`;
+        if (checked.has(key)) { return; }
+        checked.add(key);
+        const manifest = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8'));
+        for (const name of runtimeDependencyEntries(manifest).keys()) {
+          const sourceDep = resolvePackageFrom(source, name, harnessSrc);
+          if (!sourceDep) { continue; }
+          const targetDep = resolvePackageFrom(target, name, harnessDest);
+          if (targetDep) { checkIdentity(sourceDep, targetDep); }
+        }
+      };
+      for (const item of workspaceSources) { checkIdentity(item.source, item.target); }
+      for (const [source, targets] of sourceTargets) {
+        if (targets.size < 2) { continue; }
+        const name = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8')).name;
+        // Matching files and versions do not preserve module-level shared
+        // state. A conflicting root version is not a safe-copy exemption.
+        throw new Error(`工作区依赖实例被拆分: ${name} (${[...targets].join(' / ')})`);
+      }
+      return copied;
+    }
+    if (copied === before || pass === 3) {
+      throw new Error(`工作区运行时依赖图不一致: ${invalid.name}`);
+    }
+  }
+  throw new Error('工作区运行时依赖隔离未收敛');
+}
+
+function assertNoDevOnlyPackages(harnessDest) {
+  const pending = [harnessDest];
+  while (pending.length) {
+    const dir = pending.pop();
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) { continue; }
+      const child = path.join(dir, entry.name);
+      if (entry.name === 'node_modules') {
+        for (const name of DEV_ONLY_WORKSPACE_NAMES) {
+          const pkg = destForPackageName(child, name);
+          if (fs.existsSync(path.join(pkg, 'package.json'))) {
+            throw new Error(`测试专用包仍在发布树中: ${pkg}`);
+          }
+        }
+      }
+      pending.push(child);
+    }
+  }
+}
+
+function runtimeDependencyEntries(manifest) {
+  const entries = new Map();
+  for (const name of Object.keys(manifest.dependencies || {})) { entries.set(name, 'required'); }
+  for (const name of Object.keys(manifest.optionalDependencies || {})) { entries.set(name, 'optional'); }
+  for (const name of Object.keys(manifest.peerDependencies || {})) {
+    if (!entries.has(name)) { entries.set(name, 'peer'); }
+  }
+  return entries;
+}
+
+function peerOwnerOf(packageDir) {
+  let current = path.dirname(packageDir);
+  while (path.basename(current) !== 'node_modules' && path.dirname(current) !== current) {
+    current = path.dirname(current);
+  }
+  return path.basename(current) === 'node_modules' ? path.dirname(current) : packageDir;
+}
+
+function runtimeOmitRootDirs(source, harnessSrc) {
+  const rel = path.relative(harnessSrc, source).split(path.sep);
+  if (rel[0] === 'packages' || rel[0] === 'apps' || rel[0] === 'vendor') {
+    return new Set(['node_modules', 'src', 'tests', '__tests__']);
+  }
+  return new Set(['node_modules']);
+}
+
+function samePublishedPackageFiles(source, target, harnessSrc) {
+  if (!fs.existsSync(path.join(target, 'package.json'))) { return false; }
+  const omit = runtimeOmitRootDirs(source, harnessSrc);
+  const sourceFiles = collectFiles(source, source, false, false, omit);
+  const targetFiles = collectFiles(target, target, false, false, omit);
+  if (sourceFiles.length !== targetFiles.length) { return false; }
+  const targetByRel = new Map(targetFiles.map((item) => [path.relative(target, item.src), item.src]));
+  for (const item of sourceFiles) {
+    const match = targetByRel.get(path.relative(source, item.src));
+    if (!match) { return false; }
+    if (fs.statSync(item.src).size !== fs.statSync(match).size
+        || !fs.readFileSync(item.src).equals(fs.readFileSync(match))) { return false; }
+  }
+  return true;
 }
 
 function resolvePackageFrom(fromDir, packageName, stopDir) {
@@ -1081,9 +1406,14 @@ module.exports = async function afterPack(context) {
     const files = collectFiles(harnessSrc, harnessDest, false, true);
     console.log(`待复制 ${files.length} 个文件，收集耗时 ${((Date.now() - started) / 1000).toFixed(1)}s（并发复制中）`);
     copied = await copyFiles(files, 32);
-    copied += await repairFlattenedVersionIsolation(harnessSrc, harnessDest);
+    const workspace = await overlayWorkspaceRuntimePackages(harnessSrc, harnessDest);
+    copied += workspace.files;
+    console.log(`替换 ${workspace.packages} 个工作区运行时包，避免拍平时旧版本抢占`);
+    copied += await repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspace.sources);
     copied += await repairFlattenedCommanderEsm(harnessSrc, harnessDest);
   }
+
+  assertNoDevOnlyPackages(harnessDest);
 
   const nodeDest = copyBundledNode(resources);
   const pnpmDest = copyBundledPnpm(projectDir, resources);
@@ -1120,8 +1450,10 @@ module.exports = async function afterPack(context) {
 };
 
 module.exports.collectFiles = collectFiles;
+module.exports.overlayWorkspaceRuntimePackages = overlayWorkspaceRuntimePackages;
 module.exports.collectPnpmFlattenFiles = collectPnpmFlattenFiles;
 module.exports.repairFlattenedVersionIsolation = repairFlattenedVersionIsolation;
+module.exports.assertNoDevOnlyPackages = assertNoDevOnlyPackages;
 module.exports.repairFlattenedCommanderEsm = repairFlattenedCommanderEsm;
 module.exports.copyFiles = copyFiles;
 module.exports.deployCliEntries = deployCliEntries;

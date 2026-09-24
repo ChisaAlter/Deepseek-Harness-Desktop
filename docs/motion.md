@@ -144,7 +144,8 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 
 | 产品面 | 当前行为与源码 |
 | --- | --- |
-| 权限、模型/思考、附件来源、行菜单短面板；目录与 Git 全屏任务、确认层 | `ui/surfaces.js` 生成 `.surface-panel`；`app.css` 的 `mobile-surface-in` 仅在 `prefers-reduced-motion: no-preference` 下入场：opacity + translateY(8px)，使用 `--ds-motion-duration-overlay`（回退 `--ds-transition-duration`）和 `--ds-ease-in-out`。全屏任务无浮卡边框，头部与操作区不参与正文滚动 |
+| 输入框触发的底部面板（附件来源、模型／思考、权限） | `ui/surfaces.js` 的 `bottom` 变体（`data-surface="bottom"`）；`app.css` 的 `bottom-sheet-in` 仅在 `prefers-reduced-motion: no-preference` 下入场：面板 translateY(100%)→0、遮罩 opacity 0→1，使用 `--ds-motion-duration-overlay` 与 `--ds-ease-in-out`；同面板内下钻换页不重播入场 |
+| 行菜单与 Git 菜单短面板；目录、Git 表单与完整会话列表全屏任务、确认层 | `ui/surfaces.js` 生成 `.surface-panel`；`app.css` 的 `mobile-surface-in` 仅在 `prefers-reduced-motion: no-preference` 下入场：opacity + translateY(8px)，使用 `--ds-motion-duration-overlay`（回退 `--ds-transition-duration`）和 `--ds-ease-in-out`。全屏任务无浮卡边框，头部与操作区不参与正文滚动 |
 | 同一表面刷新/异步结果 | `app.js` 保持 surface identity，设置 `data-refreshed`；CSS 禁止重复入场，避免模型选中、查询结果等更新使整个面板重播。焦点与滚动恢复不是动效 |
 | 关闭与返回 | `ui/navigation.js` 与 `app.js` 按当前层处理按钮、浏览器及 Android 返回；当前树直接隐藏/移除，没有官方 Presence 的 200ms 退场挂载，不声称已具备完整 overlay 退场 recipe。返回不能借动画完成事件重放业务写请求 |
 | 会话抽屉 | `.drawer` 使用 transform 与 `--ds-transition-duration-slow` / `--ds-ease-in-out`；减弱动效关闭 transition。此项不代表已接入或验收拖动手势 |

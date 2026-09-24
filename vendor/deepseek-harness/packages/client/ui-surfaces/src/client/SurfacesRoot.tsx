@@ -188,14 +188,14 @@ function SurfacesBody({
   }, [key])
   useEffect(() => {
     const onOpen = (event: Event): void => {
-      const detail = (event as CustomEvent<{ kind?: string; sessionId?: string } | undefined>).detail
+      const detail = (event as CustomEvent<{ kind?: string; sessionId?: string; presentation?: 'mini' } | undefined>).detail
       const kind = detail?.kind
       if (kind !== 'preview' && kind !== 'terminal' && kind !== 'files' && kind !== 'diff' && kind !== 'agents') {
         return
       }
       const targetSessionId = detail?.sessionId ?? key
       actions.open(targetSessionId, kind)
-      if (targetSessionId === key) openSurfaces()
+      if (targetSessionId === key && detail?.presentation !== 'mini') openSurfaces()
     }
     window.addEventListener(OPEN_SURFACE_EVENT, onOpen)
     return () => { window.removeEventListener(OPEN_SURFACE_EVENT, onOpen) }

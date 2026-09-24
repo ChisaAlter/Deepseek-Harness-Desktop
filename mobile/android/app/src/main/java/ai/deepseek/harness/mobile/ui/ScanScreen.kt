@@ -112,19 +112,23 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit, onPaste: () -> Un
     Column(
         Modifier
             .fillMaxSize()
-            .background(palette.bgBase)
+            .background(palette.sidebarFill)
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(bottom = 16.dp),
     ) {
         Row(
-            Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.width(36.dp).height(36.dp).clip(RoundedCornerShape(8.dp)).then(dshClickable(onClick = onClose)),
+                Modifier.width(48.dp).height(48.dp).then(dshClickable(onClick = onClose)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("‹", color = palette.labelSecondary, fontSize = 28.sp, lineHeight = 28.sp)
+                Canvas(Modifier.width(16.dp).height(16.dp)) {
+                    val stroke = Stroke(width = 1.4.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(palette.labelSecondary, Offset(size.width * 0.62f, 0f), Offset(size.width * 0.22f, size.height * 0.5f), stroke.width, StrokeCap.Round)
+                    drawLine(palette.labelSecondary, Offset(size.width * 0.22f, size.height * 0.5f), Offset(size.width * 0.62f, size.height), stroke.width, StrokeCap.Round)
+                }
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -142,7 +146,7 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit, onPaste: () -> Un
                 )
             }
             Box(
-                Modifier.height(36.dp).clip(RoundedCornerShape(8.dp)).then(dshClickable(onClick = onPaste)).padding(horizontal = 8.dp),
+                Modifier.height(48.dp).then(dshClickable(onClick = onPaste)).padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("粘贴", color = palette.buttonInfoFill, fontSize = 13.sp, lineHeight = 20.sp)
@@ -159,7 +163,7 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit, onPaste: () -> Un
                 Modifier
                     .fillMaxWidth()
                     .aspectRatio(0.8f)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color(31, 33, 36)),
             ) {
                 AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
@@ -209,16 +213,21 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit, onPaste: () -> Un
             Modifier.fillMaxWidth().padding(top = 20.dp),
             contentAlignment = Alignment.Center,
         ) {
+            // 40dp outline pill inside a ≥48dp touch target.
             Box(
-                Modifier
-                    .width(180.dp)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .border(1.dp, palette.borderL2, RoundedCornerShape(18.dp))
-                    .then(dshClickable(onClick = onPaste)),
+                Modifier.height(48.dp).then(dshClickable(onClick = onPaste)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("粘贴配对链接", color = palette.labelPrimary, fontSize = 14.sp, lineHeight = 22.sp)
+                Box(
+                    Modifier
+                        .width(180.dp)
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, palette.borderL2, RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("粘贴配对链接", color = palette.labelPrimary, fontSize = 14.sp, lineHeight = 22.sp)
+                }
             }
         }
         Text(

@@ -442,6 +442,8 @@ test('runImport copies only selected rows and never writes the source', async ()
     installPlugin: async () => ({ ok: true }),
   });
   assert.equal(empty.empty, true);
+  assert.equal(fs.existsSync(path.join(tree.userData, 'import-journal.json')), false,
+    'an empty selection must not create an import journal');
   assert.equal(fs.existsSync(path.join(tree.dest, 'sessions')), false);
   assert.equal(fs.existsSync(path.join(tree.dest, 'skills')), false);
   assert.equal(fs.existsSync(path.join(tree.dest, 'mcp-servers.yaml')), false);

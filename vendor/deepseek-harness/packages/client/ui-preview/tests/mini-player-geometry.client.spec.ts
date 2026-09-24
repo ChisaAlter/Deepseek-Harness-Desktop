@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   clampMiniPlayerPosition,
   clampMiniPlayerSize,
+  initialMiniPlayerGeometry,
   MINI_PLAYER_EDGE_GAP,
   MINI_PLAYER_MIN_SIZE,
   resizeMiniPlayerGeometry,
 } from '../src/client/mini-player-geometry.ts'
 
 describe('dshd mini-player geometry', () => {
+  it('starts at the top-right edge of the chat viewport', () => {
+    expect(initialMiniPlayerGeometry({ width: 800, height: 500 })).toEqual({ x: 468, y: 12, width: 320, height: 200 })
+  })
   it('clamps dimensions to the minimum and chat container', () => {
     expect(clampMiniPlayerSize({ width: 10, height: 10 }, { width: 800, height: 500 })).toEqual(MINI_PLAYER_MIN_SIZE)
     expect(clampMiniPlayerSize({ width: 900, height: 700 }, { width: 800, height: 500 })).toEqual({

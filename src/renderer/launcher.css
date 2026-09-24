@@ -630,6 +630,125 @@ main:has(#panel-import.is-active) {
   word-break: break-all;
 }
 
+/* --- Runtime install card + download route picker (home, missing runtime) - */
+
+.install-card {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.install-head h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+
+.install-head .lede {
+  margin: 0 0 12px;
+}
+
+.route-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.route-card {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  cursor: pointer;
+  transition: border-color var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+    background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.route-card:hover:not(.is-disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.route-card:has(input:checked) {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.route-card.is-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.route-card input {
+  margin-top: 3px;
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.route-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.route-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.route-card-desc {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.route-seg {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.route-seg .seg {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+    color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.route-seg .seg:hover:not(:disabled):not(.is-active) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.route-seg .seg.is-active {
+  background: var(--dsw-specific-sidebar-nav-item-active);
+  color: var(--dsw-alias-label-primary);
+}
+
+.route-seg .seg:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .list {
   list-style: none;
   margin: 0;

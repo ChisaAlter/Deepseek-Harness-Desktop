@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-shell-theme="official">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>启动器重构原型 · Launcher Redesign Prototype</title>
+<style>
+/* ===== tokens：与 src/shared/dsh-webui-tokens.css 同步（原型内联，正式实现直接引用原文件） ===== */
+:root {
+  color-scheme: light;
+  --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ds-font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+    'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-transition-duration-fast: 0.1s;
+  --dsw-alias-bg-base: rgb(255, 255, 255);
+  --dsw-alias-bg-layer-1: rgb(255, 255, 255);
+  --dsw-alias-bg-layer-2: rgb(255, 255, 255);
+  --dsw-alias-bg-module-platform: rgb(245, 246, 247);
+  --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+  --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+  --dsw-alias-button-primary-fill: rgb(15, 17, 21);
+  --dsw-alias-button-primary-hover: rgb(67, 69, 74);
+  --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+  --dsw-alias-label-primary: rgb(15, 17, 21);
+  --dsw-alias-label-primary-foreground: rgb(255, 255, 255);
+  --dsw-alias-label-secondary: rgb(97, 102, 107);
+  --dsw-alias-label-tertiary: rgb(129, 133, 140);
+  --dsw-alias-state-business-primary: rgb(65, 118, 230);
+  --dsw-alias-state-error-primary: rgb(236, 19, 19);
+  --dsw-alias-state-success-primary: rgb(34, 197, 94);
+  --dsw-static-amber-400: rgb(247, 173, 49);
+  --dsw-specific-sidebar-fill: rgb(249, 250, 251);
+  --dsw-specific-sidebar-nav-item-active: rgb(235, 238, 242);
+  --dsw-specific-sidebar-nav-item-active-accent: rgb(228, 237, 253);
+  --dsw-specific-sidebar-nav-item-hover: rgb(241, 243, 245);
+}
+html[data-ds-dark-theme] {
+  color-scheme: dark;
+  --dsw-alias-bg-base: rgb(21, 21, 23);
+  --dsw-alias-bg-layer-1: rgb(35, 35, 36);
+  --dsw-alias-bg-layer-2: rgb(44, 44, 46);
+  --dsw-alias-bg-module-platform: rgb(53, 54, 56);
+  --dsw-alias-border-l1: rgba(255, 255, 255, 0.06);
+  --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+  --dsw-alias-button-primary-fill: rgb(249, 250, 251);
+  --dsw-alias-button-primary-hover: rgb(235, 238, 242);
+  --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+  --dsw-alias-label-primary: rgb(249, 250, 251);
+  --dsw-alias-label-primary-foreground: rgb(15, 17, 21);
+  --dsw-alias-label-secondary: rgb(207, 211, 214);
+  --dsw-alias-label-tertiary: rgb(173, 178, 184);
+  --dsw-alias-state-business-primary: rgb(103, 158, 254);
+  --dsw-alias-state-error-primary: rgb(242, 90, 90);
+  --dsw-specific-sidebar-fill: rgb(27, 27, 28);
+  --dsw-specific-sidebar-nav-item-active: rgb(67, 69, 74);
+  --dsw-specific-sidebar-nav-item-active-accent: rgb(53, 54, 56);
+  --dsw-specific-sidebar-nav-item-hover: rgb(44, 44, 46);
+}
+
+/* ===== 原型预览框架（不属于产品 UI） ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dsw-font-family);
+  background: #5b6169;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 40px;
+}
+.proto-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(20, 22, 25, 0.92);
+  color: #cfd3d6;
+  font-size: 12px;
+  line-height: 18px;
+}
+.proto-bar .proto-label { color: #81858c; margin-right: 4px; }
+.proto-bar button {
+  font: inherit;
+  color: #cfd3d6;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: transparent;
+  border-radius: 999px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.proto-bar button:hover { background: rgba(255,255,255,0.1); }
+.proto-bar button.is-on { background: #e4edfd; border-color: #e4edfd; color: #0f1115; }
+
+/* ===== 窗口剪影（对应 .shell 20px 自绘轮廓） ===== */
+.win {
+  position: relative;
+  width: 1060px;
+  max-width: calc(100vw - 48px);
+  margin-top: 24px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35), inset 0 0 0 1px var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-primary);
+}
+/* 真实启动器顶部是 48px 隐形拖拽区，不是可见栏 */
+.caption { position: absolute; top: 0; left: 0; right: 120px; height: 48px; z-index: 1; }
+/* 右上角 Windows 风格控件（对齐 harness-chrome-inject 主窗口：32px 方形 8px 圆角） */
+.window-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  height: 48px;
+  padding: 12px 8px 4px;
+}
+.window-controls button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+}
+.window-controls button svg { width: 12px; height: 12px; display: block; }
+.window-controls button:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.window-controls button[data-act="close"]:hover { background: #e81123; color: #fff; }
+.shell { display: flex; height: 640px; min-height: 0; }
+
+/* ===== 左 rail（沿用现有结构） ===== */
+.rail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 188px;
+  padding: 56px 12px 16px;
+  background: var(--dsw-specific-sidebar-fill);
+  border-right: 1px solid var(--dsw-alias-border-l1);
+}
+.rail-head { padding: 0 12px; }
+.rail-kicker { margin: 0 0 4px; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
+.rail-title { margin: 0; font-size: 16px; font-weight: 500; line-height: 24px; }
+.tabs { display: flex; flex-direction: column; gap: 4px; }
+.tab, button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.tab {
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding: 9px 16px 9px 12px;
+  border-radius: 12px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px; line-height: 22px; text-align: left;
+}
+.tab-icon { flex: none; width: 16px; height: 16px; }
+.tab.is-active { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+.tab:hover { background: var(--dsw-specific-sidebar-nav-item-hover); }
+.tab.is-active:hover { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+.tab .tab-badge {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-business-primary);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+.rail-foot {
+  margin-top: auto;
+  padding: 10px 12px 0;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+.rail-foot .line-chip {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px; line-height: 18px;
+}
+.rail-foot .line-chip b { color: var(--dsw-alias-label-secondary); font-weight: 500; }
+
+/* ===== 右 stage ===== */
+.stage { position: relative; z-index: 1; flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 56px 24px 24px; }
+.hint { flex: none; margin: 0 0 12px; color: var(--dsw-alias-state-business-primary); font-size: 12px; line-height: 18px; }
+main { flex: 1; min-height: 0; overflow: auto; }
+.panel[hidden] { display: none; }
+.page-head { margin-bottom: 16px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.page-head h2 { margin: 0; font-size: 16px; font-weight: 500; line-height: 24px; }
+.page-head .head-line { margin-left: auto; }
+.lede, .meta, .status { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 14px; line-height: 22px; }
+.lede-block { margin: -8px 0 16px; }
+.status { margin-bottom: 16px; }
+.row-meta { color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
+code { font-family: var(--ds-font-family-code); font-size: 12px; }
+
+/* ===== 按钮（沿用现有 pill 语言） ===== */
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.primary, .ghost, .danger {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 36px; padding: 0 14px; border-radius: 18px;
+  font-size: 14px; line-height: 22px;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+.primary { background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); }
+.primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover); }
+.ghost { border: 1px solid var(--dsw-alias-border-l2); background: transparent; color: var(--dsw-alias-label-primary); }
+.ghost:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.danger { border: 1px solid var(--dsw-alias-state-error-primary); background: transparent; color: var(--dsw-alias-state-error-primary); }
+.danger:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.primary:disabled, .ghost:disabled, .danger:disabled { opacity: 0.4; cursor: default; }
+.ghost.small, .primary.small, .danger.small { height: 28px; padding: 0 12px; border-radius: 14px; font-size: 12px; line-height: 18px; }
+.linklike { color: var(--dsw-alias-state-business-primary); font-size: 12px; line-height: 18px; padding: 0; }
+.linklike:hover { text-decoration: underline; }
+
+/* ===== 徽标 ===== */
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--dsw-specific-sidebar-nav-item-active-accent);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px; line-height: 18px; font-weight: 500;
+}
+.badge.blue { background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent); color: var(--dsw-alias-state-business-primary); }
+.badge.green { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent); color: var(--dsw-alias-state-success-primary); }
+.badge.warn { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 16%, transparent); color: var(--dsw-alias-state-error-primary); }
+.badge.amber { background: color-mix(in srgb, var(--dsw-static-amber-400) 22%, transparent); color: #a06a00; }
+html[data-ds-dark-theme] .badge.amber { color: var(--dsw-static-amber-400); }
+
+/* ===== 卡片 / 列表 ===== */
+.card {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  padding: 16px;
+}
+.card + .card { margin-top: 12px; }
+.card-title { margin: 0 0 4px; font-size: 14px; font-weight: 500; line-height: 22px; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  align-items: center; justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+.row-main { flex: 1 1 220px; min-width: 0; }
+.row-title { font-size: 14px; font-weight: 400; line-height: 22px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ===== 线路选择卡 ===== */
+.line-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 16px; }
+.line-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  text-align: left;
+  cursor: pointer;
+}
+.line-card:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.line-card.is-sel {
+  border-color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, transparent);
+}
+.line-card .lc-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; line-height: 22px; }
+.line-card .lc-desc { color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
+.lc-radio {
+  flex: none; width: 16px; height: 16px; border-radius: 999px;
+  border: 1.5px solid var(--dsw-alias-border-l2);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.line-card.is-sel .lc-radio { border-color: var(--dsw-alias-state-business-primary); }
+.line-card.is-sel .lc-radio::after {
+  content: ""; width: 8px; height: 8px; border-radius: 999px;
+  background: var(--dsw-alias-state-business-primary);
+}
+
+/* ===== 进度 ===== */
+.progress-card { display: flex; flex-direction: column; gap: 10px; }
+.progress-head { display: flex; align-items: baseline; gap: 10px; }
+.progress-head .ph-title { font-size: 14px; font-weight: 500; line-height: 22px; }
+.progress-head .ph-pct { margin-left: auto; font-size: 14px; font-weight: 500; color: var(--dsw-alias-state-business-primary); }
+.bar { height: 4px; border-radius: 999px; background: var(--dsw-alias-bg-module-platform); overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; border-radius: 999px; background: var(--dsw-alias-state-business-primary); transition: width .4s var(--ds-ease-in-out); }
+.phases { display: flex; gap: 4px; flex-wrap: wrap; }
+.phase {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 10px; border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px;
+}
+.phase.done { color: var(--dsw-alias-state-success-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 40%, transparent); }
+.phase.now { color: var(--dsw-alias-state-business-primary); border-color: var(--dsw-alias-state-business-primary); }
+.phase-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+
+/* ===== 通知条 ===== */
+.notice {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 16px; padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 30%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 6%, transparent);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px; line-height: 20px;
+}
+.notice .n-desc { flex: 1; min-width: 200px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+.notice.warn { border-color: color-mix(in srgb, var(--dsw-static-amber-400) 50%, transparent); background: color-mix(in srgb, var(--dsw-static-amber-400) 10%, transparent); }
+
+/* ===== 组件页 ===== */
+.comp-icon {
+  flex: none; width: 36px; height: 36px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 15px; font-weight: 600;
+}
+.comp-row { align-items: flex-start !important; }
+.comp-row .row-main { display: flex; gap: 12px; align-items: flex-start; }
+.comp-status { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.mini-bar { width: 120px; }
+
+/* ===== 设置页（沿用 switch-row） ===== */
+.switch-row { display: flex; align-items: center; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--dsw-alias-border-l2); }
+.switch-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-right: 48px; }
+.switch-title { font-size: 14px; line-height: 22px; }
+.switch-desc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+.switch { position: relative; flex: none; width: 36px; height: 20px; }
+.switch input { position: absolute; inset: 0; z-index: 1; margin: 0; opacity: 0; cursor: pointer; }
+.switch-ui { display: block; width: 36px; height: 20px; padding: 2px; border-radius: 999px; background: var(--dsw-alias-border-l2); transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out); }
+.switch-ui::after { content: ""; display: block; width: 16px; height: 16px; border-radius: 999px; background: var(--dsw-alias-bg-layer-1); transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out); }
+.switch input:checked + .switch-ui { background: var(--dsw-alias-state-business-primary); }
+.switch input:checked + .switch-ui::after { transform: translateX(16px); }
+
+.seg { display: inline-flex; gap: 4px; padding: 3px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px; background: var(--dsw-alias-bg-layer-1); }
+.seg button { height: 26px; padding: 0 14px; border-radius: 999px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+.seg button.is-on { background: var(--dsw-specific-sidebar-nav-item-active); color: var(--dsw-alias-label-primary); }
+
+/* ===== 恢复板（沿用） ===== */
+.recovery-board { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--dsw-alias-border-l1); }
+.recovery-head h3 { margin: 0 0 8px; font-size: 15px; font-weight: 500; line-height: 22px; }
+.recovery-verdict { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
+
+/* ===== 状态显隐：原型用 data-proto-state 切换 ===== */
+[data-proto-state="notinstalled"] .st-installed,
+[data-proto-state="notinstalled"] .st-running,
+[data-proto-state="notinstalled"] .st-downloading,
+[data-proto-state="notinstalled"] .st-recovery { display: none !important; }
+[data-proto-state="downloading"] .st-installed,
+[data-proto-state="downloading"] .st-running,
+[data-proto-state="downloading"] .st-linepick,
+[data-proto-state="downloading"] .st-recovery { display: none !important; }
+[data-proto-state="installed"] .st-notinstalled,
+[data-proto-state="installed"] .st-running,
+[data-proto-state="installed"] .st-downloading,
+[data-proto-state="installed"] .st-recovery { display: none !important; }
+[data-proto-state="running"] .st-notinstalled,
+[data-proto-state="running"] .st-installed,
+[data-proto-state="running"] .st-downloading,
+[data-proto-state="running"] .st-recovery { display: none !important; }
+[data-proto-state="recovery"] .st-notinstalled,
+[data-proto-state="recovery"] .st-downloading,
+[data-proto-state="recovery"] .st-running { display: none !important; }
+/* 未安装时其它分区的前置提示 */
+[data-proto-state="notinstalled"] .need-install { display: flex !important; }
+[data-proto-state="notinstalled"] .hint,
+[data-proto-state="downloading"] .hint { display: none; }
+.need-install { display: none; }
+[data-proto-state="notinstalled"] .needs-runtime { opacity: .55; }
+[data-proto-state="notinstalled"] .needs-runtime .row-actions,
+[data-proto-state="notinstalled"] .needs-runtime .import-mock { pointer-events: none; }
+</style>
+</head>
+<body data-proto-state="notinstalled">
+
+<div class="proto-bar">
+  <span class="proto-label">原型预览 · DSHD 状态</span>
+  <button data-ps="notinstalled" class="is-on">未安装</button>
+  <button data-ps="downloading">下载中</button>
+  <button data-ps="installed">已安装·未运行</button>
+  <button data-ps="running">运行中</button>
+  <button data-ps="recovery">恢复板</button>
+  <span class="proto-label" style="margin-left:16px">主题</span>
+  <button id="proto-theme">暗色</button>
+</div>
+
+<div class="win">
+  <div class="caption" aria-hidden="true"></div>
+  <div class="window-controls">
+    <button type="button" data-act="minimize" aria-label="最小化"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.4" width="8" height="1.2" rx="0.6" fill="currentColor"/></svg></button>
+    <button type="button" data-act="maximize" aria-label="最大化"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
+    <button type="button" data-act="close" aria-label="关闭"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3L3 9" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg></button>
+  </div>
+  <div class="shell">
+    <aside class="rail">
+      <div class="rail-head">
+        <p class="rail-kicker">Deepseek-Harness-Desktop</p>
+        <h1 class="rail-title">启动器</h1>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="启动器分区">
+        <button type="button" class="tab is-active" data-tab="home" role="tab" aria-selected="true">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8.06 1.72a.9.9 0 0 0-.92 0L1.7 5.4A.9.9 0 0 0 1.3 6.2v7.4c0 .7.57 1.28 1.28 1.28h3.4V9.6h3.84v5.28h3.4c.7 0 1.28-.57 1.28-1.28V6.2a.9.9 0 0 0-.4-.8L8.06 1.72Z"/></svg>
+          首页
+        </button>
+        <button type="button" class="tab" data-tab="components" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.5 2.8 4.4v7.2L8 14.5l5.2-2.9V4.4L8 1.5Zm0 1.7 3.4 1.9L8 7 4.6 5.1 8 3.2ZM4.2 6.5l3.2 1.8v4.3l-3.2-1.8V6.5Zm7.6 0v4.3L8.6 12.6V8.3l3.2-1.8Z"/></svg>
+          组件
+          <span class="tab-badge">2</span>
+        </button>
+        <button type="button" class="tab" data-tab="versions" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3.1 3.2h9.8v1.4H3.1V3.2Zm0 4.1h9.8v1.4H3.1V7.3Zm0 4.1h9.8v1.4H3.1v-1.4ZM1.4 1.5h13.2c.6 0 1.1.5 1.1 1.1v11c0 .6-.5 1.1-1.1 1.1H1.4c-.6 0-1.1-.5-1.1-1.1v-11c0-.6.5-1.1 1.1-1.1Z"/></svg>
+          版本
+        </button>
+        <button type="button" class="tab" data-tab="import" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8.72 9V1.3H7.28v7.7L4.1 6.26 3.08 7.28 7.28 11.5c.2.2.38.37.54.5.2.16.4.28.64.32.16.03.32.03.48 0 .24-.04.44-.16.64-.32.16-.13.34-.3.54-.5l3.58-4.22-1.02-1.02L8.72 9Zm6.65 2.41-.25 1.48A2.1 2.1 0 0 1 12.22 15H3.78a2.1 2.1 0 0 1-2.1-1.71l-.25-1.48 1.42-.24.25 1.48c.12.72.74 1.25 1.48 1.25h8.44c.74 0 1.36-.53 1.48-1.25l.24-1.48 1.43.24Z"/></svg>
+          导入
+        </button>
+        <button type="button" class="tab" data-tab="plugins" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.2 1.4h3.6v2.2h2.6c.6 0 1.1.5 1.1 1.1v2.6H16v3.6h-2.5v2.6c0 .6-.5 1.1-1.1 1.1H9.8V16H6.2v-2.5H3.6c-.6 0-1.1-.5-1.1-1.1V9.8H0V6.2h2.5V3.6c0-.6.5-1.1 1.1-1.1h2.6V1.4Zm1.4 1.4v2.2H4.7v3.6H2.5v.8h2.2v3.6h3.6V14h.8v-2.2h3.6V8.2H14v-.8h-2.2V3.8H8.4V2.8H7.6Z"/></svg>
+          插件排查
+        </button>
+        <button type="button" class="tab" data-tab="settings" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 5.52a2.48 2.48 0 1 0 0 4.96 2.48 2.48 0 0 0 0-4.96ZM6.86 1.7c.14-.11.3-.16.47-.18.54-.05 1.13-.05 1.67 0 .17.02.33.07.47.18l.34.46c.34.46.57 1 .87 1.46.3.41.71.64 1.22.69.59.06 1.2-.02 1.8.03.17.02.33.1.41.21.3.4.58.88.8 1.33.06.13.06.19 0 .32l-.23.5c-.24.5-.58.93-.82 1.43-.23.48-.23.98 0 1.46.24.5.58.94.82 1.43l.23.5c.06.13.06.19 0 .32-.22.46-.5.93-.8 1.33-.08.11-.24.19-.41.21-.6.06-1.21-.02-1.8.03-.5.05-.92.28-1.22.69-.3.46-.53 1-.87 1.46l-.34.46c-.14.11-.3.16-.47.18-.54.05-1.13.05-1.67 0-.17-.02-.33-.07-.47.18l-.34-.46c-.34-.46-.57-1-.87-1.46-.3-.41-.71-.64-1.22.69-.59-.06-1.2.02-1.8-.03-.17-.02-.33-.1-.41-.21-.3-.4-.58-.88-.8-1.33-.06-.13-.06-.19 0-.32l.23-.5c-.24.5-.58.93-.82 1.43-.23.48-.23.98 0 1.46-.24.5-.58.94-.82 1.43L1.7 6.4c-.06-.13-.06-.19 0-.32.22-.45.5-.93.8-1.33.08-.11.24-.19.41-.21.6-.05 1.21.03 1.8-.03.5-.05.92-.28 1.22-.69.3-.46.53-1 .87-1.46l.34-.46Z"/></svg>
+          设置
+        </button>
+      </nav>
+      <div class="rail-foot">
+        <p class="line-chip" title="下载线路可在设置中切换">
+          <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm5.2 6h-2.1a11.6 11.6 0 0 0-1.2-3.6A5.6 5.6 0 0 1 13.2 7ZM8 2.6c.7.8 1.5 2.3 1.7 4.4H6.3c.2-2.1 1-3.6 1.7-4.4ZM6.1 3.4A11.6 11.6 0 0 0 4.9 7H2.8a5.6 5.6 0 0 1 3.3-3.6ZM2.8 9h2.1c.1 1.4.5 2.6 1.2 3.6A5.6 5.6 0 0 1 2.8 9ZM8 13.4c-.7-.8-1.5-2.3-1.7-4.4h3.4c-.2 2.1-1 3.6-1.7 4.4Zm1.9-.8A11.6 11.6 0 0 0 11.1 9h2.1a5.6 5.6 0 0 1-3.3 3.6Z"/></svg>
+          线路 <b class="cur-line">GitHub</b>
+        </p>
+      </div>
+    </aside>
+
+    <div class="stage">
+      <p class="hint" id="hint">发现新版本 v0.3.4 — 已停用自动询问时可到「版本」手动更新</p>
+      <main>
+
+        <!-- ================= 首页 ================= -->
+        <section id="panel-home" class="panel is-active" role="tabpanel">
+          <header class="page-head">
+            <h2>首页</h2>
+          </header>
+
+          <!-- 未安装：线路选择 + 下载 -->
+          <div class="st-notinstalled">
+            <div class="card st-linepick">
+              <h3 class="card-title">尚未安装桌面端</h3>
+              <p class="meta">选择下载线路后获取完整安装包。两条线路提供同一版本文件，稍后可于「设置」切换。</p>
+              <div class="line-grid">
+                <button type="button" class="line-card is-sel" data-line="github">
+                  <span class="lc-title"><span class="lc-radio"></span>GitHub<span class="badge">国外线路</span></span>
+                  <span class="lc-desc">直连 GitHub Releases。适合可访问国际网络的环境。</span>
+                </button>
+                <button type="button" class="line-card" data-line="gitee">
+                  <span class="lc-title"><span class="lc-radio"></span>Gitee<span class="badge">国内线路</span></span>
+                  <span class="lc-desc">国内镜像，同等文件与校验。网络受限时通常更稳定。</span>
+                </button>
+              </div>
+              <div class="actions" style="margin:0">
+                <button type="button" class="primary" id="btn-download">下载并安装桌面端</button>
+                <span class="row-meta" style="align-self:center">约 638 MB · 下载后自动校验 SHA-256</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 下载/校验/安装 进度 -->
+          <div class="st-downloading">
+            <div class="card progress-card">
+              <div class="progress-head">
+                <span class="ph-title">正在获取 Deepseek-Harness-Desktop v0.3.4</span>
+                <span class="badge blue">增量包</span>
+                <span class="ph-pct" id="dl-pct">47%</span>
+              </div>
+              <div class="bar"><i id="dl-bar" style="width:47%"></i></div>
+              <div class="phases">
+                <span class="phase done"><i class="phase-dot"></i>下载 43 MB</span>
+                <span class="phase now"><i class="phase-dot"></i>校验签名与哈希</span>
+                <span class="phase"><i class="phase-dot"></i>重建完整 Setup</span>
+                <span class="phase"><i class="phase-dot"></i>安装</span>
+              </div>
+              <div class="row-meta">GitHub 线路 · 12.4 MB/s · 剩余约 4 秒 · 已下载 20.2 / 43 MB</div>
+              <div class="actions" style="margin:0">
+                <button type="button" class="ghost small">取消</button>
+                <button type="button" class="ghost small">重试</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 已安装 -->
+          <div class="st-installed">
+            <p class="status">桌面端 <b>v0.3.3</b> 已安装 · 当前未运行</p>
+            <div class="actions">
+              <button type="button" class="primary">启动桌面端</button>
+              <button type="button" class="ghost">跳过用户插件启动</button>
+              <button type="button" class="ghost">检查更新</button>
+            </div>
+            <div class="notice">
+              <span>发现新版本 <b>v0.3.4</b>（增量包 43 MB / 完整包 638 MB）</span>
+              <button type="button" class="linklike">前往版本页更新</button>
+            </div>
+          </div>
+
+          <!-- 运行中 -->
+          <div class="st-running">
+            <p class="status">桌面端 <b>v0.3.3</b> 运行中<span class="badge green" style="margin-left:8px">运行中</span></p>
+            <div class="actions">
+              <button type="button" class="primary">打开桌面端窗口</button>
+              <button type="button" class="danger">停止桌面端</button>
+            </div>
+            <p class="meta">关闭本窗口不影响运行中的桌面端；从托盘可重新打开启动器。</p>
+          </div>
+
+          <!-- 恢复板（沿用现有） -->
+          <section id="home-recovery" class="recovery-board st-recovery">
+            <header class="recovery-head">
+              <h3>恢复工作台</h3>
+              <p class="recovery-verdict">上次启动失败：已按启动日志归因。可逐项禁用或批量禁用可疑插件后重试。</p>
+            </header>
+            <div class="actions recovery-actions">
+              <button type="button" class="ghost small">禁用全部可疑</button>
+              <button type="button" class="primary small">重试启动</button>
+            </div>
+            <ul class="list">
+              <li>
+                <div class="row-main">
+                  <div class="row-title">dsh-session-search <span class="badge warn">可疑</span></div>
+                  <div class="row-meta evidence">Loader: failed to apply loader entry — session_projcache schema mismatch</div>
+                </div>
+                <div class="row-actions"><button class="ghost small">禁用</button><button class="ghost small">移除</button></div>
+              </li>
+              <li>
+                <div class="row-main">
+                  <div class="row-title">desktop-usage-panel <span class="badge">内置</span></div>
+                  <div class="row-meta">无异常证据</div>
+                </div>
+                <div class="row-actions"><button class="ghost small">禁用</button></div>
+              </li>
+            </ul>
+          </section>
+        </section>
+
+        <!-- ================= 组件 ================= -->
+        <section id="panel-components" class="panel" role="tabpanel" hidden>
+          <header class="page-head">
+            <h2>组件</h2>
+            <span class="head-line row-meta">当前线路 <b class="cur-line">GitHub</b></span>
+          </header>
+          <p class="lede lede-block">项目维护的独立工具与服务，签名校验后安装到启动器自有目录，不进入桌面端插件名单。</p>
+          <ul class="list">
+            <li class="comp-row">
+              <div class="row-main">
+                <span class="comp-icon">日</span>
+                <div style="flex:1;min-width:0">
+                  <div class="row-title">启动日志收集器 <span class="badge">工具</span><span class="badge blue">官方签名</span></div>
+                  <div class="row-meta">一键打包启动器与桌面端日志用于反馈 · v1.2.0 · 4.1 MB</div>
+                  <div class="row-meta">数据目录独立于 dsh-home · 有更新 v1.3.0</div>
+                </div>
+              </div>
+              <div class="comp-status">
+                <span class="badge">已安装</span>
+                <div class="row-actions">
+                  <button class="primary small">运行</button>
+                  <button class="ghost small">更新</button>
+                  <button class="ghost small">卸载</button>
+                </div>
+              </div>
+            </li>
+            <li class="comp-row">
+              <div class="row-main">
+                <span class="comp-icon">网</span>
+                <div style="flex:1;min-width:0">
+                  <div class="row-title">局域网配对守护 <span class="badge amber">服务</span><span class="badge blue">官方签名</span></div>
+                  <div class="row-meta">常驻中继，供移动端扫码配对桌面端 · v0.9.4 · 12.8 MB</div>
+                  <div class="row-meta">PID 12840 · 已运行 2 小时 · 关闭窗口后继续驻留托盘</div>
+                </div>
+              </div>
+              <div class="comp-status">
+                <span class="badge green">运行中</span>
+                <div class="row-actions">
+                  <button class="danger small">停止</button>
+                  <button class="ghost small">卸载</button>
+                </div>
+              </div>
+            </li>
+            <li class="comp-row">
+              <div class="row-main">
+                <span class="comp-icon">存</span>
+                <div style="flex:1;min-width:0">
+                  <div class="row-title">构建缓存加速器 <span class="badge amber">服务</span><span class="badge blue">官方签名</span></div>
+                  <div class="row-meta">为本机多次安装复用 Setup 分块缓存 · v0.5.2 · 26.0 MB</div>
+                  <div class="row-meta mini-bar"><span class="bar"><i style="width:62%"></i></span></div>
+                </div>
+              </div>
+              <div class="comp-status">
+                <span class="badge blue">下载中 62%</span>
+                <div class="row-actions"><button class="ghost small">取消</button></div>
+              </div>
+            </li>
+            <li class="comp-row">
+              <div class="row-main">
+                <span class="comp-icon">清</span>
+                <div style="flex:1;min-width:0">
+                  <div class="row-title">磁盘清理助手 <span class="badge">工具</span><span class="badge blue">官方签名</span></div>
+                  <div class="row-meta">清理过期下载缓存与旧版本备份 · v1.0.0 · 18.4 MB</div>
+                </div>
+              </div>
+              <div class="comp-status">
+                <span class="badge">未安装</span>
+                <div class="row-actions"><button class="primary small">安装</button></div>
+              </div>
+            </li>
+            <li class="comp-row">
+              <div class="row-main">
+                <span class="comp-icon">诊</span>
+                <div style="flex:1;min-width:0">
+                  <div class="row-title">端口健康检查 <span class="badge">工具</span><span class="badge blue">官方签名</span></div>
+                  <div class="row-meta">检测桌面端端口占用与回环连通性 · v0.3.1 · 2.6 MB</div>
+                  <div class="row-meta">上次运行崩溃（exit 1）· 可回滚 v0.3.0</div>
+                </div>
+              </div>
+              <div class="comp-status">
+                <span class="badge warn">异常</span>
+                <div class="row-actions">
+                  <button class="primary small">重试</button>
+                  <button class="ghost small">回滚</button>
+                  <button class="ghost small">卸载</button>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <!-- ================= 版本 ================= -->
+        <section id="panel-versions" class="panel" role="tabpanel" hidden>
+          <header class="page-head">
+            <h2>版本</h2>
+            <span class="head-line row-meta">当前线路 <b class="cur-line">GitHub</b> · <button class="linklike" data-goto="settings">切换</button></span>
+          </header>
+          <div class="need-install notice warn">
+            <span>需要先安装桌面端</span>
+            <span class="n-desc">选择线路后可继续浏览版本列表并下载安装。</span>
+            <button class="linklike" data-goto="home">回到首页安装</button>
+          </div>
+          <p class="lede lede-block">列出所选线路的正式版安装包。草稿不会出现；增量包以本地已验证的上一正式版 Setup 为基线重建。</p>
+          <div class="actions">
+            <button type="button" class="ghost">刷新列表</button>
+            <button type="button" class="ghost">检查更新</button>
+          </div>
+          <section class="card st-installed" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:0 0 16px">
+            <div style="flex:1;min-width:0">
+              <h3 class="card-title">本机已安装 v0.3.3</h3>
+              <p class="row-meta">C:\Program Files\Deepseek-Harness-Desktop</p>
+            </div>
+            <button type="button" class="danger">卸载本机应用</button>
+          </section>
+          <ul class="list">
+            <li>
+              <div class="row-main">
+                <div class="row-title">v0.3.4 <span class="badge green">最新</span><span class="badge blue">增量包 43 MB</span></div>
+                <div class="row-meta">2026-09-22 · 完整包 638 MB · 两线路均已镜像</div>
+              </div>
+              <div class="row-actions">
+                <button class="primary small">增量更新</button>
+                <button class="ghost small">完整下载</button>
+              </div>
+            </li>
+            <li>
+              <div class="row-main">
+                <div class="row-title">v0.3.3 <span class="badge">当前</span></div>
+                <div class="row-meta">2026-09-10 · 完整包 636 MB</div>
+              </div>
+              <div class="row-actions"><button class="ghost small">重新安装</button></div>
+            </li>
+            <li>
+              <div class="row-main">
+                <div class="row-title">v0.3.2</div>
+                <div class="row-meta">2026-08-28 · 完整包 636 MB</div>
+              </div>
+              <div class="row-actions"><button class="ghost small">安装此版本</button></div>
+            </li>
+          </ul>
+        </section>
+
+        <!-- ================= 导入（沿用 + 未安装前置提示） ================= -->
+        <section id="panel-import" class="panel needs-runtime" role="tabpanel" hidden>
+          <header class="page-head"><h2>导入</h2></header>
+          <div class="need-install notice warn">
+            <span>需要先安装桌面端</span>
+            <span class="n-desc">导入写入桌面端 dsh-home；安装完成后本页全部功能可用。</span>
+            <button class="linklike" data-goto="home">回到首页安装</button>
+          </div>
+          <p class="lede lede-block">只读扫描官方 home。勾选后写入桌面 home，不修改官方目录，也不复制工程工作区。</p>
+          <div class="import-mock">
+            <div class="actions">
+              <button type="button" class="ghost">选择目录</button>
+              <button type="button" class="ghost">添加技能目录</button>
+              <button type="button" class="ghost">重新扫描</button>
+            </div>
+            <ul class="list">
+              <li><div class="row-main"><div class="row-title">会话 <span class="badge">42</span></div><div class="row-meta">官方 ~/.dsh/sessions</div></div><button class="ghost small">展开</button></li>
+              <li><div class="row-main"><div class="row-title">技能 <span class="badge">7</span></div><div class="row-meta">~/.agents/skills</div></div><button class="ghost small">展开</button></li>
+              <li><div class="row-main"><div class="row-title">插件 <span class="badge">3</span></div><div class="row-meta">可重装名单</div></div><button class="ghost small">展开</button></li>
+            </ul>
+            <div class="actions" style="margin-top:16px"><button type="button" class="primary">开始导入</button></div>
+          </div>
+        </section>
+
+        <!-- ================= 插件排查（沿用 + 未安装前置提示） ================= -->
+        <section id="panel-plugins" class="panel needs-runtime" role="tabpanel" hidden>
+          <header class="page-head"><h2>插件排查</h2></header>
+          <div class="need-install notice warn">
+            <span>需要先安装桌面端</span>
+            <span class="n-desc">插件名单来自桌面端运行时；安装完成后可查看与禁用。</span>
+            <button class="linklike" data-goto="home">回到首页安装</button>
+          </div>
+          <p class="lede lede-block">查看已安装插件，并根据启动日志识别可疑冲突。禁用或移除后可重新启动桌面端。</p>
+          <div class="actions"><button type="button" class="ghost">刷新</button></div>
+          <ul class="list">
+            <li>
+              <div class="row-main"><div class="row-title">dsh-session-search <span class="badge warn">可疑</span></div><div class="row-meta evidence">session_projcache schema mismatch</div></div>
+              <div class="row-actions"><button class="ghost small">禁用</button><button class="ghost small">移除</button></div>
+            </li>
+            <li>
+              <div class="row-main"><div class="row-title">desktop-usage-panel <span class="badge">内置</span></div><div class="row-meta">无异常证据</div></div>
+              <div class="row-actions"><button class="ghost small">禁用</button></div>
+            </li>
+          </ul>
+        </section>
+
+        <!-- ================= 设置 ================= -->
+        <section id="panel-settings" class="panel" role="tabpanel" hidden>
+          <header class="page-head"><h2>设置</h2></header>
+          <div class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">下载线路</span>
+              <span class="switch-desc">两条线路提供同一候选构建的相同文件；切换只影响之后发起的查询与下载，进行中的任务仍走原线路。</span>
+            </span>
+            <span class="seg" role="group" aria-label="下载线路">
+              <button class="is-on" data-line="github">GitHub</button>
+              <button data-line="gitee">Gitee</button>
+            </span>
+          </div>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">就绪后关闭启动器</span>
+              <span class="switch-desc">桌面端就绪后自动关闭本窗口。若主窗口未打开，关闭启动器将退出应用。</span>
+            </span>
+            <span class="switch"><input type="checkbox" checked /><span class="switch-ui" aria-hidden="true"></span></span>
+          </label>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">打开后自动启动桌面端</span>
+              <span class="switch-desc">与桌面端「通用设置 → 启动时」同步。未安装桌面端时此选项不生效。</span>
+            </span>
+            <span class="switch"><input type="checkbox" checked /><span class="switch-ui" aria-hidden="true"></span></span>
+          </label>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">发现新正式版时询问</span>
+              <span class="switch-desc">关闭后仍可在「版本」中手动安装。草稿不会出现在 latest。</span>
+            </span>
+            <span class="switch"><input type="checkbox" checked /><span class="switch-ui" aria-hidden="true"></span></span>
+          </label>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">组件服务随启动器退出而停止</span>
+              <span class="switch-desc">开启后退出启动器即停止其监管的服务组件；关闭则关窗时仅隐藏到托盘。</span>
+            </span>
+            <span class="switch"><input type="checkbox" /><span class="switch-ui" aria-hidden="true"></span></span>
+          </label>
+        </section>
+
+      </main>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 原型交互：分区切换 / 状态切换 / 线路选择 / 主题 =====
+const tabs = document.querySelectorAll('.tab');
+const panels = {
+  home: document.getElementById('panel-home'),
+  components: document.getElementById('panel-components'),
+  versions: document.getElementById('panel-versions'),
+  import: document.getElementById('panel-import'),
+  plugins: document.getElementById('panel-plugins'),
+  settings: document.getElementById('panel-settings'),
+};
+function goto(name) {
+  tabs.forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.classList.toggle('is-active', on);
+    t.setAttribute('aria-selected', String(on));
+  });
+  Object.entries(panels).forEach(([k, el]) => {
+    const on = k === name;
+    el.hidden = !on;
+    el.classList.toggle('is-active', on);
+  });
+}
+tabs.forEach((t) => t.addEventListener('click', () => goto(t.dataset.tab)));
+document.querySelectorAll('[data-goto]').forEach((b) =>
+  b.addEventListener('click', () => goto(b.dataset.goto)));
+
+const stateBtns = document.querySelectorAll('.proto-bar [data-ps]');
+stateBtns.forEach((b) => b.addEventListener('click', () => {
+  document.body.dataset.protoState = b.dataset.ps;
+  stateBtns.forEach((x) => x.classList.toggle('is-on', x === b));
+  if (b.dataset.ps === 'recovery') goto('home');
+}));
+
+document.getElementById('proto-theme').addEventListener('click', () => {
+  const html = document.documentElement;
+  html.toggleAttribute('data-ds-dark-theme');
+});
+
+function setLine(line) {
+  document.querySelectorAll('.line-card').forEach((c) =>
+    c.classList.toggle('is-sel', c.dataset.line === line));
+  document.querySelectorAll('.seg button').forEach((b) =>
+    b.classList.toggle('is-on', b.dataset.line === line));
+  document.querySelectorAll('.cur-line').forEach((el) =>
+    (el.textContent = line === 'gitee' ? 'Gitee' : 'GitHub'));
+}
+document.querySelectorAll('.line-card, .seg button').forEach((el) =>
+  el.addEventListener('click', () => setLine(el.dataset.line)));
+
+// 模拟下载进度（仅视觉演示）
+let pct = 47;
+setInterval(() => {
+  if (document.body.dataset.protoState !== 'downloading') return;
+  pct = pct >= 96 ? 40 : pct + 1;
+  document.getElementById('dl-pct').textContent = pct + '%';
+  document.getElementById('dl-bar').style.width = pct + '%';
+}, 600);
+</script>
+</body>
+</html>

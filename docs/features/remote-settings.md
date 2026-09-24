@@ -4,14 +4,14 @@
 | --- | --- |
 | **id** | `remote-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-18 — 装机「开启远程→未响应」修复：主进程 `loadServerApi` 窄化为 `pairing-offer.js` + `relay-device-credential-store.js`（原 barrel ~3 万模块同步加载冻结主线程）；`DSH_VENDOR_PACKAGES` 改镜像 + parity 测试。`dshd-remote` 36 pass、`dshd-daemon-runner`/`remote-epipe`/`stdio-guard`/`lan`/`ipc` 80 pass、`ui-settings-remote` 45/45、`check:governance` 6/6、`npm run pack`（80.7MiB runtime、sqlite ABI probe、daemon probe、skip compose）、打包布局窄入口 import+铸码 68ms、真实 Electron `qa:remote` 双冷启动 11/11（含 cold.openShowsQr）。此前：2026-09-11 — rc.1 后 dsh-im 各 channel 的 caller-scoped webServer 注入已修复；dsh-im check 19 pass / 1 skip、官方 remote specs、真实 source smoke 与 package dry-run 通过。再前：2026-09-08 — 默认服务器切到 `ayase.cn:443` + TLS，公网 SPA 切到 `https://ayase.cn/dshd/`；旧内置 IP 精确迁移、自定义服务器保留。VPS relay 容器 `healthy` / 0 restart，nginx live 与候选配置通过；Node 远程聚焦 92 pass / 0 fail / 1 环境 skip，设置 UI 10/10，公网目录一致性通过，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。未执行真机相机、Android WebView 或正式安装包升级验收。 |
+| **last verified** | 2026-09-24 — IM 的鲸鱼娘默认路由复用常驻会话；定向验证见本次变更。此前 2026-09-18 — 装机「开启远程→未响应」修复：主进程 `loadServerApi` 窄化为 `pairing-offer.js` + `relay-device-credential-store.js`（原 barrel ~3 万模块同步加载冻结主线程）；`DSH_VENDOR_PACKAGES` 改镜像 + parity 测试。`dshd-remote` 36 pass、`dshd-daemon-runner`/`remote-epipe`/`stdio-guard`/`lan`/`ipc` 80 pass、`ui-settings-remote` 45/45、`check:governance` 6/6、`npm run pack`（80.7MiB runtime、sqlite ABI probe、daemon probe、skip compose）、打包布局窄入口 import+铸码 68ms、真实 Electron `qa:remote` 双冷启动 11/11（含 cold.openShowsQr）。此前：2026-09-11 — rc.1 后 dsh-im 各 channel 的 caller-scoped webServer 注入已修复；dsh-im check 19 pass / 1 skip、官方 remote specs、真实 source smoke 与 package dry-run 通过。再前：2026-09-08 — 默认服务器切到 `ayase.cn:443` + TLS，公网 SPA 切到 `https://ayase.cn/dshd/`；旧内置 IP 精确迁移、自定义服务器保留。VPS relay 容器 `healthy` / 0 restart，nginx live 与候选配置通过；Node 远程聚焦 92 pass / 0 fail / 1 环境 skip，设置 UI 10/10，公网目录一致性通过，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。未执行真机相机、Android WebView 或正式安装包升级验收。 |
 
 ## User paths
 
 **当前可用：** `REMOTE_FEATURE_ENABLED=true`；远程是否开启仍由用户控制。
 
 1. 设置 → 「远程」（`remote`）→ **网关**：选 **局域网 / 服务器**（文案区分；扫码传输都经中继）；中继主机默认内置 `ayase.cn:443`，使用 TLS。**无宿主令牌墙**。
-2. 设置 → 「远程」→ **消息渠道**：桌面内置 `@xmanrui/dsh-im` 完整 IM UI（九渠 + AI Office）；无商店品牌头。
+2. 设置 → 「远程」→ **消息渠道**：桌面内置 `@xmanrui/dsh-im` 完整 IM UI（九渠 + AI Office）；无商店品牌头。鲸鱼娘 IM 默认接入由 `whale-assistant` 卡定义：指向常驻会话，显式其他预设仍走独立会话。
 3. 侧栏底部手机图标打开配对弹窗：开关 → 中继状态；中继已连接才显示扫码二维码 / 复制链接 / 刷新配对码 → 已配对设备 / 重命名 / 解除配对。
 
 ## Invariants

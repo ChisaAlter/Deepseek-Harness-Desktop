@@ -132,6 +132,95 @@ function pathOps(ops) {
   return ops.slice(start, end + 1);
 }
 
+test('chat state reuses its catalog during short polling intervals', async () => {
+  const pet = loadPet();
+  pet.run(`globalThis.__catalogRequests = [];
+    petShell.chatState = (request) => {
+      __catalogRequests.push(request.includeCatalog);
+      return { ok: true, enabled: true, sessionId: 'whale-1',
+        name: '鲸鱼娘', groups: request.includeCatalog ? [{ id: 'p', models: [] }] : null,
+        history: [] };
+    };`);
+  await pet.run('chatRefreshState(true)');
+  await pet.run('chatRefreshState()');
+  assert.deepEqual(Array.from(pet.run('__catalogRequests')), [false, true, false]);
+  assert.equal(pet.run('chatGroups.length'), 1);
+});
+
+test('empty chat catalog is cached and overlapping polls share one request', async () => {
+  const pet = loadPet();
+  pet.run(`globalThis.__catalogRequests = [];
+    petShell.chatState = (request) => {
+      __catalogRequests.push(request.includeCatalog);
+      return { ok: true, enabled: true, groups: request.includeCatalog ? [] : null, history: [] };
+    };`);
+  await pet.run('chatRefreshState()');
+  await pet.run('chatRefreshState()');
+  assert.deepEqual(Array.from(pet.run('__catalogRequests')), [false, true, false]);
+  pet.run(`globalThis.__slowRequests = 0;
+    petShell.chatState = () => {
+      __slowRequests += 1;
+      return new Promise((resolve) => { globalThis.__finishSlow = resolve; });
+    };`);
+  const a = pet.run('chatRefreshState()');
+  const b = pet.run('chatRefreshState()');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(pet.run('__slowRequests'), 1);
+  pet.run('__finishSlow({ ok: true, enabled: true, history: [] })');
+  await Promise.all([a, b]);
+  pet.run(`globalThis.__retryRequests = 0;
+    petShell.chatState = () => {
+      __retryRequests += 1;
+      return __retryRequests === 1 ? Promise.reject(new Error('offline'))
+        : { ok: true, enabled: true, groups: [], history: [] };
+    };`);
+  await pet.run('chatRefreshState()');
+  await pet.run('chatRefreshState()');
+  assert.equal(pet.run('__retryRequests'), 2);
+});
+
+test('slow catalog does not block new history and reopening queues a forced refresh', async () => {
+  const pet = loadPet();
+  pet.run(`globalThis.__historyRequests = 0; globalThis.__catalogRequests = 0;
+    petShell.chatState = (request) => {
+      if (!request.includeCatalog) {
+        __historyRequests += 1;
+        return { ok: true, enabled: true, sessionId: 'whale-1',
+          selected: null, history: [{ seq: __historyRequests, role: 'assistant', text: 'hello' }] };
+      }
+      __catalogRequests += 1;
+      if (__catalogRequests === 1) {
+        return new Promise((resolve) => { globalThis.__finishCatalog = resolve; });
+      }
+      return { ok: true, enabled: true, sessionId: 'whale-1',
+        groups: [{ id: 'fresh', models: [] }], selected: null, history: [] };
+    };`);
+  const first = pet.run('chatRefreshState(true)');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(pet.run('__catalogRequests'), 1);
+  const second = pet.run('chatRefreshState()');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(pet.run('__historyRequests'), 2);
+  assert.equal(pet.run('chatServerSeq'), 2);
+  const forced = pet.run('chatRefreshState(true)');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(pet.run('__catalogRequests'), 1);
+  pet.run(`__finishCatalog({ ok: true, enabled: true, sessionId: 'whale-1',
+    groups: [{ id: 'old', models: [] }], selected: null, history: [] })`);
+  await Promise.all([first, second, forced]);
+  assert.equal(pet.run('__catalogRequests'), 2);
+  assert.equal(pet.run('chatGroups[0].id'), 'fresh');
+});
+
+test('minute growth rescan keeps sleeping pet asleep; real feeding wakes her', () => {
+  const pet = loadPet();
+  pet.run('sleepEnter()');
+  pet.run('onGrowthPush({ available: 12, fed: 0, leveledUp: false })');
+  assert.equal(pet.run('sleeping'), true);
+  pet.run('onGrowthPush({ available: 11, fed: 1, leveledUp: false })');
+  assert.equal(pet.run('sleeping'), false);
+});
+
 function countOps(ops, name) {
   return ops.filter((op) => op[0] === name).length;
 }
@@ -216,6 +305,42 @@ test('drawBubble flips below at the top edge and clamps inside the host', () => 
     && Math.abs(op[1] - tx) < 0.01 && Math.abs(op[2] - (by - 8)) < 0.01);
   assert.ok(tipIdx > 0, 'upward tail tip present when flipped below');
   bubbleRectInsideHost(pet, { x: 0, y: 0, width: 800, height: 600 });
+});
+
+test('carried live pet keeps the bubble beside her head and reports a tight hover rect', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    overlayOrigin = { x: 0, y: 0 };
+    drawPos = { x: 280, y: 200 };
+    session = {};
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    dragging = true; dragMoved = true;
+    physPoint = { x: 400, y: 300 };
+    stillCtl.name = 'pick-up'; stillCtl.alpha = 1;
+    stillCtl.entry = LIVE_ENTRY;
+    liveFx.pivot = 'grab';
+    bubble = { text: '跟着你', until: ${pet.now() + 5000} };
+    globalThis.__roam = null;
+    petShell.reportRoam = (r) => { __roam = r; return Promise.resolve(null); };
+    lastRoamAt = 0; reportRoam();
+    drawBubble(performance.now());`);
+  const path = pathOps(pet.canvas.ctx.ops);
+  const tail = path.filter((op) => op[0] === 'lineTo').find((op) => op[1] === 400 && op[2] > 240 && op[2] < 300);
+  assert.ok(tail, 'bubble tail stays near the carried head');
+  assert.ok(pet.run('__roam.w') < 300, 'hover rect follows visible body, not the clear box');
+});
+
+test('live pose hover bounds follow drawn ink instead of the oversized clear region', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    session = {};
+    charRect = { x: 20, y: 10, right: 220, bottom: 250 };
+    stillCtl.name = 'sleep'; stillCtl.alpha = 1;
+    stillCtl.entry = LIVE_ENTRY;
+    liveFx.rot = -1;
+    globalThis.__body = petBodyBounds();`);
+  assert.ok(pet.run('__body.right - __body.x') < 340, 'rotated live ink has a tight width');
+  assert.ok(pet.run('__body.bottom - __body.y') < 340, 'rotated live ink has a tight height');
 });
 
 test('drawBubble clamps on right, left, and bottom edges, nonzero origin, null host', () => {
@@ -403,7 +528,7 @@ test('every LINES category is reachable via say(), sayAlert(), time-of-day pick,
   }
 });
 
-test('feed sequence speaks feed, feedEat, feedDone in order', () => {
+test('feed sequence moves through notice, eating, chewing and full without skipping dialogue', () => {
   const pet = loadPet();
   pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
     stills.set('running', { img: {}, box: { x: 0, y: 0, right: 10, bottom: 10 } });
@@ -415,9 +540,47 @@ test('feed sequence speaks feed, feedEat, feedDone in order', () => {
     drawPos.x = feed.bowlX - 240 / 2;`);
   pet.run('tickStill(performance.now())');
   assert.ok(pet.run('LINES.feedEat').includes(pet.run('bubble.text')));
-  pet.run(`feed = { phase: 'eat', t0: ${pet.now() - 3000}, bowlX: 300, bowlY: 540, groundY: 540 };`);
+  assert.equal(pet.run('feed.phase'), 'notice');
+  pet.run(`feed.t0 = ${pet.now() - 600}`);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('feed.phase'), 'eat');
+  pet.run(`feed.t0 = ${pet.now() - 1600}`);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('feed.phase'), 'chew');
+  pet.run(`feed.t0 = ${pet.now() - 900}`);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('feed.phase'), 'full');
+  pet.run(`feed.t0 = ${pet.now() - 700}`);
   pet.run('tickStill(performance.now())');
   assert.ok(pet.run('LINES.feedDone').includes(pet.run('bubble.text')));
+});
+
+test('registered live state expressions use the original avatar', () => {
+  const pet = loadPet();
+  const ids = pet.run('Object.keys(LIVE_ACTION_EXPRESSION)');
+  const expressions = pet.run('Object.keys(LIVE_EXPRESSIONS)');
+  assert.ok(ids.includes('sleep') && ids.includes('eat') && ids.includes('pickup'));
+  assert.ok(expressions.includes('asleep') && expressions.includes('panicked'));
+  assert.equal(pet.run('ids => ids.every((id) => typeof LIVE_STATES[id] === "function")')(ids), true);
+  assert.equal(pet.run('ids => ids.every((id) => typeof LIVE_EXPRESSIONS[LIVE_ACTION_EXPRESSION[id]] === "function")')(ids), true);
+  pet.run(`session = {}; stillCtl.name = 'sleep'; stillCtl.alpha = 1; pose.fill(0); applyLiveState();`);
+  assert.equal(pet.run('pose[12]'), 1);
+  assert.equal(pet.run('pose[13]'), 1);
+  assert.equal(pet.run('liveFx.rot'), -1);
+});
+
+test('chewing morphs continuously across variable inference intervals', () => {
+  const pet = loadPet();
+  const samples = pet.run(`(() => {
+    const values = [];
+    stillCtl.name = 'chew'; stillCtl.alpha = 1;
+    for (let i = 0; i < 25; i += 1) {
+      rigT = i / 12; pose.fill(0); applyLiveState(); values.push(pose[26]);
+    }
+    return values;
+  })()`);
+  const jumps = samples.slice(1).map((value, index) => Math.abs(value - samples[index]));
+  assert.ok(Math.max(...jumps) < 0.25, 'mouth morph has no binary frame jump');
 });
 
 test('come arrival speaks from the arrive pool', () => {
@@ -1269,12 +1432,39 @@ test('rig expression swaps crossfade shells', () => {
   assert.deepEqual(shellTags(), ['mad']);
 });
 
-// Waking her plays a brief startle beat (surprised head + jolt hops)
+// Waking her plays a brief stretch beat (surprised head + jolt hops)
 // instead of silently fading back to idle.
-test('wake plays the startle state', () => {
+test('wake plays the wake state', () => {
   const pet = loadPet();
   pet.run('sleeping = true; stillCtl.name = "sleep"; stillCtl.alpha = 1;');
   pet.run('wake()');
-  assert.equal(pet.run('stillCtl.name'), 'startle');
-  assert.ok(pet.run('action && action.until > performance.now()'), 'timed startle');
+  assert.equal(pet.run('stillCtl.name'), 'wake');
+  assert.ok(pet.run('action && action.until > performance.now()'), 'timed wake');
+});
+
+test('long idle visibly dozes before sleep and interaction interrupts dozing', () => {
+  const pet = loadPet();
+  pet.run(`idle.lastInteract = performance.now() - 226000;
+    tickStill._nextFlourish = Infinity; tickStill._nextChat = Infinity;
+    tickStill(performance.now());`);
+  assert.equal(pet.run('stillCtl.name'), 'doze');
+  pet.run('idle.lastInteract = performance.now(); tickStill(performance.now())');
+  assert.equal(pet.run('stillCtl.target'), 0);
+  pet.run('idle.lastInteract = performance.now() - 241000; tickStill(performance.now())');
+  assert.equal(pet.run('stillCtl.name'), 'sleep-enter');
+  assert.equal(pet.run('sleeping'), true);
+});
+
+test('autonomous sad and shy expressions follow mood and affection', () => {
+  const pet = loadPet();
+  pet.setRandom(() => 0.999);
+  const flourish = (mood, affectionLevel) => pet.run(`
+    stats = { mood: ${mood}, affectionLevel: ${affectionLevel} };
+    action = null; clearStill(); stillCtl.name = null; stillCtl.alpha = 0;
+    tickStill._nextFlourish = performance.now() - 1;
+    tickStill._nextChat = Infinity;
+    tickStill(performance.now()); stillCtl.name`);
+  assert.equal(flourish(80, 0), 'happy-tail');
+  assert.equal(flourish(80, 4), 'shy');
+  assert.equal(flourish(20, 0), 'sad');
 });

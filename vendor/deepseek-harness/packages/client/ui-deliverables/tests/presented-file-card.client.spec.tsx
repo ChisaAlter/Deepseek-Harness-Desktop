@@ -67,6 +67,6 @@ it('renders the supplied action independently from the card preview', () => {
   fireEvent.click(view.getByRole('button', { name: 'Native file action' }))
   expect(native).toHaveBeenCalledOnce()
   expect(p.onPreview).not.toHaveBeenCalled()
-  fireEvent.click(view.getByRole('button', { name: 'Preview out/report.pdf in sidebar' }))
+  fireEvent.click(view.getByRole('button', { name: 'Preview out/report.pdf' }))
   expect(p.onPreview).toHaveBeenCalledOnce()
 })

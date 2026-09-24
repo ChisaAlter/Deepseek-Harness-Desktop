@@ -401,16 +401,20 @@ test('remote workspace is enabled by default and its boolean setting persists to
   }
 });
 
-test('launcher config patch only accepts the three boolean shell settings', () => {
+test('launcher config patch accepts shell booleans plus downloadRoute', () => {
   assert.deepEqual(normalizeLauncherConfigPatch({
     quitAfterStart: false,
     autoStartDesktop: false,
     askOnUpdate: false,
+    downloadRoute: 'gitee',
   }), {
     quitAfterStart: false,
     autoStartDesktop: false,
     askOnUpdate: false,
+    downloadRoute: 'gitee',
   });
+  assert.deepEqual(normalizeLauncherConfigPatch({ downloadRoute: '' }), { downloadRoute: '' });
+  assert.throws(() => normalizeLauncherConfigPatch({ downloadRoute: 'gitlab' }));
   assert.throws(() => normalizeLauncherConfigPatch({ quitAfterStart: 'yes' }));
   assert.throws(() => normalizeLauncherConfigPatch({ disabledPlugins: ['evil'] }));
   assert.throws(() => normalizeLauncherConfigPatch({ apiKey: 'sk-stolen' }));

@@ -1,0 +1,58 @@
+# Slim launcher package: a second executable that manages the installed DSHD
+# desktop runtime. No vendor/ extraResources, no harness stack at runtime —
+# the package carries the launcher surface only.
+appId: ai.deepseek.harness.launcher
+productName: Deepseek-Harness-Launcher
+copyright: MIT
+npmRebuild: false
+
+directories:
+  output: dist-launcher
+
+files:
+  - src/**/*
+  - '!**/*.test.js'
+  - '!src/renderer/pet-live2d/**'
+  - '!src/renderer/pet/**'
+  - assets/**/*
+  - package.json
+
+extraMetadata:
+  main: src/main-launcher/index.js
+  productName: Deepseek-Harness-Launcher
+  dshdPackage: launcher
+
+electronDist: node_modules/electron/dist
+compression: maximum
+electronLanguages:
+  - en-US
+  - zh-CN
+
+publish:
+  - provider: github
+    owner: ChisaAlter
+    repo: Deepseek-Harness-Desktop
+
+win:
+  icon: assets/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Deepseek-Harness-Launcher
+  artifactName: Deepseek-Harness-Launcher-Setup-${version}.${ext}
+  installerIcon: assets/icon.ico
+  uninstallerIcon: assets/icon.ico
+  installerHeader: build/installerHeader.bmp
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  license: LICENSE
+  installerLanguages:
+    - zh_CN
+    - en_US

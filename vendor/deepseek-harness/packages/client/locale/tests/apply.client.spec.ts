@@ -11,7 +11,6 @@ import {
 } from '@deepseek-ai/dsh-client-locale/client'
 import type { LanguageRowInjected, LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { LOCALE_SETTINGS_NAMESPACE, LocaleSettingsSchema } from '../src/locale-settings.ts'
-import { LanguageRow } from '../src/client/LanguageRow.tsx'
 import type { createLanguageRowStore } from '../src/client/settings-store.ts'
 
 const SLOT = 'settings.general.item'
@@ -57,7 +56,7 @@ function declareItems(slots: SlotRegistry): () => void {
 /** Mirror the framework's inject choreography: bake a real instance from the
  * declared handle and hand its actions to the entry's inject factory. */
 function faceOf(slots: SlotRegistry) {
-  const entry = slots.entries(SLOT).find(e => e.component === LanguageRow)!
+  const entry = slots.entries(SLOT).find(e => e.options.id === 'language')!
   const handle = entry.store as ReturnType<typeof createLanguageRowStore>
   const instance = handle.create()
   const face = (entry.inject as unknown as (a: typeof instance.actions) => LanguageRowInjected)(instance.actions)
@@ -132,7 +131,7 @@ describe('locale apply', () => {
     // service opens on FALLBACK_LOCALE (en); read the zh side explicitly.
     locale.setLocale('zh')
     expect(locale.bind(SETTINGS_NS)('language.title')).toBe('语言')
-    const entry = before.slots.entries(SLOT).find(e => e.component === LanguageRow)!
+    const entry = before.slots.entries(SLOT).find(e => e.options.id === 'language')!
     expect(entry.options).toMatchObject({ id: 'language', order: 0 })
 
     const after = await bench()
@@ -141,7 +140,7 @@ describe('locale apply', () => {
     expect(after.slots.entries(SLOT)).toHaveLength(0)
     declareItems(after.slots)
     await Promise.resolve()
-    expect(after.slots.entries(SLOT).some(e => e.component === LanguageRow)).toBe(true)
+    expect(after.slots.entries(SLOT).some(e => e.options.id === 'language')).toBe(true)
   })
 
   it('projects service snapshots into the row store and routes face writes back', async () => {
@@ -228,7 +227,7 @@ describe('locale apply', () => {
 
     declareItems(b.slots)
     await Promise.resolve()
-    expect(b.slots.entries(SLOT).some(e => e.component === LanguageRow)).toBe(true)
+    expect(b.slots.entries(SLOT).some(e => e.options.id === 'language')).toBe(true)
   })
 
   it('teardown removes the row; teardown without a declaration is quiet', async () => {

@@ -10,6 +10,7 @@ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PlatformBridge } from './PlatformOverlay.tsx'
 import { Config, CONTACT_CONFIG_GLOBAL } from '../contact-config.ts'
 import { contactUrl } from './contact-url.ts'
+import { authorizeUrlWithTheme } from './authorize-url.ts'
 import { AccountOnboarding } from './AccountOnboarding.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
 import { AccountSection, type AccountSnapshot, type AccountSectionInjected, type AccountLauncherActionRow } from './AccountSection.tsx'
@@ -34,6 +35,9 @@ function isDesktopAccountHost(): boolean {
 /** Register account UI only in the Desktop renderer. @param ctx - client plugin context. */
 export function apply(ctx: Context): void {
   if (!isDesktopAccountHost()) return
+  const shell = (globalThis as typeof globalThis & {
+    shell?: { openExternal?: (url: string) => Promise<unknown> }
+  }).shell
   ctx.effect(() => ctx.locale.register('settings.account', { en, zh }), 'account: dictionaries')
   const t = ctx.locale.bind('settings.account')
   const page = globalThis as Partial<Record<typeof CONTACT_CONFIG_GLOBAL, unknown>>
@@ -77,6 +81,7 @@ export function apply(ctx: Context): void {
   const stream = ctx.remote.$stream<AccountView>({
     name: 'account', open: signal => ctx.remote.account.watch(signal), ended: () => new Error('account stream ended'),
   })
+  let openedAttempt: string | undefined
   let disposed = false
   ctx.effect(() => () => { disposed = true; return stream.dispose() }, 'account: state stream')
   void (async () => {
@@ -86,6 +91,16 @@ export function apply(ctx: Context): void {
       publish({ ...snapshot, view: frame.value, details: undefined, failed: false })
       frame.accept()
       void refresh()
+      const attempt = frame.value.attempt
+      const openExternal = shell?.openExternal
+      const authorizeUrl = attempt?.authorizeUrl
+      if (openExternal !== undefined && attempt?.phase === 'waiting-browser'
+        && authorizeUrl !== undefined && openedAttempt !== attempt.id) {
+        openedAttempt = attempt.id
+        void Promise.resolve().then(() => openExternal(authorizeUrlWithTheme(
+          authorizeUrl, ctx.theme.getTheme().active.colorScheme,
+        ))).catch(() => undefined)
+      }
     }
   })().catch(() => { if (!disposed) publish({ ...snapshot, failed: true }) })
   const nativePlatform = (globalThis as typeof globalThis & { dshPlatform?: PlatformBridge }).dshPlatform

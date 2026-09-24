@@ -31,7 +31,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// index.js
+// plugin-src/client/index.js
 var index_exports = {};
 __export(index_exports, {
   REMOTE_EXPLORER_ID: () => REMOTE_EXPLORER_ID,
@@ -42,7 +42,7 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 
-// i18n.js
+// plugin-src/client/i18n.js
 var NS = "dsh-remote";
 var zh = {
   "settings.nav": "\u8FDC\u7A0B\u5DE5\u4F5C\u533A",
@@ -331,7 +331,7 @@ var en = {
   "common.close": "Close"
 };
 
-// api.js
+// plugin-src/client/api.js
 function withSessionQuery(path, sessionId) {
   if (!sessionId) return path;
   return path + (path.includes("?") ? "&" : "?") + "sessionId=" + encodeURIComponent(sessionId);
@@ -425,7 +425,7 @@ function remoteCrumbs(p) {
   return { sep, parts: out, windows: win };
 }
 
-// styles.js
+// plugin-src/client/styles.js
 var STYLE_ID = "dsh-remote";
 var CSS = `
 .dshr-page { display: flex; flex-direction: column; gap: 12px; color: var(--dsw-alias-label-primary); font-size: 13px; }
@@ -503,11 +503,11 @@ function installRemoteStyles() {
   return () => style.remove();
 }
 
-// RemoteSettingsSection.jsx
+// plugin-src/client/RemoteSettingsSection.jsx
 var React2 = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives2 = require("@deepseek-ai/dsh-client-ui-primitives");
 
-// MachineForm.jsx
+// plugin-src/client/MachineForm.jsx
 var React = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 var import_jsx_runtime = require("react/jsx-runtime");
@@ -698,7 +698,7 @@ function MachineForm({ t, machine, onSaved, onCancel }) {
   ] });
 }
 
-// RemoteSettingsSection.jsx
+// plugin-src/client/RemoteSettingsSection.jsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var EMPTY_FORWARD = { direction: "local", listenPort: "", targetHost: "127.0.0.1", targetPort: "", autoStart: false };
 function RemoteSettingsSection({ t }) {
@@ -985,7 +985,7 @@ function RemoteSettingsSection({ t }) {
   ] });
 }
 
-// RemoteFlowPane.jsx
+// plugin-src/client/RemoteFlowPane.jsx
 var React3 = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives3 = require("@deepseek-ai/dsh-client-ui-primitives");
 var import_jsx_runtime3 = require("react/jsx-runtime");
@@ -1220,7 +1220,7 @@ function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError, t }) 
   ] });
 }
 
-// RemoteExplorerBody.jsx
+// plugin-src/client/RemoteExplorerBody.jsx
 var React4 = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives4 = require("@deepseek-ai/dsh-client-ui-primitives");
 var import_jsx_runtime4 = require("react/jsx-runtime");
@@ -1487,7 +1487,7 @@ ${mirrorDir}` : root, children: root }),
   ] });
 }
 
-// RemoteExplorerTitle.jsx
+// plugin-src/client/RemoteExplorerTitle.jsx
 var React5 = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives5 = require("@deepseek-ai/dsh-client-ui-primitives");
 var import_jsx_runtime5 = require("react/jsx-runtime");
@@ -1499,7 +1499,7 @@ function RemoteExplorerTitle({ useTabInfo }) {
   ] });
 }
 
-// RemoteFileBody.jsx
+// plugin-src/client/RemoteFileBody.jsx
 var React6 = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives6 = require("@deepseek-ai/dsh-client-ui-primitives");
 var import_jsx_runtime6 = require("react/jsx-runtime");
@@ -1624,7 +1624,7 @@ function RemoteFileBody({ useTabInfo, t }) {
   ] });
 }
 
-// RemoteFileTitle.jsx
+// plugin-src/client/RemoteFileTitle.jsx
 var React7 = __toESM(require("react"), 1);
 var import_dsh_client_ui_primitives7 = require("@deepseek-ai/dsh-client-ui-primitives");
 var import_jsx_runtime7 = require("react/jsx-runtime");
@@ -1641,7 +1641,7 @@ function RemoteFileTitle({ useTabInfo }) {
   ] });
 }
 
-// index.js
+// plugin-src/client/index.js
 var name = "dsh-remote";
 var inject = ["slots", "locale"];
 var REMOTE_EXPLORER_ID = "dsh-remote/explorer";

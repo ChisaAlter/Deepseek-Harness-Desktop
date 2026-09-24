@@ -10,6 +10,7 @@ import { apply as hostApply } from '../src/index.ts'
 afterEach(() => {
   cleanup()
   vi.unstubAllEnvs()
+  delete (window as Window & { shell?: unknown }).shell
 })
 
 const HOLES = [
@@ -78,14 +79,30 @@ describe('official browser-brand plugin', () => {
     expect(subject.slots.entries(HERO_HOLE)).toHaveLength(0)
   })
 
-  it('renders the official name independently from both requested mark sizes', () => {
+  it('renders Whale Isle in Web without a desktop preload', () => {
     const name = render(<OfficialBrandName />)
-    expect(name.container.querySelector('svg')?.getAttribute('viewBox')).toBe('26 0 156 24')
+    expect(name.container.textContent).toContain('鲸屿')
+    expect(name.getByText('WHALE ISLE')).toBeTruthy()
+    expect(name.getByText('BASED ON DEEPSEEK HARNESS')).toBeTruthy()
+    expect(name.container.querySelector('img')?.getAttribute('src')).toBe('/whale-isle-head.png')
     name.unmount()
 
     const mark = render(<OfficialBrandMark size={34} />)
-    expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('34')
+    expect(mark.container.childElementCount).toBe(0)
     mark.rerender(<OfficialBrandMark size={24} />)
-    expect(mark.container.querySelector('svg')?.getAttribute('width')).toBe('24')
+    expect(mark.container.childElementCount).toBe(0)
+  })
+
+  it('keeps the same integrated brand with a desktop preload', () => {
+    ;(window as Window & { shell?: unknown }).shell = { getWindowState: () => ({}) }
+    const name = render(<OfficialBrandName />)
+    expect(name.container.textContent).toContain('鲸屿')
+    expect(name.getByText('WHALE ISLE')).toBeTruthy()
+    expect(name.getByText('BASED ON DEEPSEEK HARNESS')).toBeTruthy()
+    expect(name.container.querySelector('img')?.getAttribute('src')).toBe('/whale-isle-head.png')
+    name.unmount()
+
+    const mark = render(<OfficialBrandMark size={24} />)
+    expect(mark.container.childElementCount).toBe(0)
   })
 })

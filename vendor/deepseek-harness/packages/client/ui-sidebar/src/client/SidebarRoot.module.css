@@ -276,6 +276,15 @@
   min-width: 0;
 }
 
+.brandIdentity:has([data-whale-isle-brand='name']) {
+  gap: 0;
+  height: 38px;
+}
+
+.brandMark:empty {
+  display: none;
+}
+
 .brandMark {
   flex: none;
   display: inline-flex;
@@ -293,6 +302,12 @@
   font-weight: 600;
   line-height: 24px;
   letter-spacing: 0.04em;
+}
+
+.brandName:has([data-whale-isle-brand='name']) {
+  height: 38px;
+  line-height: normal;
+  letter-spacing: normal;
 }
 
 .fallbackBrandName {
@@ -347,11 +362,15 @@
   border-radius: 12px;
 }
 
-/* Rail logo swap: collapsed, the toggle rests as the whale mark (brand ink,
-   no hover circle) and hovering reveals the panel icon — the expand
-   affordance (figma sidebar-hover flow). Expanded it is a plain panel icon. */
+/* Rail logo swap: collapsed, a supplied mark rests until hover reveals the
+   panel icon. A text-only brand leaves the mark slot empty, so the panel icon
+   remains visible as the expand affordance. */
 .collapsed .toggle .panelIcon {
   display: none;
+}
+
+.collapsed .toggle:has(.railMark:empty) .panelIcon {
+  display: inline;
 }
 
 .collapsed .toggle:hover .panelIcon {
@@ -366,6 +385,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.railMark:empty {
+  display: none;
 }
 
 /* Rail icons ride the primary ink (figma rail spec); expanded keeps the

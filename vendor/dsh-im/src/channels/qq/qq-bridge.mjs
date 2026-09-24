@@ -20,6 +20,7 @@ import {
   runPresetCommand,
 } from '../shared/preset-command.mjs';
 import { askInWorkspaceSession } from '../shared/workspace-session.mjs';
+import { sharedWhaleSessionId } from '../shared/whale-session.mjs';
 import {
   BatchInputManager,
   batchInputBusyMessage,
@@ -743,8 +744,12 @@ export class QqHarnessBridge {
         return;
       }
       if (!hasImages && !hasFiles && command === '/new') {
-        await this.#state.clearSession(key);
-        await this.#bot.sendText(target, t('已开启新会话。请发送你的问题。'));
+        if (await sharedWhaleSessionId(this.#harness)) {
+          await this.#bot.sendText(target, t('鲸鱼娘只有一条常驻对话，继续发送消息即可。'));
+        } else {
+          await this.#state.clearSession(key);
+          await this.#bot.sendText(target, t('已开启新会话。请发送你的问题。'));
+        }
         await markMessageSeen();
         return;
       }

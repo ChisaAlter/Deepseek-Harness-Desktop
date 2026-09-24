@@ -18,6 +18,7 @@ import {
   runPresetCommand,
 } from './preset-command.mjs';
 import { askInWorkspaceSession } from './workspace-session.mjs';
+import { sharedWhaleSessionId } from './whale-session.mjs';
 import { HarnessApprovalQueue } from './harness-approval.mjs';
 import {
   BatchInputManager,
@@ -568,8 +569,12 @@ export class TextHarnessBridge {
         return;
       }
       if (!hasImages && !hasFiles && command === '/new') {
-        await this.#state.clearSession(conversationKey);
-        await this.#bot.sendText(target, t('已开启新会话。请发送你的问题。'));
+        if (await sharedWhaleSessionId(this.#harness)) {
+          await this.#bot.sendText(target, t('鲸鱼娘只有一条常驻对话，继续发送消息即可。'));
+        } else {
+          await this.#state.clearSession(conversationKey);
+          await this.#bot.sendText(target, t('已开启新会话。请发送你的问题。'));
+        }
         return;
       }
       const compactCommand = !hasImages && !hasFiles

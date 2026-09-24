@@ -234,14 +234,10 @@ describe('ReadRow keyed toolview', () => {
     expect(view.container.querySelector('[data-read]')).not.toBeNull()
     expect(contentTexts(view.container)).toContain('export const a = 1')
     expect(view.getByText('显示 3 / 180 行')).toBeTruthy()
-    // Collapse back in place: presence keeps the card mounted through the
-    // exit fade, hidden from AT, until PRESENCE_EXIT_MS.
+    // Collapse back in place, leaving the summary link available.
     toggleRow(view)
-    expect(
-      view.container.querySelector('[data-read]')
-        ?.closest('[data-dsh-motion]')
-        ?.getAttribute('aria-hidden'),
-    ).toBe('true')
+    expect(view.container.querySelector('[data-read]')).toBeNull()
+    expect(view.getAllByText('src/a.ts')).toHaveLength(1)
   })
 
   it('the path summary opens the file at the line the call started from', () => {

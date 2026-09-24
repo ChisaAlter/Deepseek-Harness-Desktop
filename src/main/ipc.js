@@ -1,21 +1,17 @@
 const fs = require('node:fs');
-const { ipcMain, dialog, app, shell, nativeTheme } = require('electron');
+const { ipcMain, dialog, app, shell } = require('electron');
 const { formatBootLogDump, saveBootLog } = require('./boot-log-dump');
 const {
   REMOTE_FEATURE_ENABLED,
   loadConfig,
   saveConfig,
-  publicConfig,
   parkRemoteSnapshot,
-  credentialStorageMode,
-  normalizeLauncherConfigPatch,
 } = require('./config');
 const { normalizeRemotePatch } = require('./remote-patch');
-const { getMainWindow, dismissMainWindow, getHarnessWebContents, openHarnessSettings, openMarketplace, openRemote, getLauncherWindow } = require('./window');
-const { resolveNodeBin, resolveDshBin, sourceHarnessStatus } = require('./dsh');
-const { listThemes, resolveTheme } = require('../shared/themes');
+const { getMainWindow, getHarnessWebContents, openHarnessSettings, openMarketplace, openRemote } = require('./window');
 const { applyAppTheme } = require('./chrome');
-const { checkUpdate, installUpdate, listReleases, installRelease, launchUninstaller, currentVersion, REPO_URL, RELEASES_PAGE } = require('./update');
+const { currentVersion } = require('./update');
+const { registerLauncherChannels, configPayload } = require('./ipc-launcher');
 const { listMarketplace } = require('./marketplace-catalog');
 const { checkMarketplaceUpdates } = require('./marketplace-updates');
 const { getMarketplaceDetails } = require('./marketplace-details');
@@ -23,26 +19,14 @@ const { listMarketplaceState, setMarketplaceFavorite, recordMarketplaceOperation
 const {
   listInstalledPlugins,
   installPlugin,
-  installImportPlugin,
   installMarketplacePlugin,
   updateMarketplacePlugin,
   updateMarketplacePlugins,
   uninstallPlugin,
 } = require('./marketplace-install');
-const {
-  listInstalledPlugins: listProfilePlugins,
-  OFFICIAL_TEMPLATE_BUNDLES,
-} = require('./plugins');
-const {
-  kernelIsRunning,
-  disablePlugins,
-  enablePlugin,
-  applyRendererConfigPatch,
-} = require('./profile-ops');
-const { scanImport, probeImportHold, runImport } = require('./data-import');
-const { inspectPlugins, isPresetPlugin } = require('./plugin-forensics');
-const { isPluginTreeFailure } = require('./plugin-tree-failure');
-const { readLastDesktopStart, recordLastDesktopStart, stickySkipActive, peekParkedUpdateCheck } = require('./launcher-gate');
+const { applyRendererConfigPatch } = require('./profile-ops');
+const { recordLastDesktopStart } = require('./launcher-gate');
+const { createLauncherService } = require('../launcher/launcher-service');
 const { listWallpaperCatalog, downloadWallpaper } = require('./wallpaper-catalog');
 const { gitBranchList, gitCheckLargeFiles, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
 const { gitIpcNull, guardGitIpc } = require('./git-ipc-guard');
@@ -52,68 +36,15 @@ const { registerPtyIpc } = require('./pty');
 const { listDir, readFile, readFileMedia, writeFile } = require('./workspace-fs');
 const { listAvailableEditors, openInEditor, revealInFolder, openWithSystemDefault } = require('./editors');
 const { IPC_ROLES, assertIpcSender } = require('./ipc-authorization');
-const { tryGetDesktopDshHome } = require('../shared/dsh-home');
 const { openDesktopDshHome } = require('./open-dsh-home');
 
 const BOOT_ONLY = [IPC_ROLES.BOOT];
 const HARNESS_ONLY = [IPC_ROLES.HARNESS];
-const LAUNCHER_ONLY = [IPC_ROLES.LAUNCHER];
 const CONFIG_SURFACES = [IPC_ROLES.HARNESS];
 const ALL_SURFACES = [IPC_ROLES.BOOT, IPC_ROLES.HARNESS, IPC_ROLES.LAUNCHER];
-const UPDATE_SURFACES = [IPC_ROLES.HARNESS, IPC_ROLES.LAUNCHER];
 // Boot page and harness may summon the launcher window; the launcher itself
 // never needs to (it IS the launcher).
 const OPEN_LAUNCHER_SURFACES = [IPC_ROLES.BOOT, IPC_ROLES.HARNESS];
-
-function configLocale(config = loadConfig()) {
-  return config.locale === 'en' ? 'en' : 'zh';
-}
-
-// Binary/source detection runs sync filesystem probes and, on machines
-// without a bundled or standard-path Node, `where.exe`/`which` subprocesses.
-// Neither nodeBin nor dshBin is renderer-writable, so the detection result
-// cannot change at runtime; memoize it instead of re-probing on every
-// get-config / launcher-status / save-config response.
-let detectedShellInfoCache = null;
-let detectedShellInfoKey = '';
-
-function detectedShellInfo(config) {
-  const key = `${config.nodeBin || ''}${config.dshBin || ''}`;
-  if (detectedShellInfoCache && detectedShellInfoKey === key) {
-    return detectedShellInfoCache;
-  }
-  const source = sourceHarnessStatus();
-  detectedShellInfoKey = key;
-  detectedShellInfoCache = {
-    nodeDetected: resolveNodeBin(config),
-    dshDetected: source.present
-      ? (source.built ? `源码 ${source.root}` : `源码未构建 ${source.root}`)
-      : resolveDshBin(config),
-    themes: listThemes(),
-    appVersion: currentVersion(),
-    repoUrl: REPO_URL,
-    releasesUrl: RELEASES_PAGE,
-    dshHome: tryGetDesktopDshHome(),
-    // About/diagnostics: whether credentials.json is protected by the OS
-    // keychain (safeStorage) or sits in the documented plaintext fallback.
-    credentialStorage: credentialStorageMode(),
-  };
-  return detectedShellInfoCache;
-}
-
-function configPayload(config) {
-  return {
-    ...publicConfig(config),
-    locale: configLocale(config),
-    theme: config.theme || 'midnight',
-    // themeTokens stay live: the harness writes its own settings.yaml when the
-    // user changes the UI theme, so this must re-read per call.
-    themeTokens: resolveTheme(config, {
-      systemDark: Boolean(nativeTheme && nativeTheme.shouldUseDarkColors),
-    }),
-    ...detectedShellInfo(config),
-  };
-}
 
 function sendPluginProgress(event, payload) {
   if (event?.sender && !event.sender.isDestroyed()) {
@@ -171,10 +102,19 @@ function registerIpc({
     });
   };
   const authorizeHarness = (event) => assertIpcSender(event, HARNESS_ONLY);
+  // Launcher orchestration lives in the service; handlers below stay thin
+  // authorization + renderer-transport delegates so the same service can sit
+  // behind a different boundary later.
+  const launcher = createLauncherService({
+    dsh,
+    harness,
+    startHarness,
+    startDesktop,
+    stopDesktopCleanup,
+    configPayload,
+  });
 
   handle('shell:get-state', BOOT_ONLY, () => (harness ? harness.snapshot() : dsh.snapshot()));
-
-  handle('shell:get-config', ALL_SURFACES, () => configPayload(loadConfig()));
 
   handle('shell:save-config', CONFIG_SURFACES, async (_event, patch) => {
     // The desktop-control channel (dsh-whale tools) mutates config through
@@ -207,18 +147,6 @@ function registerIpc({
   );
 
   handle('shell:restart', BOOT_ONLY, async () => {
-    await recordBootRestart();
-    return harness ? harness.snapshot() : dsh.snapshot();
-  });
-
-  handle('shell:retry-full-plugins', ALL_SURFACES, async (event) => {
-    const role = assertIpcSender(event, ALL_SURFACES);
-    if (role === IPC_ROLES.LAUNCHER && typeof startDesktop === 'function') {
-      if (harness && typeof harness.clearPluginRecovery === 'function') {
-        harness.clearPluginRecovery();
-      }
-      return startDesktop({ recoveryLaunch: true, forceRestart: true });
-    }
     await recordBootRestart();
     return harness ? harness.snapshot() : dsh.snapshot();
   });
@@ -280,8 +208,6 @@ function registerIpc({
   });
 
   handle('shell:open-dsh-home', HARNESS_ONLY, () => openDesktopDshHome());
-
-  handle('shell:check-update', UPDATE_SURFACES, () => checkUpdate());
 
   handle('shell:list-marketplace', HARNESS_ONLY, async (_event, options = {}) => {
     return listMarketplace({
@@ -514,296 +440,15 @@ function registerIpc({
     return remote ? remote.snapshot() : null;
   });
 
-  // Releases without SHA512SUMS.txt must never install silently: the user
-  // explicitly accepts the unverified download or nothing is fetched.
-  async function confirmUnverifiedInstall(info) {
-    const win = getLauncherWindow() || getMainWindow() || undefined;
-    const en = configLocale() === 'en';
-    const result = await dialog.showMessageBox(win, {
-      type: 'warning',
-      buttons: en ? ['Install anyway', 'Cancel'] : ['仍要安装', '取消'],
-      defaultId: 1,
-      cancelId: 1,
-      title: en ? 'Unverified installer' : '安装包无法校验',
-      message: en
-        ? `Release ${info?.tag || info?.latest || ''} has no SHA512SUMS.txt manifest, so the installer cannot be verified. Install anyway?`
-        : `版本 ${info?.tag || info?.latest || ''} 未提供 SHA512SUMS.txt 校验清单，无法验证安装包完整性。仍要下载并安装吗？`,
-      noLink: true,
-    });
-    return result.response === 0;
-  }
-
-  handle('shell:install-update', UPDATE_SURFACES, async (event) => {
-    try {
-      return await installUpdate((payload) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('shell:update-progress', payload);
-        }
-      }, { confirmUnverified: confirmUnverifiedInstall });
-    } catch (error) {
-      return {
-        status: 'error',
-        current: currentVersion(),
-        repoUrl: REPO_URL,
-        releasesUrl: RELEASES_PAGE,
-        htmlUrl: RELEASES_PAGE,
-        latest: '',
-        assetName: '',
-        assetUrl: '',
-        launched: false,
-        message: error.message || String(error),
-      };
-    }
-  });
-
-  function collectForensics() {
-    const listed = listProfilePlugins();
-    const config = loadConfig();
-    const lastStart = readLastDesktopStart(app.getPath('userData'));
-    const logs = Array.isArray(dsh?.logs)
-      ? dsh.logs.map((row) => (typeof row === 'string' ? row : row.message || row.line || String(row)))
-      : [];
-    const corpus = [logs.join('\n'), lastStart.error].filter(Boolean).join('\n');
-    const recovery = harness?.pluginRecovery && typeof harness.pluginRecovery === 'object'
-      ? harness.pluginRecovery
-      : (config.pluginRecovery || {});
-    return inspectPlugins({
-      logs,
-      lastStartError: lastStart.error,
-      pluginTreeFailure: isPluginTreeFailure(corpus),
-      recovery,
-      plugins: listed.plugins || [],
-      bundles: listed.bundles || [],
-      disabledPlugins: config.disabledPlugins,
-    });
-  }
-
-  async function stopKernelIfRunning() {
-    if (!dsh || typeof dsh.stop !== 'function') {
-      return false;
-    }
-    if (!kernelIsRunning(dsh)) {
-      return false;
-    }
-    await dsh.stop();
-    return true;
-  }
-
-  handle('shell:launcher-status', LAUNCHER_ONLY, () => {
-    const lastStart = readLastDesktopStart(app.getPath('userData'));
-    const forensics = collectForensics();
-    // Peek only: this poll also runs from the pre-created *hidden* launcher,
-    // and the previous drain-on-status lost a late result before the user ever
-    // saw the window. The main process drains it when the window is really
-    // visible (`openLauncher` / window `show`), which is also where the ask's
-    // generation and quit guards live.
-    return {
-      config: configPayload(loadConfig()),
-      desktop: harness ? harness.snapshot() : dsh.snapshot(),
-      lastStart,
-      recovery: forensics.recovery,
-      forensicsSummary: forensics.summary,
-      forensics,
-      version: currentVersion(),
-      pendingUpdateCheck: peekParkedUpdateCheck(),
-    };
-  });
-
-  handle('shell:save-launcher-config', LAUNCHER_ONLY, (_event, patch) => {
-    const next = saveConfig(normalizeLauncherConfigPatch(patch || {}));
-    return configPayload(next);
-  });
-
-  handle('shell:scan-import', LAUNCHER_ONLY, (_event, payload) => {
-    if (typeof payload === 'string') {
-      return scanImport({ sourceHome: payload });
-    }
-    const options = payload && typeof payload === 'object' ? payload : {};
-    return scanImport({
-      sourceHome: typeof options.sourceHome === 'string' ? options.sourceHome : undefined,
-      extraSkillDirs: Array.isArray(options.extraSkillDirs) ? options.extraSkillDirs : [],
-    });
-  });
-
-  handle('shell:pick-import-source', LAUNCHER_ONLY, async () => {
-    const win = getLauncherWindow();
-    const result = await dialog.showOpenDialog(win || undefined, {
-      title: configLocale() === 'en' ? 'Choose official home' : '选择官方数据目录',
-      defaultPath: require('node:os').homedir(),
-      properties: ['openDirectory'],
-    });
-    if (result.canceled || !result.filePaths[0]) {
-      return null;
-    }
-    return result.filePaths[0];
-  });
-
-  handle('shell:pick-skill-dir', LAUNCHER_ONLY, async () => {
-    const win = getLauncherWindow();
-    const result = await dialog.showOpenDialog(win || undefined, {
-      title: configLocale() === 'en' ? 'Choose a skill folder' : '选择技能目录',
-      defaultPath: require('node:os').homedir(),
-      properties: ['openDirectory'],
-    });
-    if (result.canceled || !result.filePaths[0]) {
-      return null;
-    }
-    return result.filePaths[0];
-  });
-
-  let importAbort = null;
-
-  handle('shell:run-import', LAUNCHER_ONLY, async (event, options = {}) => {
-    const kernelStopped = await stopKernelIfRunning();
-    const sourceHome = typeof options.sourceHome === 'string' ? options.sourceHome : undefined;
-    const extraSkillDirs = Array.isArray(options.extraSkillDirs)
-      ? options.extraSkillDirs.filter((row) => typeof row === 'string')
-      : [];
-    const overwrite = options.overwrite === true;
-    const userDataDir = app.getPath('userData');
-    const controller = new AbortController();
-    importAbort = controller;
-    try {
-      const result = await runImport({
-        sourceHome,
-        extraSkillDirs,
-        overwrite,
-        userDataDir,
-        selectedRels: Array.isArray(options.selectedRels) ? options.selectedRels : [],
-        selectedSkillIds: Array.isArray(options.selectedSkillIds) ? options.selectedSkillIds : [],
-        selectedPluginNames: Array.isArray(options.selectedPluginNames) ? options.selectedPluginNames : [],
-        selectedMcpIds: Array.isArray(options.selectedMcpIds) ? options.selectedMcpIds : [],
-        selectedSettingIds: Array.isArray(options.selectedSettingIds) ? options.selectedSettingIds : [],
-        selectedPresetIds: Array.isArray(options.selectedPresetIds) ? options.selectedPresetIds : [],
-        importAttachments: options.importAttachments === true,
-        signal: controller.signal,
-        onProgress: (payload) => {
-          if (event.sender && !event.sender.isDestroyed()) {
-            event.sender.send('shell:import-progress', payload);
-          }
-        },
-        installPlugin: (spec) => installImportPlugin(spec, { token: loadConfig().githubToken }),
-      });
-      return {
-        ...result,
-        kernelStopped,
-        hold: probeImportHold({ sourceHome, extraSkillDirs }).hold,
-      };
-    } finally {
-      if (importAbort === controller) {
-        importAbort = null;
-      }
-    }
-  });
-
-  handle('shell:cancel-import', LAUNCHER_ONLY, () => {
-    if (!importAbort) {
-      return { ok: false };
-    }
-    importAbort.abort();
-    return { ok: true };
-  });
-
-  handle('shell:list-releases', LAUNCHER_ONLY, () => listReleases());
-
-  handle('shell:install-release', LAUNCHER_ONLY, async (event, tag) => {
-    try {
-      return await installRelease(tag, (payload) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('shell:update-progress', payload);
-        }
-      }, { confirmUnverified: confirmUnverifiedInstall });
-    } catch (error) {
-      return { status: 'error', launched: false, message: error.message || String(error) };
-    }
-  });
-
-  handle('shell:uninstall-app', LAUNCHER_ONLY, () => launchUninstaller());
-
-  handle('shell:stop-desktop', LAUNCHER_ONLY, async () => {
-    const wasRunning = kernelIsRunning(dsh);
-    if (typeof stopDesktopCleanup === 'function') {
-      stopDesktopCleanup();
-    }
-    if (harness && typeof harness.stopDesktop === 'function') {
-      await harness.stopDesktop();
-    } else {
-      await stopKernelIfRunning();
-    }
-    dismissMainWindow();
-    return {
-      ok: true,
-      stopped: wasRunning ? !kernelIsRunning(dsh) : false,
-    };
-  });
-
-  handle('shell:plugin-forensics', LAUNCHER_ONLY, () => collectForensics());
-
-  handle('shell:disable-plugins', LAUNCHER_ONLY, async (_event, names) => {
-    const result = await disablePlugins(names, { dsh, startHarness });
-    return result.ok === true ? { ...result, forensics: collectForensics() } : result;
-  });
-
-  handle('shell:disable-plugin', LAUNCHER_ONLY, async (_event, name) => {
-    const raw = String(name || '').trim();
-    if (!raw) {
-      return { ok: false, error: 'missing-name' };
-    }
-    const result = await disablePlugins([raw], { dsh, startHarness });
-    return result.ok === true ? { ...result, forensics: collectForensics() } : result;
-  });
-
-  handle('shell:enable-plugin', LAUNCHER_ONLY, async (_event, name) => {
-    const raw = String(name || '').trim();
-    if (!raw) {
-      return { ok: false, error: 'missing-name' };
-    }
-    const result = await enablePlugin(raw, { dsh, startHarness });
-    return { ...result, forensics: collectForensics() };
-  });
-
-  handle('shell:remove-plugin', LAUNCHER_ONLY, async (event, name) => {
-    const raw = String(name || '').trim();
-    if (!raw) {
-      return { ok: false, error: 'missing-name' };
-    }
-    if (isPresetPlugin(raw) || OFFICIAL_TEMPLATE_BUNDLES.has(raw)) {
-      return { ok: false, error: 'preset' };
-    }
-    const kernelStopped = await stopKernelIfRunning();
-    const result = await uninstallPlugin(raw, {
-      onProgress: (payload) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('shell:plugin-progress', payload);
-        }
-      },
-    });
-    const disabled = (loadConfig().disabledPlugins || []).filter((item) => item !== raw);
-    saveConfig({ disabledPlugins: disabled });
-    return { ...result, kernelStopped, forensics: collectForensics() };
-  });
-
-  handle('shell:start-desktop', LAUNCHER_ONLY, async () => {
-    const wasSticky = stickySkipActive(harness);
-    if (harness && typeof harness.clearPluginRecovery === 'function') {
-      harness.clearPluginRecovery();
-    }
-    const start = typeof startDesktop === 'function' ? startDesktop : startHarness;
-    // Clearing sticky while already ready would otherwise early-return with skip mode still live.
-    if (wasSticky) {
-      return start({ forceRestart: true });
-    }
-    return start();
-  });
-
-  handle('shell:start-desktop-skipped', LAUNCHER_ONLY, async () => {
-    if (harness && typeof harness.writePluginSkip === 'function') {
-      harness.writePluginSkip(new Error('launcher-skip-user-plugins'));
-    }
-    const start = typeof startDesktop === 'function' ? startDesktop : startHarness;
-    // Must force restart: plain start() no-ops when already ready / joins an
-    // in-flight boot that captured skipUserPlugins=false before this click.
-    return start({ forceRestart: true });
+  // Every launcher-renderer channel (status / config / import / releases /
+  // runtime install / forensics / start-stop) registers through the shared
+  // table so the slim launcher package binds the identical surface.
+  registerLauncherChannels({
+    launcher,
+    dsh,
+    harness,
+    startDesktop,
+    recordBootRestart,
   });
 
   return { pty, preview, stopWorkspaceWatch };

@@ -14,15 +14,44 @@ const canvas = document.getElementById('pet');
 const ctx2d = canvas.getContext('2d');
 const bubbleStyle = getComputedStyle(document.documentElement);
 
+// Opt-in, in-memory measurements for the pet DevTools console. No sampling
+// or logging runs in normal use: __dshdPetPerf.start(), then .stop().
+const petPerf = (() => {
+  let enabled = false;
+  let started = 0;
+  let samples = {};
+  const percentile = (values, fraction) => {
+    if (!values.length) { return 0; }
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.ceil((sorted.length - 1) * fraction)];
+  };
+  const snapshot = () => {
+    const seconds = Math.max(0.001, (performance.now() - started) / 1000);
+    return Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, {
+      count: values.length,
+      perSecond: +(values.length / seconds).toFixed(2),
+      p50Ms: +percentile(values, 0.5).toFixed(2),
+      p95Ms: +percentile(values, 0.95).toFixed(2),
+    }]));
+  };
+  return {
+    get enabled() { return enabled; },
+    start() { samples = {}; started = performance.now(); enabled = true; },
+    stop() { enabled = false; return snapshot(); },
+    snapshot,
+    record(name, ms) {
+      if (!enabled) { return; }
+      const bucket = samples[name] || (samples[name] = []);
+      if (bucket.length < 60000) { bucket.push(ms); }
+    },
+  };
+})();
+window.__dshdPetPerf = petPerf;
+
 const MODEL_URL = 'pet://pet/pet-live2d/avatar/model.onnx';
-const MODEL_HD_URL = 'pet://pet/pet-live2d/avatar/model_hd.onnx';
 const CHARACTER_URL = 'pet://pet/pet-live2d/avatar/character.png';
-const CHARACTER_HD_URL = 'pet://pet/pet-live2d/avatar/character_hd.png';
-// The distilled student is resolution-agnostic: the SIREN morphers are
-// per-pixel coordinate MLPs and the body morpher emits a normalized-space
-// deformation field, so the SAME trained weights render at any density —
-// model_hd samples the grids 2x and warps a 1024² texture (the Real-ESRGAN
-// master), producing a genuinely HD frame with no retraining.
+// The 1024² export is currently disabled: its WebGPU output is all-white.
+// Keep the active 512² model as the only packaged runtime candidate.
 let FRAME = 512;
 // Region of the FRAME² output that contains the character, drawn into the
 // canvas at PET_W x PET_H. Scales with FRAME.
@@ -43,7 +72,7 @@ let settings = {
 const petW = () => PET_W * (settings.scale || 1);
 const petH = () => PET_H * (settings.scale || 1);
 const HOVER_PADDING = 8;
-const EXIT_HYSTERESIS = 24;
+const EXIT_HYSTERESIS = 8;
 const DRAG_THRESHOLD = 4;
 const TAP_REACTION_MS = 1400;
 // Activity tiers (§B3): self-talk / wander interval ranges in ms. Missed
@@ -295,7 +324,7 @@ async function loadImageTensor() {
   await new Promise((resolve, reject) => {
     img.onload = resolve;
     img.onerror = reject;
-    img.src = FRAME === 1024 ? CHARACTER_HD_URL : CHARACTER_URL;
+    img.src = CHARACTER_URL;
   });
   const off = document.createElement('canvas');
   off.width = off.height = FRAME;
@@ -380,6 +409,7 @@ function srFrame() {
   if (!srReady) {
     return;
   }
+  const perfStart = petPerf.enabled ? performance.now() : 0;
   const c = srCrop.getContext('2d');
   c.clearRect(0, 0, CROP.w, CROP.h);
   c.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, CROP.w, CROP.h);
@@ -401,6 +431,7 @@ function srFrame() {
   o.globalCompositeOperation = 'destination-in';
   o.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, srOut.width, srOut.height);
   o.globalCompositeOperation = 'source-over';
+  if (petPerf.enabled) { petPerf.record('superResolution', performance.now() - perfStart); }
 }
 
 // Bounding box of the character in PET-LOCAL coordinates (0..PET_W/PET_H),
@@ -573,12 +604,18 @@ async function loadRig() {
   const mf = await (await fetch(RIG_URL('manifest.json'))).json();
   const imgs = {};
   const jobs = [];
-  const load = (key, file) => jobs.push(new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => { imgs[key] = img; resolve(); };
-    img.onerror = () => resolve();
-    img.src = RIG_URL(file);
-  }));
+  const byFile = new Map();
+  const load = (key, file) => {
+    if (!byFile.has(file)) {
+      byFile.set(file, new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = RIG_URL(file);
+      }));
+    }
+    jobs.push(byFile.get(file).then((img) => { if (img) { imgs[key] = img; } }));
+  };
   load('body', mf.body.file);
   load('tail', mf.tail.file);
   // shells = whole-character expression variants (head+body fused as one
@@ -771,12 +808,60 @@ const RIG_STATES = {
 // targets, scaled by `a` when composed in drawLive.
 const liveFx = { rot: 0, dx: 0, dy: 0, sx: 1, sy: 1, pivot: null, stars: false };
 const LIVE_STATES = {
+  // These programs keep the original avatar as the only rendered character.
+  // Generated key poses are reviewed separately; none is loaded by live mode.
+  'idle-float'(S, t) {
+    S.fx.dy = -2.5 * Math.sin(t * 1.8);
+    S.fx.rot = 0.012 * Math.sin(t * 1.2);
+  },
+  swim(S, t) {
+    S.set(42, 0.3 * Math.sin(t * 5));
+    S.set(43, 0.35 * Math.sin(t * 5 + 0.7));
+    S.fx.dx = 4 * Math.sin(t * 2.5);
+    S.fx.rot = 0.04 * Math.sin(t * 5);
+  },
+  twirl(S, t) {
+    const p = clamp01((t - rigStateT0) / 1.3);
+    // The live frame pivots at her feet. A whole-frame 360° roll clips her
+    // below a bottom-edge desktop position, so turn head/body within the
+    // model and use only a small planted sway.
+    S.set(40, 0.6 * Math.sin(2 * Math.PI * p));
+    S.set(42, 0.5 * Math.sin(2 * Math.PI * p));
+    S.fx.rot = 0.14 * Math.sin(2 * Math.PI * p);
+    S.fx.sx = 1 - 0.06 * Math.sin(Math.PI * p) ** 2;
+    S.fx.dy = -5 * Math.sin(Math.PI * p);
+  },
+  look(S, t) {
+    S.set(37, 0.5 * Math.sin(t * 2));
+    S.set(38, 0.6 * Math.sin(t * 2));
+    S.set(40, 0.35 * Math.sin(t * 2));
+    S.fx.rot = 0.025 * Math.sin(t * 2);
+  },
+  doze(S, t) {
+    S.set(18, 0.7); S.set(19, 0.7);
+    S.set(39, 0.22 + 0.04 * Math.sin(t * 1.4));
+    S.mul(44, 0.55);
+    S.fx.dy = 2 * Math.sin(t * 1.4);
+  },
+  'sleep-enter'(S, t) {
+    const p = smooth(clamp01((t - rigStateT0) / 1.2));
+    S.set(12, p); S.set(13, p);
+    S.set(39, 0.2 * p);
+    S.fx.rot = -1.0 * p;
+    S.fx.dy = 14 * p;
+  },
   sleep(S, t) {
     S.set(12, 1); S.set(13, 1);          // eyes closed
     S.set(39, 0.16);                     // head sags
     S.mul(44, 1.5);                      // slower, deeper breath
     S.fx.rot = -1.0;                     // lies on her side
     S.fx.dy = 14;
+  },
+  wake(S, t) {
+    const p = clamp01((t - rigStateT0) / 1.1);
+    S.set(16, 0.8 * (1 - p)); S.set(17, 0.8 * (1 - p));
+    S.fx.dy = -9 * Math.sin(Math.PI * p);
+    S.fx.sy = 1 + 0.04 * Math.sin(Math.PI * p);
   },
   'pick-up'(S, t, dt) {
     // Pendulum swing about the grab point, same spring as the rig path.
@@ -799,12 +884,26 @@ const LIVE_STATES = {
     }
     S.set(40, 0.12 + 0.06 * Math.sin(t * 9));
   },
+  pickup(S, t, dt) { LIVE_STATES['pick-up'](S, t, dt); },
+  'drag-sway'(S, t, dt) { LIVE_STATES['pick-up'](S, t, dt); },
+  fling(S, t, dt) { LIVE_STATES['pick-up'](S, t, dt); },
+  recover(S, t) {
+    const p = clamp01((t - rigStateT0) / 1.5);
+    S.set(18, 0.35 * (1 - p)); S.set(19, 0.35 * (1 - p));
+    S.fx.rot = 0.2 * (1 - p) * Math.sin(p * 15);
+    S.fx.dy = 3 * (1 - p);
+  },
+  'food-notice'(S, t) {
+    S.set(16, 0.7); S.set(17, 0.7);
+    S.set(22, 0.35);
+    S.fx.dy = -3 * Math.sin(Math.PI * clamp01((t - rigStateT0) / 1.1));
+  },
   eat(S, t) {
     if (t - rigStateT0 < 0.8) {
       S.set(16, 1); S.set(17, 1);        // food arrives — delight gasp
       S.set(22, 0.5);
     } else {
-      S.set(26, Math.sin(t * 7) > 0 ? 0.8 : 0.05); // chewing
+      S.set(26, 0.05 + 0.75 * (0.5 + 0.5 * Math.sin(t * 7))); // continuous chew
     }
     S.set(39, 0.04 + 0.03 * Math.sin(t * 2.2));
     if (feed) {
@@ -813,6 +912,16 @@ const LIVE_STATES = {
       S.set(37, dir * 0.4);
       S.fx.rot = dir * 0.04;
     }
+  },
+  chew(S, t) {
+    S.set(26, 0.08 + 0.62 * (0.5 + 0.5 * Math.sin(t * 8)));
+    S.set(39, 0.035 * Math.sin(t * 8));
+    S.fx.dy = 1.2 * Math.sin(t * 8);
+  },
+  full(S, t) {
+    S.set(14, 0.9); S.set(15, 0.9);
+    S.set(30, 0.5); S.set(31, 0.5);
+    S.fx.sy = 1 + 0.02 * Math.sin(t * 2);
   },
   running(S, t) {
     S.set(14, 1); S.set(15, 1);          // happy eyes
@@ -829,6 +938,28 @@ const LIVE_STATES = {
       S.set(30, 0.8); S.set(31, 0.8);
     }
     S.fx.rot = 0.08 * Math.sin(t * 5);
+  },
+  pat(S, t) { LIVE_STATES['react-head'](S, t); },
+  poke(S, t) {
+    const p = clamp01((t - rigStateT0) / 0.8);
+    S.set(16, 0.8 * (1 - p)); S.set(17, 0.8 * (1 - p));
+    S.fx.sx = 1 - 0.07 * Math.sin(Math.PI * p);
+    S.fx.sy = 1 + 0.05 * Math.sin(Math.PI * p);
+  },
+  wave(S, t) { LIVE_STATES.greet(S, t); },
+  shy(S, t) {
+    S.set(12, 0.45); S.set(13, 0.45);
+    S.set(40, 0.25);
+    S.fx.rot = 0.045 * Math.sin(t * 2);
+    S.fx.dy = 2 * Math.sin(t * 2);
+  },
+  'happy-tail'(S, t) { LIVE_STATES['tail-swing'](S, t); },
+  sad(S, t) {
+    S.set(2, 0.7); S.set(3, 0.7);
+    S.set(18, 0.35); S.set(19, 0.35);
+    S.set(39, 0.2);
+    S.fx.dy = 3;
+    S.fx.sy = 0.97;
   },
   angry(S, t) {
     S.set(0, 1); S.set(1, 1);            // angry brows
@@ -871,6 +1002,30 @@ const LIVE_STATES = {
   },
 };
 
+// Facial programs stay in the original avatar's THA4 pose space.
+const LIVE_EXPRESSIONS = {
+  neutral() {},
+  happy(S) { S.set(14, 0.8); S.set(15, 0.8); S.set(30, 0.5); S.set(31, 0.5); },
+  laugh(S) { S.set(14, 1); S.set(15, 1); S.set(26, 0.7); },
+  curious(S) { S.set(16, 0.35); S.set(17, 0.35); S.set(41, 0.35); },
+  sleepy(S) { S.set(18, 0.65); S.set(19, 0.65); },
+  asleep(S) { S.set(12, 1); S.set(13, 1); },
+  surprised(S) { S.set(16, 0.9); S.set(17, 0.9); S.set(22, 0.5); },
+  panicked(S) { S.set(2, 0.75); S.set(3, 0.75); S.set(26, 0.4); },
+  dizzy(S) { S.set(18, 0.35); S.set(19, 0.35); S.set(41, 0.4); },
+  blush(S) { S.set(12, 0.4); S.set(13, 0.4); S.set(40, 0.25); },
+  annoyed(S) { S.set(0, 0.85); S.set(1, 0.85); S.set(24, 0.4); },
+  'sad-face'(S) { S.set(2, 0.8); S.set(3, 0.8); S.set(18, 0.35); S.set(19, 0.35); },
+};
+const LIVE_ACTION_EXPRESSION = {
+  'idle-float': 'neutral', swim: 'happy', twirl: 'laugh', look: 'curious',
+  doze: 'sleepy', 'sleep-enter': 'sleepy', sleep: 'asleep', wake: 'surprised',
+  pickup: 'panicked', 'drag-sway': 'panicked', fling: 'panicked',
+  recover: 'dizzy', 'food-notice': 'surprised', eat: 'happy', chew: 'happy',
+  full: 'happy', pat: 'happy', poke: 'surprised', wave: 'happy', shy: 'blush',
+  'happy-tail': 'happy', sad: 'sad-face', angry: 'annoyed', startle: 'surprised',
+};
+
 // Apply the live-state program for stillCtl.name after the base pose math —
 // overrides are weighted by the state alpha envelope.
 function applyLiveState() {
@@ -888,6 +1043,8 @@ function applyLiveState() {
     mul(ch, v) { pose[ch] *= 1 + (v - 1) * a; },
   };
   prog(S, rigT, 1 / 60);
+  const expression = LIVE_EXPRESSIONS[LIVE_ACTION_EXPRESSION[stillCtl.name]];
+  if (expression) { expression(S); }
 }
 
 // ── live-mode draw ──
@@ -1254,7 +1411,7 @@ function drawBubble(now) {
   }
   const alpha = Math.min(1, remain / 300);
   // Anchor above the head of whatever is currently drawn (still or live).
-  const bounds = petBounds();
+  const bounds = petBodyBounds();
   const headX = (bounds.x + bounds.right) / 2;
   ctx2d.save();
   ctx2d.globalAlpha = alpha;
@@ -1480,6 +1637,8 @@ function closePanel() {
 const chatEl = typeof document !== 'undefined' && document.getElementById
   ? document.getElementById('pet-chat') : null;
 const chatDom = chatEl && typeof chatEl.querySelector === 'function' ? chatEl : null;
+const chatPickerEl = typeof document !== 'undefined' && document.getElementById
+  ? document.getElementById('pc-picker') : null;
 
 function applySettings(next) {
   const prev = settings;
@@ -1613,6 +1772,7 @@ function dispatchPanelCell(cell) {
 let chatOpen = false;
 let chatBusy = false;
 let chatRect = null; // { x, y, w, h } — joins petBounds so the card takes clicks
+let chatPickerRect = null; // floating menu joins the interactive area only while open
 const chatLog = []; // { role: 'user'|'her'|'err', text }
 let chatTypingEl = null;
 const CHAT_LOG_MAX = 30;
@@ -1625,6 +1785,8 @@ let chatFlatModels = [];// [{provider,model,efforts,defaultEffort}]
 let chatServerSeq = 0;  // max event seq last synced from the shared log
 let chatSelKey = '';    // serialized [groups, selected] — rebuild selects only on change
 let chatPollTimer = 0;
+let chatPickerOpen = ''; // 'root' | 'model' | 'effort' — portaled menu pane
+let chatPickPending = false;
 
 function esc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -1670,6 +1832,7 @@ function syncChatPos() {
     chatEl.style.left = `${nx}px`;
     chatEl.style.top = `${ny}px`;
   }
+  syncChatPickerPos();
 }
 
 function chatScrollDown() {
@@ -1783,10 +1946,56 @@ function chatRenderHistory(list) {
   chatScrollDown();
 }
 
-// The select shows the picked option's name clipped — mirror it into the
-// title so the full id is one hover away.
+const CHAT_EFFORT_NAMES = {
+  off: '关闭', minimal: '最低', low: '低', medium: '中',
+  high: '高', xhigh: '极高', max: '最大',
+};
+function chatEffortName(entry) {
+  return CHAT_EFFORT_NAMES[entry?.id] || entry?.name || entry?.id || '';
+}
+
+// Hidden selects retain the catalog's exact ids. The visible triggers show
+// a readable value and expose the full choice to hover and assistive tech.
 function chatSyncPickTitle(sel) {
-  if (sel) { sel.title = sel.selectedOptions?.[0]?.textContent || ''; }
+  if (!sel) { return; }
+  const option = sel.selectedOptions?.[0];
+  if (sel.id === 'pc-model') {
+    const trigger = chatPart('#pc-model-trigger');
+    if (!trigger) { return; }
+    const m = chatFlatModels.find((x) => `${x.provider}::${x.model}` === sel.value);
+    const group = chatGroups.find((g) => g.id === m?.provider);
+    const label = option?.textContent || m?.model || '选择模型';
+    trigger.querySelector('.pc-choice-value').textContent = label;
+    trigger.title = group ? `${group.name || group.id} · ${label}` : label;
+    trigger.setAttribute('aria-label', `选择模型，当前${trigger.title}`);
+  } else if (sel.id === 'pc-effort') {
+    const trigger = chatPart('#pc-model-trigger');
+    if (!trigger) { return; }
+    const m = chatFlatModels.find((x) => `${x.provider}::${x.model}` === chatPart('#pc-model')?.value);
+    const effort = m?.efforts?.find((e) => e.id === sel.value);
+    const label = chatEffortName(effort) || '选择档位';
+    const caption = trigger.querySelector('.pc-choice-effort');
+    caption.textContent = label;
+    caption.hidden = false;
+    trigger.title = `${chatPart('#pc-model')?.selectedOptions?.[0]?.textContent || '模型'} · ${label}`;
+    trigger.setAttribute('aria-label', `选择模型与思考，当前${trigger.title}`);
+  }
+}
+
+function syncChatPickerPos() {
+  if (!chatPickerOpen || !chatPickerEl || chatPickerEl.hidden) { chatPickerRect = null; return; }
+  const trigger = chatPart('#pc-model-trigger');
+  if (!trigger) { return; }
+  const anchor = trigger.getBoundingClientRect();
+  const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+  const width = chatPickerEl.offsetWidth;
+  const height = chatPickerEl.offsetHeight;
+  const left = Math.round(Math.min(Math.max(anchor.right - width, host.x + 4), host.x + host.width - width - 4));
+  const above = anchor.top - height - 8;
+  const top = Math.round(Math.min(Math.max(above, host.y + 4), host.y + host.height - height - 4));
+  chatPickerEl.style.left = `${left}px`;
+  chatPickerEl.style.top = `${top}px`;
+  chatPickerRect = { x: left, y: top, w: width, h: height };
 }
 
 // Effort options follow the picked model; the whole side cell hides when
@@ -1800,7 +2009,11 @@ function chatRenderEfforts(prefer) {
   const efforts = m?.efforts || [];
   if (!efforts.length) {
     if (effBox) { effBox.hidden = true; }
+    const caption = chatPart('#pc-model-trigger .pc-choice-effort');
+    if (caption) { caption.hidden = true; caption.textContent = ''; }
+    if (chatPickerOpen === 'effort') { chatClosePicker(); }
     effSel.innerHTML = '';
+    chatSyncPickTitle(sel);
     return;
   }
   effSel.innerHTML = efforts
@@ -1836,13 +2049,112 @@ function chatRenderModels(selected) {
   chatRenderEfforts(selected?.reasoningEffort || '');
 }
 
+function chatClosePicker(restoreFocus = false) {
+  chatPickerOpen = '';
+  const picker = chatPickerEl;
+  if (picker) { picker.hidden = true; picker.innerHTML = ''; }
+  chatPickerRect = null;
+  chatPart('#pc-model-trigger')?.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) { chatPart('#pc-model-trigger')?.focus?.(); }
+}
+
+function chatShowPicker(kind) {
+  const picker = chatPickerEl;
+  if (!picker) { return; }
+  const selected = chatPart(kind === 'model' ? '#pc-model' : '#pc-effort')?.value;
+  if (kind === 'root') {
+    const model = chatPart('#pc-model')?.selectedOptions?.[0]?.textContent || '选择模型';
+    const effort = chatPart('#pc-model-trigger .pc-choice-effort')?.textContent || '';
+    picker.innerHTML = `<button class="pc-option" type="button" data-pane="model" role="menuitem"><span class="pc-option-name">模型</span><span class="pc-option-detail">${esc(model)}</span><span aria-hidden="true">›</span></button>${chatPart('#pc-effort-box')?.hidden ? '' : `<button class="pc-option" type="button" data-pane="effort" role="menuitem"><span class="pc-option-name">思考</span><span class="pc-option-detail">${esc(effort)}</span><span aria-hidden="true">›</span></button>`}`;
+  } else if (kind === 'model') {
+    picker.innerHTML = '<button class="pc-option" type="button" data-pane="root" role="menuitem"><span aria-hidden="true">‹</span><span class="pc-option-name">模型</span></button>' + chatGroups.map((group) => `<div class="pc-picker-group">${esc(group.name || group.id)}</div>${
+      (group.models || []).map((m) => {
+        const value = `${group.id}::${m.id}`;
+        const picked = value === selected;
+        return `<button class="pc-option" type="button" role="menuitemradio" data-value="${esc(value)}" aria-checked="${picked}"><span class="pc-option-name">${esc(m.name || m.id)}</span>${picked ? '<span class="pc-option-check" aria-hidden="true">✓</span>' : ''}</button>`;
+      }).join('')
+    }`).join('');
+  } else {
+    const m = chatFlatModels.find((x) => `${x.provider}::${x.model}` === chatPart('#pc-model')?.value);
+    picker.innerHTML = `<button class="pc-option" type="button" data-pane="root" role="menuitem"><span aria-hidden="true">‹</span><span class="pc-option-name">思考</span></button>${
+      (m?.efforts || []).map((e) => {
+        const picked = e.id === selected;
+        return `<button class="pc-option" type="button" role="menuitemradio" data-value="${esc(e.id)}" aria-checked="${picked}"><span class="pc-option-name">${esc(chatEffortName(e))}</span>${picked ? '<span class="pc-option-check" aria-hidden="true">✓</span>' : ''}</button>`;
+      }).join('')
+    }`;
+  }
+  chatPickerOpen = kind;
+  picker.hidden = false;
+  chatPart('#pc-model-trigger')?.setAttribute('aria-expanded', 'true');
+  syncChatPickerPos();
+  const focusRow = picker.querySelector('[aria-checked="true"]') || picker.querySelector('.pc-option');
+  focusRow?.scrollIntoView?.({ block: 'nearest' });
+  focusRow?.focus?.();
+}
+
+function chatTogglePicker() {
+  if (chatPickerOpen) { chatClosePicker(true); }
+  else { chatShowPicker('root'); }
+}
+
 // Card chrome + shared-log sync: model selects, jump button, her display
 // name, and the merged thread. Polled while the card is open so messages
 // sent from the DSHD side show up here too (互通).
 let chatServerSession = '';
+let chatCatalogAt = 0;
+let chatCatalogLoaded = false;
+let chatHistoryPending = null;
+let chatCatalogPending = null;
+let chatCatalogForceQueued = false;
+let chatSelected = null;
 
-async function chatRefreshState() {
-  const st = await Promise.resolve(petShell.chatState?.()).catch(() => null);
+function chatRefreshState(forceCatalog = false) {
+  const history = chatRefreshHistory();
+  if (!forceCatalog && chatCatalogLoaded && Date.now() - chatCatalogAt < 60000) {
+    return history;
+  }
+  // Resolve the session identity first, then fetch its catalog. A slow
+  // catalog must not hold the next three-second history refresh hostage.
+  return history.then(() => chatRefreshCatalog(forceCatalog));
+}
+
+function chatRefreshHistory() {
+  if (chatHistoryPending) { return chatHistoryPending; }
+  chatHistoryPending = chatRefreshStateOnce().finally(() => { chatHistoryPending = null; });
+  return chatHistoryPending;
+}
+
+function chatRefreshCatalog(force) {
+  if (chatCatalogPending) {
+    if (!force) { return chatCatalogPending; }
+    chatCatalogForceQueued = true;
+    return chatCatalogPending.then(() => chatCatalogPending);
+  }
+  const request = Promise.resolve().then(() => petShell.chatState?.({ includeCatalog: true }))
+    .catch(() => null).then((st) => {
+      if (!st || st.ok !== true || !Array.isArray(st.groups)) { return; }
+      if (st.sessionId && chatServerSession && String(st.sessionId) !== chatServerSession) { return; }
+      chatGroups = st.groups;
+      chatCatalogAt = Date.now();
+      chatCatalogLoaded = true;
+      const selKey = JSON.stringify([chatGroups, chatSelected]);
+      if (selKey !== chatSelKey && !chatPickerOpen && !chatPickPending) {
+        chatSelKey = selKey;
+        chatRenderModels(chatSelected);
+      }
+    });
+  chatCatalogPending = request.finally(() => {
+    chatCatalogPending = null;
+    if (chatCatalogForceQueued) {
+      chatCatalogForceQueued = false;
+      void chatRefreshCatalog(true);
+    }
+  });
+  return chatCatalogPending;
+}
+
+async function chatRefreshStateOnce() {
+  const st = await Promise.resolve().then(() => petShell.chatState?.({ includeCatalog: false })).catch(() => null);
   if (!st || st.ok !== true) { return; }
   // A recreated assistant session starts a new log — drop the stale sync
   // watermark so the short fresh tail still repaints.
@@ -1851,6 +2163,8 @@ async function chatRefreshState() {
     chatServerSession = sid;
     chatServerSeq = 0;
     chatSelKey = '';
+    chatCatalogLoaded = false;
+    chatCatalogAt = 0;
   }
   chatShared = st.enabled === true;
   const modelsEl = chatPart('#pc-models');
@@ -1859,16 +2173,14 @@ async function chatRefreshState() {
   if (openBtn) { openBtn.hidden = !chatShared; }
   const nameEl = chatPart('.pc-name');
   if (nameEl && st.name) { nameEl.textContent = st.name; }
-  if (!chatShared) { return; }
-  chatGroups = Array.isArray(st.groups) ? st.groups : [];
+  if (!chatShared) { chatClosePicker(); return; }
+  chatSelected = st.selected ?? null;
   // Rebuild the selects only when the catalog/selection actually changed —
   // a poll must never clobber an open dropdown or an in-flight pick.
-  const selKey = JSON.stringify([chatGroups, st.selected ?? null]);
-  const sel = chatPart('#pc-model');
-  if (selKey !== chatSelKey && sel !== document.activeElement
-    && chatPart('#pc-effort') !== document.activeElement) {
+  const selKey = JSON.stringify([chatGroups, chatSelected]);
+  if (selKey !== chatSelKey && !chatPickerOpen && !chatPickPending) {
     chatSelKey = selKey;
-    chatRenderModels(st.selected);
+    chatRenderModels(chatSelected);
   }
   // Watermark on max event seq, not row count — the server tail is capped,
   // so a full tail keeps the same length while new rows rotate through.
@@ -1899,9 +2211,17 @@ function chatSubmitModelChoice() {
   const m = chatFlatModels.find((x) => `${x.provider}::${x.model}` === sel?.value);
   if (!m) { return; }
   const effort = effSel && effBox && !effBox.hidden ? String(effSel.value || '') : '';
+  chatPickPending = true;
   void Promise.resolve(petShell.chatSelectModel?.({
     provider: m.provider, model: m.model, reasoningEffort: effort,
-  })).catch(() => {});
+  })).then((result) => {
+    if (result?.ok === false) { chatAppend('err', '模型切换没有成功'); }
+  }).catch(() => {
+    chatAppend('err', '模型切换没有成功');
+  }).finally(() => {
+    chatPickPending = false;
+    if (chatOpen) { void chatRefreshState(); }
+  });
 }
 
 function toggleChat(force) {
@@ -1921,9 +2241,10 @@ function toggleChat(force) {
     chatFocusWindow(chatOpen);
     // Focus lands once the window actually takes OS focus.
     setTimeout(() => chatPart('#pc-input')?.focus?.(), 60);
-    void chatRefreshState();
+    void chatRefreshState(true);
     chatStartPoll();
   } else {
+    chatClosePicker();
     chatEl.hidden = true;
     chatRect = null;
     chatFocusWindow(chatOpen);
@@ -1998,23 +2319,50 @@ function bindChatDom() {
     if (send && !chatBusy) { send.disabled = !input.value.trim(); }
   });
   input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      toggleChat(false);
-      return;
-    }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       void submitChat(input.value);
     }
   });
-  chatPart('#pc-model')?.addEventListener('change', () => {
-    chatSyncPickTitle(chatPart('#pc-model'));
-    chatRenderEfforts('');
+  chatPart('#pc-model-trigger')?.addEventListener('click', () => chatTogglePicker());
+  chatPickerEl?.addEventListener('click', (event) => {
+    const pane = event.target.closest?.('[data-pane]');
+    if (pane) { chatShowPicker(pane.dataset.pane); return; }
+    const choice = event.target.closest?.('.pc-option');
+    if (!choice) { return; }
+    if (chatPickerOpen === 'model') {
+      const sel = chatPart('#pc-model');
+      if (sel?.value === choice.dataset.value) { chatClosePicker(true); return; }
+      if (sel) { sel.value = choice.dataset.value; chatSyncPickTitle(sel); }
+      chatRenderEfforts('');
+    } else if (chatPickerOpen === 'effort') {
+      const sel = chatPart('#pc-effort');
+      if (sel?.value === choice.dataset.value) { chatClosePicker(true); return; }
+      if (sel) { sel.value = choice.dataset.value; chatSyncPickTitle(sel); }
+    }
+    chatClosePicker(true);
     chatSubmitModelChoice();
   });
-  chatPart('#pc-effort')?.addEventListener('change', () => {
-    chatSyncPickTitle(chatPart('#pc-effort'));
-    chatSubmitModelChoice();
+  const onChatKeydown = (event) => {
+    if (chatPickerOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault();
+      const rows = [...chatPickerEl.querySelectorAll('.pc-option')];
+      const index = rows.indexOf(document.activeElement);
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      rows[(index + step + rows.length) % rows.length]?.focus?.();
+      return;
+    }
+    if (event.key !== 'Escape') { return; }
+    event.preventDefault();
+    event.stopPropagation();
+    if (chatPickerOpen === 'model' || chatPickerOpen === 'effort') { chatShowPicker('root'); }
+    else if (chatPickerOpen) { chatClosePicker(true); }
+    else { toggleChat(false); }
+  };
+  chatDom.addEventListener('keydown', onChatKeydown);
+  chatPickerEl?.addEventListener('keydown', onChatKeydown);
+  document.addEventListener('pointerdown', (event) => {
+    if (chatPickerOpen && !chatDom.contains(event.target) && !chatPickerEl?.contains(event.target)) { chatClosePicker(); }
   });
   chatPart('#pc-open')?.addEventListener('click', () => {
     void Promise.resolve(petShell.openWhale?.()).catch(() => {});
@@ -2531,13 +2879,14 @@ function drawParticles(now) {
 function sleepEnter() {
   sleeping = true;
   idle.sleepy = 0;
-  setStill('sleep');
+  sleepEnter.until = performance.now() + 1200;
+  setStill('sleep-enter');
 }
 
 function wake() {
   if (!sleeping) { return; }
   sleeping = false;
-  playStill('startle', 900);
+  playStill('wake', 1100);
   const now = performance.now();
   idle.lastInteract = now;
   idle.sleepy = 0;
@@ -2753,15 +3102,28 @@ function tickStill(now) {
       celebrateLevelUp();
     }
   }
+  // Let drowsiness show before the four-minute nap. A renewed interaction
+  // cancels this transition; it never competes with a timed reaction.
+  const idleFor = now - idle.lastInteract;
+  if (stillCtl.name === 'doze' && (idleFor < 225000 || dragging || feed || come || panel)) {
+    clearStill();
+  }
+  if (!sleeping && !dragging && !feed && !come && !action && !panel
+      && stillCtl.target === 0 && idleFor > 225000 && idleFor <= 240000) {
+    setStill('doze');
+  }
   // Sleep: 4 min idle → she naps (sleep still + Zzz). Any cursor contact
   // or poke wakes her — startled, then grumpy (傲娇: naps are sacred).
-  const idleFor = now - idle.lastInteract;
   if (!sleeping && !dragging && !feed && !come && !action
-      && stillCtl.target === 0 && !panel && idleFor > 240000) {
+      && (stillCtl.target === 0 || stillCtl.name === 'doze')
+      && !panel && idleFor > 240000) {
     sleepEnter();
     say('sleep');
   }
   if (sleeping) {
+    if (stillCtl.name === 'sleep-enter' && now >= sleepEnter.until) {
+      setStill('sleep');
+    }
     if (!tickStill._nextZzz || now > tickStill._nextZzz) {
       tickStill._nextZzz = now + rng(1400, 2200);
       // Sleep lies her down with the head left of the feet anchor —
@@ -2816,13 +3178,31 @@ function tickStill(now) {
         fx.dy = -Math.abs(Math.sin(now / 90)) * 10; // run hops
         clampDrawPos();
       } else {
+        feed.phase = 'notice';
+        feed.t0 = now;
+        setStill('food-notice');
+        say(feed.kind === 'token' ? 'feedTokenEat' : 'feedEat');
+      }
+    } else if (feed.phase === 'notice') {
+      if (t > 0.5) {
         feed.phase = 'eat';
         feed.t0 = now;
         setStill('eat');
-        say(feed.kind === 'token' ? 'feedTokenEat' : 'feedEat');
       }
     } else if (feed.phase === 'eat') {
-      if (t > 2.4) {
+      if (t > 1.5) {
+        feed.phase = 'chew';
+        feed.t0 = now;
+        setStill('chew');
+      }
+    } else if (feed.phase === 'chew') {
+      if (t > 0.8) {
+        feed.phase = 'full';
+        feed.t0 = now;
+        setStill('full');
+      }
+    } else if (feed.phase === 'full') {
+      if (t > 0.6) {
         const kind = feed.kind;
         feed = null;
         clearStill();
@@ -2846,6 +3226,7 @@ function tickStill(now) {
   if (wander.glide) {
     if (wanderSuppressed()) {
       wander.glide = null;
+      if (stillCtl.name === 'swim') { clearStill(); }
       scheduleWander();
       say('wanderStop', undefined, undefined, 0);
     } else {
@@ -2855,6 +3236,7 @@ function tickStill(now) {
       if (g.dir) { facing = g.dir; }
       if (g.done) {
         wander.glide = null;
+        if (stillCtl.name === 'swim') { clearStill(); }
         scheduleWander();
         if (Math.random() < 0.35) { say('wanderEnd', undefined, undefined, 0); }
       }
@@ -2870,7 +3252,9 @@ function tickStill(now) {
     }
     if (now > tickStill._nextFlourish) {
       tickStill._nextFlourish = now + rng(25000, 45000);
-      const pool = ['star', 'celebrate', 'tail-swing'];
+      const pool = ['star', 'twirl', 'look', 'wave', 'happy-tail'];
+      if (stats && stats.affectionLevel >= 3) { pool.push('shy'); }
+      if (stats && stats.mood < 35) { pool.push('sad'); }
       playStill(pool[Math.floor(Math.random() * pool.length)], 1600);
     }
     // Wander pick: next leg fires on the activity-tier schedule.
@@ -2886,6 +3270,7 @@ function tickStill(now) {
         wander.glide = PetWander.makeGlide(
           drawPos, target, PetWander.speedFor(settings.activity, settings.scale));
         wander.t0 = now;
+        setStill('swim');
         if (Math.random() < 0.4) { say('wanderStart', undefined, undefined, 0); }
       } else {
         scheduleWander();
@@ -2959,6 +3344,7 @@ let lastPanelRect = null;
 let lastRigRect = null;
 let lastFullClear = 0;
 function paint() {
+  const perfStart = petPerf.enabled ? performance.now() : 0;
   const liveAlpha = (session || rig.ready) ? 1 : 1 - stillCtl.alpha;
   if (!painted && liveAlpha <= 0.01) {
     return;
@@ -2975,7 +3361,9 @@ function paint() {
   // One clearRect is ~free at this canvas size and makes ghosts impossible.
   if (rig.ready || nowMs - lastFullClear > 1500) {
     lastFullClear = nowMs;
+    const clearStart = petPerf.enabled ? performance.now() : 0;
     ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    if (petPerf.enabled) { petPerf.record('fullClear', performance.now() - clearStart); }
   }
   // Clear the full draw region, not the measured alpha box: body morphing
   // can push pixels (tail, hair) past the box measured on an early frame,
@@ -3101,6 +3489,7 @@ function paint() {
   lastRigRect = rig.ready && stillCtl.entry && stillCtl.alpha > 0.01
     ? stillDrawRect()
     : null;
+  if (petPerf.enabled) { petPerf.record('paint', performance.now() - perfStart); }
 }
 
 let poseCpuTensor = null; // reused pose input on the non-graph-capture path —
@@ -3108,9 +3497,11 @@ let poseCpuTensor = null; // reused pose input on the non-graph-capture path —
 
 async function renderFrame() {
   if (inferBusy || !session) {
+    if (inferBusy) { petPerf.record('inferenceBusy', 0); }
     return;
   }
   inferBusy = true;
+  const perfStart = petPerf.enabled ? performance.now() : 0;
   try {
     let results;
     if (sessionOnGpu) {
@@ -3162,6 +3553,7 @@ async function renderFrame() {
     console.warn('pet: inference failed', error);
   } finally {
     inferBusy = false;
+    if (petPerf.enabled) { petPerf.record('inference', performance.now() - perfStart); }
   }
 }
 
@@ -3286,6 +3678,41 @@ function rigBodyRect() {
 }
 
 function petBodyBounds() {
+  // Live states transform the model about either its feet or the grab point.
+  // The clear rect is an oversized disc; use the transformed alpha box for
+  // hover and bubble anchoring instead.
+  if (session) {
+    const r = charRect || { x: 0, y: 0, right: petW(), bottom: petH() };
+    const a = smooth(clamp01(stillCtl.alpha));
+    const rot = fx.rot + liveFx.rot * a;
+    const sx = fx.sx * (1 + (liveFx.sx - 1) * a);
+    const sy = fx.sy * (1 + (liveFx.sy - 1) * a);
+    const dx = fx.dx + liveFx.dx * a;
+    const dy = fx.dy + liveFx.dy * a;
+    const hanging = liveFx.pivot === 'grab' && a > 0.4
+      && (dragging || thrown) && physPoint;
+    const origin = hanging
+      ? { x: physPoint.x + dx, y: physPoint.y + dy }
+      : { x: drawPos.x + petW() / 2 + dx,
+        y: drawPos.y + petH() - 2 + dy };
+    const mirror = !hanging && facing < 0 ? -1 : 1;
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    const corners = [
+      [r.x, r.y], [r.right, r.y], [r.x, r.bottom], [r.right, r.bottom],
+    ].map(([x, y]) => {
+      const px = (x - petW() / 2) * sx * mirror;
+      const py = (y - (hanging ? petH() * GRAB_FRAC : petH())) * sy;
+      return { x: origin.x + px * cos - py * sin,
+        y: origin.y + px * sin + py * cos };
+    });
+    return {
+      x: Math.min(...corners.map((p) => p.x)) - HOVER_PADDING,
+      y: Math.min(...corners.map((p) => p.y)) - HOVER_PADDING,
+      right: Math.max(...corners.map((p) => p.x)) + HOVER_PADDING,
+      bottom: Math.max(...corners.map((p) => p.y)) + HOVER_PADDING,
+    };
+  }
   if (stillCtl.alpha > 0.5) {
     const sb = rig.ready ? rigBodyRect() : stillDrawRect();
     if (sb) {
@@ -3337,6 +3764,14 @@ function petBounds() {
 // anchor and the bubble would climb every frame.
 function interactiveBounds() {
   let b = petBounds();
+  if (chatPickerRect) {
+    b = {
+      x: Math.min(b.x, chatPickerRect.x),
+      y: Math.min(b.y, chatPickerRect.y),
+      right: Math.max(b.right, chatPickerRect.x + chatPickerRect.w),
+      bottom: Math.max(b.bottom, chatPickerRect.y + chatPickerRect.h),
+    };
+  }
   if (bubble?.pinned && lastBubbleRect) {
     b = {
       x: Math.min(b.x, lastBubbleRect.x),
@@ -3421,7 +3856,7 @@ function onCursorMove(clientX, clientY, buttons) {
           if (patTrack.flips >= 3) {
             patTrack.flips = 0;
             care('pat');
-            playStill('react-head', 2600);
+            playStill('pat', 2600);
             say('pat');
             for (let i = 0; i < 3; i += 1) {
               spawn('heart', drawPos.x + petW() * rng(0.3, 0.7), drawPos.y + petH() * 0.15);
@@ -3608,6 +4043,7 @@ function landFromPhys(now, fromThrow = false) {
   physPoint = null;
   physVel = { x: 0, y: 0 };
   clearStill();
+  if (fromThrow) { playStill('recover', 1100); }
   landT = now;
   say('land');
   if (fromThrow) {
@@ -3674,6 +4110,7 @@ function endDrag(event) {
     } else if (!action && !feed && !come) {
       idle.tapUntil = now + TAP_REACTION_MS;
       idle.tapKind += 1;
+      playStill('poke', 800);
       say(`tap${idle.tapKind % TAP_KINDS.length}`);
     }
   }
@@ -3764,11 +4201,15 @@ function onGrowthPush(snap) {
   if (!snap || typeof snap !== 'object') { return; }
   growth = snap;
   if (snap.stats) { stats = snap.stats; }
-  idle.lastInteract = performance.now();
-  if (sleeping) { wake(); }
-  if (dragging) { return; }
   const fed = Number(snap.fed) > 0;
   const leveled = snap.leveledUp === true;
+  // The minute usage rescan sends an ordinary snapshot too. Only a real
+  // feeding or level-up is an interaction that should wake a sleeping pet.
+  if (fed || leveled) {
+    idle.lastInteract = performance.now();
+    if (sleeping) { wake(); }
+  }
+  if (dragging) { return; }
   const stageFree = !feed && !come && !action;
   if (fed && !feed && !come) {
     startFeed('token');
@@ -3787,7 +4228,7 @@ function runAction(act) {
   if (act === 'play' && !feed && !come && !action) {
     // 玩耍: she hops around chasing a yarn-ball — costs satiety, lifts mood.
     care('play');
-    playStill('celebrate', 2400);
+    playStill(Math.random() < 0.5 ? 'twirl' : 'celebrate', 2400);
     say('tease');
     for (let i = 0; i < 5; i += 1) {
       spawn('star', drawPos.x + petW() * rng(0.15, 0.85), drawPos.y + petH() * rng(0.05, 0.4));
@@ -3803,7 +4244,7 @@ function runAction(act) {
     say('come');
   } else if (act === 'pat' && !feed && !come && !action) {
     care('pat');
-    playStill('react-head', 2600);
+    playStill('pat', 2600);
     say('pat');
     for (let i = 0; i < 3; i += 1) {
       spawn('heart', drawPos.x + petW() * rng(0.3, 0.7), drawPos.y + petH() * 0.15);
@@ -3815,7 +4256,7 @@ function runAction(act) {
       playStill('angry', 2200);
       say('grumpy');
     } else {
-      playStill(Math.random() < 0.5 ? 'celebrate' : 'star', 2200);
+      playStill(Math.random() < 0.5 ? 'shy' : 'star', 2200);
       say('tease');
       for (let i = 0; i < 3; i += 1) {
         spawn('star', drawPos.x + petW() * rng(0.2, 0.8), drawPos.y + petH() * rng(0.05, 0.3));
@@ -3945,6 +4386,7 @@ async function mount() {
   let lastFrameAt = 0;
   const loop = (now) => {
     try {
+      if (petPerf.enabled) { petPerf.record('displayRefresh', 0); }
       tickPhysics(now);
       tickStill(now);
       // Roam rect rides along whenever her BODY bounds move (wander legs,

@@ -593,15 +593,40 @@ test('M-3: installUpdate 无 SHA512SUMS.txt 且未接确认时同样 fail-closed
   }
 });
 
-test('M-3: ipc.js 两条安装通道都接 confirmUnverified，确认框默认与 Esc 均为取消', () => {
-  const source = fs.readFileSync(path.join(__dirname, 'ipc.js'), 'utf8');
-  assert.match(source, /handle\('shell:install-update'/);
-  assert.match(source, /handle\('shell:install-release'/);
+test('installUpdate uses the confirmed release snapshot without checking a moving latest tag', async () => {
+  const previousFetch = global.fetch;
+  let requests = 0;
+  global.fetch = async () => { requests += 1; throw new Error('must not refresh latest'); };
+  try {
+    const result = await installUpdate(null, {
+      expectedCheck: {
+        status: 'available', latest: '1.2.3', tag: 'v1.2.3',
+        assetName: 'Deepseek-Harness-Desktop-Setup-1.2.3.exe',
+        assetUrl: 'https://example.test/1.2.3.exe', checksumUrl: '',
+      },
+      confirmUnverified: async () => false,
+    });
+    assert.equal(result.tag, 'v1.2.3');
+    assert.equal(result.declined, true);
+    assert.equal(requests, 0);
+  } finally {
+    global.fetch = previousFetch;
+  }
+});
+
+test('M-3: 两条安装通道都接 confirmUnverified，确认框默认与 Esc 均为取消', () => {
+  // Both entries bind the shared launcher channel table: ipc.js (full
+  // package) and main-launcher/ipc.js (slim package).
+  const ipcSource = fs.readFileSync(path.join(__dirname, 'ipc-launcher.js'), 'utf8');
+  assert.match(ipcSource, /handle\('shell:install-update'/);
+  assert.match(ipcSource, /handle\('shell:install-release'/);
+  // The confirm wiring moved with launcher orchestration into the service.
+  const source = fs.readFileSync(path.join(__dirname, '../launcher/launcher-service.js'), 'utf8');
   const wired = source.match(/confirmUnverified:\s*confirmUnverifiedInstall/g) || [];
   assert.ok(wired.length >= 2, `install-update 与 install-release 都必须显式接确认回调（发现 ${wired.length} 处）`);
 
   const fn = source.match(/async function confirmUnverifiedInstall[\s\S]*?\n {2}\}/);
-  assert.ok(fn, 'ipc.js 必须保留 confirmUnverifiedInstall 确认函数');
+  assert.ok(fn, 'launcher-service.js 必须保留 confirmUnverifiedInstall 确认函数');
   assert.match(fn[0], /type:\s*'warning'/);
   assert.match(fn[0], /defaultId:\s*1/, '回车默认必须是「取消」（fail-safe）');
   assert.match(fn[0], /cancelId:\s*1/, 'Esc/关闭必须等同「取消」');
@@ -610,9 +635,13 @@ test('M-3: ipc.js 两条安装通道都接 confirmUnverified，确认框默认�
 
 test('M-3: index.js 冷启动闸门的 installUpdate 同样接确认，且对话框 fail-safe', () => {
   const source = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
+  // gateInstallUpdate wraps update.installUpdate (full package) and
+  // runtime-install (slim package); the confirmed snapshot binding lives there.
+  const gate = source.match(/function gateInstallUpdate[\s\S]*?\n\}/);
+  assert.ok(gate, 'index.js 必须保留 gateInstallUpdate 包装函数');
   assert.match(
-    source,
-    /installUpdate:\s*\(onProgress\)\s*=>\s*installUpdate\(onProgress,\s*\{\s*\n?\s*confirmUnverified:\s*confirmUnverifiedColdStart/,
+    gate[0],
+    /installUpdate\(onProgress,\s*\{\s*\n?\s*confirmUnverified:\s*confirmUnverifiedColdStart,\s*expectedCheck:\s*check/,
     '冷启动闸门必须把 confirmUnverifiedColdStart 传给 installUpdate',
   );
   const fn = source.match(/async function confirmUnverifiedColdStart[\s\S]*?\n\}/);

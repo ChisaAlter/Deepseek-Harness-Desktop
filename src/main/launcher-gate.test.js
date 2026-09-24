@@ -180,6 +180,26 @@ test('cold-start gate opens the launcher before the update prompt when it stays 
   }
 });
 
+test('cold-start gate reports a returned desktop failure and drains a late update on the visible launcher', async () => {
+  const drained = [];
+  const { deps, calls, dir } = gateDeps({
+    checkUpdate: async () => ({ status: 'available', latest: '9.9.9' }),
+    startDesktop: async () => { calls.startDesktop += 1; return { ok: false, error: 'failed to start' }; },
+    drainParkedUpdateCheck: async () => { drained.push(peekParkedUpdateCheck()?.latest); },
+  });
+  try {
+    const result = await runColdStartGate(deps);
+    assert.equal(result.outcome, 'launcher');
+    assert.equal(result.lastStartFailed, true);
+    assert.equal(calls.openLauncher, 1);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(drained, ['9.9.9']);
+  } finally {
+    resetParkedUpdateCheck();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('cold-start gate parks a late update result instead of blocking auto-start', async () => {
   const { deps, calls, dir } = gateDeps({
     checkUpdate: async () => ({ status: 'available', latest: '9.9.9' }),
@@ -458,11 +478,29 @@ test('a window that closes mid-confirm abandons the flow instead of installing',
   });
   try {
     const drainer = createParkedUpdateDrainer(deps);
-    await drainer.drain({ generation: 'win-1' });
+    const result = await drainer.drain({ generation: 'win-1' });
     assert.equal(installed, false, 'a closed launcher must not install an update');
+    assert.equal(result.reason, 'abandoned');
+    assert.equal(peekParkedUpdateCheck()?.latest, '9.9.9');
   } finally {
     resetParkedUpdateCheck();
   }
+});
+
+test('presentUpdateAsk installs the exact release shown in its confirmation', async () => {
+  const shown = { status: 'available', latest: '1.2.3', tag: 'v1.2.3', assetUrl: 'https://example.test/1.2.3.exe' };
+  let installedCheck = null;
+  await presentUpdateAsk({
+    config: { askOnUpdate: true },
+    isPackaged: true,
+    check: shown,
+    confirmUpdate: async () => true,
+    installUpdate: async (_progress, check) => { installedCheck = check; return { launched: true }; },
+    openLauncher: async () => {},
+    sendToLauncher: () => {},
+    alreadyVisible: true,
+  });
+  assert.equal(installedCheck, shown);
 });
 
 test('quitting abandons the drain before any ask', async () => {

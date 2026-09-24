@@ -206,6 +206,8 @@ function launcherApi(renderer) {
     startDesktop: invoke(renderer, 'shell:start-desktop'),
     stopDesktop: invoke(renderer, 'shell:stop-desktop'),
     uninstallApp: invoke(renderer, 'shell:uninstall-app'),
+    installRuntime: invoke(renderer, 'shell:install-runtime'),
+    cancelRuntimeInstall: invoke(renderer, 'shell:cancel-runtime-install'),
     skipUserPlugins: invoke(renderer, 'shell:start-desktop-skipped'),
     retryFullPlugins: invoke(renderer, 'shell:retry-full-plugins'),
     onPluginProgress: subscribe(renderer, 'shell:plugin-progress'),

@@ -9,6 +9,16 @@ export interface MiniPlayerContainer {
   height: number
 }
 
+/** T3-style default placement: top-right of the conversation viewport. */
+export function initialMiniPlayerGeometry(container: MiniPlayerContainer): MiniPlayerGeometry {
+  const size = clampMiniPlayerSize(MINI_PLAYER_DEFAULT_SIZE, container)
+  return {
+    x: Math.max(MINI_PLAYER_EDGE_GAP, container.width - size.width - MINI_PLAYER_EDGE_GAP),
+    y: MINI_PLAYER_EDGE_GAP,
+    ...size,
+  }
+}
+
 export type MiniPlayerResizeSide = 'n' | 'e' | 's' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
 export function clampMiniPlayerSize(

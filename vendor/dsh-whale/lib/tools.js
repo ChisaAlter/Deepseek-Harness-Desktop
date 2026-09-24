@@ -10,10 +10,12 @@ import z from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { whaleHomeDir, appendPetOutbox } from './preset.js';
+import { createWhaleScope } from './scope.js';
 import { controllerFrom, genericOutput, rowSummary, sessionRowsFrom } from './shared.js';
 import { registerSessionTools } from './session-tools.js';
 import { registerDesktopTools } from './desktop-tools.js';
 import { registerStickerTools } from './sticker-tools.js';
+import { registerProfileTools } from './profile-tools.js';
 
 export const name = 'dsh-whale-tools';
 export const inject = ['tools', 'agents'];
@@ -168,6 +170,9 @@ export function apply(ctx) {
       }
       const request = { cwd };
       const preset = String(args.agentPreset ?? '').trim();
+      if (preset === 'whale-girl') {
+        return { ok: false, sessionId: '', detail: 'The whale assistant has one resident conversation. Open her existing session instead.' };
+      }
       if (preset) request.agentPreset = preset;
       const created = await controller.create(request);
       const sessionId = String(created?.sessionId ?? created?.id ?? created?.session?.id ?? '').trim();
@@ -310,7 +315,12 @@ export function apply(ctx) {
     },
   }));
 
-  registerSessionTools(ctx);
+  registerSessionTools(ctx, {
+    getSelfId: () => process.env.DSH_HOME
+      ? createWhaleScope(process.env.DSH_HOME).get().sessionId
+      : '',
+  });
   registerDesktopTools(ctx);
+  registerProfileTools(ctx);
   registerStickerTools(ctx);
 }

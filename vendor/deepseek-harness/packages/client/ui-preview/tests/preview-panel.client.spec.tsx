@@ -5,6 +5,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PreviewPanelProps } from '../src/client/PreviewPanel.tsx'
 import { PreviewPanel } from '../src/client/PreviewPanel.tsx'
 import { en, zh } from '../src/client/locales.ts'
+import { clearMiniPlayer, closeMiniPlayer, openMiniPlayer, readMiniPlayer } from '../src/client/mini-player-state.ts'
 import type { PreviewBounds, PreviewNavState, PreviewPickScreenshot, PreviewResult } from '../src/client/shell.ts'
 
 const t: PreviewPanelProps['t'] = key => (en as Record<string, string>)[key] ?? key
@@ -331,6 +332,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  clearMiniPlayer()
   vi.restoreAllMocks()
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -492,6 +494,22 @@ describe('PreviewPanel', () => {
     })
   })
 
+  it('hands the guest to chat float and back without a stale surface hide', async () => {
+    const b = mount()
+    await openGuest(b)
+    const hides = b.previewHide.mock.calls.length
+    act(() => { openMiniPlayer('pv-1') })
+    expect(b.previewHide).toHaveBeenCalledTimes(hides)
+    const shows = b.previewShow.mock.calls.length
+    act(() => { closeMiniPlayer() })
+    await waitFor(() => {
+      expect(b.previewShow.mock.calls.length).toBeGreaterThan(shows)
+      expect(b.previewShow).toHaveBeenLastCalledWith('pv-1', expect.objectContaining({
+        x: 800, y: 40, width: 400, height: 600,
+      }))
+    })
+  })
+
   it('pushes a new origin through previewResize when the window resizes', async () => {
     const b = mount()
     await openGuest(b)
@@ -521,6 +539,19 @@ describe('PreviewPanel', () => {
     await waitFor(() => {
       expect(b.previewNavigate).toHaveBeenCalledWith('pv-1', 'http://127.0.0.1:3000/')
     })
+  })
+
+  it('opens a pending delivered document in the mini player before opening the right panel', async () => {
+    sessionStorage.setItem('dshd-pending-preview-url', 'http://127.0.0.1:4173/site/index.html')
+    sessionStorage.setItem('dshd-pending-preview-presentation', 'mini')
+    const b = mount()
+    await waitFor(() => {
+      expect(b.previewOpen).toHaveBeenCalledWith(expect.objectContaining({
+        url: 'http://127.0.0.1:4173/site/index.html',
+      }))
+      expect(readMiniPlayer()).toMatchObject({ open: true, previewId: 'pv-1', label: 'index.html' })
+    })
+    expect(sessionStorage.getItem('dshd-pending-preview-presentation')).toBeNull()
   })
 
   it('survives a locked sessionStorage when reading the pending URL', () => {

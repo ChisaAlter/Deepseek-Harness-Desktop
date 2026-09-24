@@ -10,8 +10,6 @@ import { apply as settingsApply, inject as settingsInject } from '@deepseek-ai/d
 import { apply, inject, SETTINGS_NS } from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { AppearanceSectionInjected, FontSizeRowInjected, ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { THEME_SETTINGS_NAMESPACE, ThemeSettingsSchema } from '../src/theme-settings.ts'
-import { AppearanceSection } from '../src/client/AppearanceSection.tsx'
-import { FontSizeRow } from '../src/client/FontSizeRow.tsx'
 import type { createAppearanceRowStore, createFontSizeRowStore } from '../src/client/settings-store.ts'
 
 // These specs assert the shipped Chinese copy. The lane has no jsdom `window`,
@@ -83,7 +81,7 @@ function declareSlots(slots: SlotRegistry): () => void {
 
 /** Mirror the framework's inject choreography for the Appearance section. */
 function faceOf(slots: SlotRegistry) {
-  const entry = slots.entries(SECTION_SLOT).find(e => e.component === AppearanceSection)!
+  const entry = slots.entries(SECTION_SLOT).find(e => e.options.id === 'appearance')!
   const handle = entry.store as ReturnType<typeof createAppearanceRowStore>
   const instance = handle.create()
   const face = (entry.inject as unknown as (a: typeof instance.actions) => AppearanceSectionInjected)(instance.actions)
@@ -92,7 +90,7 @@ function faceOf(slots: SlotRegistry) {
 
 /** The same choreography for the font-size row entry. */
 function fontSizeFaceOf(slots: SlotRegistry) {
-  const entry = slots.entries(ITEM_SLOT).find(e => e.component === FontSizeRow)!
+  const entry = slots.entries(ITEM_SLOT).find(e => e.options.id === 'font-size')!
   const handle = entry.store as ReturnType<typeof createFontSizeRowStore>
   const instance = handle.create()
   const face = (entry.inject as unknown as (a: typeof instance.actions) => FontSizeRowInjected)(instance.actions)
@@ -112,9 +110,9 @@ describe('ui-theme apply', () => {
     expect(before.locale.bind(SETTINGS_NS)('fontSize.title')).toBe('字号大小')
     before.locale.setLocale('en')
     expect(before.locale.bind(SETTINGS_NS)('appearance.title')).toBe('Appearance')
-    const entry = before.slots.entries(SECTION_SLOT).find(e => e.component === AppearanceSection)!
+    const entry = before.slots.entries(SECTION_SLOT).find(e => e.options.id === 'appearance')!
     expect(entry.options).toMatchObject({ id: 'appearance', order: 5 })
-    const fontEntry = before.slots.entries(ITEM_SLOT).find(e => e.component === FontSizeRow)!
+    const fontEntry = before.slots.entries(ITEM_SLOT).find(e => e.options.id === 'font-size')!
     expect(fontEntry.options).toMatchObject({ id: 'font-size', order: 11 })
     expect(fontEntry.locale).toBe(SETTINGS_NS)
 
@@ -125,8 +123,8 @@ describe('ui-theme apply', () => {
     expect(after.slots.entries(ITEM_SLOT)).toHaveLength(0)
     declareSlots(after.slots)
     await Promise.resolve()
-    expect(after.slots.entries(SECTION_SLOT).some(e => e.component === AppearanceSection)).toBe(true)
-    expect(after.slots.entries(ITEM_SLOT).some(e => e.component === FontSizeRow)).toBe(true)
+    expect(after.slots.entries(SECTION_SLOT).some(e => e.options.id === 'appearance')).toBe(true)
+    expect(after.slots.entries(ITEM_SLOT).some(e => e.options.id === 'font-size')).toBe(true)
   })
 
   it('projects service snapshots into the section store and routes face writes back', async () => {
@@ -140,7 +138,7 @@ describe('ui-theme apply', () => {
     const { instance, face } = faceOf(b.slots)
     // The inject-time re-sync sealed the init window: the mirror is current.
     expect(instance.getSnapshot().preference).toBe('dark')
-    expect(b.slots.entries(SECTION_SLOT).find(e => e.component === AppearanceSection)!.locale).toBe(SETTINGS_NS)
+    expect(b.slots.entries(SECTION_SLOT).find(e => e.options.id === 'appearance')!.locale).toBe(SETTINGS_NS)
 
     face.setTheme('system')
     expect(theme.getTheme().preference).toBe('system')
@@ -237,8 +235,8 @@ describe('ui-theme apply', () => {
 
     declareSlots(b.slots)
     await Promise.resolve()
-    expect(b.slots.entries(SECTION_SLOT).some(e => e.component === AppearanceSection)).toBe(true)
-    expect(b.slots.entries(ITEM_SLOT).some(e => e.component === FontSizeRow)).toBe(true)
+    expect(b.slots.entries(SECTION_SLOT).some(e => e.options.id === 'appearance')).toBe(true)
+    expect(b.slots.entries(ITEM_SLOT).some(e => e.options.id === 'font-size')).toBe(true)
   })
 
   it('teardown removes the section, the font-size row, and the dictionaries; teardown without a declaration is quiet', async () => {

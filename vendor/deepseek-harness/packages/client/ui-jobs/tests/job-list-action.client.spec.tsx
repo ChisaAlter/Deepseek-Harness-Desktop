@@ -101,6 +101,18 @@ describe('JobListAction rows', () => {
     expect(screen.getByRole('button', { name: zh['row.expandAria'].replace('{label}', 'warming up') })).toBeDefined()
   })
 
+  it('keeps portaled rows interactive and closes only on an outside pointer', () => {
+    render(<JobListAction {...props([job({ label: 'warming up' })])} />)
+    openList()
+    const menu = screen.getByRole('list', { name: zh['list.aria'] })
+    expect(menu.parentElement).toBe(document.body)
+    fireEvent.pointerDown(menu)
+    fireEvent.click(screen.getByRole('button', { name: zh['row.expandAria'].replace('{label}', 'warming up') }))
+    expect(screen.getByRole('button', { name: '1 个后台任务运行中' }).getAttribute('aria-expanded')).toBe('true')
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('list', { name: zh['list.aria'] })).toBeNull()
+  })
+
   it('shows the live progress line in place of the status word', () => {
     render(<JobListAction {...props([job({ status: 'stopping', progress: 'winding down' })])} />)
     openList()
@@ -284,36 +296,36 @@ describe('JobListAction observation', () => {
 
   it('shifts an overflowing popover back inside the viewport and follows resizes', () => {
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(440)
-    vi.spyOn(HTMLDivElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 344 } as DOMRect)
+    vi.spyOn(HTMLButtonElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 344, bottom: 30 } as DOMRect)
     const originalWidth = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { value: 700, configurable: true, writable: true })
     try {
       render(<JobListAction {...props([outputJob()])} />)
       openList()
       const menu = screen.getByRole('list', { name: zh['list.aria'] })
-      // 700 - 12 - 440 - 344 = -96: the popover moves left to keep the margin.
-      expect(menu.style.left).toBe('-96px')
+      expect(menu.parentElement).toBe(document.body)
+      // Fixed viewport coordinates escape the clipped Session header.
+      expect(menu.style.left).toBe('248px')
+      expect(menu.style.top).toBe('35px')
 
       window.innerWidth = 900
       fireEvent(window, new Event('resize'))
-      // 900 - 12 - 440 - 344 = 104 > 0: the anchored position fits again.
-      expect(menu.style.left).toBe('0px')
+      expect(menu.style.left).toBe('344px')
     } finally {
       Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true, writable: true })
     }
   })
 
-  it('never crosses the left viewport margin for an oversized popover', () => {
-    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800)
-    vi.spyOn(HTMLDivElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 4 } as DOMRect)
+  it('never crosses the left viewport margin when the anchor is near the edge', () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(560)
+    vi.spyOn(HTMLButtonElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 4, bottom: 30 } as DOMRect)
     const originalWidth = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { value: 700, configurable: true, writable: true })
     try {
       render(<JobListAction {...props([outputJob()])} />)
       openList()
       const menu = screen.getByRole('list', { name: zh['list.aria'] })
-      // max(12 - 4, min(0, 700 - 12 - 800 - 4)) = 8: clamped at the left margin.
-      expect(menu.style.left).toBe('8px')
+      expect(menu.style.left).toBe('12px')
     } finally {
       Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true, writable: true })
     }
@@ -361,10 +373,10 @@ describe('JobListAction observation', () => {
       gapBefore: false,
       streaming: true,
     }
-    const { container } = render(<JobListAction {...props([job()], undefined, { 'bash-1': view })} />)
+    render(<JobListAction {...props([job()], undefined, { 'bash-1': view })} />)
     openList()
     fireEvent.click(screen.getByRole('button', { name: zh['row.expandAria'].replace('{label}', 'pnpm run build') }))
-    expect(container.querySelector('[data-running]')).not.toBeNull()
+    expect(document.querySelector('[data-running]')).not.toBeNull()
     expect(screen.queryByText(zh['terminal.noOutput'])).toBeNull()
   })
 

@@ -18,11 +18,15 @@ describe('macOS app-region subtraction', () => {
     const rules = [...css.matchAll(/(?<sel>[^{}]+)\{(?<body>[^{}]*)\}/g)]
       .map(match => [match.groups!['sel']!.trim(), match.groups!['body']!] as const)
       .filter(([, body]) => body.includes('-webkit-app-region'))
-    expect(rules).toHaveLength(1)
-    const [selector, body] = rules[0]!
-    expect(/-webkit-app-region:\s*([^;]+);/.exec(body)?.[1]?.trim()).toBe('no-drag')
+    expect(rules).toHaveLength(3)
+    for (const [, body] of rules) {
+      expect(/-webkit-app-region:\s*([^;]+);/.exec(body)?.[1]?.trim()).toBe('no-drag')
+    }
+    const [selector] = rules.find(([name]) => name.includes('.stripTabs'))!
     for (const part of ['.stripTabs', '.stripChrome', '.paneBody', '.divider']) {
       expect(selector, part).toContain(`:global(html[data-platform='darwin']) ${part}`)
     }
+    expect(rules.some(([name]) => name.includes('.menu'))).toBe(true)
+    expect(rules.some(([name]) => name.includes('.float'))).toBe(true)
   })
 })

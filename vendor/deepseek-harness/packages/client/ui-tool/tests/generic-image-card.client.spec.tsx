@@ -5,6 +5,7 @@
 // plugin; this spec drives the real gallery through ui-tool's parent slot.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -75,6 +76,10 @@ const ownerProps = (
   loader: MessageImageLoader = vi.fn(() => Promise.resolve('blob:image')),
   renderer: RenderToolImages = renderToolImages(['blob:one', 'blob:two']),
 ): GenericToolCardProps => ({
+  useDisclosure: () => {
+    const [expanded, setExpanded] = useState(false)
+    return { expanded, setExpanded, toggle: () => setExpanded(value => !value) }
+  },
   callId: 'c1',
   toolName: 'mcp_screenshot',
   block,

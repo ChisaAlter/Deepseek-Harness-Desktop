@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const { usageSampleOf, usageTokens, dayKey, zstdFrameSize } = require('./pet-growth');
+const { normalizeDshState } = require('./pet-settings');
 
 // Event categories the renderer maps onto dialogue categories.
 const EV_WORKING = 'dshWorking';
@@ -195,6 +196,7 @@ function createDshWatch({
   let lastPollAt = 0;
   let lastState = '';
   let lastUsageJson = '';
+  let runtimeDsh = null;
   // Per-session lastWins usage slots: {sessKey: Map<'t:s', tokens>}.
   // In-memory only — a restart may re-count one in-flight turn's usage,
   // which the milestone dedup marks absorb.
@@ -287,7 +289,8 @@ function createDshWatch({
 
   function poll() {
     const t = now();
-    const dsh = { ...read() };
+    const persistedDsh = read();
+    const dsh = { ...(runtimeDsh || persistedDsh) };
     dsh.files = { ...(dsh.files || {}) };
     dsh.openTurns = { ...(dsh.openTurns || {}) };
     dsh.dayTokens = dsh.dayTokens && typeof dsh.dayTokens === 'object'
@@ -428,25 +431,35 @@ function createDshWatch({
       lastState = state;
       onState?.(state);
     }
-    write(dsh);
+    runtimeDsh = dsh;
+    // Keep the active-time clock in memory between writes. Log cursors and
+    // reminders are committed immediately; elapsed time alone is checkpointed
+    // once a minute instead of rewriting config and credentials every 2s.
+    const persistedProjection = normalizeDshState(persistedDsh);
+    const runtimeProjection = normalizeDshState(dsh);
+    const withoutActiveTime = (value) => JSON.stringify({ ...value, activeMsToday: 0 });
+    if (withoutActiveTime(runtimeProjection) !== withoutActiveTime(persistedProjection)
+        || runtimeProjection.activeMsToday - persistedProjection.activeMsToday >= 60000) {
+      write(dsh);
+    }
     // Daily-usage snapshot for the whale assistant's whale_usage_today
     // tool — written only when the counters move (this poll runs every 2s).
     if (usageFile) {
-      const snapshot = JSON.stringify({
+      const snapshotPayload = {
         day: dsh.day,
         used: dsh.dayTokens?.used || 0,
         milestones: dsh.milestoneMarks,
-        activeMsToday: Math.round(dsh.activeMsToday || 0),
+        activeMsToday: Math.floor((dsh.activeMsToday || 0) / 60000) * 60000,
         state,
-        at: t,
-      });
+      };
+      const snapshot = JSON.stringify(snapshotPayload);
       if (snapshot !== lastUsageJson) {
-        lastUsageJson = snapshot;
         try {
           fsImpl.mkdirSync(path.dirname(usageFile), { recursive: true });
           const tmp = `${usageFile}.tmp`;
-          fsImpl.writeFileSync(tmp, snapshot + '\n', 'utf8');
+          fsImpl.writeFileSync(tmp, JSON.stringify({ ...snapshotPayload, at: t }) + '\n', 'utf8');
           fsImpl.renameSync(tmp, usageFile);
+          lastUsageJson = snapshot;
         } catch {
           // Best-effort mirror — the authoritative state lives in dsh.*.
         }
@@ -472,6 +485,16 @@ function createDshWatch({
     return () => {
       running = false;
       clearInterval(timer);
+      if (runtimeDsh && JSON.stringify(normalizeDshState(runtimeDsh))
+          !== JSON.stringify(normalizeDshState(read()))) {
+        try { write(runtimeDsh); } catch {
+          // A failed checkpoint must not prevent the pet window from closing.
+        }
+      }
+      runtimeDsh = null;
+      lastPollAt = 0;
+      lastState = '';
+      lastUsageJson = '';
     };
   }
 

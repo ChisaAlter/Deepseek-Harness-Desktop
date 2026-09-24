@@ -62,81 +62,112 @@
         line-height: 1;
       }
       #pet-chat .pc-x:hover, #pet-chat .pc-tool:hover { opacity: 1; }
-      /* Model bar — a quiet text row, not a boxed control: muted labels +
-         borderless selects that pick up a hover pill. One hairline above
-         the row separates thread from controls; the compose area carries
-         no second line. appearance:none + custom chevrons so a long model
-         id is never eaten by the native arrow; overflow ellipsizes and the
-         full name rides title. */
+      /* Composer-style model seat; the menu is portaled outside this card. */
       #pet-chat .pc-models {
         display: flex;
-        align-items: center;
-        gap: 2px;
-        margin-top: 2px;
-        padding: 5px 10px 1px;
+        min-width: 0;
+        padding: 5px 8px 3px;
         border-top: 1px solid var(--dsw-alias-border-l2);
       }
       #pet-chat .pc-models[hidden] { display: none; }
-      #pet-chat .pc-pick {
-        position: relative;
+      #pet-chat .pc-choice {
         display: flex;
         align-items: center;
+        gap: 4px;
         min-width: 0;
-        border-radius: 7px;
+        max-width: 100%;
+        height: 28px;
+        padding: 0 7px;
+        border: 0;
+        border-radius: 24px;
+        background: transparent;
+        color: var(--dsw-alias-label-secondary);
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
       }
-      #pet-chat .pc-pick[hidden] { display: none; }
-      #pet-chat .pc-pick:hover {
-        background: var(--dsw-alias-bg-layer-2, rgba(128, 128, 128, 0.12));
+      #pet-chat .pc-choice:hover,
+      #pet-chat .pc-choice[aria-expanded='true'] {
+        background: var(--dsw-alias-interactive-bg-hover);
       }
-      #pet-chat .pc-pick::before {
+      #pet-chat .pc-choice:focus-visible, #pc-picker button:focus-visible {
+        outline: 2px solid var(--dsw-alias-border-l3);
+        outline-offset: -2px;
+      }
+      #pet-chat .pc-choice-value, #pet-chat .pc-choice-effort {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #pet-chat .pc-choice-effort { color: var(--dsw-alias-label-caption); flex-shrink: 1000; }
+      #pet-chat .pc-choice-chevron {
         flex: none;
-        font-size: 10px;
-        opacity: 0.45;
-        padding-left: 6px;
-      }
-      #pet-chat .pc-pick-model { flex: 1; }
-      #pet-chat .pc-pick-model::before { content: '模型'; }
-      #pet-chat .pc-pick-effort { flex: none; }
-      #pet-chat .pc-pick-effort::before { content: '推理'; }
-      #pet-chat .pc-pick::after {
-        content: '';
-        position: absolute;
-        right: 7px;
-        top: 50%;
         width: 5px;
         height: 5px;
-        border-right: 1.5px solid var(--dsw-alias-label-primary);
-        border-bottom: 1.5px solid var(--dsw-alias-label-primary);
-        transform: translateY(-70%) rotate(45deg);
-        opacity: 0.4;
-        pointer-events: none;
+        border-right: 1.5px solid var(--dsw-alias-label-secondary);
+        border-bottom: 1.5px solid var(--dsw-alias-label-secondary);
+        transform: translateY(-2px) rotate(45deg);
       }
-      #pet-chat .pc-pick select {
-        appearance: none;
-        -webkit-appearance: none;
-        flex: 1;
+      #pc-picker {
+        position: fixed;
+        z-index: 20;
+        box-sizing: border-box;
+        width: min(240px, calc(100vw - 8px));
+        max-height: min(280px, calc(100vh - 8px));
+        overflow-y: auto;
+        padding: 3px;
+        border: 1px solid var(--dsw-alias-border-l1);
+        border-radius: 16px;
+        background: var(--dsw-specific-menu, var(--dsw-alias-bg-layer-1));
+        backdrop-filter: var(--dsw-menu-backdrop-filter, blur(16px));
+        box-shadow: var(--dsw-elevation-prominent, 0 8px 24px rgba(0,0,0,.16));
+        color: var(--dsw-alias-label-primary);
+        scrollbar-width: thin;
+      }
+      #pc-picker[hidden] { display: none; }
+      #pc-picker::-webkit-scrollbar { width: 6px; }
+      #pc-picker::-webkit-scrollbar-thumb { border-radius: 6px; background: var(--dsw-alias-scrollbar-bg-l2); }
+      #pc-picker::-webkit-scrollbar-thumb:hover { background: var(--dsw-alias-scrollbar-hover-l2); }
+      #pc-picker .pc-picker-group {
+        padding: 6px 8px 3px;
+        color: var(--dsw-alias-label-tertiary);
+        font-size: 11px;
+        line-height: 16px;
+      }
+      #pc-picker .pc-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
         width: 100%;
-        min-width: 0;
+        min-height: 34px;
+        padding: 5px 8px;
         border: 0;
+        border-radius: 8px;
         background: transparent;
         color: var(--dsw-alias-label-primary);
         font-family: inherit;
-        font-size: 11px;
-        line-height: 1.5;
-        padding: 3px 16px 3px 4px;
-        outline: none;
+        font-size: 12px;
+        line-height: 18px;
+        text-align: left;
         cursor: pointer;
+      }
+      #pc-picker .pc-option:hover, #pc-picker .pc-option:focus-visible { background: var(--dsw-alias-interactive-bg-hover); }
+      #pc-picker .pc-option[data-pane='root'] { justify-content: flex-start; }
+      #pc-picker .pc-option-name {
+        display: block;
+        min-width: 0;
         text-overflow: ellipsis;
         overflow: hidden;
         white-space: nowrap;
-        opacity: 0.8;
       }
-      #pet-chat .pc-pick-effort select { flex: none; width: 72px; }
-      #pet-chat .pc-pick select:disabled { opacity: 0.5; cursor: default; }
-      #pet-chat .pc-pick select option,
-      #pet-chat .pc-pick select optgroup {
-        color: #333;
-        background: #fff;
+      #pc-picker .pc-option-detail { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-tertiary); }
+      #pc-picker .pc-option-check {
+        flex: none;
+        color: var(--dsw-alias-label-primary);
+        font-size: 12px;
       }
       #pet-chat .pc-thread {
         display: flex;
@@ -252,18 +283,17 @@
       </div>
       <div id="pc-thread" class="pc-thread"><div class="pc-empty" id="pc-empty">和她说点什么…</div></div>
       <div id="pc-models" class="pc-models" hidden>
-        <div class="pc-pick pc-pick-model">
-          <select id="pc-model" aria-label="模型"></select>
-        </div>
-        <div class="pc-pick pc-pick-effort" id="pc-effort-box" hidden>
-          <select id="pc-effort" aria-label="推理强度"></select>
-        </div>
+        <button id="pc-model-trigger" class="pc-choice" type="button" aria-haspopup="menu" aria-controls="pc-picker" aria-expanded="false"><span class="pc-choice-value">选择模型</span><span class="pc-choice-effort" hidden></span><span class="pc-choice-chevron" aria-hidden="true"></span></button>
+        <span id="pc-effort-box" hidden></span>
+        <select id="pc-model" hidden tabindex="-1" aria-hidden="true"></select>
+        <select id="pc-effort" hidden tabindex="-1" aria-hidden="true"></select>
       </div>
       <div class="pc-compose">
         <textarea id="pc-input" rows="1" maxlength="200" placeholder="说点什么…" autocomplete="off"></textarea>
         <button id="pc-send" class="pc-send" type="button" disabled aria-label="发送">↑</button>
       </div>
     </div>
+    <div id="pc-picker" role="menu" aria-label="模型与思考" hidden></div>
     <script src="pet-live2d/ort/ort.all.min.js"></script>
     <script src="pet-live2d/anime4k.js"></script>
     <script src="pet-physics.js"></script>

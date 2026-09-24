@@ -27,6 +27,7 @@ import {
 } from '../shared/preset-command.mjs';
 import { runWorkspaceCommand } from '../shared/workspace-command.mjs';
 import { askInWorkspaceSession } from '../shared/workspace-session.mjs';
+import { sharedWhaleSessionId } from '../shared/whale-session.mjs';
 import {
   BatchInputManager,
   batchInputBusyMessage,
@@ -896,8 +897,12 @@ export class DingtalkHarnessBridge {
         return;
       }
       if (isPlainText && !hasImages && !hasFiles && command === '/new') {
-        await this.#state.clearSession(key);
-        await this.#send(sessionWebhook, t('已开启新会话。请发送你的问题。'));
+        if (await sharedWhaleSessionId(this.#harness)) {
+          await this.#send(sessionWebhook, t('鲸鱼娘只有一条常驻对话，继续发送消息即可。'));
+        } else {
+          await this.#state.clearSession(key);
+          await this.#send(sessionWebhook, t('已开启新会话。请发送你的问题。'));
+        }
         return;
       }
       const workspaceCommand = isPlainText && !hasImages && !hasFiles

@@ -1,5 +1,5 @@
 ---
-description: "Official DeepSeek Harness brand occupants for the sidebar, active only in official builds; for users and maintainers choosing or replacing brand presentation."
+description: "Whale Isle brand occupants for the sidebar, active only in official builds; for users and maintainers choosing or replacing brand presentation."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package gives an `official` client build the DeepSeek Harness mark and name in the sidebar. Other build profiles keep the shell's fish mark and local-build label, while the conversation hero always uses the animated fish. Choose it for deployments branded as DeepSeek Harness; deployments with another identity should provide a replacement brand package. It has no runtime state and does not affect model requests.
+This package fills the sidebar brand slots in an `official` client build with the transparent whale-girl head, same-line “鲸屿 / WHALE ISLE”, and “BASED ON DEEPSEEK HARNESS” beneath on desktop and Web. The 屿 glyph uses brand blue; the head has no square background. Its mark occupant renders no separate image, and the collapsed rail shows the panel icon. Other build profiles keep the shell's fish mark and local-build label, while the conversation hero always uses the animated fish. It has no runtime state and does not affect model requests.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ This package gives an `official` client build the DeepSeek Harness mark and name
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin in the browser roster of a deployment whose identity is DeepSeek's own, then build the client with the `official` profile so the occupants register.
+Mount this plugin in the browser roster of a Whale Isle deployment, then build the client with the `official` profile so the occupants register.
 
 ### Choosing the profile
 
-`DSH_CLIENT_BUILD_PROFILE` selects which brand renders. An `official` build shows the official mark and name in the sidebar; any other value leaves the shell fallbacks — the fish mark and the local-build label — in place. The conversation hero shows the animated hero fish from `dsh-client-ui-conversation` regardless of profile, because that fallback is already the official mark. The plugin still loads and validates in both cases; only the registration is profile-gated.
+`DSH_CLIENT_BUILD_PROFILE` selects whether these brand slots are occupied. In an `official` build, both desktop and Web show Whale Isle. Any other build profile leaves the shell fallbacks — the fish mark and local-build label — in place. The conversation hero shows the animated hero fish from `dsh-client-ui-conversation` regardless of profile. The plugin still loads and validates in both cases; only registration is profile-gated.
 
 ### Replacing the brand
 

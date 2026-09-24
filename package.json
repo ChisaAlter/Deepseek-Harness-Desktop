@@ -1,7 +1,7 @@
 {
   "name": "deepseek-harness-desktop",
   "productName": "Deepseek-Harness-Desktop",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Electron desktop shell for DeepSeek Harness Web UI",
   "author": "Chisa",
   "license": "MIT",
@@ -17,6 +17,7 @@
     "prepare:dshd-remote": "node scripts/prepare-dshd-remote.mjs",
     "prepare:dsh-remote-client": "node scripts/prepare-dsh-remote-client.mjs",
     "pack": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --dir --publish never",
+    "pack:launcher": "node scripts/run-electron-builder.cjs --dir --publish never -c electron-builder.launcher.yml",
     "installer:assets": "node scripts/run-render-installer-assets.js",
     "smoke:source": "node scripts/run-source-smoke.mjs",
     "qa:source": "node scripts/run-source-qa.mjs",
@@ -35,7 +36,8 @@
     "qa:remote:v2": "node tools/remote-web-qa/full-web-v2/run.mjs",
     "refresh:marketplace-snapshot": "node scripts/refresh-marketplace-snapshot.mjs",
     "dist": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --win --publish never",
-    "dist:mac": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --mac --publish never"
+    "dist:mac": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --mac --publish never",
+    "dist:launcher": "node scripts/run-electron-builder.cjs --win --publish never -c electron-builder.launcher.yml"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
@@ -66,6 +68,11 @@
     "files": [
       "src/**/*",
       "!**/*.test.js",
+      "!src/renderer/pet-live2d/avatar/model_hd.onnx",
+      "!src/renderer/pet-live2d/avatar/character_hd.png",
+      "!src/renderer/pet-live2d/rig/backup-v1/**",
+      "!src/renderer/pet-live2d/rig/master-v1.png",
+      "!src/renderer/pet-live2d/rig/shell-*.png",
       "mobile/web/**/*",
       "!mobile/web/**/*.test.js",
       "assets/**/*",

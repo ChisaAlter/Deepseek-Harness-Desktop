@@ -11,7 +11,7 @@ import { parse } from 'yaml';
 const defaults = {
   name: '鲸鱼娘', personality: 'natural', userTitle: '', personaText: '',
   modelProvider: '', modelModel: '', modelReasoningEffort: '',
-  imDefault: false, sessionId: '',
+  imDefault: true, sessionId: '',
 };
 
 function values(source) {

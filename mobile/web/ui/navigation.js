@@ -11,6 +11,7 @@ export function backTarget(state) {
   if (state.workspaceMenu) return 'workspaceMenu';
   if (state.pickerSheet) return 'picker';
   if (state.attachOpen) return 'attachment';
+  if (state.sessionsOpen) return 'sessions';
   if (state.settingsOpen) return state.settingsPane ? 'settingsPane' : 'settings';
   if (state.drawerOpen) return 'drawer';
   if (state.route === 'scan' || state.route === 'permission') return 'scan';

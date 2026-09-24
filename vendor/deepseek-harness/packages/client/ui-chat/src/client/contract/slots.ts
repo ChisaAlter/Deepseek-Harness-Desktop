@@ -46,13 +46,15 @@ export interface OpenFileOptions {
   readonly line?: number
   /** Session that owns the citation; desktop takeover must not infer it from the retained seat. */
   readonly sessionId?: SessionId
+  /** Prefer the chat mini player for a browser-renderable delivered document. */
+  readonly presentation?: 'mini'
 }
 
 /** Owner currency of the completed-Turn extension chain. */
 export interface TurnTailOwnerProps {
   turn: TurnLocation
   seq: number
-  openFile: (path: string) => void
+  openFile: (path: string, options?: OpenFileOptions) => void
 }
 
 /** Owner currency of finalized-assistant actions. */

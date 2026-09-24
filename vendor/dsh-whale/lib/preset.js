@@ -45,7 +45,7 @@ export function whalePresetDefinition(homeDir) {
     description: '桌面鲸鱼娘助理会话用的内置预设',
     order: 90,
     plugins: [
-      { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { includeRuntimeContext: false, complete: true, prefix: '' } },
+      { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { includeRuntimeContext: false, prefix: '' } },
       { id: 'agent-instructions', name: '@deepseek-ai/dsh-agent-instructions', config: { maxBytes: 65536 } },
       { id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs' },
       { id: 'tool-fs-search', name: '@deepseek-ai/dsh-tool-fs-search', config: { sampleOverCapGlobResults: false } },

@@ -145,15 +145,12 @@ function mountFrame(windowWidth = initialWindowWidth ?? frameWidth) {
   }
 }
 
-/* The template delegates the squeeze to the grid (jsdom does no layout, so
-   specs read the specified tracks): [sidebar px, rightbar growth limit].
-   The centre's protected minimum must accompany an open right track. */
+/* jsdom does no layout, so read the three explicit column tracks from the
+   four-column grid: [sidebar, rightbar, surfaces]. */
 function tracks(frame: HTMLElement): number[] {
-  const match = /^([\d.]+)px minmax\((0|400)px, 1fr\) minmax\(0px, ([\d.]+)px\)$/.exec(frame.style.gridTemplateColumns)
+  const match = /^([\d.]+)px minmax\(0, 1fr\) ([\d.]+)px ([\d.]+)px$/.exec(frame.style.gridTemplateColumns)
   if (match === null) throw new Error(`unexpected template: ${frame.style.gridTemplateColumns}`)
-  const rightbar = Number(match[3])
-  if ((match[2] === '400') !== (rightbar > 0)) throw new Error(`centre minimum out of step: ${frame.style.gridTemplateColumns}`)
-  return [Number(match[1]), rightbar]
+  return [Number(match[1]), Number(match[2]), Number(match[3])]
 }
 
 function drawerTrack(frame: HTMLElement): number {
@@ -330,18 +327,18 @@ describe('AppFrame', () => {
     expect(frame.querySelector('[data-shell-leading-band]')).toBeNull()
   })
 
-  it('mounts the shell.leading seat only while the darwin collapse hides the column', () => {
+  it('keeps the caption drag band when the darwin sidebar collapses', () => {
     document.documentElement.dataset.platform = 'darwin'
     const { frame, instance, sidebarOwner, queryByTestId } = mountFrame()
-    // The window drag band composes app-regions in DOM order: it must render
-    // before all column content so every later no-drag subtracts from it.
-    expect(frame.firstElementChild?.hasAttribute('data-shell-leading-band')).toBe(true)
+    // The caption drag band sits before column content so later no-drag
+    // controls subtract their hit regions from it.
+    expect(frame.querySelector('[data-dshd-caption="band"]')).not.toBeNull()
     expect(queryByTestId('shell.leading-content')).toBeNull()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([0, 0])
+    expect(tracks(frame)).toEqual([0, 0, 0])
     expect(sidebarOwner()).toEqual({ collapsed: true, width: 0 })
-    expect(frame.querySelector('[data-shell-leading]')).not.toBeNull()
-    expect(queryByTestId('shell.leading-content')).toBeTruthy()
+    expect(frame.querySelector('[data-dshd-caption="band"]')).not.toBeNull()
+    expect(queryByTestId('shell.leading-content')).toBeNull()
     act(() => { instance.actions.toggleSidebar() })
     expect(queryByTestId('shell.leading-content')).toBeNull()
   })
@@ -357,8 +354,7 @@ describe('AppFrame', () => {
       expect(slotCalls).toEqual([{ key: 'main', props: {}, options: { entryKey: panelId ?? 'conversation' } }])
       expect(getByTestId('main-content').getAttribute('data-entry-key')).toBe(panelId ?? 'conversation')
       expect(instance.getSnapshot().panelInfo).toEqual({ activePanelId: panelId })
-      // The deepened conversation drag band keys off this frame marker.
-      expect(frame.hasAttribute('data-panel-conversation')).toBe(panelId === null)
+      expect(frame.querySelector('[data-dshd-caption="band"]')).not.toBeNull()
       expect(instance.getSnapshot().layoutInfo).toBe(layoutInfo)
       expect(tracks(frame)).toEqual([280, 0, 0])
       expect(selectedSession.current).toBe(sessionId)
@@ -403,12 +399,11 @@ describe('AppFrame normal width concessions', () => {
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.setSidebar(420); instance.actions.openRightbar(true, false) })
     resize(1200)
-    // The template carries the ratio-clamped preference; the panel (rightOwner
-    // width) reports the resolved squeeze.
-    expect(tracks(frame)).toEqual([420, 840])
+    // The grid now carries the resolved rightbar width directly.
+    expect(tracks(frame)).toEqual([420, 380, 0])
     expect(rightOwner()).toEqual({ width: 380, viewportWidth: 1200, canShow: true })
     resize(1120)
-    expect(tracks(frame)).toEqual([420, 784])
+    expect(tracks(frame)).toEqual([420, 300, 0])
     resize(1119)
     expect(tracks(frame)).toEqual([420, 0, 0])
     expect(rightOwner()).toEqual({ width: 0, viewportWidth: 1119, canShow: false })
@@ -431,7 +426,7 @@ describe('AppFrame normal width concessions', () => {
     expect(tracks(frame)).toEqual([280, 0, 0])
     expect(rightOwner()).toEqual({ width: 344, viewportWidth: 800, canShow: true })
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(tracks(frame)).toEqual([56, 360])
+    expect(tracks(frame)).toEqual([56, 344, 0])
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ narrowExpanded: false, rightbar: 360 })
     expect(rightOwner().canShow).toBe(true)
   })
@@ -518,47 +513,35 @@ describe('AppFrame right panel presentation', () => {
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
   })
 
-  it('eases tracks only across a discrete toggle, never for viewport updates', () => {
+  it('updates the sidebar track on resize and toggle without stale animation state', () => {
     const { frame, instance } = mountFrame()
     expect(frame.dataset.animating).toBeUndefined()
-    // Window-driven track updates follow the frame edge instantly.
     resize(1600)
-    expect(frame.dataset.animating).toBeUndefined()
+    expect(tracks(frame)).toEqual([280, 0, 0])
     act(() => { instance.actions.toggleSidebar() })
-    expect(frame.dataset.animating).toBe('true')
-    // Foreign transition ends (e.g. the handle's left) do not settle it...
-    act(() => {
-      frame.dispatchEvent(Object.assign(new Event('transitionend'), { propertyName: 'left' }))
-    })
-    expect(frame.dataset.animating).toBe('true')
-    // ...the track transition's own end does.
-    act(() => {
-      frame.dispatchEvent(Object.assign(new Event('transitionend'), { propertyName: 'grid-template-columns' }))
-    })
+    expect(tracks(frame)[0]).toBeLessThan(280)
     expect(frame.dataset.animating).toBeUndefined()
   })
 
-  it('lands the responsive auto-collapse instantly, keeping user toggles eased', () => {
+  it('auto-collapses at the breakpoint and still accepts a user toggle', () => {
     const { frame, instance } = mountFrame()
-    // Shrinking across the breakpoint flips the collapse in the same update as
-    // the viewport change: no easing, the tracks land with the window edge.
     resize(900)
     expect(frame.dataset.sidebarCollapsed).toBe('true')
-    expect(frame.dataset.animating).toBeUndefined()
-    // A user toggle at the now-stable viewport still eases.
+    expect(tracks(frame)[0]).toBe(SIDEBAR_COLLAPSED)
     act(() => { instance.actions.toggleSidebar() })
-    expect(frame.dataset.animating).toBe('true')
+    expect(frame.dataset.sidebarCollapsed).toBeUndefined()
+    expect(tracks(frame)[0]).toBe(SIDEBAR_DEFAULT)
   })
 
-  it('animates the rightbar track flip and settles by timeout without a transition end', () => {
+  it('keeps the opened rightbar track stable across elapsed time', () => {
     vi.useFakeTimers()
     try {
       const { frame, instance } = mountFrame()
       act(() => { instance.actions.openRightbar(true, false) })
-      expect(frame.dataset.animating).toBe('true')
-      // Covered or reduced-motion frames fire no transitionend; the timeout settles.
+      const openTracks = tracks(frame)
+      expect(openTracks[1]).toBeGreaterThan(0)
       act(() => { vi.advanceTimersByTime(600) })
-      expect(frame.dataset.animating).toBeUndefined()
+      expect(tracks(frame)).toEqual(openTracks)
     } finally {
       vi.useRealTimers()
     }
@@ -658,7 +641,7 @@ describe('AppFrame pointer resizing', () => {
     resize(1100)
     const handle = handleFor(frame, 'rightbar')
     expect(rightOwner().width).toBe(420)
-    expect(tracks(frame)[1]).toBe(770)
+    expect(tracks(frame)[1]).toBe(420)
     expect(handle.style.left).toBe('680px')
     drag(handle, 680, 690)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(410)

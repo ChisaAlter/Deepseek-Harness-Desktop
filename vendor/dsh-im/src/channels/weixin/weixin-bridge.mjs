@@ -32,6 +32,7 @@ import {
 } from '../shared/preset-command.mjs';
 import { runWorkspaceCommand } from '../shared/workspace-command.mjs';
 import { askInWorkspaceSession } from '../shared/workspace-session.mjs';
+import { sharedWhaleSessionId } from '../shared/whale-session.mjs';
 import {
   hasInboundImages,
   imagePromptDiagnostic,
@@ -535,8 +536,12 @@ export class WeixinHarnessBridge {
         return;
       }
       if (!hasImages && !hasFiles && command === '/new') {
-        await this.#state.clearSession(key);
-        await this.#send(sender, t('已开启新会话。请发送你的问题。'), contextToken, runId);
+        if (await sharedWhaleSessionId(this.#harness)) {
+          await this.#send(sender, t('鲸鱼娘只有一条常驻对话，继续发送消息即可。'), contextToken, runId);
+        } else {
+          await this.#state.clearSession(key);
+          await this.#send(sender, t('已开启新会话。请发送你的问题。'), contextToken, runId);
+        }
         await this.#state.markSeen(messageId);
         return;
       }

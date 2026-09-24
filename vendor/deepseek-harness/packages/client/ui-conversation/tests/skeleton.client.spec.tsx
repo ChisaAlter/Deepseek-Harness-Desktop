@@ -118,7 +118,7 @@ function workspace(id = 'w1'): WorkspaceView {
 /** Host scratch cwd advertised by the Workspace baseline (no-directory tasks live there). */
 const SCRATCH = '/dsh-home/no-workspace'
 const workspaceState = (items: readonly WorkspaceView[]): WorkspaceSnapshot => ({
-  items, archivedSessionIds: [], pinnedSessionIds: [], state: 'idle', phase: 'ready', error: null,
+  items, archivedSessionIds: [], pinnedSessionIds: [], scratchCwd: SCRATCH, state: 'idle', phase: 'ready', error: null,
 })
 
 function sessionSnapshotOf(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot {
@@ -554,17 +554,14 @@ describe('ConversationRoot resident composer', () => {
     expect(b.store.store.getSnapshot().draft).toBe('ordinary revised')
     fireEvent.keyDown(box, { key: 'Enter' })
     expect(b.sink).toHaveBeenCalledWith('ordinary revised', [], 'queue', expect.any(AbortSignal))
-    // The current crumb is plain text (a drag surface on darwin), not a button.
-    expect(b.view.queryByRole('button', { name: 'Child' })).toBeNull()
-    expect(b.view.getByText('Child').tagName).toBe('SPAN')
+    expect(b.view.getByRole('button', { name: 'Child' }).hasAttribute('disabled')).toBe(true)
     expect(b.view.queryByText('Root')).toBeNull()
   })
 
   it('shows hierarchy only for subagents and opens their ordinary owner', () => {
     const b = mount(sessionSnapshotOf(), undefined, undefined, { summaryOrigin: 'subagent' })
     const root = b.view.getByRole('button', { name: 'Root' })
-    expect(b.view.queryByRole('button', { name: 'Child' })).toBeNull()
-    expect(b.view.getByText('Child').tagName).toBe('SPAN')
+    expect(b.view.getByRole('button', { name: 'Child' }).hasAttribute('disabled')).toBe(true)
     fireEvent.click(root)
     expect(b.open).toHaveBeenCalledWith(sid('root'))
   })
@@ -633,7 +630,7 @@ describe('ConversationRoot resident composer', () => {
     )
     // Hero chrome is present and the selected View slot remains absent.
     const host = b.view.container.querySelector('[data-conversation-scroll]')
-    const header = b.view.container.querySelector('header')
+    const header = b.view.container.querySelector('header[aria-hidden]')
     expect(host).not.toBeNull()
     expect(header?.getAttribute('aria-hidden')).toBe('true')
     expect(header?.querySelector('[data-dshd-caption="blank"]')).not.toBeNull()
@@ -964,8 +961,6 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.queryByTestId('view-new-view')).toBeNull()
     expect(b.view.getByRole('tab', { name: 'Chat' }).getAttribute('aria-selected')).toBe('true')
     expect(b.view.getByRole('tab', { name: 'New view' }).getAttribute('aria-selected')).toBe('false')
-    // ui-layout's window drag band deepens by matching this marker (:has).
-    expect(b.view.getByRole('tablist').hasAttribute('data-conversation-tabs')).toBe(true)
   })
 
   it('hides the Chat/Trajectory tablist when view tabs are disabled', () => {

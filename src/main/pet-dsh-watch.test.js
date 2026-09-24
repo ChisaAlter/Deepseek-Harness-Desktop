@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const { createDshWatch, decodeAppended, MILESTONES } = require('./pet-dsh-watch');
+const { normalizeDshState } = require('./pet-settings');
 
 function tmpSessions(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pet-watch-'));
@@ -28,18 +29,137 @@ function makeWatch(t, sessionsDir, { dsh, now, rng } = {}) {
   const state = { dsh: dsh || {} };
   const events = [];
   const states = [];
+  let saves = 0;
   const watch = createDshWatch({
     sessionsDir,
     getDsh: () => state.dsh,
-    saveDsh: (next) => { state.dsh = next; },
+    saveDsh: (next) => { state.dsh = next; saves += 1; },
     onEvent: (e) => events.push(e),
     onState: (s) => states.push(s),
     now: now || (() => Date.now()),
     rng: rng || (() => 0), // deterministic: every gate admits
     frameSizeOf: require('./pet-growth').zstdFrameSize,
   });
-  return { watch, events, states, state };
+  return { watch, events, states, state, get saves() { return saves; } };
 }
+
+test('idle polls do not rewrite watermarks or usage mirror without changes', (t) => {
+  const dir = tmpSessions(t);
+  let clock = Date.now();
+  const usageFile = path.join(dir, 'usage-today.json');
+  const state = { dsh: {}, writes: 0 };
+  const watch = createDshWatch({
+    sessionsDir: dir,
+    usageFile,
+    getDsh: () => state.dsh,
+    saveDsh: (next) => { state.dsh = next; state.writes += 1; },
+    now: () => clock,
+  });
+  watch.poll();
+  const saved = state.writes;
+  const mirror = fs.readFileSync(usageFile, 'utf8');
+  for (let i = 0; i < 10; i += 1) {
+    clock += 2000;
+    watch.poll();
+  }
+  assert.equal(state.writes, saved);
+  assert.equal(fs.readFileSync(usageFile, 'utf8'), mirror);
+});
+
+test('usage mirror retries the same snapshot after atomic rename fails', (t) => {
+  const dir = tmpSessions(t);
+  const usageFile = path.join(dir, 'usage-today.json');
+  let renames = 0;
+  const fsImpl = { ...fs, renameSync: (...args) => {
+    renames += 1;
+    if (renames === 1) { throw new Error('temporary lock'); }
+    return fs.renameSync(...args);
+  } };
+  let dsh = {};
+  const watch = createDshWatch({ sessionsDir: dir, usageFile, fsImpl,
+    getDsh: () => dsh, saveDsh: (next) => { dsh = next; } });
+  watch.poll();
+  assert.equal(fs.existsSync(usageFile), false);
+  watch.poll();
+  assert.equal(renames, 2);
+  assert.equal(JSON.parse(fs.readFileSync(usageFile, 'utf8')).used, 0);
+});
+
+test('bounded persistence does not rewrite on every poll with 401 live log cursors', (t) => {
+  const dir = tmpSessions(t);
+  const files = {};
+  for (let i = 0; i < 401; i += 1) {
+    const file = logFile(dir, `sess-${i}`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, '');
+    files[file] = 0;
+  }
+  let dsh = { files };
+  let saves = 0;
+  const watch = createDshWatch({ sessionsDir: dir,
+    getDsh: () => dsh, saveDsh: (next) => { dsh = normalizeDshState(next); saves += 1; } });
+  watch.poll();
+  const first = saves;
+  for (let i = 0; i < 3; i += 1) { watch.poll(); }
+  assert.equal(saves, first);
+  assert.equal(Object.keys(dsh.files).length, 400);
+});
+
+test('normal watcher stop flushes sub-minute active time', (t) => {
+  const dir = tmpSessions(t);
+  let clock = Date.now();
+  let dsh = {};
+  const watch = createDshWatch({ sessionsDir: dir, now: () => clock,
+    getDsh: () => dsh, saveDsh: (next) => { dsh = normalizeDshState(next); } });
+  appendEvents(logFile(dir), [{ type: 'turn/start', data: { turn: 1 } }]);
+  const stop = watch.start();
+  watch.poll();
+  clock += 20000;
+  watch.poll();
+  assert.equal(dsh.activeMsToday, 0);
+  stop();
+  assert.equal(dsh.activeMsToday, 20000);
+});
+
+test('failed final checkpoint does not block watcher shutdown', (t) => {
+  const dir = tmpSessions(t);
+  let clock = Date.now();
+  let dsh = {};
+  let saves = 0;
+  const watch = createDshWatch({ sessionsDir: dir, now: () => clock,
+    getDsh: () => dsh, saveDsh: (next) => {
+      if (saves++ > 0) { throw new Error('disk unavailable'); }
+      dsh = normalizeDshState(next);
+    } });
+  appendEvents(logFile(dir), [{ type: 'turn/start', data: { turn: 1 } }]);
+  const stop = watch.start();
+  watch.poll();
+  clock += 2000;
+  watch.poll();
+  assert.doesNotThrow(stop);
+});
+
+test('active time checkpoints by minute while new log events save immediately', (t) => {
+  const dir = tmpSessions(t);
+  let clock = Date.now();
+  const fixture = makeWatch(t, dir, { now: () => clock });
+  const file = logFile(dir);
+  appendEvents(file, [{ type: 'turn/start', data: { turn: 1 } }]);
+  fixture.watch.poll();
+  const initialSaves = fixture.saves;
+  for (let i = 0; i < 29; i += 1) {
+    clock += 2000;
+    fixture.watch.poll();
+  }
+  assert.equal(fixture.saves, initialSaves);
+  clock += 2000;
+  fixture.watch.poll();
+  assert.equal(fixture.saves, initialSaves + 1);
+  appendEvents(file, [{ type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } }]);
+  clock += 2000;
+  fixture.watch.poll();
+  assert.equal(fixture.saves, initialSaves + 2);
+});
 
 test('idle poll on empty sessions dir emits nothing', (t) => {
   const dir = tmpSessions(t);

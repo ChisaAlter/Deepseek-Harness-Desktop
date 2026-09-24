@@ -93,7 +93,7 @@ function formatRecords(records) {
   return lines;
 }
 
-export function registerSessionTools(ctx) {
+export function registerSessionTools(ctx, { getSelfId = () => '' } = {}) {
   ctx.tools.register(defineTool({
     name: 'whale_search_sessions',
     description:
@@ -566,6 +566,9 @@ export function registerSessionTools(ctx) {
       if (typeof controller?.fork !== 'function') return { ...unavailable(), sessionId: '' };
       const sessionId = String(args.sessionId ?? '').trim();
       if (!sessionId) return { ok: false, sessionId: '', detail: 'sessionId is required.' };
+      if (sessionId === getSelfId()) {
+        return { ok: false, sessionId: '', detail: 'The whale assistant has one resident conversation and cannot fork herself.' };
+      }
       const request = { sessionId };
       const atSeq = Number(args.atSeq);
       const beforeSeq = Number(args.beforeSeq);

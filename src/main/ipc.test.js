@@ -11,6 +11,12 @@ const ipcPath = require.resolve('./ipc');
 // stubbed, so it must reload per loadIpc call or it would keep the first
 // test's stubbed './config' closures forever.
 const profileOpsPath = require.resolve('./profile-ops');
+// Same for the launcher service: it binds the same stubbed leaf modules, so
+// it must reload with ipc.js or it keeps the first call's stubs.
+const launcherServicePath = require.resolve('../launcher/launcher-service');
+// Same for the shared launcher-channel table: it binds the same stubbed leaf
+// modules and must reload with ipc.js.
+const ipcLauncherPath = require.resolve('./ipc-launcher');
 
 function harnessEvent(progress = []) {
   return {
@@ -188,6 +194,22 @@ function loadIpc(options = {}) {
     REPO_URL: '',
     RELEASES_PAGE: '',
   });
+  const runtimeInstallCalls = [];
+  stub('../launcher/runtime-install', {
+    installedInfo: () => ({ registeredInstall: false, version: '', installPath: '' }),
+    invalidateInstalledCache() {},
+    configuredRoute: () => '',
+    checkDesktopUpdate: async () => ({ status: 'none' }),
+    installRuntime: async (opts, onProgress) => {
+      runtimeInstallCalls.push(opts);
+      if (onProgress) onProgress({ phase: 'resolve', percent: 0 });
+      return { ok: true, status: 'installed', installed: { version: '9.9.9' } };
+    },
+    cancelRuntimeInstall: () => ({ ok: true }),
+    probeDesktopRunning: () => false,
+    startExternalDesktop: () => ({ ok: true, external: true }),
+    stopExternalDesktop: async () => ({ ok: true, stopped: false }),
+  });
   const scanImportCalls = [];
   const runImportCalls = [];
   stub('./data-import', {
@@ -267,6 +289,7 @@ function loadIpc(options = {}) {
       installMarketplaceCalls.push({ id, options: opts });
       return installResult;
     },
+    installImportPlugin: async () => ({ ok: true }),
   });
   stub('./git', { ...gitStubs(), ...(options.git || {}) });
   const workspaceWatch = { onChange: null, stopped: 0 };
@@ -301,8 +324,12 @@ function loadIpc(options = {}) {
 
   const previousIpc = require.cache[ipcPath];
   const previousProfileOps = require.cache[profileOpsPath];
+  const previousLauncherService = require.cache[launcherServicePath];
+  const previousIpcLauncher = require.cache[ipcLauncherPath];
   delete require.cache[ipcPath];
   delete require.cache[profileOpsPath];
+  delete require.cache[launcherServicePath];
+  delete require.cache[ipcLauncherPath];
   let startDesktopCalls = 0;
   const startDesktopArgs = [];
   const { registerIpc } = require('./ipc');
@@ -333,8 +360,12 @@ function loadIpc(options = {}) {
   function restore() {
     delete require.cache[ipcPath];
     delete require.cache[profileOpsPath];
+    delete require.cache[launcherServicePath];
+    delete require.cache[ipcLauncherPath];
     if (previousIpc) require.cache[ipcPath] = previousIpc;
     if (previousProfileOps) require.cache[profileOpsPath] = previousProfileOps;
+    if (previousLauncherService) require.cache[launcherServicePath] = previousLauncherService;
+    if (previousIpcLauncher) require.cache[ipcLauncherPath] = previousIpcLauncher;
     for (const { filename, previous } of restoreEntries) {
       if (previous) require.cache[filename] = previous;
       else delete require.cache[filename];
@@ -363,6 +394,7 @@ function loadIpc(options = {}) {
     runImportCalls,
     lastStartWrites,
     workspaceWatch,
+    runtimeInstallCalls,
   };
 }
 
@@ -960,6 +992,8 @@ test('launcher-only import and release channels reject boot and harness senders'
     await assert.rejects(() => ipc.invoke('shell:scan-import', harnessEvent()), unauthorized);
     await assert.rejects(() => ipc.invoke('shell:run-import', bootEvent(), {}), unauthorized);
     await assert.rejects(() => ipc.invoke('shell:install-release', harnessEvent(), 'v0.2.6'), unauthorized);
+    await assert.rejects(() => ipc.invoke('shell:install-runtime', harnessEvent(), {}), unauthorized);
+    await assert.rejects(() => ipc.invoke('shell:cancel-runtime-install', bootEvent()), unauthorized);
     await assert.rejects(() => ipc.invoke('shell:list-releases', leftoverMarketplaceEvent()), unauthorized);
   } finally {
     ipc.restore();
@@ -976,6 +1010,21 @@ test('launcher sender can scan-import and list-releases', async () => {
     const start = await ipc.invoke('shell:start-desktop', launcherEvent());
     assert.equal(start.ok, true);
     assert.equal(ipc.startDesktop(), 1);
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('shell:install-runtime delegates to the service and forwards progress to the launcher sender', async () => {
+  const ipc = loadIpc();
+  const progress = [];
+  try {
+    const result = await ipc.invoke('shell:install-runtime', launcherEvent(progress), { route: 'github' });
+    assert.equal(result.status, 'installed');
+    assert.deepEqual(ipc.runtimeInstallCalls, [{ route: 'github' }]);
+    assert.deepEqual(progress, [{ channel: 'shell:update-progress', payload: { phase: 'resolve', percent: 0 } }]);
+    const cancel = await ipc.invoke('shell:cancel-runtime-install', launcherEvent());
+    assert.equal(cancel.ok, true);
   } finally {
     ipc.restore();
   }
@@ -1562,6 +1611,37 @@ test('shell:cancel-import aborts the in-flight import signal', async () => {
     release();
     const result = await running;
     assert.equal(result.cancelled, true);
+  } finally {
+    release();
+    ipc.restore();
+  }
+});
+
+test('shell:run-import rejects a concurrent request and releases the task after failure', async () => {
+  let entered = 0;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const ipc = loadIpc({
+    runImport: async () => {
+      entered += 1;
+      if (entered === 1) {
+        await gate;
+        throw new Error('first import failed');
+      }
+      return { ok: true, empty: true };
+    },
+  });
+  try {
+    const first = ipc.invoke('shell:run-import', launcherEvent(), {});
+    await new Promise((resolve) => setImmediate(resolve));
+    const second = await ipc.invoke('shell:run-import', launcherEvent(), {});
+    assert.deepEqual(second, { ok: false, error: 'import-in-progress' });
+    assert.equal(entered, 1);
+    release();
+    await assert.rejects(first, /first import failed/);
+    const retry = await ipc.invoke('shell:run-import', launcherEvent(), {});
+    assert.equal(retry.ok, true);
+    assert.equal(entered, 2);
   } finally {
     release();
     ipc.restore();

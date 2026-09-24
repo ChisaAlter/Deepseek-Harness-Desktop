@@ -174,8 +174,16 @@ function createLive2dPetManager(options = {}) {
       : '',
     getDsh: () => state.dsh,
     saveDsh: (next) => {
+      const previous = state.dsh;
       state.dsh = petSettings.normalizeDshState(next);
-      persist();
+      try {
+        persist();
+      } catch (error) {
+        // The watcher compares against this in-memory projection on the next
+        // poll. Keep the last committed value so a failed disk write retries.
+        state.dsh = previous;
+        throw error;
+      }
     },
     onEvent: (ev) => {
       if (!win || win.isDestroyed?.()) {
@@ -335,9 +343,9 @@ function createLive2dPetManager(options = {}) {
   // Hold-zone pad beyond the renderer-reported BODY bounds (already the
   // tight alpha box + hover pad). While interactive the whole fullscreen
   // overlay eats clicks, so every px here is a dead ring around her —
-  // 24 covers sway and roam-report lag without swallowing clicks meant
+  // 8 covers small frame-to-frame sway without swallowing clicks meant
   // for neighboring windows.
-  const CURSOR_PET_PAD = 24;
+  const CURSOR_PET_PAD = 8;
   let cursorTimer = 0;
   let lastCursorKey = '';
   let cursorTicks = 0;
@@ -963,12 +971,14 @@ function createLive2dPetManager(options = {}) {
     // Shared-session surface for the quick-chat card: model catalog +
     // current session selection + the shared history tail. Assistant off
     // → enabled:false and the card hides the model/jump chrome.
-    ipcMain.handle('shell:live2d-chat-state', async (event) => {
+    ipcMain.handle('shell:live2d-chat-state', async (event, request) => {
       assertAuthorized(event);
       if (!whaleEnabled()) {
         return { ok: true, enabled: false, models: [], selected: null, history: [] };
       }
-      const res = await whalePost('pet/state', {});
+      const res = await whalePost('pet/state', {
+        includeCatalog: request?.includeCatalog !== false,
+      });
       if (!res.ok) {
         return { ok: false, enabled: true, reason: res.reason };
       }
@@ -981,7 +991,7 @@ function createLive2dPetManager(options = {}) {
         enabled: true,
         sessionId: String(v.sessionId || ''),
         name: String(v.name || ''),
-        groups: Array.isArray(v.groups) ? v.groups : [],
+        groups: Array.isArray(v.groups) ? v.groups : null,
         selected: v.model && typeof v.model === 'object' ? v.model : null,
         history: Array.isArray(v.history) ? v.history : [],
       };

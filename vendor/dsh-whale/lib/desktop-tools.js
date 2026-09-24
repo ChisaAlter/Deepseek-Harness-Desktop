@@ -65,6 +65,34 @@ const pluginListOutput = {
 
 export function registerDesktopTools(ctx) {
   ctx.tools.register(defineTool({
+    name: 'whale_pet_settings',
+    description:
+      'Read or update the desktop whale appearance and behavior settings. With no patch, '
+      + 'read current settings. A patch may contain scale, opacity, personality, activity, '
+      + 'selfTalk, wander, lockPosition, shiftToDrag, powerSave, clickSound, chatEnabled, '
+      + 'lookProvider or lookModel. The desktop applies the same normalization as its Settings UI.',
+    timeoutMs: CONTROL_TIMEOUT_MS,
+    parameters: {
+      patch: { type: 'object', additionalProperties: true, description: 'Optional whale appearance/behavior settings patch.' },
+    },
+    output: genericOutput,
+    presentCall: (args) => ({
+      card: 'generic', title: 'Whale settings', kind: 'other',
+      content: [{ type: 'text', text: JSON.stringify(args.patch ?? {}) }],
+    }),
+    async execute(args) {
+      const control = controlConfig();
+      if (!control) return unavailable();
+      const patch = args.patch;
+      const result = patch === undefined
+        ? await desktopCall(control, '/desktop/pet-settings')
+        : await desktopCall(control, '/desktop/pet-settings', { method: 'POST', body: { patch } });
+      if (result.ok !== true) return { ok: false, detail: result.error ?? result.detail ?? 'whale settings failed' };
+      return { ok: true, detail: JSON.stringify({ enabled: result.enabled, settings: result.settings }) };
+    },
+  }));
+
+  ctx.tools.register(defineTool({
     name: 'whale_desktop_state',
     description:
       'Desktop overview: app version, Harness kernel state, installed plugins, disabled list, '

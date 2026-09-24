@@ -209,6 +209,10 @@ function createParkedUpdateDrainer({
         }
         try {
           const outcome = await present(taken, { generation });
+          if (outcome?.abandoned === true) {
+            if (!peekParkedUpdateCheck()) parkUpdateCheck(taken);
+            return { drained: false, reason: 'abandoned', check: taken, outcome };
+          }
           return { drained: true, check: taken, outcome };
         } catch (error) {
           log(`更新提示失败：${error && error.message ? error.message : String(error)}`);
@@ -258,7 +262,19 @@ async function presentUpdateAsk({
   try {
     const outcome = await installUpdate((payload) => {
       sendToLauncher('shell:update-progress', payload);
-    });
+    }, check);
+    // Slim-package runtime installs finish in-place (no quit): report success
+    // as a hint instead of the self-update "installer launched" contract.
+    if (outcome && outcome.status === 'installed') {
+      sendToLauncher('shell:launcher-hint', {
+        check: {
+          ...check,
+          status: 'installed',
+          hint: `已安装 ${(outcome.installed && outcome.installed.version) || check.latest || ''}，可启动桌面端。`,
+        },
+      });
+      return { updateFlowHold: true, installer: false };
+    }
     if (outcome && outcome.launched === true && isPackaged) {
       return { updateFlowHold: true, installer: true };
     }
@@ -305,6 +321,7 @@ async function runColdStartGate({
   recoverInterruptedImport,
   probeImportHold,
   startDesktop,
+  drainParkedUpdateCheck = async () => {},
   log = () => {},
 }) {
   // Start the network check without awaiting it: it must overlap the local
@@ -354,20 +371,42 @@ async function runColdStartGate({
   }
 
   if (autoStart) {
-    await startDesktop();
+    let desktopResult;
+    let desktopThrew = false;
+    try {
+      desktopResult = await startDesktop();
+    } catch (error) {
+      desktopThrew = true;
+      const message = error && error.message ? error.message : String(error);
+      log(`桌面启动失败：${message}`, 'error');
+      desktopResult = { ok: false, error: message };
+    }
+    const desktopFailed = desktopResult?.ok === false;
+    if (desktopFailed) {
+      await openLauncher();
+      sendToLauncher('shell:show-tab', { tab: 'home' });
+      if (desktopThrew) {
+        sendToLauncher('shell:desktop-failed', { error: desktopResult.error || '桌面启动失败' });
+      }
+    }
     // Late result: hint only, and park it so the ask happens the next time the
     // user actually opens the launcher. Never re-open the launcher here (that
     // would steal focus from the desktop the user asked for) and never start a
     // second time.
-    void updateCheck.then((check) => {
+    void updateCheck.then(async (check) => {
       parkUpdateCheck(check);
       sendToLauncher('shell:launcher-hint', { check });
+      if (desktopFailed && check?.status === 'available') {
+        await drainParkedUpdateCheck();
+      }
+    }).catch((error) => {
+      log(`迟到更新处理失败：${error && error.message ? error.message : String(error)}`, 'error');
     });
     return {
-      outcome: 'desktop',
+      outcome: desktopFailed ? 'launcher' : 'desktop',
       updateFlowHold: false,
       holdForImport,
-      lastStartFailed,
+      lastStartFailed: desktopFailed || lastStartFailed,
     };
   }
 

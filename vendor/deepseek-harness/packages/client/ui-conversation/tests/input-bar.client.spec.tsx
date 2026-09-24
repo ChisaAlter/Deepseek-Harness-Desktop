@@ -28,7 +28,7 @@ import type { SubmitOutcome } from '../src/client/contract/input.ts'
 import { SessionInputShell } from '../src/client/input/facade.ts'
 import { $replaceDetectSpanWithText, $selectDetectSpan } from '../src/client/input/editor/span-map.ts'
 import type {
-  ComposerAttachment, ComposerAttachmentsOwnerProps, DraftFileUploads, InputActivityOwnerProps,
+  ComposerAttachment, ComposerAttachmentsOwnerProps, DraftFileUploads,
 } from '../src/client/contract/slots.ts'
 import type { DraftAttachmentId } from '../src/client/contract/input.ts'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
@@ -106,7 +106,6 @@ interface BenchOptions {
   overlay?: React.ReactNode
   leftItems?: React.ReactNode
   rightItems?: React.ReactNode
-  activityEntry?: (owner: InputActivityOwnerProps) => React.ReactNode
   contextPressure?: ContextPressureProjection
   footer?: React.ReactNode
   attachments?: readonly ComposerAttachment[]
@@ -184,7 +183,7 @@ function bench(over?: BenchOptions) {
     if (key === 'conversation.input.plan') return over?.planEntry ?? null
     if (key === 'conversation.input.permission') return over?.permissionEntry ?? null
     if (key === 'conversation.input.model') return over?.modelEntry ?? null
-    if (key === 'conversation.input.activity') return over?.activityEntry?.(owner as InputActivityOwnerProps) ?? null
+    if (key === 'conversation.input.managed') return over?.managedEntry ?? null
     return null
   }) as never
   const props: InputBarProps = {
@@ -197,7 +196,9 @@ function bench(over?: BenchOptions) {
     useSessionRetainInfo: () => undefined,
     useResource,
     useSessions: bindSnapshotSelector(createSnapshotStore<SessionListState>({
-      ids: [], byId: {}, phase: 'ready',
+      ids: over?.presentation === undefined ? [] : [SID],
+      byId: over?.presentation === undefined ? {} : { [SID]: { presentation: over.presentation } as SessionSummary },
+      phase: 'ready',
       projectionsBySession: {},
     })),
     useWorkspaces: bindSnapshotSelector(createSnapshotStore({
@@ -377,12 +378,12 @@ describe('image draft rail', () => {
         getData: () => '同时粘贴的文字',
       },
     })
-    expect(addFiles).toHaveBeenCalledWith([image], undefined)
+    expect(addFiles).toHaveBeenCalledWith([image])
     // The paste lands inside the PASTE_COMMAND update; its commit is a microtask away.
     await vi.waitFor(() => { expect(shell.snapshot.draft).toBe('同时粘贴的文字') })
   })
 
-  it('passes known clipboard directories and keeps files whose entry metadata is unavailable', () => {
+  it('rejects known clipboard directories and keeps files whose entry metadata is unavailable', () => {
     const addFiles = vi.fn(() => null)
     const { textarea } = bench({ addFiles })
     const folder = new File([], 'folder with spaces')
@@ -402,7 +403,7 @@ describe('image draft rail', () => {
         getData: () => '',
       },
     })
-    expect(addFiles).toHaveBeenCalledWith([folder, emptyFile, withoutApi, withoutEntry], new Set([folder]))
+    expect(addFiles).toHaveBeenCalledWith([emptyFile, withoutApi, withoutEntry])
   })
 
   it('pre-checks projected limits at intake: whole-batch refusal with product copy, none added', () => {
@@ -442,7 +443,7 @@ describe('image draft rail', () => {
     const within = bench({ addFiles: vi.fn(() => null), imageLimits: limits })
     const fits = png(16, 'fits.png')
     intake(within, [fits])
-    expect(within.props.addFiles).toHaveBeenCalledWith([fits], undefined)
+    expect(within.props.addFiles).toHaveBeenCalledWith([fits])
     expect(within.view.queryByRole('alert')).toBeNull()
   })
 
@@ -465,7 +466,7 @@ describe('image draft rail', () => {
       new File([new ArrayBuffer(64)], 'b.pdf', { type: 'application/pdf' }),
     ]
     act(() => { attachmentOwner(result.slotCalls).onAddFiles(files) })
-    expect(addFiles).toHaveBeenCalledWith(files, undefined)
+    expect(addFiles).toHaveBeenCalledWith(files)
     expect(result.view.getByRole('alert').textContent).toContain('仅支持 PNG、JPG、WebP、GIF 格式的图片')
   })
 
@@ -484,15 +485,14 @@ describe('image draft rail', () => {
     expect(attachmentOwner(result.slotCalls).dropLimits).toEqual({ count: 20, size: '5MB' })
   })
 
-  it('forwards dropped directories to addFiles and announces its refusal', () => {
-    const addFiles = vi.fn((_files: readonly File[], directories?: ReadonlySet<File>) =>
-      directories !== undefined && directories.size > 0 ? '只有桌面端支持添加文件夹，浏览器里请添加单个文件' : null)
+  it('rejects dropped directories while forwarding accepted files', () => {
+    const addFiles = vi.fn(() => null)
     const result = bench({ addFiles })
     const folder = new File([], 'project')
     const note = new File([Uint8Array.of(1)], 'notes.md', { type: 'text/markdown' })
     act(() => { attachmentOwner(result.slotCalls).onAddFiles([folder, note], new Set([folder])) })
-    expect(addFiles).toHaveBeenCalledWith([folder, note], new Set([folder]))
-    expect(result.view.getByRole('alert').textContent).toContain('只有桌面端支持添加文件夹')
+    expect(addFiles).toHaveBeenCalledWith([note])
+    expect(result.view.getByRole('alert').textContent).toContain('「project」是文件夹，无法作为附件')
   })
 
   it('announces server attachment rejections as product copy, other codes as developer text', () => {
@@ -1765,7 +1765,7 @@ describe('command launcher chrome and control seats', () => {
     expect([...new Set(slotCalls.map(c => c.key))]).toEqual([
       'conversation.input.overlay', 'conversation.input.attachments',
       'conversation.input.permission', 'conversation.input.plan', 'conversation.input.left',
-      'conversation.input.right', 'conversation.input.model', 'conversation.input.activity',
+      'conversation.input.right', 'conversation.input.model',
       'conversation.composer.dock',
     ])
     expect(view.queryByLabelText('Plan mode')).toBeNull()
@@ -1919,41 +1919,17 @@ describe('command launcher chrome and control seats', () => {
   })
 })
 
-it('lets a toolbar activity replace accessories without replacing the draft editor or send action', () => {
-  const { view } = bench({ draft: 'keep this draft', modelEntry: <button>model choice</button>,
-    activityEntry: owner => <>
-      <button onClick={() => { owner.onActiveChange(true) }}>expand activity</button>
-      <button onClick={() => { owner.onActiveChange(false) }}>close activity</button>
-    </>,
-  })
-  const editor = view.getByRole('textbox')
-  fireEvent.click(view.getByRole('button', { name: 'expand activity' }))
-  expect(view.queryByRole('button', { name: 'model choice' })).toBeNull()
-  expect(view.getByRole('textbox')).toBe(editor)
-  expect(editor.textContent).toBe('keep this draft')
-  expect(view.getByRole('button', { name: '发送消息' })).toBeTruthy()
-  fireEvent.click(view.getByRole('button', { name: 'close activity' }))
+it('keeps the draft editor and send action beside the model seat', () => {
+  const { view } = bench({ draft: 'keep this draft', modelEntry: <button>model choice</button> })
+  expect(view.getByRole('textbox').textContent).toBe('keep this draft')
   expect(view.getByRole('button', { name: 'model choice' })).toBeTruthy()
+  expect(view.getByRole('button', { name: '发送消息' })).toBeTruthy()
 })
 
-it('places context usage below the composer and hides it until the activity closes', () => {
-  const { view } = bench({ draft: 'draft', contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 },
-    activityEntry: owner => <>
-      <button onClick={() => { owner.onActiveChange(true) }}>microphone</button>
-      <button onClick={() => { owner.onActiveChange(false) }}>close activity</button>
-    </>,
-  })
-  const meter = view.getByRole('button', { name: '上下文已用 25%' })
-  const microphone = view.getByRole('button', { name: 'microphone' })
-  expect(microphone.compareDocumentPosition(meter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  fireEvent.click(meter)
-  expect(view.getByRole('dialog', { name: '上下文已用' })).toBeTruthy()
-  fireEvent.click(microphone)
-  expect(view.queryByRole('dialog', { name: '上下文已用' })).toBeNull()
-  expect(view.queryByRole('button', { name: '上下文已用 25%' })).toBeNull()
-  expect(view.getByRole('button', { name: '发送消息' })).toBeTruthy()
-  fireEvent.click(view.getByRole('button', { name: 'close activity' }))
+it('opens context usage details without replacing the composer', () => {
+  const { view } = bench({ draft: 'draft', contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 } })
   fireEvent.click(view.getByRole('button', { name: '上下文已用 25%' }))
   expect(view.getByRole('dialog', { name: '上下文已用' })).toBeTruthy()
+  expect(view.getByRole('textbox').textContent).toBe('draft')
   expect(view.getByRole('button', { name: '发送消息' })).toBeTruthy()
 })

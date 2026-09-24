@@ -88,6 +88,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
+const PENDING_PREVIEW_PRESENTATION_KEY = 'dshd-pending-preview-presentation'
 const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.pdf'])
 
 interface DesktopShell {
@@ -151,14 +152,17 @@ function documentExtension(relative: string): string {
  * Write the pending preview URL and open the Browser surface, matching terminal.
  * @param url - loopback http(s) the guest should load.
  */
-function openPreviewSurface(url: string, sessionId?: string): void {
+function openPreviewSurface(url: string, sessionId?: string, presentation?: 'mini'): void {
   try {
     sessionStorage.setItem(PENDING_PREVIEW_URL_KEY, url)
+    if (presentation === 'mini') sessionStorage.setItem(PENDING_PREVIEW_PRESENTATION_KEY, 'mini')
+    else sessionStorage.removeItem(PENDING_PREVIEW_PRESENTATION_KEY)
   } catch {
     // Quota / SecurityError: Preview still listens for the event when mounted.
   }
   window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, {
-    detail: { kind: 'preview', url, ...(sessionId === undefined ? {} : { sessionId }) },
+    detail: { kind: 'preview', url, ...(sessionId === undefined ? {} : { sessionId }),
+      ...(presentation === undefined ? {} : { presentation }) },
   }))
 }
 
@@ -300,6 +304,17 @@ export function apply(ctx: Context): void {
           live.open(sessionId, 'files')
           openClassicSurfaces(ctx)
           return true
+        }
+        if (options?.presentation === 'mini' && BROWSER_DOCUMENTS.has(documentExtension(relative))) {
+          const url = await browserDocumentUrl(cwd, relative)
+          if (url !== undefined) {
+            const native = ctx.get('sidebarRight')
+            if (native?.isExpanded()) native.toggleExpanded()
+            ctx.layout.closeRightbar()
+            ctx.layout.closeSurfaces()
+            openPreviewSurface(url, sessionId, 'mini')
+            return true
+          }
         }
         if (live.openFile === undefined) throw new Error('surfaces: file preview is unavailable')
         if (options?.line !== undefined) live.openFile(sessionId, relative, { revealLine: options.line })
