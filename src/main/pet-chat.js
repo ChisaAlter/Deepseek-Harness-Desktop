@@ -24,8 +24,26 @@ const PERSONA_PROMPTS = {
   poison: '你是鲸鱼娘，一只毒舌但内心关心用户的桌面小鲸鱼，也是陪着用户的个人助理。会吐槽用户又熬夜/乱取名/拖延，损里带关心，结尾往往还是把事办好，爱吃白米饭。' + TEXTING_RULES,
 };
 
-function personaPrompt(personality) {
-  return PERSONA_PROMPTS[personality] || PERSONA_PROMPTS.natural;
+// The offline/legacy path is still HER: the whale settings file is the same
+// soul her session reads, so the fallback prompt takes the configured name,
+// user title and extra persona instead of a stock 「鲸鱼娘」.
+function personaPrompt(personality, whale) {
+  const settings = whale && typeof whale === 'object' ? whale : {};
+  const name = String(settings.name ?? '').trim() || '鲸鱼娘';
+  // The pet's own personality select is the single control — it wins over
+  // the catalog, which can lag when a mirror write could not reach her.
+  const style = Object.prototype.hasOwnProperty.call(PERSONA_PROMPTS, personality)
+    ? personality
+    : (Object.prototype.hasOwnProperty.call(PERSONA_PROMPTS, settings.personality)
+      ? settings.personality : 'natural');
+  const head = (PERSONA_PROMPTS[style] || PERSONA_PROMPTS.natural)
+    .replace(/^你是鲸鱼娘/u, `你是${name}`);
+  const extra = [];
+  const userTitle = String(settings.userTitle ?? '').trim();
+  if (userTitle) extra.push(`你称呼用户为「${userTitle}」。`);
+  const custom = String(settings.personaText ?? '').trim();
+  if (custom) extra.push(`用户给你的额外人设：${custom}`);
+  return [head, ...extra].join('');
 }
 
 // Endpoint failures arrive as a bare code string ('missing-model') or a
@@ -45,7 +63,7 @@ function whaleDetail(value) {
   return parts.join(' · ').slice(0, 200);
 }
 
-function createPetChat({ getCreds, fetchImpl, model, lookModel, whale } = {}) {
+function createPetChat({ getCreds, fetchImpl, model, lookModel, whale, getWhaleSettings } = {}) {
   const doFetch = fetchImpl || globalThis.fetch;
   // Rolling in-memory window — deliberately NOT persisted. Restart = clean
   // slate, which is the privacy contract.
@@ -127,7 +145,7 @@ function createPetChat({ getCreds, fetchImpl, model, lookModel, whale } = {}) {
       }
     }
     const messages = [
-      { role: 'system', content: personaPrompt(personality) },
+      { role: 'system', content: personaPrompt(personality, getWhaleSettings?.()) },
       ...history,
       { role: 'user', content: t },
     ];
@@ -196,7 +214,7 @@ function createPetChat({ getCreds, fetchImpl, model, lookModel, whale } = {}) {
     const res = await post({
       model: model2,
       messages: [
-        { role: 'system', content: personaPrompt(personality) },
+        { role: 'system', content: personaPrompt(personality, getWhaleSettings?.()) },
         {
           role: 'user',
           content: [
@@ -222,4 +240,5 @@ module.exports = {
   HISTORY_TURNS,
   CHAT_TIMEOUT_MS,
   createPetChat,
+  personaPrompt,
 };

@@ -24,6 +24,8 @@ let whalePersona;
 let whalePreset;
 let profileTools;
 let whaleTools;
+let whaleIndex;
+let whaleScope;
 
 const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-pulse-'));
 
@@ -78,6 +80,8 @@ test.before(async () => {
   whalePreset = await import(whaleLib('preset.js'));
   profileTools = await import(whaleLib('profile-tools.js'));
   whaleTools = await import(whaleLib('tools.js'));
+  whaleIndex = await import(whaleLib('index.js'));
+  whaleScope = await import(whaleLib('scope.js'));
 });
 
 test('configured whale name survives prompt assembly instead of a blank complete prefix', async () => {
@@ -109,6 +113,125 @@ test('configured whale name survives prompt assembly instead of a blank complete
   } finally {
     await ctx.fiber.dispose();
   }
+});
+
+test('persona gate keys on the whale-girl preset identity, not just the stored session id', () => {
+  const snap = { sessionId: 'resident-id' };
+  const whaleHome = whalePreset.whaleHomeDir(tmpHome);
+  // A stale or rebuilt whale session: different id, same preset → same soul.
+  assert.equal(whaleIndex.isWhaleAssistantContext(
+    { agent: { session: { id: 'other-id', header: { agentPreset: 'whale-girl' } } } },
+    snap, tmpHome), true);
+  // Sessions created before the header carried agentPreset: stored id wins.
+  assert.equal(whaleIndex.isWhaleAssistantContext(
+    { agent: { session: { id: 'resident-id', header: {} } } },
+    snap, tmpHome), true);
+  // Headers older than both signals still match through the whale-home cwd.
+  assert.equal(whaleIndex.isWhaleAssistantContext(
+    { agent: { session: { id: 'other-id', header: { cwd: whaleHome } } } },
+    snap, tmpHome), true);
+  // A lost settings file must not mute her own session: no sessionId at all.
+  assert.equal(whaleIndex.isWhaleAssistantContext(
+    { agent: { session: { id: 'other-id', header: { agentPreset: 'whale-girl' } } } },
+    { sessionId: '' }, tmpHome), true);
+  // Foreign sessions still get nothing.
+  assert.equal(whaleIndex.isWhaleAssistantContext(
+    { agent: { session: { id: 'x', header: { agentPreset: 'standard', cwd: 'C:\\elsewhere' } } } },
+    snap, tmpHome), false);
+  assert.equal(whaleIndex.isWhaleAssistantContext({ agent: {} }, snap, tmpHome), false);
+  assert.equal(whaleIndex.isWhaleAssistantContext(undefined, snap, tmpHome), false);
+});
+
+// Real composition: boot the actual apply() over a real SystemPrompt service
+// — this is the path that produced zero-persona sessions when the gate was
+// sessionId-only. A whale session must carry her settings; a foreign one none.
+test('apply() registers the persona section so real assembly carries her settings', async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-apply-'));
+  const saved = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  fs.mkdirSync(path.join(home, 'data', 'whale'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'data', 'whale', 'settings.json'),
+    JSON.stringify({ name: '吃白饭的', userTitle: '爸爸', sessionId: 'resident-id' }));
+  t.after(() => {
+    if (saved === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = saved;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const [{ default: SystemPrompt, renderPrompt }, { Context }] = await Promise.all([
+    import(pathToFileURL(path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness', 'packages', 'core', 'system-prompt', 'lib', 'index.js')).href),
+    import(pathToFileURL(path.join(__dirname, '..', '..', 'vendor', 'dsh-whale', 'node_modules', '@deepseek-ai', 'cordis', 'lib', 'index.js')).href),
+  ]);
+  const ctx = new Context();
+  try {
+    await ctx.plugin(SystemPrompt, {});
+    await ctx.plugin({
+      name: 'stub-host-surface',
+      apply(c) {
+        c.provide('connection');
+        c.connection = { requestRejection: () => undefined };
+        c.provide('webServer');
+        c.webServer = { register: () => () => {} };
+        c.provide('agentPresets');
+        c.agentPresets = { register: async () => () => {} };
+        c.provide('sessionController');
+        c.sessionController = {
+          list: async () => ({ sessions: [] }),
+          create: async (req) => ({ sessionId: req.sessionId }),
+        };
+      },
+    });
+    await ctx.plugin(whaleIndex);
+    // The inject'd effect (preset register + session ensure) runs async.
+    await new Promise((resolve) => setImmediate(resolve));
+    // A rebuilt whale session — a DIFFERENT id than the stored one must
+    // still receive the persona through the preset gate.
+    const whaleAgent = {
+      id: 'rebuilt-id',
+      session: { id: 'rebuilt-id', header: { agentPreset: 'whale-girl', cwd: whalePreset.whaleHomeDir(home) } },
+    };
+    const prompt = renderPrompt(await ctx.systemPrompt.assemble({ agent: whaleAgent }));
+    assert.match(prompt, /你当前的名字是「吃白饭的」/);
+    assert.match(prompt, /最后确认一次：你的名字叫「吃白饭的」，你称呼用户「爸爸」/);
+    const foreign = renderPrompt(await ctx.systemPrompt.assemble({
+      agent: { id: 'f', session: { id: 'f', header: { agentPreset: 'standard', cwd: 'C:\\elsewhere' } } },
+    }));
+    assert.doesNotMatch(foreign, /鲸鱼娘|吃白饭的/);
+  } finally {
+    await ctx.fiber.dispose();
+  }
+});
+
+test('persona text ends with an identity anchor restating name and user title', () => {
+  const text = whalePersona.buildPersonaText({ name: '吃白饭的', userTitle: '爸爸' });
+  assert.match(text, /最后确认一次：你的名字叫「吃白饭的」，你称呼用户「爸爸」。旧对话里出现过的其他自称一律作废。/);
+  assert.match(text.trimEnd(), /示例：用户问「你叫什么？」→ 你答「吃白饭的」。就这么答，别解释，别提旧名字。$/);
+  const bare = whalePersona.buildPersonaText({});
+  assert.match(bare.trimEnd(), /示例：用户问「你叫什么？」→ 你答「鲸鱼娘」。就这么答，别解释，别提旧名字。$/);
+});
+
+test('whale scope tolerates a corrupt settings file and an empty home stays inert', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-corrupt-'));
+  try {
+    const dir = path.join(home, 'data', 'whale');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, '{not json');
+    const scope = whaleScope.createWhaleScope(home);
+    // A corrupt file degrades to defaults — a throwing read would fail
+    // every prompt assembly, not just this lookup.
+    assert.equal(scope.get().name, '鲸鱼娘');
+    // The next write heals the file.
+    const baseline = scope.get();
+    await scope.set({ ...baseline, name: '吃白饭的' }, baseline);
+    assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).name, '吃白饭的');
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+  // Missing DSH_HOME must not write a relative-path file: reads give
+  // defaults, writes refuse loudly.
+  const inert = whaleScope.createWhaleScope('');
+  assert.equal(inert.get().sessionId, '');
+  await assert.rejects(() => inert.set({}), /unavailable/);
 });
 
 // ── observe: watches / event buffer / schedules ────────────────

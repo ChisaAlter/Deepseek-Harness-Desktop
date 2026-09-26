@@ -55,5 +55,11 @@ export function buildPersonaText(settings = {}) {
   if (custom) {
     lines.push('', '用户给你的额外人设：', custom);
   }
+  // Closing anchor: long histories where she called herself 鲸鱼娘 compete
+  // with the configured name; a worked example lands harder on weak models
+  // than a bare rule, so the last lines are rule + example.
+  lines.push('',
+    `最后确认一次：你的名字叫「${name}」${userTitle ? `，你称呼用户「${userTitle}」` : ''}。旧对话里出现过的其他自称一律作废。`,
+    `示例：用户问「你叫什么？」→ 你答「${name}」。就这么答，别解释，别提旧名字。`);
   return lines.join('\n');
 }

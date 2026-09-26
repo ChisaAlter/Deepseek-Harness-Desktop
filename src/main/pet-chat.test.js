@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPetChat, PERSONA_PROMPTS, HISTORY_TURNS } = require('./pet-chat');
+const { createPetChat, PERSONA_PROMPTS, HISTORY_TURNS, personaPrompt } = require('./pet-chat');
 
 function okFetch(reply = '好呀') {
   return async () => ({
@@ -164,6 +164,48 @@ test('every personality has a persona prompt', () => {
   for (const p of ['natural', 'genki', 'tsundere', 'poison']) {
     assert.ok(PERSONA_PROMPTS[p].includes('鲸鱼娘'));
   }
+});
+
+// ── whale settings on the offline path ──
+// The legacy direct call is still her: when the harness is down the prompt
+// must carry the configured name, user title and extra persona instead of a
+// stock 「鲸鱼娘」.
+
+test('personaPrompt applies the whale settings name, title and extra persona', () => {
+  const prompt = personaPrompt('natural', {
+    name: '吃白饭的', userTitle: '爸爸', personaText: '爱喝汽水',
+  });
+  assert.ok(prompt.startsWith('你是吃白饭的，一只住在用户桌面上的软萌小鲸鱼'));
+  assert.ok(prompt.includes('你称呼用户为「爸爸」。'));
+  assert.ok(prompt.includes('用户给你的额外人设：爱喝汽水'));
+  // The pet's own select is the single control — it wins over the catalog
+  // value, which can lag while a mirror write is parked.
+  const styled = personaPrompt('natural', { personality: 'poison' });
+  assert.ok(styled.includes('软萌'));
+  // Catalog personality is the fallback when the pet's value is invalid.
+  const catalogWins = personaPrompt('bogus', { personality: 'poison' });
+  assert.ok(catalogWins.includes('毒舌'));
+  // No settings → the stock prompt stays byte-identical.
+  assert.equal(personaPrompt('genki', undefined), PERSONA_PROMPTS.genki);
+  assert.equal(personaPrompt('genki', {}), PERSONA_PROMPTS.genki);
+});
+
+test('the legacy chat fallback sends the configured persona as the system message', async () => {
+  let seen = null;
+  const fetchImpl = async (url, init) => {
+    seen = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '嗯' } }] }) };
+  };
+  const pc = createPetChat({
+    getCreds: () => ({ apiKey: 'k' }),
+    fetchImpl,
+    getWhaleSettings: () => ({ name: '吃白饭的', userTitle: '爸爸' }),
+  });
+  const res = await pc.chat({ text: '你叫什么' });
+  assert.equal(res.ok, true);
+  assert.equal(seen.messages[0].role, 'system');
+  assert.ok(seen.messages[0].content.includes('你是吃白饭的'));
+  assert.ok(seen.messages[0].content.includes('你称呼用户为「爸爸」'));
 });
 
 // ── whale shared-session path ──

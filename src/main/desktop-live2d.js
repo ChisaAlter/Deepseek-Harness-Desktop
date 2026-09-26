@@ -260,12 +260,25 @@ function createLive2dPetManager(options = {}) {
   // BOTH personas — the assistant catalog's personality follows it. Writes
   // ride the same loopback bridge as pet/chat; while the harness is down
   // the latest value waits in `pendingPersonality` and a slow retry keeps
-  // trying. Only transport failures retry — an answered rejection is a
-  // real verdict, not a queue-able miss.
+  // trying. An answered rejection is usually a real verdict, but a
+  // snapshot-conflict write retries cleanly, so rejections get a bounded
+  // number of extra attempts before the value is dropped.
   const MIRROR_RETRY_MS = 30000;
+  const MIRROR_MAX_REJECT_RETRIES = 3;
+  const mirrorRetryMs = typeof options.mirrorRetryMs === 'number' && options.mirrorRetryMs > 0
+    ? options.mirrorRetryMs : MIRROR_RETRY_MS;
   let pendingPersonality = null;
   let mirrorTimer = 0;
   let mirrorInFlight = false;
+  let mirrorRejectRetries = 0;
+  function scheduleMirrorRetry() {
+    if (mirrorTimer) return;
+    mirrorTimer = setTimeout(() => {
+      mirrorTimer = 0;
+      void flushPersonalityMirror();
+    }, mirrorRetryMs);
+    mirrorTimer?.unref?.();
+  }
   async function flushPersonalityMirror() {
     if (pendingPersonality === null || mirrorInFlight) {
       return;
@@ -277,17 +290,20 @@ function createLive2dPetManager(options = {}) {
       const res = whaleEnabled() === false
         ? { ok: false, transport: true, reason: 'assistant-disabled' }
         : await whalePost('settings/update', { personality: pendingPersonality });
-      if (res.ok || res.transport !== true) {
-        if (!res.ok) {
-          dbg(`personality mirror rejected: ${res.reason || 'unknown'}`);
-        }
+      if (res.ok) {
         pendingPersonality = null;
-      } else if (!mirrorTimer) {
-        mirrorTimer = setTimeout(() => {
-          mirrorTimer = 0;
-          void flushPersonalityMirror();
-        }, MIRROR_RETRY_MS);
-        mirrorTimer?.unref?.();
+        mirrorRejectRetries = 0;
+      } else if (res.transport === true) {
+        scheduleMirrorRetry();
+      } else {
+        dbg(`personality mirror rejected: ${res.reason || 'unknown'}`);
+        if (mirrorRejectRetries < MIRROR_MAX_REJECT_RETRIES) {
+          mirrorRejectRetries += 1;
+          scheduleMirrorRetry();
+        } else {
+          pendingPersonality = null;
+          mirrorRejectRetries = 0;
+        }
       }
     } finally {
       mirrorInFlight = false;
@@ -298,6 +314,7 @@ function createLive2dPetManager(options = {}) {
       return;
     }
     pendingPersonality = value;
+    mirrorRejectRetries = 0;
     void flushPersonalityMirror();
   }
   // Vision route for 「看看屏幕」: the settings-page fields
@@ -317,6 +334,20 @@ function createLive2dPetManager(options = {}) {
     };
   };
   const lookModelOf = () => lookRouteOf().model;
+  // The fallback persona is the same file her session reads: a quick-chat
+  // reply while the harness is down still answers with the user's settings.
+  const whaleSettingsFile = options.sessionsDir
+    ? path.join(path.dirname(options.sessionsDir), 'data', 'whale', 'settings.json')
+    : '';
+  const getWhaleSettings = () => {
+    if (!whaleSettingsFile) return undefined;
+    try {
+      const raw = JSON.parse(fs.readFileSync(whaleSettingsFile, 'utf8'));
+      return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : undefined;
+    } catch {
+      return undefined;
+    }
+  };
   const petChat = createPetChat({
     getCreds: () => {
       try {
@@ -329,6 +360,7 @@ function createLive2dPetManager(options = {}) {
     lookModel: lookModelOf,
     model: options.chatModel || 'deepseek-chat',
     whale: { enabled: whaleEnabled, post: whalePost },
+    getWhaleSettings,
   });
 
   // Cursor pump: forwarded mousemoves through a click-through layered window

@@ -23,17 +23,32 @@ function values(source) {
 }
 
 export function createWhaleScope(home) {
+  if (!home) {
+    // Missing DSH_HOME must never become a relative-path write: reads
+    // report defaults, writes refuse loudly instead of landing under the
+    // Harness process cwd.
+    return {
+      get() { return values(); },
+      async set() { throw new Error('Whale settings home is unavailable'); },
+    };
+  }
   const file = path.join(home, 'data', 'whale', 'settings.json');
   const legacy = path.join(home, 'settings.yaml.imported');
   const snapshots = new WeakMap();
 
   function read() {
-    if (fs.existsSync(file)) return values(JSON.parse(fs.readFileSync(file, 'utf8')));
-    if (!fs.existsSync(legacy)) return values();
-    const old = parse(fs.readFileSync(legacy, 'utf8'))?.['dsh-whale'];
-    // Old sessions may use a replay format the current Harness cannot open.
-    // Preserve the legacy file, but start a new reusable session.
-    return values({ ...old, sessionId: '' });
+    // A corrupt settings file must degrade to defaults — throwing here
+    // would break every prompt assembly, not just this one read.
+    try {
+      if (fs.existsSync(file)) return values(JSON.parse(fs.readFileSync(file, 'utf8')));
+      if (!fs.existsSync(legacy)) return values();
+      const old = parse(fs.readFileSync(legacy, 'utf8'))?.['dsh-whale'];
+      // Old sessions may use a replay format the current Harness cannot open.
+      // Preserve the legacy file, but start a new reusable session.
+      return values({ ...old, sessionId: '' });
+    } catch {
+      return values();
+    }
   }
 
   return {

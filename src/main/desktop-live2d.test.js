@@ -472,6 +472,40 @@ test('personality changes mirror into the whale assistant catalog', async (t) =>
   assert.deepEqual(last.body.payload, { personality: 'poison' });
 });
 
+test('personality mirror retries an answered rejection a bounded number of times', async (t) => {
+  const posts = [];
+  const originalFetch = globalThis.fetch;
+  // The endpoint answers but refuses (e.g. a snapshot-conflict write) — the
+  // value must be retried, then dropped, never parked silently forever.
+  globalThis.fetch = async (url, init) => {
+    posts.push({ url: String(url), body: JSON.parse(init.body) });
+    return { ok: true, json: async () => ({ result: { ok: false, error: { message: 'conflict' } } }) };
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const { deps } = growthDeps(t, {
+    getHarnessOrigin: () => 'http://127.0.0.1:9',
+    getSessionCookie: () => 'sess=1',
+    loadConfig: () => ({ whaleAssistantEnabled: true, live2dPet: { growth: { baseline: 0 } } }),
+    mirrorRetryMs: 5,
+  });
+  const manager = createLive2dPetManager(deps);
+  t.after(() => manager.dispose());
+  manager.show();
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 80));
+  await settle();
+  const mirrors = () => posts.filter((p) => p.url.endsWith('/dsh-whale/settings/update'));
+  // Startup heal posted once; the rejection earned three bounded retries.
+  assert.equal(mirrors().length, 4);
+  assert.deepEqual(mirrors()[0].body.payload, { personality: 'natural' });
+  assert.deepEqual(mirrors().at(-1).body.payload, { personality: 'natural' });
+  // The queue is drained — a later edit posts fresh, not behind the corpse.
+  manager.applySettings({ patch: { personality: 'tsundere' } });
+  await settle();
+  const last = mirrors().at(-1);
+  assert.deepEqual(last.body.payload, { personality: 'tsundere' });
+  assert.equal(mirrors().length, 8);
+});
+
 test('personality mirror parks while the assistant is disabled', async (t) => {
   const posts = [];
   const originalFetch = globalThis.fetch;
@@ -922,3 +956,28 @@ test('cursor hold releases close to the reported body instead of swallowing near
 });
 
 
+
+test('render-process-gone recreates the overlay window instead of leaving an opaque surface', () => {
+  const created = [];
+  const goneHandlers = [];
+  const deps = live2dDeps({
+    BrowserWindow: function () {
+      const w = stubWindow();
+      w.destroyed = false;
+      w.destroy = () => { w.destroyed = true; w.closed = true; };
+      w.webContents.on = (name, fn) => { if (name === 'render-process-gone') goneHandlers.push([w, fn]); };
+      w.webContents.once = () => {};
+      created.push(w);
+      return w;
+    },
+  });
+  const manager = createLive2dPetManager(deps);
+  manager.setEnabled(true);
+  manager.show();
+  assert.equal(created.length, 1);
+  const [dead] = goneHandlers;
+  dead[1]({}, { reason: 'crashed' });
+  assert.equal(created.length, 2);
+  assert.equal(dead[0].destroyed, true);
+  assert.equal(created[1].destroyed, false);
+});

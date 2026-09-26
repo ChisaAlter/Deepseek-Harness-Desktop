@@ -92,6 +92,33 @@ function dshHomeDir() {
   return process.env.DSH_HOME || '';
 }
 
+/** Settings read that can never break prompt assembly. */
+function readSettings(scope) {
+  try {
+    return scope.get() ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Her identity lives on the whale-girl preset, not on one session id:
+ * `agentPreset` is durable session-header metadata, so a rebuilt or stale
+ * whale conversation still gets her persona. The stored sessionId (same id
+ * pre-preset sessions) and the whale-home cwd (headers older than the
+ * agentPreset field) are secondary matches.
+ */
+export function isWhaleAssistantContext(assembleCtx, snap, home) {
+  const session = assembleCtx?.agent?.session;
+  const header = session?.header;
+  if (header?.agentPreset === WHALE_PRESET_ID) return true;
+  const sessionId = String(session?.id ?? assembleCtx?.agent?.id ?? '');
+  if (snap?.sessionId && sessionId === snap.sessionId) return true;
+  const whaleHome = home ? whaleHomeDir(home) : '';
+  return Boolean(whaleHome && typeof header?.cwd === 'string' && header.cwd
+    && path.resolve(header.cwd) === path.resolve(whaleHome));
+}
+
 function whaleDisplayName(settings) {
   return `🐳 ${String(settings?.name ?? '').trim() || '鲸鱼娘'}`;
 }
@@ -123,7 +150,7 @@ async function createOrReuseAssistantSession(ctx, scope, controller) {
   if (typeof controller?.list !== 'function' || typeof controller?.create !== 'function') {
     return { ok: false, error: 'session-controller-unavailable' };
   }
-  const snap = scope.get() ?? {};
+  const snap = readSettings(scope);
   const sessionId = String(snap.sessionId ?? '').trim() || `session-whale-${crypto.randomUUID()}`;
   const rows = sessionRowsFrom(await controller.list({}));
   const existing = rows.find((row) => sessionIdFromRow(row) === sessionId);
@@ -463,7 +490,7 @@ async function petLook(ctx, scope, { provider, model, image }) {
           { type: 'text', text: '这是用户此刻的屏幕截图。用你的人设随口点评你实际看到的东西——像瞟了一眼工位那样，一两句话，别报菜名。' },
         ],
       })],
-      system: buildPersonaText(scope.get() ?? {}),
+      system: buildPersonaText(readSettings(scope)),
       maxTokens: LOOK_MAX_TOKENS,
       purpose: 'vision-describe',
       signal: AbortSignal.timeout(LOOK_TIMEOUT_MS),
@@ -591,7 +618,7 @@ function registerRpc(ctx, scope) {
     const home = dshHomeDir();
     switch (endpoint) {
       case 'catalog': {
-        const snap = scope.get() ?? {};
+        const snap = readSettings(scope);
         return {
           ...snap,
           personalityOptions: PERSONALITIES,
@@ -650,7 +677,7 @@ function registerRpc(ctx, scope) {
         return {
           ok: true,
           sessionId: ensured.sessionId,
-          name: (scope.get() ?? {}).name || '鲸鱼娘',
+          name: readSettings(scope).name || '鲸鱼娘',
           model: selectedModelFrom(snapshot),
           ...(input?.includeCatalog === false ? {} : { groups: catalog ? catalogGroups(catalog) : null }),
           history: historyFromRecords(snapshot?.records),
@@ -773,14 +800,15 @@ export function apply(ctx) {
   }
 
   // Persona resolves from the live catalog per assemble — renaming or
-  // re-personalizing lands on the next turn without a preset rewrite.
+  // re-personalizing lands on the next turn without a preset rewrite. The
+  // gate is the whale-girl preset identity, so session-id churn or a
+  // rebuilt session can never leave her prompt-less.
   ctx.systemPrompt.section({
     name: 'dsh-whale:persona',
     order: 20,
     text: (assembleCtx) => {
-      const sessionId = assembleCtx?.agent?.session?.id ?? assembleCtx?.agent?.id ?? '';
-      const snap = scope.get() ?? {};
-      if (!snap.sessionId || sessionId !== snap.sessionId) return '';
+      const snap = readSettings(scope);
+      if (!isWhaleAssistantContext(assembleCtx, snap, home)) return '';
       return buildPersonaText(snap);
     },
   });
@@ -797,7 +825,7 @@ export function apply(ctx) {
     if (home) {
       startPulse(host, {
         home: whaleHomeDir(home),
-        getSelfId: () => String(scope.get()?.sessionId ?? ''),
+        getSelfId: () => String(readSettings(scope).sessionId ?? ''),
         wake: async (text) => {
           const ensured = await ensureAssistantSession(ctx, scope, host.sessionController);
           if (!ensured.ok || typeof host.sessionController?.prompt !== 'function') return;
