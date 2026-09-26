@@ -251,6 +251,20 @@ test('vendored dsh-whale package passes its own runtime integrity gate', () => {
   assert.deepEqual(missingRuntimeFiles(dir), []);
 });
 
+test('vendored dsh-whale peers satisfy the vendored runtime compatibility gate', async () => {
+  // The Loader disables a row whose @deepseek-ai/dsh-* peers reject the
+  // running runtime — exact pins stale after an upstream merge silently
+  // unmount the plugin (no route, no client bundle). Evaluate the shipped
+  // manifest through app-boot's real gate so the check travels with the pin.
+  const appBoot = pathToFileURL(path.join(
+    __dirname, '..', '..', 'vendor', 'deepseek-harness', 'packages', 'boot', 'app-boot', 'lib', 'index.js',
+  )).href;
+  const { evaluatePluginCompatibility, getDshRuntimeVersion } = await import(appBoot);
+  const dir = path.join(__dirname, '..', '..', 'vendor', 'dsh-whale');
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+  assert.equal(evaluatePluginCompatibility(manifest, {}, getDshRuntimeVersion()), undefined);
+});
+
 test('gitignore does not ignore vendored dsh-whale runtime dependencies', () => {
   const { spawnSync } = require('node:child_process');
   const root = path.join(__dirname, '..', '..');

@@ -11,6 +11,7 @@
     "src/binding.ts",
     "src/configuration.ts",
     "src/persistence.ts",
+    "src/policy.ts",
     "src/index.ts",
     "src/config.ts"
   ],

@@ -1,0 +1,57 @@
+{
+  "steps": [
+    "card-to-tab"
+  ],
+  "unified": {
+    "view": "unified",
+    "lines": 1,
+    "codeSpans": 1,
+    "shikiColored": 0,
+    "spanStyles": [
+      null
+    ],
+    "workerMarks": 1,
+    "sliceMax": 0.19999999995343387,
+    "slices": 1,
+    "reviewFiles": [
+      "c1-probe.ts"
+    ],
+    "tools": [
+      {
+        "tool": "split",
+        "pressed": "true"
+      },
+      {
+        "tool": "wrap",
+        "pressed": "false"
+      },
+      {
+        "tool": "open-file",
+        "pressed": null
+      }
+    ]
+  },
+  "d5": {
+    "ok": true,
+    "selected": "export const c1 = \"acceptance\"",
+    "numberText": "",
+    "signText": "",
+    "containsNumber": false,
+    "containsCode": true,
+    "numberUserSelect": "auto"
+  },
+  "split": {
+    "view": "unified",
+    "selectionAfterToggle": "export const c1 = \"acceptance\"",
+    "scrollY": null
+  },
+  "wrap": {
+    "wrapOn": "true",
+    "view": "unified"
+  },
+  "workerFinal": {
+    "workerMarks": 1,
+    "sliceCount": 1,
+    "sliceMax": 0.19999999995343387
+  }
+}

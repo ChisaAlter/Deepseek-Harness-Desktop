@@ -1,0 +1,20 @@
+HTTP/1.1 200 OK
+Server: ADAS/1.0.214
+Date: Fri, 25 Sep 2026 04:57:47 GMT
+Content-Type: application/json
+Content-Length: 6663
+Connection: keep-alive
+Vary: Accept-Encoding
+Vary: Accept-Encoding
+ETag: W/"14cbcdd025368961732e4a00eac1708c"
+Cache-Control: max-age=0, private, must-revalidate
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 57
+X-Request-Id: 3e8e61ce3e34f885505074e203d9373d
+X-Runtime: 0.066105
+Vary: Origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: frame-ancestors 'self' https://*.gitee.com
+BDWAF-Request-ID: 70f22de3-d14b-4f6a-9bca-6d845d18f317
+Set-Cookie: BEC=4431548549a19240b277aa1ec69b0837;Path=/;Max-Age=126000
+

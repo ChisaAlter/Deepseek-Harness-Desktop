@@ -140,11 +140,12 @@ function createFilePreviewWindowController(options = {}) {
 
   async function open(input = {}) {
     const sequence = ++requestSequence;
+    const en = getLocale() === 'en';
     const target = normalizePreviewFileTarget(input, authority);
     if (!target.ok) return target;
     const { cwd, relativePath } = target;
     const opened = await workspacePreview.fileUrl(target);
-    if (sequence !== requestSequence) return { ok: false, message: 'Preview request was replaced.' };
+    if (sequence !== requestSequence) return { ok: false, message: en ? 'Preview request was replaced.' : '预览请求已被替换。' };
     if (!opened?.ok || typeof opened.url !== 'string') return opened;
 
     let kind = previewFileKind(relativePath);
@@ -153,12 +154,12 @@ function createFilePreviewWindowController(options = {}) {
     let message = null;
     if (kind === 'text') {
       const result = await readWorkspaceFile(cwd, relativePath);
-      if (sequence !== requestSequence) return { ok: false, message: 'Preview request was replaced.' };
+      if (sequence !== requestSequence) return { ok: false, message: en ? 'Preview request was replaced.' : '预览请求已被替换。' };
       if (!result?.ok) {
-        message = result?.message || 'Could not read the file.';
+        message = result?.message || (en ? 'Could not read the file.' : '无法读取该文件。');
       } else if (result.binary === true) {
         kind = 'unsupported';
-        message = 'This binary file cannot be previewed.';
+        message = en ? 'This binary file cannot be previewed.' : '二进制文件无法预览。';
       } else {
         text = typeof result.text === 'string' ? result.text : '';
         truncated = result.truncated === true;

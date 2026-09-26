@@ -141,4 +141,15 @@ describe('ui-files apply', () => {
     expect(canOpenDesktopFile('dsh-resource://file/absolute/C:/work/a.ts', cwdOf)).toBe(false)
     expect(canOpenDesktopFile('not-an-address', cwdOf)).toBe(false)
   })
+
+  it('declines binary Office documents so the document preview claims them', () => {
+    const cwdOf = (sessionId: string) => (sessionId === 'sess-1' ? '/tmp/proj' : undefined)
+    for (const name of ['report.docx', 'deck.pptx', 'book.xlsx', 'old.doc', 'old.ppt', 'old.xls', 'UPPER.DOCX']) {
+      expect(canOpenDesktopFile(`dsh-resource://file/session/sess-1/work/${name}`, cwdOf), name).toBe(false)
+    }
+    // Text-shaped tables and ordinary files stay editable in this viewer.
+    for (const name of ['data.csv', 'data.tsv', 'notes.md', 'a.docx.md']) {
+      expect(canOpenDesktopFile(`dsh-resource://file/session/sess-1/work/${name}`, cwdOf), name).toBe(true)
+    }
+  })
 })

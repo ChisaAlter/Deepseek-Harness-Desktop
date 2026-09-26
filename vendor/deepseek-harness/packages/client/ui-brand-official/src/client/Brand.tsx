@@ -2,11 +2,10 @@ import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-side
 import css from './Brand.module.css'
 
 /**
- * Suppress the image mark while occupying the sidebar slot so its fish fallback
- * cannot reappear in official builds.
+ * Supply the transparent head to the collapsed sidebar's brand-mark slot.
  */
-export function OfficialBrandMark(_props: SidebarBrandMarkOwnerProps) {
-  return null
+export function OfficialBrandMark({ size }: SidebarBrandMarkOwnerProps) {
+  return <img className={css.railAvatar} src="/whale-isle-head.png" width={size} height={size} alt="" data-whale-isle-brand="mark" />
 }
 
 /**

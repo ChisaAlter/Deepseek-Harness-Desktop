@@ -1,0 +1,8 @@
+{
+  "id": "launcher-notes",
+  "name": "启动器便签",
+  "version": "1.0.0",
+  "description": "本地便签服务组件：安装后以独立进程运行，在 127.0.0.1 上暴露 HTTP 接口，并向自身数据目录写入心跳状态文件。",
+  "entry": "notes.js",
+  "kind": "service"
+}

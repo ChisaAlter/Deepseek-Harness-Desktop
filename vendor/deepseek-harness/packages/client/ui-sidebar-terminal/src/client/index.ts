@@ -54,9 +54,11 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.shortcuts.register({
     id: 'terminal.new' as ShortcutCommandId, label: () => t('new'), aliases: ['new terminal', 'shell'],
     defaults: {
-      'desktop:macos': { code: 'Backquote', modifiers: ['control'] },
-      'desktop:windows': { code: 'Backquote', modifiers: ['control'] },
-      'desktop:linux': { code: 'Backquote', modifiers: ['control'] },
+      // DSHD: Ctrl+` owns the terminal drawer toggle (ui-titlebar
+      // terminal.drawer.toggle); new-terminal moves to primary+shift.
+      'desktop:macos': { code: 'Backquote', modifiers: ['primary', 'shift'] },
+      'desktop:windows': { code: 'Backquote', modifiers: ['primary', 'shift'] },
+      'desktop:linux': { code: 'Backquote', modifiers: ['primary', 'shift'] },
       'web:macos': { code: 'Backquote', modifiers: ['control'] },
       'web:windows': { code: 'Backquote', modifiers: ['control'] },
     },

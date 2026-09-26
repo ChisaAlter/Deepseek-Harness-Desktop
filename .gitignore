@@ -104,3 +104,7 @@ logs/
 
 # Local test/QA artifacts (large binaries, logs)
 .artifacts/
+
+# Generated Office runtime payload + download cache (prepare:office-runtime)
+build/office-runtime/
+build/office-runtime-cache/

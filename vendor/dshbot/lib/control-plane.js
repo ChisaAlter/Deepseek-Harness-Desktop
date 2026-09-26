@@ -137,9 +137,10 @@ export function createControlPlane(ctx, scope, { now = Date.now, capabilities = 
     return result;
   };
   const view = () => {
-    const descriptor = ctx.settings.describe().find((entry) => entry.ns === 'dshbot');
+    const descriptor = ctx.settings.describe().find((entry) => entry.ns === 'dsh-bot');
     if (!descriptor) fail('Bot catalog is unavailable.');
-    return { ns: 'dshbot', revision: descriptor.revision, value: descriptor.value,
+    return { ns: 'dsh-bot', revision: descriptor.revision, value: descriptor.value,
+      autoGenerate: descriptor.autoGenerate ?? false,
       schema: descriptor.schema ?? {}, applies: descriptor.applies ?? 'live', secrets: [],
       ...(descriptor.base === undefined ? {} : { base: descriptor.base }),
       ...(descriptor.user === undefined ? {} : { user: descriptor.user }) };
@@ -655,6 +656,15 @@ export function createControlPlane(ctx, scope, { now = Date.now, capabilities = 
             latest.triggerToken ? latest : { ...latest, triggerToken: token }));
           return { token: String(scope.get().triggerToken ?? token) };
         }
+        if (endpoint === 'catalog/items') {
+          checkRevision(input.revision);
+          // An absent/!array items field would hit the schema default and wipe
+          // the roster; reject malformed payloads before they reach set().
+          if (!Array.isArray(input.items)) fail('catalog/items expects an items array.');
+          const previous = scope.get();
+          await scope.set({ ...previous, items: input.items }, previous);
+          return { view: view() };
+        }
         if (endpoint === 'bot/activity') return profiles.activity(input);
         if (endpoint === 'bot/mark-read') return profiles.markRead(input);
         if (endpoint === 'bot/open') return profiles.open(input);
@@ -718,9 +728,69 @@ export function registerControlPlane(ctx, scope, options) {
   ctx.on?.('agent/status', ({ agent, status }) => {
     if (status === 'idle') void control.settle(agent).catch((error) => ctx.logger?.warn?.('dshbot routine settlement failed: %s', error.message));
   });
-  ctx.inject?.(['connection'], (host) => host.effect(() => host.connection.rpc.handle('/dshbot', async (endpoint, input) => {
-    try { return { ok: true, value: await control.command(endpoint, input) }; }
-    catch (error) { return { ok: false, error: { code: 'dshbot/rejected', message: String(error.message ?? error) } }; }
+  // rpc.handle mounts its route through the caller's webServer service, so
+  // both must be injected or the effect dies before the channel registers.
+  // `connection.rpc.handle` registers through the Connection plugin's own
+  // context, which never injected `webServer`, so it cannot mount routes for
+  // callers (0.1.7 drift). Mount the channel prefix ourselves and authenticate
+  // through the public `connection.admit` fence, speaking the same
+  // client-request/server-response envelope as `createWebConnectionRpc`.
+  ctx.inject?.(['connection', 'webServer'], (host) => host.effect(() => host.webServer.register({
+    kind: 'prefix',
+    path: '/dshbot',
+    async handler(req, res) {
+      const reply = (status, body) => {
+        res.writeHead(status, body === undefined ? {} : { 'content-type': 'application/json' });
+        res.end(body === undefined ? undefined : JSON.stringify(body));
+      };
+      const endpoint = (() => {
+        const pathname = new URL(req.url ?? '/', 'http://x').pathname;
+        if (!pathname.startsWith('/dshbot/')) return undefined;
+        const candidate = pathname.slice('/dshbot/'.length);
+        const segments = candidate.split('/');
+        if (segments.some((s) => s === '' || s === '.' || s === '..' || !/^[A-Za-z0-9_$.-]+$/.test(s))) return undefined;
+        return candidate;
+      })();
+      if (req.method !== 'POST' || endpoint === undefined) return reply(404);
+      const admission = host.connection.admit(req);
+      if ('rejection' in admission) {
+        res.writeHead(admission.rejection);
+        res.end(admission.rejection === 401 ? 'unauthorized' : 'forbidden');
+        return;
+      }
+      const mediaType = String(req.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase();
+      if (mediaType !== 'application/json') {
+        res.writeHead(415);
+        res.end('content type must be application/json');
+        return;
+      }
+      let body;
+      try {
+        const chunks = [];
+        let size = 0;
+        for await (const chunk of req) { size += chunk.length; if (size > 8 * 1024 * 1024) return reply(413); chunks.push(chunk); }
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      } catch {
+        res.writeHead(400);
+        res.end('body is not JSON');
+        return;
+      }
+      const rpcId = typeof body?.rpcId === 'string' ? body.rpcId : '';
+      const envelopeError = (message) => reply(200, {
+        type: 'server-response', rpcId,
+        result: { ok: false, error: { code: 'gateway/bad-request', message, details: { issues: [] } } },
+      });
+      if (body?.type !== 'client-request' || typeof body?.method !== 'string' || !rpcId) {
+        return envelopeError('invalid client-request message');
+      }
+      if (body.method !== endpoint) {
+        return envelopeError(`method ${JSON.stringify(body.method)} does not match endpoint ${JSON.stringify(endpoint)}`);
+      }
+      let result;
+      try { result = { ok: true, value: await control.command(endpoint, body.payload) }; }
+      catch (error) { result = { ok: false, error: { code: 'dshbot/rejected', message: String(error?.message ?? error), details: {} } }; }
+      reply(200, { type: 'server-response', rpcId, result });
+    },
   })));
   ctx.inject?.(['webServer'], (host) => host.effect(() => host.webServer.register({
     kind: 'prefix',

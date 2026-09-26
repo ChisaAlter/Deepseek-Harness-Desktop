@@ -1,8 +1,8 @@
 /** Desktop git diff the Electron preload exposes on `window.shell`. */
 
-/** One unified-diff line. */
+/** One unified-diff line; `eof` is the `\` end-of-file annotation. */
 export interface DiffLine {
-  kind: 'context' | 'add' | 'del'
+  kind: 'context' | 'add' | 'del' | 'eof'
   text: string
 }
 

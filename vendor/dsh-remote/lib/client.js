@@ -714,6 +714,7 @@ function RemoteSettingsSection({ t }) {
   const [forwards, setForwards] = React2.useState([]);
   const [fwdForm, setFwdForm] = React2.useState(EMPTY_FORWARD);
   const [audit, setAudit] = React2.useState(null);
+  const [confirmDel, setConfirmDel] = React2.useState(null);
   const refresh = React2.useCallback(() => {
     remoteApi.machines().then((r) => {
       setMachines(r.machines || []);
@@ -760,9 +761,7 @@ function RemoteSettingsSection({ t }) {
     }).catch((e) => setErr(t("form.testFail", { error: String(e && e.message || e) }))).finally(() => setBusyId(""));
   };
   const removeMachine = (m) => {
-    if (!window.confirm(t("machines.deleteConfirm", { name: m.name || m.host }))) return;
-    setBusyId("del:" + m.id);
-    run(() => remoteApi.deleteMachine(m.id)).finally(() => setBusyId(""));
+    setConfirmDel(m);
   };
   const importable = sshEntries || [];
   React2.useEffect(() => {
@@ -1235,6 +1234,7 @@ function RemoteExplorerBody({ useTabInfo, sessionId, useSessions, t }) {
   const [menu, setMenu] = React4.useState(null);
   const [namePrompt, setNamePrompt] = React4.useState(null);
   const [nameDraft, setNameDraft] = React4.useState("");
+  const [confirmDel, setConfirmDel] = React4.useState(null);
   const [copied, setCopied] = React4.useState("");
   const dataRef = React4.useRef(data);
   dataRef.current = data;
@@ -1358,7 +1358,7 @@ function RemoteExplorerBody({ useTabInfo, sessionId, useSessions, t }) {
       setNamePrompt({ kind: "mkdir", path: base, name: "" });
       setNameDraft("");
     } else if (id === "delete") {
-      if (window.confirm(t("explorer.deleteConfirm", { path: it.path }))) void doFs("remove", { path: it.path });
+      setConfirmDel({ path: it.path, dir: it.type === "dir" });
     }
   };
   const renderRows = (dir, depth) => {

@@ -1,4 +1,4 @@
-# Deepseek-Harness-Desktop NSIS customization (assisted installer only).
+# Whale Isle NSIS customization (assisted installer only).
 #
 # GUI polish (the three page/header macros below) is skipped in silent mode
 # (/S). The single exception is customInit: a registry-hygiene block that also
@@ -38,7 +38,7 @@
 
 !macro customHeader
   # Replace the stock "Nullsoft Install System vX.XX" footer with the product.
-  BrandingText "Deepseek-Harness-Desktop ${VERSION}"
+  BrandingText "Whale Isle ${VERSION}"
 !macroend
 
 # --- Corrupted install-record hygiene (incident 2026-09-12) ----------------
@@ -50,7 +50,7 @@
 # before any page or section work.
 #
 # A record counts as live only when it is an absolute Win32 path AND still
-# resolves on disk (InstallLocation → ${APP_EXECUTABLE_FILENAME} present;
+# resolves on disk (InstallLocation → current or legacy app executable present;
 # UninstallString → quoted uninstaller present). Anything else — drive-relative
 # mangling like "C:AiDeepseek…" from an unquoted bash /D=, or a well-formed
 # path whose directory was wiped — is deleted so stock upgrade logic can never
@@ -133,14 +133,20 @@
   StrCpy $2 ""
 
   # InstallLocation: keep only a live record — absolute path that still holds
-  # the app executable. Dead entries are deleted so a wiped directory (e.g. a
+  # the current or legacy app executable. Dead entries are deleted so a wiped directory (e.g. a
   # cleaned tmp target) can never redirect a fresh install.
   ReadRegStr $0 SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" InstallLocation
   ${If} $0 != ""
     !insertmacro _DSHD_IS_ABS $0 $R0
     ${If} $R0 == "1"
       ${IfNot} ${FileExists} "$0\${APP_EXECUTABLE_FILENAME}"
-        StrCpy $R0 "0"
+        ${IfNot} ${FileExists} "$0\Deepseek-Harness-Desktop.exe"
+          ${IfNot} ${FileExists} "$0\Deepseek-Harness-Launcher.exe"
+            ${IfNot} ${FileExists} "$0\Whale Isle Launcher.exe"
+              StrCpy $R0 "0"
+            ${EndIf}
+          ${EndIf}
+        ${EndIf}
       ${EndIf}
     ${EndIf}
     ${If} $R0 == "0"

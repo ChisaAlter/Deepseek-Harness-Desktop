@@ -1,4 +1,6 @@
-const { app, dialog, session } = require('electron');
+const { app, dialog, ipcMain, session } = require('electron');
+const { PRODUCT_NAME, LEGACY_DESKTOP_USER_DATA, preserveUserDataPath } = require('../shared/product-identity');
+preserveUserDataPath(app, LEGACY_DESKTOP_USER_DATA);
 const fs = require('fs');
 const { loadConfig, saveConfig, REMOTE_FEATURE_ENABLED, parkRemoteSnapshot, publicConfig, normalizeRendererConfigPatch, normalizeRemotePatch, readConfigSnapshot, configRevision } = require('./config');
 const { setDesktopDshHome, desktopDshHomeFromUserData, sanitizePackagedDshHomeEnv } = require('../shared/dsh-home');
@@ -10,9 +12,13 @@ const { ensureUsagePanelPlugin } = require('./usage-panel-preset');
 const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDshbotPlugin } = require('./dshbot-desktop');
+const { ensureDesktopTaskControl } = require('./task-control-overlay');
+const { createTaskProtection, installTaskProtection, getTaskProtection } = require('./task-protection');
+const { createTaskControlPeer } = require('./task-control-peer');
 const { ensureDesktopDshWhale } = require('./dsh-whale-desktop');
 const { ensureDesktopDshRemote } = require('./dsh-remote-desktop');
 const { ensureDesktopMarket } = require('./dsh-market-desktop');
+const { ensureDesktopOfficeRuntime } = require('./office-runtime');
 const { removeLegacyDshbotPreset } = require('./legacy-dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
 const { registerIpc } = require('./ipc');
@@ -34,6 +40,7 @@ const {
   shouldCloseLauncherAfterDesktopStart,
   writeLastDesktopStart,
   recordLastDesktopStart,
+  kernelLogTail,
   runColdStartGate: runLauncherColdStartGate,
   createParkedUpdateDrainer,
   presentUpdateAsk,
@@ -64,8 +71,10 @@ const {
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
+  getHarnessView,
   isHarnessLoaded,
   hideHarnessView,
+  dismissMainWindow,
   showLauncher,
   prepareLauncher,
   getLauncherWindow,
@@ -76,6 +85,7 @@ const {
 } = require('./window');
 const { watchSystemTheme, currentTheme, applyAppTheme } = require('./chrome');
 const { showClosingOverlay } = require('./closing-overlay');
+const { installShortcutService, getShortcutService } = require('./shortcuts');
 const { hideOnClose } = require('./close-behavior');
 const { qaFlag, qaRemoteMode: readRemoteMode } = require('./qa-gate');
 const { devToolsShortcutAllowed, attachDevToolsShortcut } = require('./devtools-shortcut');
@@ -162,6 +172,9 @@ async function setRemoteFromQa(patch) {
 
 let quitting = false;
 let stoppingForQuit = false;
+// Shell-owned input block for the shortcut bridge: while the closing overlay
+// owns the window, bound chords and menu dispatch must not run commands.
+let closingOverlayActive = false;
 let desktopResources = null;
 let qaQuitIntercepted = false;
 /**
@@ -195,6 +208,9 @@ function bindMainClose(win) {
   mainCloseBound.add(win);
   win.on('close', (event) => {
     if (quitting) {
+      // A protection prompt may be in flight — swallow the close instead of
+      // destroying a window the user just cancelled quitting over.
+      if (!stoppingForQuit) event.preventDefault();
       return;
     }
     if (hideOnClose(loadConfig(), quitting)) {
@@ -227,6 +243,7 @@ function bindLauncherClose(win) {
   });
   win.on('close', (event) => {
     if (quitting) {
+      if (!stoppingForQuit) event.preventDefault();
       return;
     }
     if (getMainWindow()) {
@@ -266,7 +283,12 @@ async function startDesktopFromLauncher(options = {}) {
   const recoveryLaunch = options.recoveryLaunch === true || options.skipLaunch === true;
   try {
     if (options.forceRestart) {
-      await harness.restart();
+      // forceRestart replaces a running desktop: ride the same protected
+      // commit as menu/tray restarts so active work prompts first.
+      const guarded = await restartWithCleanup();
+      if (guarded && guarded.proceeded === false) {
+        return { ok: false, cancelled: guarded.code === 'cancelled', code: guarded.code || 'blocked' };
+      }
     } else {
       await harness.start();
     }
@@ -289,7 +311,7 @@ async function startDesktopFromLauncher(options = {}) {
     return harness.snapshot();
   } catch (error) {
     const message = error && error.message ? error.message : String(error);
-    writeLastDesktopStart(app.getPath('userData'), { ok: false, error: message });
+    writeLastDesktopStart(app.getPath('userData'), { ok: false, error: message, logTail: kernelLogTail(dsh) });
     await openLauncher();
     sendToLauncher('shell:show-tab', { tab: 'home' });
     sendToLauncher('shell:desktop-failed', { error: message });
@@ -311,6 +333,16 @@ async function confirmUnverifiedColdStart(info) {
   return result.response === 0;
 }
 
+// Release notes travel on the check payload (`notes`); the update ask used to
+// drop them, so the user confirmed blind. Surface a bounded excerpt as detail.
+function updateAskDetail(check) {
+  const notes = typeof check?.notes === 'string' ? check.notes.trim() : '';
+  if (!notes) {
+    return undefined;
+  }
+  return notes.length > 600 ? `${notes.slice(0, 600)}…` : notes;
+}
+
 // Slim-package cold start talks to the managed runtime: route-aware checks,
 // installs that keep the launcher alive, and external process start.
 function gateInstallUpdate(onProgress, check) {
@@ -324,6 +356,7 @@ function gateInstallUpdate(onProgress, check) {
   return installUpdate(onProgress, {
     confirmUnverified: confirmUnverifiedColdStart,
     expectedCheck: check,
+    taskProtection: getTaskProtection(),
   });
 }
 
@@ -346,6 +379,7 @@ function runColdStartGate() {
         cancelId: 1,
         title: '发现新版本',
         message: `是否更新到 ${check.latest || check.version || ''}？`,
+        detail: updateAskDetail(check),
         noLink: true,
       });
       return result.response === 0;
@@ -383,9 +417,11 @@ const harness = new HarnessController({
   ensureSessionSearchOverlay,
   ensureDshImPlugin,
   ensureDshbotPlugin,
+  ensureTaskControlPlugin: ensureDesktopTaskControl,
   ensureDshWhalePlugin: ensureDesktopDshWhale,
   ensureDshRemotePlugin: ensureDesktopDshRemote,
   ensureDesktopMarket,
+  ensureDesktopOfficeRuntime: async () => ensureDesktopOfficeRuntime(),
   removeLegacyDshbotPreset,
   applyDisabledBundles,
   healDanglingBundles,
@@ -394,6 +430,117 @@ const harness = new HarnessController({
   ensureWorkspace: (url, workspace, fetchImpl, options) => (
     ensureWorkspace(url, workspace, fetchImpl, { cookie: dsh.sessionCookie, ...options })
   ),
+});
+
+// --- Task protection (quit/stop/restart/update) -----------------------------
+// The coordinator inspects Host-side work through the dsh-task-control
+// plugin's loopback route and prompts before any destructive side effect.
+// See docs/features/task-protection.md.
+
+const TASK_VERBS = {
+  quit: '退出',
+  restart: '重启',
+  reload: '重新加载',
+  stop: '停止桌面端',
+  update: '安装更新',
+  install: '安装运行时',
+  delta: '增量更新',
+};
+
+function describeWorkItem(item) {
+  switch (item && item.kind) {
+    case 'agent':
+      return `代理会话运行中（${item.id}）`;
+    case 'job':
+      return `后台任务运行中（${item.id}）`;
+    case 'request':
+      return `${item.count || 1} 个在途请求`;
+    case 'socket':
+      return `${item.count || 1} 条已建立的远程连接`;
+    case 'schedule-task':
+      return `定时提醒${item.due ? '已到期' : '待触发'}：${item.title || item.id}`;
+    case 'bot-routine':
+      return `机器人例程${item.detail === 'running' ? '运行中' : '待执行'}（${item.id}）`;
+    case 'bot-inbox':
+      return `机器人收件箱有 ${item.count || ''} 条待处理消息`;
+    case 'pty':
+      return `${item.count || 1} 个打开的终端会话`;
+    default:
+      return item && item.detail ? String(item.detail) : '有后台工作项';
+  }
+}
+
+async function confirmTaskStop(operation, inspection) {
+  const verb = TASK_VERBS[operation] || '继续';
+  const parts = [];
+  for (const item of inspection.activeWork || []) {
+    parts.push(describeWorkItem(item));
+  }
+  for (const item of inspection.scheduledWork || []) {
+    parts.push(describeWorkItem(item));
+  }
+  const unknownCoverage = Object.values(inspection.coverage || {})
+    .some((value) => value !== 'ok' && value !== 'intentional-disabled');
+  const detail = [
+    parts.length > 0 ? `仍在运行：${[...new Set(parts)].join('；')}` : '后台任务状态无法完全确认',
+    unknownCoverage ? '注意：部分后台服务状态未知' : '',
+  ].filter(Boolean).join('\n');
+  const win = getMainWindow() || getLauncherWindow();
+  const anchor = win && win.isVisible() ? win : null;
+  const options = {
+    type: 'warning',
+    buttons: ['取消', `仍然${verb}`],
+    defaultId: 0,
+    cancelId: 0,
+    title: `${verb}前确认`,
+    message: `${verb}将中断仍在运行的工作`,
+    detail,
+    noLink: true,
+  };
+  const result = anchor
+    ? await dialog.showMessageBox(anchor, options)
+    : await dialog.showMessageBox(options);
+  return result.response === 1;
+}
+
+const taskProtection = createTaskProtection({
+  getBaseUrl: () => (typeof dsh.baseUrl === 'string' ? dsh.baseUrl : ''),
+  hostRunning: () => isDesktopKernelRunning() && dsh.webReady === true && Boolean(dsh.baseUrl),
+  confirm: confirmTaskStop,
+  shellWork: () => {
+    const count = Number(desktopResources && desktopResources.pty && typeof desktopResources.pty.count === 'function'
+      ? desktopResources.pty.count() : 0);
+    return count > 0 ? [{ kind: 'pty', id: 'desktop-pty', count }] : [];
+  },
+  log: (message) => dsh.log(message, 'app'),
+});
+installTaskProtection(taskProtection);
+
+// Slim-launcher handshake: the peer endpoint lets a separate launcher process
+// ask this desktop to stop (task-protected) or to prepare for an install.
+const taskControlPeer = createTaskControlPeer({
+  stateDir: () => app.getPath('userData'),
+  status: () => ({ kernel: typeof dsh.state === 'string' ? dsh.state : 'unknown', webReady: dsh.webReady === true }),
+  onPeerStop: async () => {
+    // "Stop the desktop" for an external launcher means this process exits —
+    // the legacy path was taskkill, so the protected equivalent is a
+    // terminal coordinate followed by the normal quit funnel.
+    const result = await taskProtection.coordinate('stop', { terminal: true });
+    if (!result.proceeded) {
+      return { ok: false, code: result.code || 'cancelled' };
+    }
+    setTimeout(() => quitApp(), 250);
+    return { ok: true, quit: true };
+  },
+  onPeerInstall: async () => {
+    const result = await taskProtection.coordinate('install', { terminal: true });
+    if (!result.proceeded) {
+      return { ok: false, code: result.code || 'cancelled' };
+    }
+    // Flush the response before the process starts its protected quit.
+    setTimeout(() => quitApp(), 250);
+    return { ok: true, quit: true };
+  },
 });
 
 async function pickWorkspace() {
@@ -426,17 +573,30 @@ function cleanupDesktopResources() {
   });
 }
 
+/**
+ * Restart goes through the task-protection funnel: active Host work prompts
+ * before PTY/preview teardown. `recordLastDesktopStart` keeps running inside
+ * the commit so a cancelled prompt does not leave a stale failure marker.
+ */
 function restartWithCleanup() {
-  cleanupDesktopResources();
-  // Menu / tray / plugin-align restarts must refresh last-desktop-start too,
-  // or a stale { ok:false } keeps holding the next cold start at the launcher
-  // even though the desktop already recovered through this path.
-  return recordLastDesktopStart(app.getPath('userData'), () => harness.restart());
+  return taskProtection.coordinate('restart', {
+    commit: async () => {
+      cleanupDesktopResources();
+      return recordLastDesktopStart(app.getPath('userData'), () => harness.restart(), () => kernelLogTail(dsh));
+    },
+  }).then((result) => (result.proceeded ? undefined : result));
 }
 
 function reloadWithCleanup() {
-  cleanupDesktopResources();
-  return harness.reload();
+  // Reload keeps the Host alive: no admission lock, only the prompt and the
+  // shell-side teardown (PTY/preview) inside commit.
+  return taskProtection.coordinate('reload', {
+    hostLock: false,
+    commit: async () => {
+      cleanupDesktopResources();
+      return harness.reload();
+    },
+  }).then((result) => (result.proceeded ? undefined : result));
 }
 
 function quitApp() {
@@ -487,6 +647,7 @@ const drainParkedUpdateCheck = createParkedUpdateDrainer({
         cancelId: 1,
         title: '发现新版本',
         message: `是否更新到 ${pending.latest || pending.version || ''}？`,
+        detail: updateAskDetail(pending),
         noLink: true,
       });
       return result.response === 0;
@@ -506,14 +667,14 @@ const drainParkedUpdateCheck = createParkedUpdateDrainer({
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
-  console.error('Deepseek-Harness-Desktop is already running. Quit the installed app before npm start (same appId single-instance lock).');
+  console.error(`${PRODUCT_NAME} is already running. Quit the installed app before npm start (same appId single-instance lock).`);
   app.quit();
 } else {
   app.on('second-instance', () => {
     showForeground();
   });
 
-  app.setName('Deepseek-Harness-Desktop');
+  app.setName(PRODUCT_NAME);
   app.setAppUserModelId('ai.deepseek.harness.gui');
 
   // Window-scoped DevTools toggle (Ctrl+Shift+I / Cmd+Alt+I). Never an OS
@@ -688,6 +849,18 @@ if (!gotLock) {
       stopDesktopInstallControl();
       dsh.log(`桌面安装控制通道启动失败：${error.message || String(error)}`, 'error');
     }
+    // Slim-launcher handshake endpoint: publishing the peer file lets a
+    // launcher-driven install/stop run through task protection instead of
+    // touching the process directly.
+    taskControlPeer.start()
+      .then((result) => {
+        if (result.ok === false) {
+          dsh.log(`任务保护握手端点启动失败：${result.error || 'unknown'}`, 'error');
+        }
+      })
+      .catch((error) => {
+        dsh.log(`任务保护握手端点启动失败：${error.message || String(error)}`, 'error');
+      });
 
     desktopResources = registerIpc({
       dsh,
@@ -706,12 +879,26 @@ if (!gotLock) {
         }
       },
     });
-    buildMenu({
+    installShortcutService({
+      ipcMain,
+      userData: app.getPath('userData'),
+      platform: process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux',
+      getView: () => getHarnessView() ?? undefined,
+      getWindow: () => getMainWindow(),
+      getOrigin: () => getHarnessOrigin(),
+      overlayInput: (win) => ({ revision: 0, blocked: Boolean(win) && closingOverlayActive }),
+      onMenuChanged: () => rebuildMenu(),
+    });
+    const existingView = getHarnessView();
+    if (existingView) getShortcutService().attach(existingView);
+    const rebuildMenu = () => buildMenu({
       onOpenWorkspace: () => ignoreFailure(pickWorkspace()),
       onOpenLauncher: () => ignoreFailure(openLauncher()),
       onRestart: () => ignoreFailure(restartWithCleanup()),
       onReload: () => ignoreFailure(reloadWithCleanup()),
+      shortcuts: getShortcutService(),
     });
+    rebuildMenu();
     createTray({
       onShow: showForeground,
       onOpenLauncher: () => ignoreFailure(openLauncher()),
@@ -793,15 +980,63 @@ if (!gotLock) {
       return;
     }
     event.preventDefault();
-    stoppingForQuit = true;
-    stopDesktopInstallControl();
-    cleanupDesktopResources();
-    hideHarnessView(getMainWindow());
-    showClosingOverlay(getMainWindow(), loadConfig().locale)
-      .catch(() => {})
-      .then(() => harness.shutdown())
-      .finally(() => app.quit());
+    void finalizeQuit();
   });
+
+  // All quit paths funnel here: the protection decision (inspect → acquire →
+  // drain → inspect → confirm) completes before the first shutdown side
+  // effect runs. A cancelled prompt restores the pre-quit flags.
+  async function finalizeQuit() {
+    const result = await taskProtection.coordinate('quit', {
+      terminal: true,
+      commit: async () => {
+        stoppingForQuit = true;
+        stopDesktopInstallControl();
+        void taskControlPeer.stop();
+        cleanupDesktopResources();
+        hideHarnessView(getMainWindow());
+        closingOverlayActive = true;
+        await showClosingOverlay(getMainWindow(), loadConfig().locale).catch(() => {});
+        await harness.shutdown();
+      },
+    });
+    if (result.proceeded) {
+      app.quit();
+      return;
+    }
+    quitting = false;
+    stoppingForQuit = false;
+    closingOverlayActive = false;
+    // The user already accepted the risk prompt; a failed drain or an
+    // unreachable runtime must not silently cancel the quit — offer a
+    // last-resort force exit so the app can always be closed.
+    if (result.code && result.code !== 'cancelled' && result.code !== 'busy') {
+      const choice = await dialog.showMessageBox({
+        type: 'warning',
+        title: '退出未完成',
+        message: '桌面运行时未响应退出请求',
+        detail: '后台任务状态无法完全确认。可重试退出，或强制退出（运行中的工作将直接中断）。',
+        buttons: ['重试', '强制退出'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      }).catch(() => ({ response: 0 }));
+      if (choice.response === 1) {
+        quitting = true;
+        stoppingForQuit = true;
+        try {
+          stopDesktopInstallControl();
+          void taskControlPeer.stop();
+          cleanupDesktopResources();
+          hideHarnessView(getMainWindow());
+          await harness.shutdown();
+        } catch {
+          // A wedged runtime must not stall the force exit.
+        }
+        app.exit(0);
+      }
+    }
+  }
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin' && !hideOnClose(loadConfig())) {

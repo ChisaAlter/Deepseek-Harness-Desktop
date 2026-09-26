@@ -6,6 +6,7 @@
 // extraMetadata). `DSHD_LAUNCHER_PACKAGE=1` forces the slim behavior for dev
 // verification before the slim packaging target exists.
 const { DESKTOP_TARGET } = require('./install-detect');
+const { LEGACY_DESKTOP_USER_DATA } = require('../shared/product-identity');
 
 let cachedFlavor;
 
@@ -33,14 +34,12 @@ function runtimeTarget() {
   return isLauncherPackage() ? DESKTOP_TARGET : undefined;
 }
 
-// The slim launcher keeps its OWN userData (its own config.json and its own
-// single-instance lock — Electron's lock mutex derives from the userData
-// path, so sharing the directory would make the launcher and the runtime
-// mutually exclusive). What must be shared is pointed at the desktop home
-// explicitly instead.
+// The slim launcher keeps its OWN userData and instance lock; both entry
+// points pin their original paths after the public product rename. Shared
+// desktop state is addressed explicitly rather than moving either directory.
 function desktopUserDataDir(app) {
   const path = require('path');
-  return path.join(app.getPath('appData'), DESKTOP_TARGET.productName);
+  return path.join(app.getPath('appData'), LEGACY_DESKTOP_USER_DATA);
 }
 
 // Where launcher-visible desktop state lives: last-desktop-start.json and

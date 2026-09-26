@@ -7,9 +7,9 @@
 //
 // - reads are SYNCHRONOUS (`snapshot`) over an internally cached value, because
 //   the host-side cost ranking prices a page of sessions per request;
-// - the cache is kept fresh from the `settings/updated` commit event, so an
-//   edit made anywhere (this modal, the harness, another window) reprices the
-//   next ranking without a reload;
+// - the cache is kept fresh from the `settings/document-updated` commit event,
+//   so an edit made anywhere (this modal, the harness, another window)
+//   reprices the next ranking without a reload;
 // - the section is registered by the harness `ui-conversation` plugin, which
 //   may apply AFTER this plugin: until a read succeeds the snapshot re-checks
 //   cheaply, and `save` rejects (settings.update throws for an unregistered
@@ -37,8 +37,8 @@ export interface PricesSource {
   snapshot(): SessionCostPrices
   /** Persist prices into the conversation section; rejects while it is unregistered. */
   save(prices: SessionCostPrices): Promise<void>
-  /** Adopt the resolved value carried by a `settings/updated` commit event. */
-  adoptSection(section: unknown): void
+  /** Re-read the section after a `settings/document-updated` commit event. */
+  refresh(): void
   /** Whether the conversation section exists (the precondition of every write). */
   isSectionRegistered(): boolean
 }
@@ -84,7 +84,7 @@ export function createPricesSource(settings: HostSettings, warn: (message: strin
   function readSection(): boolean {
     let section: unknown
     try {
-      section = settings.get(CONVERSATION_SETTINGS_NS)
+      section = settings.describe().find((entry) => entry.ns === CONVERSATION_SETTINGS_NS)?.value
     } catch (err) {
       // A service that throws on read is indistinguishable from an absent
       // section for this caller; the write path surfaces the real error.
@@ -110,11 +110,8 @@ export function createPricesSource(settings: HostSettings, warn: (message: strin
       return cached
     },
 
-    adoptSection(section: unknown): void {
-      const prices = pricesOf(section)
-      if (prices === null) return
-      cached = prices
-      observed = true
+    refresh(): void {
+      readSection()
     },
 
     async save(prices: SessionCostPrices): Promise<void> {

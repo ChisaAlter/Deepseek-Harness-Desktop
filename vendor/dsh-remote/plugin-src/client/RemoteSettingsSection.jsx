@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Button, Checkbox, Input, SettingsSelect, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Checkbox, Input, Modal, SettingsSelect, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { remoteApi } from './api.js'
 import { MachineForm } from './MachineForm.jsx'
 
@@ -23,6 +23,7 @@ export function RemoteSettingsSection({ t }) {
   const [forwards, setForwards] = React.useState([])
   const [fwdForm, setFwdForm] = React.useState(EMPTY_FORWARD)
   const [audit, setAudit] = React.useState(null)
+  const [confirmDel, setConfirmDel] = React.useState(null) // machine row pending delete
 
   const refresh = React.useCallback(() => {
     remoteApi.machines()
@@ -70,9 +71,7 @@ export function RemoteSettingsSection({ t }) {
   }
 
   const removeMachine = (m) => {
-    if (!window.confirm(t('machines.deleteConfirm', { name: m.name || m.host }))) return
-    setBusyId('del:' + m.id)
-    run(() => remoteApi.deleteMachine(m.id)).finally(() => setBusyId(''))
+    setConfirmDel(m)
   }
 
   const importable = sshEntries || []

@@ -25,8 +25,8 @@ test('nsis keeps the assisted-installer product contract', () => {
   assert.equal(nsis.allowToChangeInstallationDirectory, true);
   assert.equal(nsis.createDesktopShortcut, true);
   assert.equal(nsis.createStartMenuShortcut, true);
-  assert.equal(nsis.shortcutName, 'Deepseek-Harness-Desktop');
-  assert.equal(nsis.artifactName, 'Deepseek-Harness-Desktop-Setup-${version}.${ext}');
+  assert.equal(nsis.shortcutName, 'Whale Isle');
+  assert.equal(nsis.artifactName, 'Whale-Isle-Setup-${version}.${ext}');
   // Per-user default install path (%LOCALAPPDATA%\Programs) — TC-INST-013
   // opens resources\node.exe there; do not flip to perMachine.
   assert.equal(nsis.perMachine, undefined);
@@ -37,12 +37,12 @@ test('nsis keeps the assisted-installer product contract', () => {
 test('release workflow artifact globs still match the artifact name', () => {
   const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
   const publish = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8');
-  assert.ok(nsis.artifactName.startsWith('Deepseek-Harness-Desktop-Setup-'));
-  assert.match(yml, /dist\/Deepseek-Harness-Desktop-Setup-\*\.exe/);
-  assert.match(yml, /dist\/Deepseek-Harness-Desktop-Setup-\*\.exe\.blockmap/);
-  assert.match(publish, /DeepSeek-Harness-windows-x64/);
-  assert.match(publish, /Deepseek-Harness-Desktop-Setup-\*\.exe/);
-  assert.match(publish, /Deepseek-Harness-Desktop-Setup-\*\.exe\.blockmap/);
+  assert.ok(nsis.artifactName.startsWith('Whale-Isle-Setup-'));
+  assert.match(yml, /dist\/Whale-Isle-Setup-\*\.exe/);
+  assert.match(yml, /dist\/Whale-Isle-Setup-\*\.exe\.blockmap/);
+  assert.match(publish, /Whale-Isle-windows-x64/);
+  assert.match(publish, /Whale-Isle-Setup-\*\.exe/);
+  assert.match(publish, /Whale-Isle-Setup-\*\.exe\.blockmap/);
 });
 
 test('bilingual release notes describe the installed Browser mini-player contract', () => {
@@ -125,7 +125,7 @@ test('installer.nsh customizes GUI pages only and stays silent-install (/S) safe
   assert.ok(unWelcome, 'customUnWelcomePage macro body');
   assert.match(unWelcome[1], /!define MUI_WELCOMEPAGE_TITLE_3LINES/);
   assert.match(unWelcome[1], /!insertmacro MUI_UNPAGE_WELCOME/);
-  assert.match(nsh, /BrandingText "Deepseek-Harness-Desktop \$\{VERSION\}"/);
+  assert.match(nsh, /BrandingText "Whale Isle \$\{VERSION\}"/);
   const code = nsh
     .split('\n')
     .filter((line) => !line.trim().startsWith('#') && !line.trim().startsWith(';'))
@@ -146,6 +146,8 @@ test('customInit purges dead install records and repairs a poisoned $INSTDIR', (
   // a bash-mangled /D=, or a wiped target dir) are deleted, never trusted.
   assert.match(body, /ReadRegStr \$0 SHELL_CONTEXT "\$\{INSTALL_REGISTRY_KEY\}" InstallLocation/);
   assert.match(body, /\$\{FileExists\} "\$0\\\$\{APP_EXECUTABLE_FILENAME\}"/);
+  assert.match(body, /\$\{FileExists\} "\$0\\Deepseek-Harness-Desktop\.exe"/);
+  assert.match(body, /\$\{FileExists\} "\$0\\Deepseek-Harness-Launcher\.exe"/);
   assert.match(body, /DeleteRegValue SHELL_CONTEXT "\$\{INSTALL_REGISTRY_KEY\}" InstallLocation/);
   // The UninstallString fallback applies the same liveness rule to the quoted
   // uninstaller path; dead records lose the whole key. A surviving uninstaller
@@ -179,7 +181,7 @@ test('bitmap renderer pins the MUI2 geometry and stays regenerable', () => {
   assert.match(source, /rgb\(15, 17, 21\)/); // --dsw-alias-label-primary
   assert.match(source, /rgb\(65, 118, 230\)/); // --dsw-static-deepseek-500
   // Sidebar carries the product name, not a parallel marketing wordmark.
-  assert.match(source, /Deepseek-Harness-/);
+  assert.match(source, /Whale Isle/);
   // The near-black icon-tile marketing panel (a second skin) must not return,
   // and boot instrument-canvas tokens never reach the installer.
   assert.doesNotMatch(source, /#0b0d12/i);

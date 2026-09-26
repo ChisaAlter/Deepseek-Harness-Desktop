@@ -1,8 +1,8 @@
 {
   "name": "deepseek-harness-desktop",
-  "productName": "Deepseek-Harness-Desktop",
+  "productName": "Whale Isle",
   "version": "0.3.3",
-  "description": "Electron desktop shell for DeepSeek Harness Web UI",
+  "description": "Whale Isle desktop app based on DeepSeek Harness",
   "author": "Chisa",
   "license": "MIT",
   "main": "src/main/index.js",
@@ -15,8 +15,9 @@
     "setup:harness": "node scripts/setup-harness.js",
     "sync:harness": "node scripts/sync-upstream.js",
     "prepare:dshd-remote": "node scripts/prepare-dshd-remote.mjs",
+    "prepare:office-runtime": "node scripts/prepare-office-runtime.mjs",
     "prepare:dsh-remote-client": "node scripts/prepare-dsh-remote-client.mjs",
-    "pack": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --dir --publish never",
+    "pack": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/prepare-office-runtime.mjs && node scripts/run-electron-builder.cjs --dir --publish never",
     "pack:launcher": "node scripts/run-electron-builder.cjs --dir --publish never -c electron-builder.launcher.yml",
     "installer:assets": "node scripts/run-render-installer-assets.js",
     "smoke:source": "node scripts/run-source-smoke.mjs",
@@ -35,7 +36,7 @@
     "check:remote-flag": "node scripts/check-remote-flag-not-committed.mjs",
     "qa:remote:v2": "node tools/remote-web-qa/full-web-v2/run.mjs",
     "refresh:marketplace-snapshot": "node scripts/refresh-marketplace-snapshot.mjs",
-    "dist": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --win --publish never",
+    "dist": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/prepare-office-runtime.mjs && node scripts/run-electron-builder.cjs --win --publish never",
     "dist:mac": "node scripts/prepare-dsh-remote-client.mjs --force && node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --mac --publish never",
     "dist:launcher": "node scripts/run-electron-builder.cjs --win --publish never -c electron-builder.launcher.yml"
   },
@@ -59,7 +60,7 @@
   },
   "build": {
     "appId": "ai.deepseek.harness.gui",
-    "productName": "Deepseek-Harness-Desktop",
+    "productName": "Whale Isle",
     "copyright": "MIT",
     "npmRebuild": false,
     "directories": {
@@ -94,6 +95,7 @@
           "dsh-usage-panel/**",
           "dsh-im/**",
           "dshbot/**",
+          "dsh-task-control/**",
           "dsh-whale/**",
           "dsh-remote/**"
         ]
@@ -135,6 +137,16 @@
     ],
     "win": {
       "icon": "assets/icon.ico",
+      "extraResources": [
+        {
+          "from": "build/office-runtime",
+          "to": "runtime",
+          "filter": [
+            "primary-runtime/**",
+            "office-skills/**"
+          ]
+        }
+      ],
       "target": [
         {
           "target": "nsis",
@@ -149,8 +161,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Deepseek-Harness-Desktop",
-      "artifactName": "Deepseek-Harness-Desktop-Setup-${version}.${ext}",
+      "shortcutName": "Whale Isle",
+      "artifactName": "Whale-Isle-Setup-${version}.${ext}",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "installerHeader": "build/installerHeader.bmp",
@@ -177,10 +189,10 @@
           ]
         }
       ],
-      "artifactName": "Deepseek-Harness-Desktop-${version}-mac-${arch}.${ext}"
+      "artifactName": "Whale-Isle-${version}-mac-${arch}.${ext}"
     },
     "dmg": {
-      "artifactName": "Deepseek-Harness-Desktop-${version}-mac-${arch}.${ext}"
+      "artifactName": "Whale-Isle-${version}-mac-${arch}.${ext}"
     }
   },
   "dependencies": {

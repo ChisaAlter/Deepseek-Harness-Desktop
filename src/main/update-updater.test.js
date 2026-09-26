@@ -194,7 +194,7 @@ test('differential tracker only trusts the downloader report line', () => {
 test('cachedInstallerPath resolves the NSIS self-copied installer under LOCALAPPDATA', () => {
   const resolved = cachedInstallerPath();
   if (process.env.LOCALAPPDATA) {
-    assert.match(resolved, /deepseek-harness-desktop-updater[\\/]installer\.exe$/i);
+    assert.match(resolved, /whale isle-updater[\\/]installer\.exe$/i);
   } else {
     assert.equal(resolved, '');
   }

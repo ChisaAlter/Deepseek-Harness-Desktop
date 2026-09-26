@@ -183,7 +183,7 @@ export function SidebarRoot({
   const buildVersion = localBuildVersion()
 
   const darwinDesktop = isDarwinDesktop()
-  // Rail resting state is the whale mark; hovering swaps in the panel icon
+  // Rail resting state is the brand mark; hovering or focusing swaps in the panel icon
   // (the expand affordance, figma sidebar-hover flow). Expanded it is a plain
   // panel icon.
   const toggle = (
@@ -195,7 +195,7 @@ export function SidebarRoot({
         aria-keyshortcuts={shortcut?.aria}
         onClick={() => { toggleSidebar() }}
       >
-        {!wide && !windowsTitlebar && (
+        {!wide && (
           <span className={css.railMark} aria-hidden="true">
             {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <FishLogo size={24} /> })}
           </span>

@@ -53,7 +53,7 @@ const LAYOUT_MARKERS = ['surfaces', 'shell.titlebar.trailing', 'shell.terminalDr
 // resolved towards upstream would drop them without failing any other assert.
 const FORK_FILE_MARKERS = [
   // SettingsSelect: official Menu pill for every settings value dropdown.
-  { file: 'packages/client/ui-primitives/src/index.ts', includes: ['export { SettingsSelect }'] },
+  { file: 'packages/client/ui-primitives/src/index.ts', includes: ['export { SettingsSelect }', 'ReviewDiff'] },
   { file: 'packages/client/ui-settings-mcp/src/client/McpSection.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-settings-skills/src/client/SkillsSection.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-settings-general/src/client/CloseBehaviorRow.tsx', includes: ['SettingsSelect'] },
@@ -75,6 +75,15 @@ const FORK_FILE_MARKERS = [
   // Standing wallpaper fork on the upstream ui-theme package.
   { file: 'packages/client/ui-theme/src/client/WallpaperGalleryModal.tsx', includes: [] },
   { file: 'packages/client/ui-theme/src/client/WallpaperRow.tsx', includes: [] },
+  // Appearance section typography: the upstream sheet references
+  // --dsw-font-size-* tokens nothing defines, so every styled text fell back
+  // to the inherited 16px root size; the fork pins the documented settings
+  // scale (16/24/500 section titles, 14/22 labels, 12/18 compact) and gives
+  // collapsed effect rows the typing-fx 14/22 row title via .rowTitle.
+  { file: 'packages/client/ui-theme/src/client/AppearanceSection.module.css', includes: ['.rowTitle'] },
+  { file: 'packages/client/ui-theme/src/client/BackgroundEffectRow.tsx', includes: ['css.rowTitle'] },
+  { file: 'packages/client/ui-theme/src/client/CursorEffectRow.tsx', includes: ['css.rowTitle'] },
+  { file: 'packages/client/ui-theme/src/client/MetallicPaintRow.tsx', includes: ['css.rowTitle'] },
   // Composer family width linkage: the drag-resized input card publishes
   // --dsh-composer-resized-width on the seat AND the conversation column (so
   // the transcript sees it); the session stats line, the chat flow column,
@@ -135,6 +144,48 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx', includes: ['restoreClassic'] },
   { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['layout.toggleSurfaces()'] },
   { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['surfaces > 0'] },
+  // Keyboard-shortcut adoption (keyboard-shortcuts card): explicit local-first
+  // input policy, panel chords owned by the registry, terminal region marker.
+  { file: 'packages/client/shortcuts/src/protocol.ts', includes: ["./policy.ts'"] },
+  { file: 'packages/client/shortcuts/src/policy.ts', includes: ['localFirstProtected', 'local-first'] },
+  { file: 'packages/client/shortcuts/src/client/registry.ts', includes: ['localFirstProtected', "'native-priority'"] },
+  { file: 'packages/client/shortcuts/src/client/index.ts', includes: ['shortcutPolicy', "'local-first'"] },
+  { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ["'shortcuts'", 'surfaces.toggle', 'terminal.drawer.toggle'] },
+  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['dataset.platform'] },
+  { file: 'packages/client/ui-sidebar-right/src/client/shortcuts.ts', includes: ['DSHD: Ctrl+\\'] },
+  { file: 'packages/client/ui-sidebar-terminal/src/client/index.ts', includes: ['terminal.drawer.toggle'] },
+  { file: 'packages/client/ui-user-terminal/src/client/TerminalPane.tsx', includes: ['xterm'] },
+  // Office preview routing (office-runtime card): binary Office files decline
+  // the editable desktop viewer and the surfaces file editor, so the native
+  // document preview claims them (Office→PDF, XLSX→Spreadsheet).
+  { file: 'packages/client/ui-files/src/client/desktop-files.ts', includes: ['OFFICE_PREVIEW_EXTENSIONS', 'isOfficePreviewPath'] },
+  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ['OFFICE_DOCUMENTS', 'openOfficeDocument'] },
+  { file: 'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx', includes: ['openOfficeDocument'] },
+  // Shared review diff renderer (P4 adoption): business-neutral unified/split
+  // rows, wrap, sync scroll, and cancelable highlighting live in ui-primitives.
+  // ui-deliverables keeps turn snapshots, ui-diff keeps Git state; both adapt
+  // to the shared representation without cross-feature imports.
+  { file: 'packages/client/ui-primitives/src/ReviewDiff.tsx', includes: ['data-review-view', 'data-diff-line', 'MAX_RENDERED_LINES'] },
+  { file: 'packages/client/ui-primitives/src/ReviewDiff.module.css', includes: ['.add', '.del'] },
+  { file: 'packages/client/ui-primitives/tests/review-diff.client.spec.tsx', includes: ['ReviewDiff'] },
+  { file: 'packages/client/ui-deliverables/src/client/FileDiff.tsx', includes: ['ReviewDiff'] },
+  { file: 'packages/client/ui-diff/src/client/review-hunks.ts', includes: ['ReviewHunk'] },
+  { file: 'packages/client/ui-diff/src/client/DiffPanel.tsx', includes: ['ReviewDiff'] },
+  { file: 'packages/client/ui-diff/src/client/shell.ts', includes: ["'eof'"] },
+  { file: 'packages/client/ui-diff/src/client/locales.ts', includes: ["'view.split'", "'file.truncated'"] },
+  { file: 'packages/client/ui-deliverables/src/client/locales.ts', includes: ["'diff.highlightSkipped'"] },
+  // Diff highlight Worker (P4/D5): the first tokenize's per-rule scanner build
+  // is one atomic ~50-200 ms call no inline slicing can interrupt, so the
+  // shipped path tokenizes in a dedicated Worker built from an embedded ?raw
+  // bundle; the main thread keeps a bounded sliced fallback.
+  { file: 'packages/client/ui-primitives/src/markdown/highlight-engine.ts', includes: ['lineSpans', 'registerGrammarModules'] },
+  { file: 'packages/client/ui-primitives/src/markdown/highlight.ts', includes: ['fetchGrammarModule', 'highlight-engine.ts'] },
+  { file: 'packages/client/ui-primitives/src/markdown/highlight-jobs.ts', includes: ['dispatchHighlightJobs', 'highlight.worker.ts?raw'] },
+  { file: 'packages/client/ui-primitives/src/markdown/highlight.worker.ts', includes: ["op: 'ready'", 'registerGrammarModules'] },
+  { file: 'packages/client/ui-primitives/src/css-modules.d.ts', includes: ["'*.ts?raw'"] },
+  { file: 'packages/client/ui-primitives/tsdown.config.ts', includes: ['highlight.worker.ts?raw'] },
+  { file: 'benchmarks/review-diff/review-diff.bench.ts', includes: ['dsh.reviewDiff.slice', 'HIGHLIGHT_TASK_BUDGET_MS'] },
+  { file: 'benchmarks/review-diff/fixtures.ts', includes: ['mixedHunks'] },
   { file: 'apps/web/tests/scaffold.ts', excludes: ['directory-picker-browse'] },
   { file: 'apps/web/tests/models-settings.e2e.ts', includes: ['llm.discoverModels'] },
   // Desktop fork: input.dock panels follow the drag-resized composer card.

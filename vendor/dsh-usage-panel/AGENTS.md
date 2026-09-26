@@ -156,6 +156,16 @@ npm pack --dry-run   # 发布前人工确认清单
 - **行标签与颜色是同一个周期断言**：开关关掉后主行不再是谷段价，文案改「价格」（`billing.periodSingle`），`is-idle` 绿色类只在该行真的是谷段列时才挂——绿色等于宣称"谷段"，单价格行没这个断言。
 - **双语词典成对增删后要跑一次脚本核对**（键数 + 重复键 + 左右差集），别靠肉眼看：本轮删除 `billing.pickModel` / `billing.pickModelHint` 并新增 3 个键，脚本一次给出 `zh 138 / en 138、无重复、无单边键`。
 
+### 6.9 修复解码器不再 import 运行时包（2026-09-25，pin 0.1.7-rc.2 漂移）
+
+**症状**：桌面端点「自动修复」必失败（用户截图报 `CallId`/`does not provide an export` 类链接错）。**机理**：`runtimeCodec()` 动态 `import('@deepseek-ai/dsh-session')` 只为取 `decodeStorageRecord`，但该导出在 vendored pin（0.1.7-rc.2）已被移除（解码移入 persistence format catalog，公开面没有它）；插件自身 `^0.1.0-rc.6` 规范可解析进 0.1.7 号段，混合树还会让 rc.6 的 session 包撞上只导出 `ToolCallId` 的新 `dsh-llm` → 模块链接期就抛错，修复在解码第一行之前失败。与 §6.5 同类：**运行时包面不可作依赖边界**。
+
+**现行合同**：解码器内置为 `src/host/storage-rows.ts`——rc.6 `decodeStorageRecord` 的忠实移植（三种 `*-chunks` 打包行展开为 `assistant/chunk`，其余值原样透传）。存储行语法对既有文件不可变，所以内置是正确边界；`repairSessionLog(home, id, decode)` 保持注入式签名供单测。新增防护：未识别的 `-chunks` 标签**抛错中止**——那是更新的打包代际，重编号会写坏而非修复。连带收益：standalone npm 环境的修复也可用（工件不存在仍优雅报错），"仅桌面运行时可用"的约束随动态导入一起消失。回归锁定：`tests/storage-rows.test.ts` 锁三种展开/malformed/未知标签中止 + rebuildSessionLog 真实解码回环；本机 37 个真实工件全量 rebuild 0 错误。
+
+### 6.10 "读取失败"可能是格式版本拒收，不是字节损坏（2026-09-25 实机发现）
+
+**症状**：扫描把 `session-whale-12d39638-…` 计为读取失败，但该 `session.v3.jsonl.zstd` 94 个 zstd 帧完好、seq 连续。**机理**：当前构建只通过迁移链读 v3；迁移对不在冻结 `RELEASED_V3_EVENT_TYPES` 且未带 `ignorable` 的事件类型硬拒（`format v3 contains unknown event type`）——该日志的 `session/presentation`（鲸鱼插件写入）与 `user-questions/asked` 都是现行词表正式成员却不在 v3 released 集合（冻结早于桌面写盘）。**规则**：`rebuildSessionLog` 按头部 `version` 分路——`===3` 时只做准入重写（非 released 类型补 `ignorable: true`，seq/打包行/引用逐字节保留，由 harness 自己的迁移管道完成升级），`>4` 显式拒绝；只有 4/缺失/0–2 走解码+重编号。**判定"失败会话"先跑真实 `open('read')` 看拒绝文案再定修法**，别想当然全是 seq gap。
+
 ## 7. 文档同步义务
 
 - 改功能必同步 README.md + README.zh-CN.md（双语等价、口径声明、安装方式不变）。

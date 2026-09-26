@@ -227,7 +227,7 @@ export function installAssembledBootEnv(): void {
     // locale setting, so pinning the navigator selects English.
     Object.defineProperty(navigator, 'languages', { value: ['en-US'], configurable: true })
     Object.defineProperty(navigator, 'language', { value: 'en-US', configurable: true })
-    document.title = 'DeepSeek Harness'
+    document.title = 'Whale Isle'
     vi.stubGlobal('ResizeObserver', ResizeObserverStub)
     vi.stubGlobal('EventSource', EventSourceStub)
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>

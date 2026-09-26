@@ -24,6 +24,8 @@ export interface SurfacesRootInjected {
   /** True when desktop `window.shell.previewOpen` exists. */
   previewAvailable: boolean
   gitStatus: (cwd: string) => Promise<unknown>
+  /** Office binaries the file editor cannot read open in the native document preview instead. */
+  openOfficeDocument: (relativePath: string) => boolean
 }
 
 export type SurfacesRootProps =
@@ -137,6 +139,7 @@ function SurfacesBody({
   renderSlot,
   openSurfaces,
   previewAvailable,
+  openOfficeDocument,
   t,
   diffAvailable,
 }: SurfacesBodyProps): ReactNode {
@@ -205,6 +208,7 @@ function SurfacesBody({
     openSurfaces()
   }
   const openFile = (relativePath: string): void => {
+    if (openOfficeDocument(relativePath)) return
     actions.openFile(key, relativePath)
     openSurfaces()
   }

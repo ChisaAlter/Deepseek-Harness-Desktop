@@ -374,6 +374,45 @@ test(`shared module identity with a conflicting third consumer and root ${topVer
 });
 }
 
+test('same-source consumers under a shared scope share one nested copy', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-overlay-scope-shared-'));
+  try {
+    const sourceRoot = path.join(root, 'source');
+    const destRoot = path.join(root, 'dest');
+    const sharedR = path.join(root, 'shared-r1');
+    fs.mkdirSync(sharedR, { recursive: true });
+    fs.writeFileSync(path.join(sharedR, 'package.json'), JSON.stringify({ name: 'r', version: '1.0.0', main: 'index.js' }));
+    fs.writeFileSync(path.join(sharedR, 'index.js'), 'module.exports = { version: \'1.0.0\' };\n');
+    const topR = path.join(destRoot, 'node_modules', 'r');
+    fs.mkdirSync(topR, { recursive: true });
+    fs.writeFileSync(path.join(topR, 'package.json'), JSON.stringify({ name: 'r', version: '9.9.9', main: 'index.js' }));
+    fs.writeFileSync(path.join(topR, 'index.js'), 'module.exports = { version: \'9.9.9\' };\n');
+    for (const name of ['a', 'b']) {
+      const source = path.join(sourceRoot, 'packages', 'boot', name);
+      const target = path.join(destRoot, 'node_modules', '@s', name);
+      fs.mkdirSync(path.join(source, 'lib'), { recursive: true });
+      fs.mkdirSync(path.join(source, 'node_modules'), { recursive: true });
+      fs.mkdirSync(target, { recursive: true });
+      fs.symlinkSync(sharedR, path.join(source, 'node_modules', 'r'), 'junction');
+      fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: `@s/${name}`, version: '1.0.0', main: 'lib/index.js', dependencies: { r: '*' } }));
+      fs.writeFileSync(path.join(source, 'lib', 'index.js'), 'module.exports = require("r");\n');
+      fs.writeFileSync(path.join(target, 'package.json'), JSON.stringify({ name: `@s/${name}`, version: '0.9.0' }));
+    }
+    const workspace = await overlayWorkspaceRuntimePackages(sourceRoot, destRoot);
+    await repairFlattenedVersionIsolation(sourceRoot, destRoot, workspace.sources);
+    const shared = path.join(destRoot, 'node_modules', '@s', 'node_modules', 'r');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(shared, 'package.json'))).version, '1.0.0');
+    const [a, b] = ['a', 'b'].map((name) => require(path.join(destRoot, 'node_modules', '@s', name, 'lib', 'index.js')));
+    assert.strictEqual(a, b);
+    assert.equal(a.version, '1.0.0');
+    assert.equal(fs.existsSync(path.join(destRoot, 'node_modules', '@s', 'a', 'node_modules', 'r')), false);
+    assert.equal(fs.existsSync(path.join(destRoot, 'node_modules', '@s', 'b', 'node_modules', 'r')), false);
+  } finally {
+    assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 for (const order of [['q', 'r'], ['r', 'q']]) {
   test(`peer and direct dependency keep transitive child in ${order.join(',')} order`, async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-overlay-peer-order-'));

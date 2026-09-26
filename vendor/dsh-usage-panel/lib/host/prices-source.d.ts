@@ -10,8 +10,8 @@ export interface PricesSource {
     snapshot(): SessionCostPrices;
     /** Persist prices into the conversation section; rejects while it is unregistered. */
     save(prices: SessionCostPrices): Promise<void>;
-    /** Adopt the resolved value carried by a `settings/updated` commit event. */
-    adoptSection(section: unknown): void;
+    /** Re-read the section after a `settings/document-updated` commit event. */
+    refresh(): void;
     /** Whether the conversation section exists (the precondition of every write). */
     isSectionRegistered(): boolean;
 }

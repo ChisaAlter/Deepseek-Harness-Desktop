@@ -19,7 +19,7 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 - 工程规则：[web-styling.md](../vendor/deepseek-harness/docs/web-styling.md)
 - 动效规范与使用对照：[motion.md](motion.md)
 
-桌面应用品牌使用用户提供的透明头像 [`assets/whale-head.png`](../assets/whale-head.png)，保留完整比例，不另裁托盘图。桌面与 Web 侧栏左上角使用同一紧凑字标：透明鲸鱼娘头像在左；右侧首行是中文「鲸屿」与英文「WHALE ISLE」，次行是「BASED ON DEEPSEEK HARNESS」。仅「屿」使用品牌蓝，头像不带图标方形底板；收起时展开按钮显示面板图标。明暗色只从主题 token 取得，不绘制独立光晕。应用图标继续使用白色圆角方形底板（圆角半径为边长 22%），头像居中并在四边各内缩 4%；安装器读取相同的生成图标 `assets/icon.png`。窗口、任务栏、托盘和安装器共享此源；`assets/icon.svg` 包装此图，`npm run icon` 生成 `assets/icon.png` 与多尺寸 `assets/icon.ico`。宠物立绘生成器不再拥有应用图标。
+应用对外称 Whale Isle；侧栏保留「鲸屿 / WHALE ISLE」字标与 DeepSeek Harness 来源说明。桌面与 Web 侧栏左侧使用透明头像 [`assets/whale-head.png`](../assets/whale-head.png)，字标下方是「BASED ON DEEPSEEK HARNESS」。仅「屿」使用品牌蓝，头像不带方形底板；收起时左上角的展开按钮保留头像，悬停或键盘聚焦时换显面板图标，点击仍展开侧栏。明暗色只从主题 token 取得，不绘制独立光晕。应用图标沿用白色圆角方形底板（半径为边长 22%），头像居中并四边各内缩 4%；安装器读取相同的生成图标 `assets/icon.png`。窗口、任务栏、托盘和安装器共享此源；`assets/icon.svg` 包装此图，`npm run icon` 生成 `assets/icon.png` 与多尺寸 `assets/icon.ico`。宠物立绘生成器不再拥有应用图标。
 
 ## 适用范围
 
@@ -69,7 +69,7 @@ Harness 0.1.7-alpha.2 同步保留本页既有视觉合同。新增上游组件�
 13. **毛玻璃止于基线配方。** 遮罩 `blur(2px)`（`--dsw-mask-blur`）+ `--dsw-alias-bg-mask-*`；抬起面用 `color-mix(..., var(--dsw-alias-glass-opacity), transparent)`。使用 `--dsw-specific-menu` 填充的抬起菜单须配对 `--dsw-menu-backdrop-filter`。不要加更重的 blur，也不要每层都铺投影。
 14. **滚动条用共享样式。** 禁止组件内 `::-webkit-scrollbar`。
 15. **产品文案中文，代码注释英文。** 不要把 VS Code / Material / iOS 的密度和装饰搬进来压过基线 Web UI。
-16. **侧栏品牌用鲸屿。** `setup:harness` 走 vendor 树自带的 `pnpm run build:official`（`DSH_CLIENT_BUILD_PROFILE=official`）；源码 `npm start` 在消费 vendor 产物前确认该官方构建记录，发现旧的普通 `build` 产物时自动补做 official build。桌面与 Web 的官方构建在相同侧栏槽位显示透明鲸鱼娘头像、同排「鲸屿 / WHALE ISLE」及下方小字「BASED ON DEEPSEEK HARNESS」；「屿」为品牌蓝，头像不显示方形底板或本地构建回退文案；收起态直接显示面板图标。字标可使用适配 40px Windows 标题栏的紧凑字级，不改变其余控件字号。改 client 后也用同一条命令重建，不要单独 `build:lib:client` 把品牌打回本地包。
+16. **应用对外主名用 Whale Isle，侧栏字标保持既有设计。** `setup:harness` 走 vendor 树自带的 `pnpm run build:official`（`DSH_CLIENT_BUILD_PROFILE=official`）；源码 `npm start` 消费 vendor 产物前确认官方构建记录，发现旧的普通 `build` 产物即补做 official build。桌面与 Web 官方构建沿用上述侧栏字标；「屿」为品牌蓝，头像不带方形底板或本地构建回退文案。字标可使用适配 40px Windows 标题栏的紧凑字级，不改变其余控件字号。改 client 后也用同一条命令重建，不要单独 `build:lib:client` 把品牌打回本地包。
 17. **代码高亮按需、分片，不把长任务搬了个位置。** 会话里没有代码块时，语法高亮器一次都不构造；有代码内容时，原文先可见、可复制、可选中，再在同一位置换成高亮结果，不先显示占位。初始化与每个 grammar 的首次 tokenize 各自独立调度，都是后台任务：单个高亮相关主线程任务必须小于 50 ms，且不得靠 `requestIdleCallback` / `setTimeout` 把同一个长任务原样推迟来「达标」。高亮失败或未就绪时降级为完整等宽原文，绝不显示旧输入的高亮结果。已完成的增量 Markdown 缓存、streaming→settled 的 DOM 语义、复制文本不含行号保持基线不变。
 18. **终端高吞吐输出有界，背压必须真的约束生产者。** PTY 输出先按 burst 合并再跨 IPC，帧带每会话单调序号；renderer 只有在**把该帧写入自己的终端会话状态之后**才回执，收到 IPC 即回执不算消费完成。主进程按未确认字节数设高/低水位：越过上限就暂停后端 PTY 读取，回落到低水位再恢复。暂停期间输入写入与 resize 不受影响；恢复后必须零丢失、零乱序，退出前的尾部输出照常先 flush。不允许用丢弃数据、无上限队列或「只在 renderer 侧丢弃」冒充背压；后端无法真正停读时必须如实标注背压未完成，而不是假装达标。
 
@@ -175,7 +175,9 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 启动页是整窗一张仪器画布，不是中间再套卡片，也不是把日志关进带边框的盒子。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
 
-构图：四角 L 形瞄准轨画在视口上；中区垂直居中，依次是鲸鱼旋转加载动画（[`assets/whale-spin.svg`](../assets/whale-spin.svg)，2 秒循环、112px、`.mark` 抬到扫描线遮罩之上，`prefers-reduced-motion` 换 [`assets/whale-head.png`](../assets/whale-head.png) 静态头像）、品牌名 `Deepseek-Harness-Desktop`、状态与说明，失败时出现直角重试与下载日志键。顶栏左侧技术码 `DSH-DESKTOP`，右侧盖章随 `body[data-state]` 切换：启动中 / 就绪 / 停止中 / 异常，对应 BOOT / READY / HALT / ERROR。左下等宽日志铺在画布上，无边框、无底色，长行换行；字号行高 14/22。日志贴底向上堆，底与左侧让开角轨（`--boot-log-inset`），超出高度时裁掉上方旧行，最新行始终完整可见。运行时就绪后，基线客户端插件装载仍留在这张画布上（状态行写 `正在加载插件 n/m`），后台 BrowserView 装完再露出 Web UI，不再切到基线那张「正在加载插件」页。
+构图分顶部状态区、中央启动区、底部日志区三段，按窗口可用高度分配，不重叠、不套卡片。顶部保留 `DSH-DESKTOP` 技术码、状态戳与四角 L 形瞄准轨（技术码与状态戳在标题栏和原生窗控下方）；状态戳随 `body[data-state]` 切换 IDLE/BOOT/READY/HALT/ERROR。中央依次是鲸鱼旋转加载动画（[`assets/whale-spin.svg`](../assets/whale-spin.svg)，2 秒循环、112px，`.mark` 在扫描线遮罩之上；`prefers-reduced-motion` 换 [`assets/whale-head.png`](../assets/whale-head.png) 静态头像）、`Whale Isle` 品牌名、当前状态与说明；字号层级品牌 16/24、状态 14/22、次要说明与诊断 12/18。故障详情与既有恢复动作可折行，不新增面板或控制。
+
+底部日志直接铺画布：无边框、无底色、等宽 14/22，贴底上堆，让开角轨（`--boot-log-inset`）并在顶部裁去旧行，最新行始终完整可见。响应式行高适配最小窗 960×640；短窗口压缩留白与日志高度，诊断区仍可滚到完整错误与动作。进度只展示 controller 或插件事件实际提供的状态，不估算百分比、不加虚构步骤；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
 
 色与主题：[`boot-tokens.css`](../src/renderer/boot-tokens.css) 是唯一色表。浅色是纸面近黑，深色是 CRT 近白；`--boot-accent` 与正文同色，失败用 `--boot-alert`。`html[data-boot-theme]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把用户主题的 `bg` / `accent` 写进启动页。[`boot.css`](../src/renderer/boot.css) 只引用 `--boot-*` 与基线字体、动效 token，不写 `[data-ds-dark-theme]` 分支，也不写颜色字面量。
 
@@ -197,6 +199,8 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 Live2D 桌宠以整窗透明 Canvas 绘制，独立于主窗内的小矩形 Codex 宠物视图。
 
 鲸鱼娘扩展动画以 `pet-live2d/avatar/character.png` 为唯一身份母版：蓝发、鲸鳍耳、呆毛、白色女仆头饰、海军蓝裙、鲸纹白围裙、蓝鞋与长鲸尾的比例和笔触保持一致。目标资源包覆盖 24 种身体动作与 12 种表情，独立动作使用透明连续帧；蜷缩睡眠、抱食进食、悬挂等必须有真实姿态差异。泡泡、星星与爱心只辅助表达。待机保留实时呼吸、眨眼与视线；长时间无互动先逐渐困倦，再进入睡眠，任何互动立即打断困倦；自主表情需与当前心情和亲密度相符。进食必须看得出抱食、咀嚼与收尾，不能用浮动饭碗遮住围裙来冒充手部动作；甩出与悬挂需有可辨的姿态和表情差异。新图集不得覆盖原始母版。每段提供进入/循环/退出语义，拖拽方向与甩动惯性由交互物理驱动。帧数由实际播放效果决定；单帧身份和身形检查、连续播放检查通过后才进入正式素材。动画源图、清单、生成提示词与可播放预览同批保存，未经验收的素材不标为已接入。
+
+闭眼保持母版双眼的间距与宽度，用模型自然闭眼形态。待机眨眼、单眼眨眼与互动闭眼在姿态合成后，按每眼闭合程度渐弱同侧冲突眼形；双眼闭合退出瞳向控制，睁开恢复，不清除另眼表情或嘴形。入睡渐退其他面部形态与视线，熟睡仅留自然闭眼；唤醒恢复待机表情控制。动作库扩展见[暂缓实施方案](superpowers/plans/2026-09-25-whale-full-animation-library.md)。
 
 呼吸、眨眼、视线、气泡和拖拽跟随屏幕刷新，不另限 60 fps。推理间隔 50 ms；开启省电且空闲 5 分钟后为 110 ms，睡眠不另降频。透明窗不得停顿、残影或黑边。
 

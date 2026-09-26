@@ -52,7 +52,7 @@ import { BillingStore, openBillingMedium } from './billing-store.ts'
 import { createLegacyBillingImport } from './legacy-billing-import.ts'
 import { CONVERSATION_SETTINGS_NS, createPricesSource } from './prices-source.ts'
 import { createPricesRepair } from './prices-repair.ts'
-import { isRepairableSessionId, repairSessionLog, resolveDshHome, runtimeCodec } from './session-repair.ts'
+import { decodeStorageRecord, isRepairableSessionId, repairSessionLog, resolveDshHome } from './session-repair.ts'
 import { openStatsCache, statsCacheKey, type StatsCache } from './stats-cache.ts'
 import { scanPacer, withTimeout } from './pacing.ts'
 import type { HostConnection, HostLlm, HostProjectionCache, HostSessionQuery, HostSettings, HostSettingsEventSource, LlmProviderInfoLike } from './types.ts'
@@ -157,11 +157,10 @@ export function apply(ctx: Context): void {
   // (the snapshot re-checks until it exists) while writes reject.
   const settings = ctx.get('settings') as unknown as HostSettings
   const pricesSource = createPricesSource(settings, (message) => console.warn(tag, message))
-  // The harness commits section changes through this event; adopting the value
-  // it carries keeps the host-side cost ranking correct after any edit without
-  // a re-read per page.
-  ;(ctx as unknown as HostSettingsEventSource).on('settings/updated', (ns, next) => {
-    if (String(ns) === CONVERSATION_SETTINGS_NS) pricesSource.adoptSection(next)
+  // The harness commits section changes through this event; its payload is
+  // only `(ns, revision)`, so the committed value is re-read via describe().
+  ;(ctx as unknown as HostSettingsEventSource).on('settings/document-updated', (ns) => {
+    if (String(ns) === CONVERSATION_SETTINGS_NS) pricesSource.refresh()
   })
 
   // One-time repair of records written by the retired 峰谷计价-OFF path (a
@@ -610,18 +609,16 @@ export function apply(ctx: Context): void {
 
   /**
    * Repair ONE damaged session artifact (the exact id the scan reported):
-   * decode all rows via the runtime codec, renumber seqs 0-based, re-pack and
-   * atomically replace, keeping a timestamped backup. Never automatic; the
-   * user triggers it from the stats page. Fails gracefully when the desktop
-   * harness packages are unavailable (standalone npm installs).
+   * decode all rows via the vendored storage-row codec, renumber seqs
+   * 0-based, rewrite plain and atomically replace, keeping a timestamped
+   * backup. Never automatic; the user triggers it from the stats page.
    */
   async function repairSession(payload: { sessionId?: string }): Promise<RepairResult> {
     const sessionId = payload.sessionId
     if (!isRepairableSessionId(sessionId, failedSessionIds)) {
       throw new Error('invalid session id')
     }
-    const codec = await runtimeCodec()
-    const outcome = await repairSessionLog(resolveDshHome(), sessionId, codec.decode)
+    const outcome = await repairSessionLog(resolveDshHome(), sessionId, decodeStorageRecord)
     // The repaired session must leave the failure set immediately; the cache
     // and the carried aggregate are dropped so the next pass rebuilds from the
     // fixed artifact (the old ledger watermark would otherwise hide the fold).

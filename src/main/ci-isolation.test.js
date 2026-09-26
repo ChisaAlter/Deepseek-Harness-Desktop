@@ -146,7 +146,7 @@ test('publish workflow promotes only an explicit successful candidate run', () =
   assert.match(yml, /head_branch/);
   assert.match(yml, /head_branch[\s\S]*== main/);
   assert.match(yml, /actions\/workflows\/test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
-  assert.match(yml, /gh run download "\$CANDIDATE_RUN_ID" --name DeepSeek-Harness-windows-x64/);
+  assert.match(yml, /gh run download "\$CANDIDATE_RUN_ID" --name Whale-Isle-windows-x64/);
   // Setup naming, SHA256 and metadata agreement moved into the shared
   // read-only validator; the workflow must invoke it with the tag/version pair
   // rather than re-implementing the checks inline.
@@ -219,9 +219,9 @@ test('publish workflow wires the release-asset validator before checksums and pu
     verifyBeforePublishAt < publishAt,
     'the final Windows validation must complete before gh release create',
   );
-  assert.match(yml, /sha512sum Deepseek-Harness-Desktop-Setup-\*\.exe/);
+  assert.match(yml, /sha512sum Whale-Isle-Setup-\*\.exe/);
   assert.match(yml, /sha512sum \*\.dmg >> \.\.\/dist-out\/SHA512SUMS\.txt/);
-  assert.match(yml, /shopt -s nullglob[\s\S]*macos-out\/Deepseek-Harness-Desktop-\*\.dmg[\s\S]*gh release create/);
+  assert.match(yml, /shopt -s nullglob[\s\S]*macos-out\/Whale-Isle-\*\.dmg[\s\S]*gh release create/);
 
   // The validator result, not the operator string, feeds provenance.
   assert.match(yml, /validator_output=\$\(node scripts\/check-release-assets\.mjs/);

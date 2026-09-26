@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Button, SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemotePatch, RemoteSnapshot } from './desktop-shell.ts'
+import { ipcErrorMessage } from './relay-copy.ts'
 import css from './GatewaySettingsTab.module.css'
 
 /** Desktop callbacks used by the gateway tab. */
@@ -71,7 +72,7 @@ export function GatewaySettingsTab({
     try {
       applySnap(await getRemote())
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
+      setError(ipcErrorMessage(caught))
     } finally {
       setBusy(false)
     }
@@ -89,7 +90,7 @@ export function GatewaySettingsTab({
       setSavedFlash(true)
       window.setTimeout(() => { setSavedFlash(false) }, 1500)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught))
+      setError(ipcErrorMessage(caught))
     } finally {
       setBusy(false)
     }
@@ -100,6 +101,7 @@ export function GatewaySettingsTab({
   const mode = snap?.mode === 'lan' ? 'lan' : 'relay'
   const relayReady = snap?.relayConfigured === true
   const modeHint = snap ? modeDescription(snap, t) : ''
+  const detectedBindAddresses = snap?.addresses
   const bindOptions = useMemo(() => {
     const nics = (snap?.addresses ?? []).filter(address => address !== '127.0.0.1')
     const options = ['0.0.0.0', '127.0.0.1', ...nics]
@@ -109,6 +111,11 @@ export function GatewaySettingsTab({
   const bindLabel = (option: string): string => {
     if (option === '0.0.0.0') return t('bindAll')
     if (option === '127.0.0.1') return t('bindLoopback')
+    // A persisted per-NIC choice missing from the live scan went stale
+    // (adapter down, DHCP renumber, WSL/vEthernet subnet rebuild).
+    if (Array.isArray(detectedBindAddresses) && !detectedBindAddresses.includes(option)) {
+      return `${option} · ${t('bindUnavailable')}`
+    }
     return option
   }
 
@@ -348,7 +355,7 @@ export function GatewaySettingsTab({
               void rotateRemoteToken()
                 .then((next) => { applySnap(next) })
                 .catch((caught) => {
-                  setError(caught instanceof Error ? caught.message : String(caught))
+                  setError(ipcErrorMessage(caught))
                 })
                 .finally(() => { setBusy(false) })
             }}

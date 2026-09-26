@@ -187,3 +187,39 @@ test('rebuildSessionLog aborts on an unparsable committed line', async () => {
   const bytes = await bytesOf(text)
   await assert.rejects(() => rebuildSessionLog(bytes, fakeDecode), /unparsable/)
 })
+
+test('rebuildSessionLog admits a v3 artifact by marking non-released event types ignorable', async () => {
+  const header = JSON.stringify({ type: 'session', version: 3, id: 'session-whale-x', createdAt: 1, isSeeded: false, delegationDepth: 0 })
+  const rows = [
+    { type: 'permission/preset', seq: 0, time: 1, data: {} },
+    { type: 'session/presentation', seq: 3, time: 2, data: { owner: 'dsh-whale:assistant' } },
+    { type: 'user-questions/asked', seq: 7, time: 3, data: {} },
+    { type: 'user/message', seq: 8, time: 4, data: {} },
+    { type: 'external/odd', seq: 9, time: 5, data: {}, ignorable: true },
+    { type: 'text-chunks', seq0: 10, time0: 6, turn: 0, step: 0, index: 0, texts: ['a'], dt: [] },
+  ]
+  const bytes = await bytesOf(header + '\n' + rows.map((r) => JSON.stringify(r)).join('\n') + '\n')
+  const { rebuilt, events } = await rebuildSessionLog(bytes, fakeDecode)
+  assert.equal(events, rows.length)
+  const { frames } = scanZstdFrames(rebuilt)
+  let plain = ''
+  for (const f of frames) plain += (await decompressZstdFrame(rebuilt.subarray(f.start, f.end))).toString('utf8')
+  const lines = plain.split('\n')
+  assert.equal(lines[0], header)
+  const out = lines.slice(1).filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>)
+  // Released types and already-ignorable rows are byte-identical; unknown
+  // event envelopes gain ignorable:true with seqs untouched.
+  assert.equal(lines[1], JSON.stringify(rows[0]))
+  assert.deepEqual(out[1], { ...rows[1], ignorable: true })
+  assert.deepEqual(out[2], { ...rows[2], ignorable: true })
+  assert.equal(lines[4], JSON.stringify(rows[3]))
+  assert.equal(lines[5], JSON.stringify(rows[4]))
+  // Packed storage rows are preserved verbatim (no seq field to trigger on).
+  assert.equal(lines[6], JSON.stringify(rows[5]))
+})
+
+test('rebuildSessionLog refuses a format newer than this build reads', async () => {
+  const header = JSON.stringify({ type: 'session', version: 5, id: 'session-x' })
+  const bytes = await bytesOf(header + '\n{"seq":0}\n')
+  await assert.rejects(() => rebuildSessionLog(bytes, fakeDecode), /newer than the supported v4/)
+})

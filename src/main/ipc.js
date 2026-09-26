@@ -12,6 +12,9 @@ const { getMainWindow, getHarnessWebContents, openHarnessSettings, openMarketpla
 const { applyAppTheme } = require('./chrome');
 const { currentVersion } = require('./update');
 const { registerLauncherChannels, configPayload } = require('./ipc-launcher');
+const ipcComponents = require('./ipc-components');
+const ipcDelta = require('./ipc-delta');
+const { getTaskProtection } = require('./task-protection');
 const { listMarketplace } = require('./marketplace-catalog');
 const { checkMarketplaceUpdates } = require('./marketplace-updates');
 const { getMarketplaceDetails } = require('./marketplace-details');
@@ -25,7 +28,7 @@ const {
   uninstallPlugin,
 } = require('./marketplace-install');
 const { applyRendererConfigPatch } = require('./profile-ops');
-const { recordLastDesktopStart } = require('./launcher-gate');
+const { recordLastDesktopStart, kernelLogTail } = require('./launcher-gate');
 const { createLauncherService } = require('../launcher/launcher-service');
 const { listWallpaperCatalog, downloadWallpaper } = require('./wallpaper-catalog');
 const { gitBranchList, gitCheckLargeFiles, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
@@ -112,6 +115,7 @@ function registerIpc({
     startDesktop,
     stopDesktopCleanup,
     configPayload,
+    statusContributors: [ipcComponents.contributeStatus, ipcDelta.contributeStatus],
   });
 
   handle('shell:get-state', BOOT_ONLY, () => (harness ? harness.snapshot() : dsh.snapshot()));
@@ -144,6 +148,7 @@ function registerIpc({
   const recordBootRestart = () => recordLastDesktopStart(
     app.getPath('userData'),
     () => (harness ? harness.retryFullPlugins() : startHarness()),
+    () => kernelLogTail(dsh),
   );
 
   handle('shell:restart', BOOT_ONLY, async () => {
@@ -449,6 +454,10 @@ function registerIpc({
     harness,
     startDesktop,
     recordBootRestart,
+    extraChannels: [ipcComponents, ipcDelta],
+    // Component teardown rides the protection commit point so a cancelled
+    // quit prompt never leaves supervised services dead.
+    onQuitCommit: (fn) => getTaskProtection().onCommitCleanup(fn),
   });
 
   return { pty, preview, stopWorkspaceWatch };

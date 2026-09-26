@@ -30,7 +30,7 @@ function createTray({ onShow, onOpenLauncher, onRestart, onQuit, onPetToggle, pe
     petToggle: onPetToggle || (() => {}),
   };
   tray = new Tray(image && !image.isEmpty() ? image : nativeImage.createEmpty());
-  tray.setToolTip('Deepseek-Harness-Desktop');
+  tray.setToolTip('Whale Isle');
   trayMenuParams = {
     onShow: trayActions.show,
     onOpenLauncher: trayActions.openLauncher,

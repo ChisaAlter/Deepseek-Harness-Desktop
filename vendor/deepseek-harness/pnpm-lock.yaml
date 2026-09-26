@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  js-yaml: 4.3.1
   extract-zip>yauzl: 3.4.0
   '@deepseek-ai/cosmokit': link:vendor/cosmokit
   '@deepseek-ai/schemastery': link:vendor/schemastery
@@ -119,8 +120,8 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       js-yaml:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: 4.3.1
+        version: 4.3.1
       jscpd:
         specifier: ^5.0.12
         version: 5.0.12
@@ -422,8 +423,8 @@ importers:
         specifier: ^15.0.0
         version: 15.0.0
       js-yaml:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: 4.3.1
+        version: 4.3.1
       node-addon-require-builtin:
         specifier: ^0.1.6
         version: 0.1.6
@@ -658,7 +659,7 @@ importers:
         specifier: ^2.0.1
         version: 2.0.1(supports-color@9.4.0)
       js-yaml:
-        specifier: ^4.2.0
+        specifier: 4.3.1
         version: 4.3.1
       koffi:
         specifier: ^3.1.0
@@ -1649,8 +1650,8 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
       js-yaml:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: 4.3.1
+        version: 4.3.1
       node-addon-require-builtin:
         specifier: ^0.1.6
         version: 0.1.6
@@ -1716,7 +1717,7 @@ importers:
         specifier: workspace:*
         version: link:../../util/atomic-write
       js-yaml:
-        specifier: ^4.1.0
+        specifier: 4.3.1
         version: 4.3.1
       yaml:
         specifier: ^2.8.1
@@ -7879,7 +7880,7 @@ importers:
         specifier: workspace:~
         version: link:../../../vendor/include
       js-yaml:
-        specifier: ^4.2.0
+        specifier: 4.3.1
         version: 4.3.1
 
   packages/experimental/api-speech-to-text:
@@ -8643,7 +8644,7 @@ importers:
         specifier: workspace:~
         version: link:../../../vendor/include
       js-yaml:
-        specifier: ^4.2.0
+        specifier: 4.3.1
         version: 4.3.1
 
   packages/experimental/webworker-packer:
@@ -8667,7 +8668,7 @@ importers:
         specifier: workspace:*
         version: link:../../session/session-format-v3-to-v4
       js-yaml:
-        specifier: ^4.2.0
+        specifier: 4.3.1
         version: 4.3.1
       picomatch:
         specifier: ^4.0.4
@@ -10781,7 +10782,7 @@ importers:
         specifier: ^4.0.9
         version: 4.0.9
       js-yaml:
-        specifier: ^4.2.0
+        specifier: 4.3.1
         version: 4.3.1
 
   packages/preset/agent-preset-registry:
@@ -10793,7 +10794,7 @@ importers:
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
       js-yaml:
-        specifier: ^4.2.0
+        specifier: 4.3.1
         version: 4.3.1
       zod:
         specifier: ^4.4.3
@@ -13700,7 +13701,7 @@ importers:
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.2)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       js-yaml:
-        specifier: ^4.2.0
+        specifier: 4.3.1
         version: 4.3.1
       vitest:
         specifier: ^4.1.8
@@ -13905,8 +13906,8 @@ importers:
         specifier: workspace:*
         version: link:../../session/session-format
       js-yaml:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: 4.3.1
+        version: 4.3.1
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(happy-dom@20.11.6)(jsdom@29.1.1(@noble/hashes@2.3.0))(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -15182,8 +15183,8 @@ importers:
         specifier: link:../cosmokit
         version: link:../cosmokit
       js-yaml:
-        specifier: ^4.1.0
-        version: 4.2.0
+        specifier: 4.3.1
+        version: 4.3.1
 
   vendor/loader:
     dependencies:
@@ -20225,10 +20226,6 @@ packages:
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
-
-  js-yaml@4.2.0:
-    resolution: {integrity: sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw==}
-    hasBin: true
 
   js-yaml@4.3.1:
     resolution: {integrity: sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ==}
@@ -27665,10 +27662,6 @@ snapshots:
   js-tokens@10.0.0: {}
 
   js-tokens@4.0.0: {}
-
-  js-yaml@4.2.0:
-    dependencies:
-      argparse: 2.0.1
 
   js-yaml@4.3.1:
     dependencies:

@@ -14,7 +14,7 @@
 
 ## 架构要点
 
-- shell 窗保持不透明（`backgroundColor` 跟主题 + `roundedCorners`）：`transparent: true` 会让 Windows 把窗口当分层表面，最小化/最大化/还原失去 DWM 动画且最大化仍裁角，已回退（stash 留有该方案）。`paintBackground` 按角色把主题色刷上窗口表面（`chrome.js`/`window.js`/`closing-overlay.js`）。
+- shell 窗是 `transparent: true` 分层窗：剪影由页面自绘（boot 页圆角卡、harness 页注入 `body` 圆角裁切 + `#dshd-frame-canvas` 底色层 + `#dsh-wallpaper` 同径 + `#dshd-frame-ring` 嵌边发丝环锚定边缘），`paintBackground` 对透明窗跳过。代价是 Windows 分层表面语义：最大化只改 bounds、`isMaximized()` 恒假、`unmaximize()`/`restore()` 无效——有效最大化按「覆盖工作区」几何判定（`isEffectivelyMaximized`），还原用主进程跟踪的 `_dshNormalBounds` + `setBounds`（见 [2026-09-25 窗控自愈与几何最大化](../../decisions/implemented/bug-fix/2026-09-25-window-chrome-self-heal.md)、[2026-09-25 剪影嵌边环](../../decisions/implemented/bug-fix/2026-09-25-window-silhouette-edge-ring.md)）。注入丢失有三层兜底：eval 失败 retry、`did-navigate`/`focus`/`show` 重断言、页面 MutationObserver 自愈。
 - `window.js` 管理 Harness BrowserView bounds 与覆盖；`desktop-pet.js` + `desktop-pets.js` 管理 Codex 宠物发现（`${CODEX_HOME:-~/.codex}/pets`、v1/v2 图集）、约 80–96px 宠物 BrowserView、右键换肤菜单、归一化位置和生命周期，feature 默认关闭。
 - `desktop-live2d.js` 管理 Live2D 宠物：覆盖虚拟屏的透明 `alwaysOnTop` BrowserWindow，窗口本身永不 `setPosition`（分层透明窗移动会闪空）；默认 `setIgnoreMouseEvents` 穿透，主进程 ~30Hz 轮询 `screen.getCursorScreenPoint()` 推 `shell:live2d-cursor`，渲染器按角色 alpha bounds 决定交互。页面经特权 `pet://` scheme 加载，渲染进程内跑 onnxruntime-web（WebGPU→WASM 回落）。
 - `harness-chrome-inject.js` / `chrome.js` 把桌面 chrome 接到官方页。

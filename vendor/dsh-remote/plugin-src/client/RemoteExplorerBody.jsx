@@ -19,6 +19,7 @@ export function RemoteExplorerBody({ useTabInfo, sessionId, useSessions, t }) {
   const [menu, setMenu] = React.useState(null) // { x, y, item }
   const [namePrompt, setNamePrompt] = React.useState(null) // { kind, path, name }
   const [nameDraft, setNameDraft] = React.useState('')
+  const [confirmDel, setConfirmDel] = React.useState(null) // { path, dir }
   const [copied, setCopied] = React.useState('')
   const dataRef = React.useRef(data)
   dataRef.current = data
@@ -144,7 +145,7 @@ export function RemoteExplorerBody({ useTabInfo, sessionId, useSessions, t }) {
       const base = it.type === 'dir' ? it.path : (parentRemotePath(it.path) || root || '/')
       setNamePrompt({ kind: 'mkdir', path: base, name: '' }); setNameDraft('')
     } else if (id === 'delete') {
-      if (window.confirm(t('explorer.deleteConfirm', { path: it.path }))) void doFs('remove', { path: it.path })
+      setConfirmDel({ path: it.path, dir: it.type === 'dir' })
     }
   }
 

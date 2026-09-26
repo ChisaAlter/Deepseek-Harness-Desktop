@@ -5,7 +5,7 @@ import { RemoteSection } from '../src/client/RemoteSection.tsx'
 import type { RemoteSectionProps } from '../src/client/RemoteSection.tsx'
 import type { RemotePatch, RemoteSnapshot } from '../src/client/desktop-shell.ts'
 import { en, type RemoteLocaleKey } from '../src/client/locales.ts'
-import { humanizeRelayError, humanizeRemoteError } from '../src/client/relay-copy.ts'
+import { humanizeRelayError, humanizeRemoteError, ipcErrorMessage } from '../src/client/relay-copy.ts'
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const actual = await vi.importActual<typeof import('@deepseek-ai/dsh-client-ui-primitives')>(
@@ -74,6 +74,18 @@ describe('relay-copy', () => {
     expect(humanizeRemoteError('EADDRINUSE :3180')).toBe('portInUse')
     expect(humanizeRemoteError('手机配对页端口 3180 已被占用，请关闭占用进程')).toBe('portInUse')
     expect(humanizeRemoteError('gateway down')).toBe('generic')
+  })
+
+  it('maps a stale listen-address failure to bindGone', () => {
+    expect(humanizeRemoteError('listen EADDRNOTAVAIL: address not available 172.24.64.1:3180')).toBe('bindGone')
+    expect(humanizeRemoteError('监听地址 172.24.64.1 已失效：网卡断开或地址已变更（EADDRNOTAVAIL），请在「监听范围」改选其他地址')).toBe('bindGone')
+    expect(humanizeRemoteError('EADDRINUSE :3180')).toBe('portInUse')
+  })
+
+  it('unwraps the Electron IPC rejection wrapper for display', () => {
+    const wrapped = new Error("Error invoking remote method 'shell:save-remote': Error: 监听地址 172.24.64.1 已失效")
+    expect(ipcErrorMessage(wrapped)).toBe('监听地址 172.24.64.1 已失效')
+    expect(ipcErrorMessage('plain failure')).toBe('plain failure')
   })
 })
 

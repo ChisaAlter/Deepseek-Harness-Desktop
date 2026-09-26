@@ -262,6 +262,35 @@ describe('ui-surfaces apply', () => {
     await b.fiber.dispose()
   })
 
+  it('hands Office binaries to the native document preview', async () => {
+    const sidebarRight = sidebarRightStub()
+    const b = await bench({ mainView: 'sess-1', sidebarRight })
+    const openFile = bindOpenFile(b.slots)
+    ;(window as Window & { shell?: unknown }).shell = { listDir: async () => ({ ok: true }) }
+
+    await b.workspaces.openPath('/tmp/proj/docs/report.docx')
+
+    expect(openFile).not.toHaveBeenCalled()
+    expect(sidebarRight.openResourceIn).toHaveBeenCalledWith(
+      'sess-1', 'dsh-resource://file/session/sess-1/docs/report.docx',
+    )
+    expect(b.layout.closeSurfaces).toHaveBeenCalled()
+    expect(b.originalOpen).not.toHaveBeenCalled()
+    await b.fiber.dispose()
+  })
+
+  it('keeps Office paths on the file surface when the preview service is absent', async () => {
+    const b = await bench({ mainView: 'sess-1' })
+    const openFile = bindOpenFile(b.slots)
+    ;(window as Window & { shell?: unknown }).shell = { listDir: async () => ({ ok: true }) }
+
+    await b.workspaces.openPath('/tmp/proj/report.docx')
+
+    expect(openFile).toHaveBeenCalledWith('sess-1', 'report.docx')
+    expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+    await b.fiber.dispose()
+  })
+
   it('keeps cwd-less absolute paths on the Host fallback', async () => {
     const sidebarRight = sidebarRightStub()
     const b = await bench({ mainView: 'sess-1', cwd: '', sidebarRight })

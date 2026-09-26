@@ -41,7 +41,9 @@ export function registerSidebarShortcuts(shortcuts: Pick<Shortcuts, 'register' |
     },
   })]
   for (const kind of ['split', 'fullscreen'] as const) {
-    const binding: ShortcutBinding = kind === 'split' ? { code: 'Backslash', modifiers: ['primary'] }
+    // DSHD: Ctrl+\ stays with the surfaces right-panel toggle (ui-titlebar
+    // surfaces.toggle); pane split moves to primary+shift to keep one owner.
+    const binding: ShortcutBinding = kind === 'split' ? { code: 'Backslash', modifiers: ['primary', 'shift'] }
       : { code: 'Enter', modifiers: ['primary', 'alt'] }
     disposers.push(shortcuts.register({
       id: (kind === 'split' ? 'pane.split' : 'pane.fullscreen.toggle') as ShortcutCommandId,

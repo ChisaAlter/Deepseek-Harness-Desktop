@@ -104,7 +104,7 @@ async function alignHarnessAfterProfileChange(startHarness, downError) {
  * bundle list, then realign Harness when a kernel is live. Mirrors the
  * launcher's shell:disable-plugins / shell:disable-plugin handlers.
  */
-async function disablePlugins(names, { dsh, startHarness } = {}) {
+async function disablePlugins(names, { dsh, startHarness, configIO } = {}) {
   const list = uniqueNames(names);
   if (!list.length) {
     return { ok: false, error: 'missing-names' };
@@ -115,10 +115,13 @@ async function disablePlugins(names, { dsh, startHarness } = {}) {
       return { ok: false, error: guardError, name: raw };
     }
   }
-  const config = loadConfig();
+  // configIO lets the slim launcher retarget disabledPlugins at the managed
+  // runtime's config.json — the desktop is the process that honors the list.
+  const io = configIO || { load: loadConfig, save: saveConfig };
+  const config = io.load();
   const disabled = [...new Set([...(config.disabledPlugins || []), ...list])];
   applyDisabledBundles(disabled);
-  saveConfig({ disabledPlugins: disabled });
+  io.save({ disabledPlugins: disabled });
   if (!kernelNeedsAlign(dsh)) {
     return { ok: true, harnessRestarted: false };
   }
@@ -134,15 +137,16 @@ async function disablePlugins(names, { dsh, startHarness } = {}) {
  * including the quirk that the disabled-list write commits even when the
  * bundle re-add reports a failure.
  */
-async function enablePlugin(name, { dsh, startHarness } = {}) {
+async function enablePlugin(name, { dsh, startHarness, configIO } = {}) {
   const raw = String(name || '').trim();
   if (!raw) {
     return { ok: false, error: 'missing-name' };
   }
-  const disabled = (loadConfig().disabledPlugins || []).filter((item) => item !== raw);
+  const io = configIO || { load: loadConfig, save: saveConfig };
+  const disabled = (io.load().disabledPlugins || []).filter((item) => item !== raw);
   const enabled = setBundleEnabled(raw, true);
   applyDisabledBundles(disabled);
-  saveConfig({ disabledPlugins: disabled });
+  io.save({ disabledPlugins: disabled });
   if (enabled.ok === false) {
     return { ok: false, ...enabled, harnessRestarted: false };
   }

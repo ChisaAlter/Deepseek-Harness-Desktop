@@ -1,3 +1,5 @@
+'use strict';
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -6,8 +8,16 @@ function pageShell() {
   return window.shell;
 }
 
-function setHint(text) {
+let hintTimer = 0;
+
+// Transient status line at the top of the stage. Plain completions fade on
+// their own ({fade:true}); progress and errors stay until replaced.
+function setHint(text, opts = {}) {
   const node = $('hint');
+  if (!node) {
+    return;
+  }
+  clearTimeout(hintTimer);
   if (!text) {
     node.hidden = true;
     node.textContent = '';
@@ -15,7 +25,118 @@ function setHint(text) {
   }
   node.hidden = false;
   node.textContent = text;
+  if (opts.fade === true) {
+    hintTimer = setTimeout(() => {
+      node.hidden = true;
+      node.textContent = '';
+    }, 4200);
+  }
 }
+
+// Machine codes from launcher-service / runtime-install / update. A bare
+// token must never reach the user; sentences pass through after the known
+// technical patterns get a Chinese translation.
+const ERROR_LABELS = {
+  'missing-tag': '缺少版本号，请刷新版本列表后重试。',
+  'release-not-found': '未找到该版本的发布信息，请刷新版本列表。',
+  'no-installer': '该版本没有可用的安装包。',
+  'confirmed-release-unavailable': '所选版本已不可用，请刷新版本列表后重试。',
+  'desktop-still-running': '桌面端仍在运行，请从托盘退出后重试。',
+  'runtime-not-installed': '未检测到已安装的桌面端，请先在首页安装。',
+  'runtime-exe-missing': '桌面端程序文件缺失，请重新安装。',
+  'runtime-exited': '桌面端启动后立即退出，请到「插件排查」查看原因。',
+  'runtime-never-started': '桌面端未能启动，请稍后重试。',
+  'runtime-busy': '桌面端正在运行，请先停止后再试。',
+  'desktop-only': '该操作需要在桌面端内完成。',
+  'no-peer': '桌面端版本过旧，请从托盘退出桌面端后重试。',
+  'peer-unreachable': '无法联系运行中的桌面端，请从其托盘菜单退出后重试。',
+  'peer-cancelled': '已在桌面端取消该操作。',
+  cancelled: '已取消。',
+  busy: '桌面端正在处理任务，请稍后重试。',
+  'delta-not-found': '没有可用的增量包，请改用完整更新。',
+  'install-in-progress': '已有安装任务进行中。',
+};
+
+const ERROR_MESSAGE_PATTERNS = [
+  [/too many redirects/i, '下载跳转次数过多，请检查网络或更换下载线路。'],
+  [/404|not found/i, '下载资源不存在（404），请刷新版本列表后重试。'],
+  [/ENOTFOUND|EAI_AGAIN|getaddrinfo/i, '无法连接下载服务器，请检查网络后重试。'],
+  [/ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|timed? ?out/i, '连接超时或被中断，请检查网络后重试。'],
+  [/checksum|sha-?256|hash mismatch/i, '下载文件校验失败，已删除该文件，请重试。'],
+  [/EPERM|EBUSY|EACCES/i, '文件被占用或没有权限，请关闭相关程序后重试。'],
+  [/ENOSPC/i, '磁盘空间不足，请清理后重试。'],
+];
+
+// One sanitizer for every user-visible failure surface: strips the IPC
+// "Error invoking remote method" prefix, prefers a real message sentence,
+// translates known technical text, and never leaks a bare machine code.
+function errText(input, fallback = '操作失败，请重试。') {
+  const code = input && typeof input === 'object' ? String(input.error || '') : '';
+  let text = typeof input === 'string' ? input : String(input?.message || '');
+  text = text
+    .replace(/^Error invoking remote method '[^']*':\s*/i, '')
+    .replace(/^Error:\s*/, '')
+    .trim();
+  for (const [pattern, label] of ERROR_MESSAGE_PATTERNS) {
+    if (pattern.test(text)) {
+      return label;
+    }
+  }
+  if (text && !/^[A-Za-z][\w./:-]*$/.test(text)) {
+    return text;
+  }
+  if (ERROR_LABELS[text]) {
+    return ERROR_LABELS[text];
+  }
+  if (ERROR_LABELS[code]) {
+    return ERROR_LABELS[code];
+  }
+  return fallback;
+}
+
+// In-app confirm dialog — window.confirm() is banned here: it blocks the
+// renderer thread and ignores the design tokens. Cancel is always the safe
+// default focus; destructive confirmations paint the OK button danger.
+let confirmResolve = null;
+
+function appConfirm({ title, body, confirmText = '确定', cancelText = '取消', danger = false }) {
+  const mask = $('app-confirm');
+  if (!mask) {
+    return Promise.resolve(false);
+  }
+  if (confirmResolve) {
+    confirmResolve(false);
+    confirmResolve = null;
+  }
+  $('app-confirm-title').textContent = title || '';
+  $('app-confirm-body').textContent = body || '';
+  const okBtn = $('app-confirm-ok');
+  okBtn.textContent = confirmText;
+  okBtn.className = danger ? 'danger' : 'primary';
+  $('app-confirm-cancel').textContent = cancelText;
+  mask.hidden = false;
+  const previousFocus = document.activeElement;
+  $('app-confirm-cancel').focus();
+  return new Promise((resolve) => {
+    confirmResolve = (ok) => {
+      confirmResolve = null;
+      mask.hidden = true;
+      if (previousFocus && typeof previousFocus.focus === 'function') {
+        previousFocus.focus();
+      }
+      resolve(ok);
+    };
+  });
+}
+
+function settleConfirm(ok) {
+  if (confirmResolve) {
+    confirmResolve(ok);
+  }
+}
+
+window.appConfirm = appConfirm;
+window.dshdErrText = errText;
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((tab) => {
@@ -24,7 +145,7 @@ function showTab(name) {
     tab.setAttribute('aria-selected', on ? 'true' : 'false');
   });
   document.querySelectorAll('.panel').forEach((panel) => {
-    const on = panel.id === `panel-${name}`;
+    const on = panel.id === `panel-${name}` || panel.id === `tab-${name}`;
     panel.classList.toggle('is-active', on);
     panel.hidden = !on;
   });
@@ -39,29 +160,30 @@ function uninstallErrorHint(result) {
     return result.message;
   }
   const labels = {
-    'source-run-no-install': '当前为源码运行，无本机安装包可卸载。请用「设置 → 应用」卸载已安装的 Deepseek-Harness-Desktop。',
-    'uninstaller-not-found': '未找到卸载程序。请在「设置 → 应用」中卸载 Deepseek-Harness-Desktop。',
+    'source-run-no-install': '当前为源码运行，无本机安装包可卸载。请用「设置 → 应用」卸载已安装的 Whale Isle。',
+    'uninstaller-not-found': '未找到卸载程序。请在「设置 → 应用」中卸载 Whale Isle。',
   };
   return labels[result?.error] || result?.error || '无法启动卸载程序';
 }
 
-function renderInstalledCard(installed) {
+function renderVersionLead(installed) {
   const version = installed?.version || '';
   const runningFromSource = Boolean(installed?.runningFromSource);
-  const prefix = runningFromSource ? '当前运行（源码）v' : '本机已安装 v';
   const label = version
-    ? `${prefix}${String(version).replace(/^v/i, '')}`
-    : (runningFromSource ? '当前为源码运行' : '本机已安装（版本未知）');
-  $('installed-version').textContent = label;
-  const pathNode = $('installed-path');
-  if (installed?.installPath) {
-    pathNode.textContent = installed.installPath;
-    pathNode.hidden = false;
-    pathNode.title = installed.installPath;
-  } else {
-    pathNode.textContent = '';
-    pathNode.hidden = true;
-    pathNode.title = '';
+    ? `v${String(version).replace(/^v/i, '')}${runningFromSource ? ' · 源码运行' : ''}`
+    : (runningFromSource ? '源码运行' : (installed?.registeredInstall === false ? '未安装' : '版本未知'));
+  $('ver-num').textContent = label;
+  const sub = $('ver-now-sub');
+  if (sub) {
+    if (installed?.installPath) {
+      sub.textContent = `安装位置 ${installed.installPath}`;
+      sub.hidden = false;
+      sub.title = installed.installPath;
+    } else {
+      sub.textContent = '';
+      sub.hidden = true;
+      sub.title = '';
+    }
   }
   const noteNode = $('installed-uninstall-note');
   const note = installed?.uninstallNote || '';
@@ -73,14 +195,23 @@ function renderInstalledCard(installed) {
     noteNode.hidden = true;
   }
   const btn = $('btn-uninstall-app');
-  if (installed?.uninstallUsesSettings) {
-    btn.textContent = '打开应用设置';
-  } else {
-    btn.textContent = '卸载本机应用';
-  }
+  btn.textContent = installed?.uninstallUsesSettings ? '打开应用设置' : '卸载本机应用';
   const canUninstall = Boolean(installed?.uninstallAvailable);
   btn.hidden = !canUninstall;
   btn.disabled = !canUninstall;
+  const foot = $('ver-foot');
+  if (foot) {
+    foot.hidden = !(note || canUninstall);
+  }
+}
+
+function bindVersionActions(root) {
+  root.querySelectorAll('[data-install-tag]').forEach((button) => {
+    button.addEventListener('click', () => installTag(button.dataset.installTag, button.dataset.installKind));
+  });
+  root.querySelectorAll('[data-delta-tag]').forEach((button) => {
+    button.addEventListener('click', () => installDelta(button.dataset.deltaTag));
+  });
 }
 
 function releaseActionLabel(row) {
@@ -93,44 +224,150 @@ function releaseActionLabel(row) {
   return '切换至此版本';
 }
 
-function releaseActionButton(row) {
-  if (row.current) {
-    return '<span class="row-meta">已安装</span>';
-  }
+function releaseActionButtons(row, delta) {
+  const parts = [];
   const label = releaseActionLabel(row);
-  if (!label) {
-    const reason = row.installable ? '不可用' : '无安装包';
-    return `<button type="button" class="ghost" disabled>${reason}</button>`;
+  if (delta && label) {
+    parts.push(`<button type="button" class="primary small" data-delta-tag="${escapeHtml(row.tag || '')}">增量更新</button>`);
   }
-  const kind = row.newer ? 'update' : 'switch';
-  return `<button type="button" class="ghost" data-install-tag="${escapeHtml(row.tag || '')}" data-install-kind="${kind}">${label}</button>`;
+  if (label) {
+    const kind = row.newer ? 'update' : 'switch';
+    parts.push(`<button type="button" class="primary small" data-install-tag="${escapeHtml(row.tag || '')}" data-install-kind="${kind}">${label}</button>`);
+  } else if (!row.current) {
+    const reason = row.installable ? '不可用' : '无安装包';
+    parts.push(`<button type="button" class="ghost small" disabled>${reason}</button>`);
+  }
+  return parts.join('');
+}
+
+const RELEASE_NOTES_LIMIT = 1200;
+
+// Release bodies are markdown; the detail pane shows plain reading text.
+function plainReleaseNotes(body) {
+  return String(body || '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*[-*_]{3,}\s*$/gm, '')
+    .replace(/^\s*[-+*]\s+\[[ xX]\]\s+/gm, '· ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function releaseDetailHtml(row, delta) {
+  const meta = [];
+  if (row.publishedAt) {
+    meta.push(`发布于 ${String(row.publishedAt).slice(0, 10)}`);
+  }
+  if (row.assetName) {
+    meta.push(`完整包 ${row.assetName}${row.assetSize ? ` · ${formatBytes(row.assetSize)}` : ''}`);
+  } else {
+    meta.push('无 Setup 安装包');
+  }
+  if (delta) {
+    meta.push(`增量包 ${delta.assetName || ''}${delta.size ? ` · ${formatBytes(delta.size)}` : ''}`.trim());
+  }
+  const notes = plainReleaseNotes(row.notes);
+  const clipped = notes.length > RELEASE_NOTES_LIMIT ? `${notes.slice(0, RELEASE_NOTES_LIMIT)}…` : notes;
+  const actions = releaseActionButtons(row, delta);
+  return `<div class="rel-detail" hidden>
+    <div class="rel-detail-meta row-meta">${escapeHtml(meta.join(' · '))}</div>
+    <p class="rel-notes">${clipped ? escapeHtml(clipped) : '该版本未提供更新说明。'}</p>
+    ${actions ? `<div class="rel-detail-actions">${actions}</div>` : (row.current ? '<div class="row-meta">当前已安装此版本</div>' : '')}
+  </div>`;
 }
 
 function renderReleases(payload) {
-  renderInstalledCard(payload?.installed);
+  renderVersionLead(payload?.installed);
   const list = $('release-list');
   const rows = payload && Array.isArray(payload.releases) ? payload.releases : [];
+  const deltas = (payload && payload.deltas) || lastStatus?.deltas || {};
+  const cachedDeltas = Array.isArray(deltas) ? deltas : (deltas.available || []);
+  const deltaFor = (tag) => {
+    if (!tag) {
+      return null;
+    }
+    const hit = cachedDeltas.find((entry) => entry && entry.tag === tag);
+    return hit || (Array.isArray(deltas) ? null : deltas[tag] || null);
+  };
+  const badgeEl = $('ver-badge');
+  const cta = $('ver-cta');
+  const updateRow = rows.find((row) => row && row.newer && row.installable)
+    || rows.find((row) => row && row.newer);
+  if (updateRow) {
+    const delta = updateRow.delta || deltaFor(updateRow.tag);
+    badgeEl.textContent = `发现新版本 ${updateRow.tag || updateRow.version || ''}`;
+    badgeEl.className = 'badge blue';
+    badgeEl.hidden = false;
+    if (cta) {
+      cta.innerHTML = releaseActionButtons(updateRow, delta);
+      bindVersionActions(cta);
+    }
+  } else {
+    const installed = payload && payload.installed;
+    const known = Boolean(installed && installed.version) && rows.length > 0;
+    badgeEl.textContent = known ? '已是最新' : '';
+    badgeEl.className = 'badge green';
+    badgeEl.hidden = !known;
+    if (cta) {
+      cta.innerHTML = '';
+    }
+  }
   if (!rows.length) {
     list.innerHTML = `<li><span class="row-meta">${escapeHtml(payload?.message || '暂无可列出的正式版。')}</span></li>`;
     return;
   }
-  list.innerHTML = rows.map((row) => {
+  const latestIdx = rows.findIndex((row) => row && !row.prerelease);
+  list.innerHTML = rows.map((row, index) => {
+    const delta = row && row.newer ? (row.delta || deltaFor(row.tag)) : null;
     const marks = [
+      index === latestIdx ? '<span class="badge green">最新</span>' : '',
       row.current ? badge('当前') : '',
       row.prerelease ? badge('预发布') : '',
+      delta ? `<span class="badge blue">增量${escapeHtml(formatBytes(delta.size) ? ` ${formatBytes(delta.size)}` : '')}</span>` : '',
       row.installable ? '' : badge('无安装包', true),
     ].join('');
-    return `<li>
-      <div class="row-main">
-        <div class="row-title">${escapeHtml(row.tag || row.version || '')} ${marks}</div>
-        <div class="row-meta">${escapeHtml(row.assetName || '无 Setup 安装包')}</div>
-      </div>
-      ${releaseActionButton(row)}
+    const metaBits = [];
+    if (row.publishedAt) {
+      metaBits.push(String(row.publishedAt).slice(0, 10));
+    }
+    if (row.assetSize) {
+      metaBits.push(formatBytes(row.assetSize));
+    }
+    return `<li class="rel-row">
+      <button type="button" class="rel-line" data-rel-toggle aria-expanded="false">
+        <span class="row-main">
+          <span class="row-title">${escapeHtml(row.tag || row.version || '')} ${marks}</span>
+          <span class="row-meta">${escapeHtml(metaBits.join(' · '))}</span>
+        </span>
+        ${row.current ? '<span class="row-meta">已安装</span>' : ''}
+        <svg class="rel-chev" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 10.6 3.7 6.3l1.1-1.1L8 8.4l3.2-3.2 1.1 1.1z"/></svg>
+      </button>
+      ${releaseDetailHtml(row, delta)}
     </li>`;
   }).join('');
-  list.querySelectorAll('[data-install-tag]').forEach((button) => {
-    button.addEventListener('click', () => installTag(button.dataset.installTag, button.dataset.installKind));
+  list.querySelectorAll('[data-rel-toggle]').forEach((line) => {
+    line.addEventListener('click', () => {
+      const item = line.closest('li');
+      const detail = item && item.querySelector('.rel-detail');
+      if (!item || !detail) {
+        return;
+      }
+      const open = !item.classList.contains('is-open');
+      item.classList.toggle('is-open', open);
+      detail.hidden = !open;
+      if (line.setAttribute) {
+        line.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+    });
   });
+  bindVersionActions(list);
 }
 
 function pluginErrorHint(code) {
@@ -204,11 +441,15 @@ function renderPluginBoard(forensics, options = {}) {
     }
   }
   if (!forensics) {
-    list.innerHTML = '';
+    list.innerHTML = '<li><span class="row-meta">尚未扫描，点击「重新扫描」生成排查结果。</span></li>';
     return;
   }
   const allowRemove = options.allowRemove === true;
   const rows = pluginBoardRows(forensics, options.sortSuspectsFirst === true);
+  if (!rows.length) {
+    list.innerHTML = '<li><span class="row-meta">未检测到插件，当前插件环境为空。</span></li>';
+    return;
+  }
   list.innerHTML = rows.map((row) => {
     const marks = [
       row.inBox ? badge('内置组件', true) : (row.orphan ? badge('未在 profile 登记', true) : ''),
@@ -225,12 +466,16 @@ function renderPluginBoard(forensics, options = {}) {
     } else if (row.officialTemplate) {
       actions = '<span class="row-meta" title="官方模板插件不可禁用。">不可禁用</span>';
     } else if (row.disabled) {
-      actions = `<button type="button" class="ghost" data-enable="${escapeHtml(row.name)}">启用</button>`;
+      actions = `<button type="button" class="ghost small" data-enable="${escapeHtml(row.name)}">启用</button>`;
     } else {
-      actions = `<button type="button" class="ghost" data-disable="${escapeHtml(row.name)}">禁用</button>`;
+      actions = `<button type="button" class="ghost small" data-disable="${escapeHtml(row.name)}">禁用</button>`;
     }
     if (allowRemove && !row.preset && !row.orphan) {
-      actions += `<button type="button" class="danger" data-remove="${escapeHtml(row.name)}">移除</button>`;
+      // Slim packages ship no vendored plugin toolchain, so removal is
+      // intentionally routed to the installed desktop app.
+      actions += lastStatus?.launcherPackage === true
+        ? '<span class="row-meta" title="轻量启动器不含插件工具链">需在桌面端内移除</span>'
+        : `<button type="button" class="danger small" data-remove="${escapeHtml(row.name)}">移除</button>`;
     }
     const evidence = evidenceLines(forensics, row.name)
       .map((line) => `<div class="row-meta evidence">${escapeHtml(line)}</div>`)
@@ -241,7 +486,7 @@ function renderPluginBoard(forensics, options = {}) {
         <div class="row-meta">${escapeHtml(row.spec || '')}</div>
         ${evidence}
       </div>
-      <div class="actions">${actions}</div>
+      <div class="row-actions">${actions}</div>
     </li>`;
   }).join('');
   list.querySelectorAll('[data-disable]').forEach((button) => {
@@ -295,8 +540,9 @@ async function actPlugin(method, name) {
     return;
   }
   const aligning = method === 'disablePlugin' || method === 'enablePlugin';
+  const slimPackage = lastStatus?.launcherPackage === true;
   if (aligning) {
-    setHint('正在重新启动以使插件变更生效…');
+    setHint(slimPackage ? '' : '正在重新启动以使插件变更生效…');
   }
   const result = await api[method](name);
   if (result && result.forensics) {
@@ -308,16 +554,16 @@ async function actPlugin(method, name) {
     return;
   }
   if (aligning && result && result.harnessRestarted === false && result.error) {
-    setHint(result.error);
+    setHint(errText(result));
     return;
   }
   if (method === 'removePlugin' && result && result.kernelStopped) {
-    setHint('桌面端已停止，请在首页重新启动。');
+    setHint('桌面端已停止，请在首页重新启动。', { fade: true });
     void refreshStatus();
     return;
   }
   if (aligning) {
-    setHint('');
+    setHint(slimPackage ? '已写入运行时配置，下次启动桌面端生效。' : '', { fade: true });
     void refreshStatus();
   }
 }
@@ -344,10 +590,34 @@ function desktopIsRunning(desktop) {
 
 let lastStatus = null;
 let installBusy = false;
+let updateBusy = false;
+let updateCheckBusy = false;
+let lastUpdateCheck = null;
+let componentsMounted = false;
+
+function routeLabel(routes, routeId) {
+  const row = (Array.isArray(routes) ? routes : []).find((route) => route && route.id === routeId);
+  return (row && row.label) || routeId || '';
+}
+
+function formatBytes(value) {
+  const size = Number(value);
+  if (!Number.isFinite(size) || size <= 0) {
+    return '';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let n = size;
+  let unit = 0;
+  while (n >= 1024 && unit < units.length - 1) {
+    n /= 1024;
+    unit += 1;
+  }
+  return `${n >= 10 || unit === 0 ? Math.round(n) : n.toFixed(1)} ${units[unit]}`;
+}
 
 function selectedRoute() {
-  const picked = document.querySelector('input[name="dl-route"]:checked:not(:disabled)');
-  return picked ? picked.value : '';
+  const picked = document.querySelector('#route-picker .line-card.is-sel');
+  return picked ? picked.dataset.routePick : '';
 }
 
 // Both the home card and the settings row render from the same status payload
@@ -356,36 +626,53 @@ function selectedRoute() {
 function renderRouteControls(status) {
   const routes = Array.isArray(status?.routes) ? status.routes : [];
   const current = status?.downloadRoute || '';
+  const railRoute = $('rail-route');
+  if (railRoute) {
+    railRoute.textContent = routeLabel(routes, current) || '未选择';
+  }
   const picker = $('route-picker');
   if (picker) {
     picker.innerHTML = routes.map((route) => `
-      <label class="route-card${route.verified ? '' : ' is-disabled'}">
-        <input type="radio" name="dl-route" value="${escapeHtml(route.id)}"
-          ${route.id === current ? 'checked' : ''} ${route.verified ? '' : 'disabled'} />
-        <span class="route-card-main">
-          <span class="route-card-name">${escapeHtml(route.label)}${route.verified ? '' : ' <span class="badge warn">未启用</span>'}</span>
-          <span class="route-card-desc">${escapeHtml(route.detail || '')}</span>
-        </span>
-      </label>`).join('');
-    picker.querySelectorAll('input[name="dl-route"]').forEach((input) => {
-      input.addEventListener('change', () => {
-        void pageShell()?.saveLauncherConfig({ downloadRoute: input.value });
+      <button type="button" role="radio"
+        class="line-card${route.id === current ? ' is-sel' : ''}${route.verified ? '' : ' is-disabled'}"
+        data-route-pick="${escapeHtml(route.id)}"
+        aria-checked="${route.id === current ? 'true' : 'false'}"
+        ${route.verified ? '' : 'disabled'}>
+        <span class="lc-title"><span class="lc-radio" aria-hidden="true"></span>${escapeHtml(route.label)}${route.verified ? '' : ' <span class="badge warn">未启用</span>'}</span>
+        <span class="lc-desc">${escapeHtml(route.detail || '')}</span>
+      </button>`).join('');
+    picker.querySelectorAll('[data-route-pick]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          await pageShell()?.saveLauncherConfig({ downloadRoute: button.dataset.routePick });
+          void refreshStatus();
+        } catch (error) {
+          setHint(errText(error, '设置保存失败'));
+        }
       });
     });
   }
   const seg = $('route-seg');
+  const segNote = $('route-seg-note');
   if (seg) {
     seg.innerHTML = routes.map((route) => `
       <button type="button" class="seg${route.id === current ? ' is-active' : ''}"
         data-route="${escapeHtml(route.id)}" ${route.verified ? '' : 'disabled'}
         title="${escapeHtml(route.detail || '')}${route.verified ? '' : '（待验证）'}">${escapeHtml(route.label)}</button>`).join('');
+    if (segNote) {
+      const disabled = routes.filter((route) => !route.verified);
+      segNote.hidden = disabled.length === 0;
+      segNote.textContent = disabled.length
+        ? disabled.map((route) => `${route.label}：待验证，暂不可用`).join('；')
+        : '';
+    }
     seg.querySelectorAll('[data-route]').forEach((button) => {
       button.addEventListener('click', async () => {
         try {
           await pageShell()?.saveLauncherConfig({ downloadRoute: button.dataset.route });
           void refreshStatus();
         } catch (error) {
-          setHint(error && error.message ? error.message : '设置保存失败');
+          setHint(errText(error, '设置保存失败'));
         }
       });
     });
@@ -419,11 +706,71 @@ function installPhaseText(payload) {
     verify: '正在校验安装包…',
     install: '正在启动安装程序…',
     'install-wait': payload?.installerDone ? '等待安装完成…' : '安装程序运行中…',
+    done: '安装完成',
+    cancelled: '已取消',
   };
   if (payload?.phase === 'download') {
     return `${payload.differential ? '增量下载' : '下载'} ${payload.percent || 0}%`;
   }
   return phases[payload?.phase] || payload?.phase || '处理中';
+}
+
+const PHASE_STEPS = ['resolve', 'download', 'verify', 'install', 'install-wait'];
+const PHASE_LABELS = {
+  resolve: '解析版本',
+  download: '下载',
+  verify: '校验',
+  install: '安装',
+  'install-wait': '完成',
+};
+const PHASE_FILL = {
+  resolve: 8,
+  verify: 72,
+  install: 88,
+  'install-wait': 94,
+  done: 100,
+};
+
+function phaseRank(phase) {
+  const index = PHASE_STEPS.indexOf(phase);
+  return index === -1 ? 0 : index;
+}
+
+// Paints one structured progress card; `prefix` is 'install-progress' (home
+// runtime install) or 'update-progress' (versions install / delta update).
+function paintProgress(prefix, payload) {
+  const card = $(`${prefix}-card`);
+  if (!card) {
+    return;
+  }
+  card.hidden = false;
+  const phase = payload?.phase || '';
+  const percent = phase === 'download' && Number.isFinite(Number(payload?.percent))
+    ? Math.max(0, Math.min(100, Number(payload.percent)))
+    : null;
+  const pct = $(`${prefix}-pct`);
+  if (pct) {
+    pct.textContent = percent === null ? '' : `${percent}%`;
+  }
+  const bar = $(`${prefix}-bar`);
+  if (bar) {
+    const fill = percent === null ? (PHASE_FILL[phase] ?? null) : percent;
+    if (fill !== null) {
+      bar.style.width = `${fill}%`;
+    }
+  }
+  const kind = $(`${prefix}-kind`);
+  if (kind) {
+    kind.hidden = !(payload?.differential || payload?.delta === true || payload?.mode === 'delta');
+  }
+  const host = $(`${prefix}-phases`);
+  if (host) {
+    const now = phaseRank(phase);
+    host.innerHTML = PHASE_STEPS.map((step, index) => {
+      const cls = index < now ? ' done' : (index === now ? ' now' : '');
+      return `<span class="phase${cls}"><i class="phase-dot"></i>${PHASE_LABELS[step]}</span>`;
+    }).join('');
+  }
 }
 
 async function installRuntime() {
@@ -438,31 +785,36 @@ async function installRuntime() {
   }
   installBusy = true;
   const progress = $('install-progress');
+  const title = $('install-progress-title');
   const btnInstall = $('btn-install-runtime');
   const btnCancel = $('btn-install-cancel');
   btnInstall.disabled = true;
   btnCancel.hidden = false;
-  progress.hidden = false;
+  if (title) {
+    title.textContent = '正在安装桌面端';
+  }
+  paintProgress('install-progress', { phase: 'resolve' });
   progress.textContent = '正在获取版本信息…';
+  syncLauncherState();
   try {
     const result = await api.installRuntime({ route });
     if (result?.status === 'installed' || result?.ok === true) {
+      paintProgress('install-progress', { phase: 'done' });
       progress.textContent = `安装完成${result?.installed?.version ? `：v${result.installed.version}` : ''}`;
-      setHint('桌面端已安装，可启动。');
+      setHint('桌面端已安装，可启动。', { fade: true });
       void refreshStatus();
     } else if (result?.cancelled) {
       progress.textContent = result.message || '已取消';
     } else {
-      progress.textContent = result?.message === 'no-installer'
-        ? '该版本未提供 Setup 安装包。'
-        : (result?.message || '安装失败');
+      progress.textContent = errText(result, '安装失败');
     }
   } catch (error) {
-    progress.textContent = error && error.message ? error.message : String(error);
+    progress.textContent = errText(error, '安装失败');
   } finally {
     installBusy = false;
     btnInstall.disabled = false;
     btnCancel.hidden = true;
+    syncLauncherState();
   }
 }
 
@@ -482,8 +834,9 @@ async function refreshStatus() {
   const last = status?.lastStart;
   const desktop = status?.desktop;
   const recovery = status?.recovery || desktop?.pluginRecovery;
+  const installedState = status?.installed;
   const bits = [launcherPackage
-    ? `桌面端版本 ${version || '未安装'}`
+    ? (version ? `桌面端 v${version} 已安装` : (installedState?.registeredInstall ? '桌面端已安装' : '桌面端未安装'))
     : `当前版本 ${version || '未知'}`];
   if (desktop && desktop.state) {
     bits.push(`桌面端${desktopStateLabel(desktop.state)}`);
@@ -495,32 +848,213 @@ async function refreshStatus() {
     bits.push(`上次启动失败：${last.error || '原因未知'}`);
   }
   $('home-status').textContent = bits.join(' · ');
-  const btnStart = $('btn-start');
-  btnStart.textContent = desktopIsRunning(desktop) ? '关闭桌面端' : '启动桌面端';
   renderInstallCard(status);
   renderRouteControls(status);
   renderVersionsHead(status);
   renderHomeRecovery(status);
+  syncRecoveryActions(status);
+  syncLauncherState(status);
+  syncComponentsBadge();
   const config = status?.config || await api.getConfig();
   $('opt-quit').checked = config.quitAfterStart !== false;
   $('opt-auto').checked = config.autoStartDesktop !== false;
   $('opt-ask').checked = config.askOnUpdate !== false;
+  const trayRow = $('row-opt-tray');
+  if (trayRow) {
+    trayRow.hidden = status?.launcherPackage !== true;
+    $('opt-tray').checked = config.closeToTray !== false;
+  }
   // A late cold-start update result is parked in the main process until the
   // user actually looks at the launcher. Surface it like any other check.
   if (status?.pendingUpdateCheck) {
     renderUpdateCheck(status.pendingUpdateCheck);
+  } else {
+    syncUpdateNotice(lastUpdateCheck);
+  }
+}
+
+// Recovery-lane buttons（跳过用户插件 / 恢复完整插件）是恢复路径操作，只在
+// 存在恢复上下文时出现：启动失败、恢复板可见、或粘性跳过已生效。常态首页
+// 只留常态动作，避免把排障选项平铺成默认路径。
+function syncRecoveryActions(status) {
+  const lane = $('home-recovery-actions');
+  if (!lane) {
+    return;
+  }
+  const inRecovery = launcherState(status) === 'recovery'
+    || status?.lastStart?.ok === false
+    || status?.recovery?.skipUserPlugins === true;
+  lane.hidden = !inRecovery;
+}
+
+function syncUpdateNotice(check) {
+  const box = $('home-update');
+  if (!box) {
+    return;
+  }
+  const latest = check?.latest || check?.stableVersion || '';
+  const failed = check?.status === 'error'
+    || check?.status === 'none'
+    || check?.status === 'current'
+    || check?.status === 'skipped';
+  const show = Boolean(latest) && !failed;
+  box.hidden = !show;
+  if (show) {
+    const current = check?.currentVersion ? `（当前 v${String(check.currentVersion).replace(/^v/i, '')}）` : '';
+    $('home-update-text').textContent = `发现新版本 v${String(latest).replace(/^v/i, '')}${current}`;
   }
 }
 
 function renderUpdateCheck(check) {
+  if (check && typeof check === 'object') {
+    lastUpdateCheck = check;
+  }
+  syncUpdateNotice(check && typeof check === 'object' ? check : lastUpdateCheck);
   if (check?.hint) {
     setHint(check.hint);
   } else if (check?.status === 'error') {
     setHint(`更新检查失败：${check.message || '网络或 GitHub 不可用'}。仍可启动桌面端。`);
   } else if (check?.status === 'available') {
     setHint(`发现正式版 ${check.latest || ''}。`);
+  } else if (check && (check.status === 'current' || check.status === 'none')) {
+    setHint('当前已是最新版本。', { fade: true });
   } else {
     setHint('');
+  }
+}
+
+// --- Runtime state + components --------------------------------------------
+
+function launcherState(status) {
+  const desktop = status?.desktop;
+  const recovery = status?.recovery || desktop?.pluginRecovery;
+  const recoveryApi = window.launcherRecovery;
+  if (recoveryApi?.shouldShowRecovery
+    && recoveryApi.shouldShowRecovery(status?.lastStart, recovery, status?.forensics, desktop)) {
+    return 'recovery';
+  }
+  if (desktopIsRunning(desktop)) {
+    return 'running';
+  }
+  if (installBusy) {
+    return 'downloading';
+  }
+  // Slim launcher package with no registered desktop install. In a full
+  // package the bundled runtime is itself the desktop, so that mode never
+  // reports notinstalled.
+  if (status?.launcherPackage === true
+    && Boolean(status?.installed)
+    && status.installed.registeredInstall === false) {
+    return 'notinstalled';
+  }
+  return 'installed';
+}
+
+function syncDesktopControls() {
+  const running = desktopIsRunning(lastStatus?.desktop);
+  const start = $('btn-start');
+  const stop = $('btn-stop');
+  if (start) {
+    // Running state keeps a visible primary like the prototype: respawning the
+    // installed exe lands on the runtime's own single-instance handler, which
+    // focuses its window instead of booting a second desktop.
+    start.hidden = false;
+    start.textContent = running ? '打开桌面端窗口' : '启动桌面端';
+  }
+  if (stop) {
+    stop.hidden = !running;
+    stop.textContent = '关闭桌面端';
+  }
+  const runBadge = $('home-run-badge');
+  if (runBadge) {
+    runBadge.hidden = !running;
+  }
+  const runNote = $('home-running-note');
+  if (runNote) {
+    runNote.hidden = !running;
+  }
+}
+
+function syncLauncherState(status) {
+  if (status) {
+    lastStatus = status;
+  }
+  document.body.dataset.launcherState = launcherState(lastStatus);
+  syncDesktopControls();
+}
+
+function syncComponentsBadge() {
+  const badgeNode = $('tab-badge-components');
+  if (!badgeNode) {
+    return;
+  }
+  const comps = lastStatus?.components;
+  const rows = Array.isArray(comps?.items) ? comps.items : (Array.isArray(comps) ? comps : []);
+  const count = rows.filter((row) => row && (row.updateAvailable === true || row.state === 'error')).length;
+  badgeNode.hidden = count === 0;
+  badgeNode.textContent = count ? String(count) : '';
+}
+
+function mountComponents() {
+  if (componentsMounted) {
+    return;
+  }
+  componentsMounted = true;
+  const host = $('tab-components');
+  if (!host) {
+    return;
+  }
+  const mod = window.__launcherComponents;
+  if (mod && typeof mod.mount === 'function') {
+    try {
+      mod.mount(host, pageShell());
+      return;
+    } catch (error) {
+      // Fall through to the empty state; a broken components lane must not
+      // take the launcher down.
+      host.innerHTML = '';
+    }
+  }
+  host.innerHTML = `<header class="page-head"><h2>组件</h2></header>
+    <p class="lede lede-block">组件列表由组件模块提供。</p>
+    <div class="card"><p class="row-meta">组件模块尚未加载，暂无可用内容。</p></div>`;
+}
+
+function activateTab(name) {
+  showTab(name);
+  if (name === 'home') {
+    void refreshStatus();
+  }
+  if (name === 'import') {
+    void refreshImport({ silent: true });
+  }
+  if (name === 'versions') {
+    void refreshReleases();
+  }
+  if (name === 'plugins') {
+    void refreshPlugins();
+  }
+}
+
+async function checkUpdateNow() {
+  const api = pageShell();
+  if (!api?.checkUpdate || updateCheckBusy) {
+    return;
+  }
+  updateCheckBusy = true;
+  setHint('正在检查更新…');
+  try {
+    const result = await api.checkUpdate();
+    if (result && typeof result === 'object') {
+      renderUpdateCheck(result);
+    } else {
+      setHint('');
+    }
+    void refreshStatus();
+  } catch (error) {
+    setHint(errText(error, '更新检查失败'));
+  } finally {
+    updateCheckBusy = false;
   }
 }
 
@@ -981,13 +1515,15 @@ async function refreshImport(options = {}) {
       skipLabel: () => '',
       selections: savedSelections,
     });
+    const slimPackage = lastStatus?.launcherPackage === true;
     renderCheckList('import-plugins', plugins, {
       name: 'plugin-name',
       value: (row) => row.name,
       title: (row) => row.name,
-      meta: (row) => (row.skipped ? pluginSkipLabel(row.reason) : (row.spec || '')),
-      disabled: (row) => Boolean(row.skipped),
-      skipLabel: (row) => pluginSkipLabel(row.reason),
+      meta: (row) => (row.skipped ? pluginSkipLabel(row.reason)
+        : (slimPackage ? '轻量启动器不含插件工具链' : (row.spec || ''))),
+      disabled: (row) => Boolean(row.skipped) || slimPackage,
+      skipLabel: (row) => (slimPackage && !row.skipped ? '需在桌面端内重装' : pluginSkipLabel(row.reason)),
       marks: (row) => (!row.skipped && row.alreadyInstalled ? badge('已安装') : ''),
       selections: savedSelections,
     });
@@ -1032,7 +1568,7 @@ async function refreshImport(options = {}) {
       $('import-scan-status').textContent = `扫描完成 · 会话 ${sessions.length} · 技能 ${skills.length} · 插件 ${plugins.length} · MCP ${mcp.length} · 设置 ${settings.length} · 预设 ${presets.length} · ${when}`;
     }
   } catch (error) {
-    setHint(error && error.message ? error.message : String(error));
+    setHint(errText(error));
   } finally {
     if (showFeedback) {
       btn.disabled = false;
@@ -1053,7 +1589,7 @@ async function refreshReleases() {
     const payload = await api.listReleases();
     renderReleases(payload);
   } catch (error) {
-    setHint(error && error.message ? error.message : String(error));
+    setHint(errText(error));
   } finally {
     btn.disabled = false;
     btn.textContent = '刷新列表';
@@ -1071,70 +1607,175 @@ async function refreshPlugins() {
   try {
     renderPlugins(await api.pluginForensics());
   } catch (error) {
-    setHint(error && error.message ? error.message : String(error));
+    setHint(errText(error));
   } finally {
     btn.disabled = false;
     btn.textContent = '刷新';
   }
 }
 
-function renderVersionsHead(status) {
-  const lede = $('versions-lede');
-  const routeNode = $('versions-route');
-  if (!lede) {
+function routePopoverOpen(open) {
+  const chip = $('versions-route-btn');
+  const pop = $('versions-route-pop');
+  if (!chip || !pop) {
     return;
   }
+  pop.hidden = !open;
+  if (chip.setAttribute) {
+    chip.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+}
+
+// Inline route switcher on the Versions head: a real dropdown, never a
+// navigation jump. Picking a route saves config, refreshes status, and
+// reloads this page's release list in place.
+function renderVersionsHead(status) {
+  const routeNode = $('versions-route');
+  const routeWrap = $('versions-route-wrap');
+  const pop = $('versions-route-pop');
+  const routes = Array.isArray(status?.routes) ? status.routes : [];
   const routeId = status?.downloadRoute || '';
-  const routeName = routeId ? routeLabel(status?.routes, routeId) : '';
-  if (status?.launcherPackage) {
-    lede.textContent = routeName
-      ? `列出 ${routeName} 线路的正式版安装包。切换版本将下载对应 Setup 并安装桌面端，启动器保持运行。`
-      : '先在「设置 → 下载线路」或首页选择下载线路，再列出正式版安装包。';
-    if (routeNode) {
-      routeNode.hidden = !routeName;
-      routeNode.textContent = routeName ? `线路：${routeName}` : '';
-    }
-  } else {
-    lede.textContent = '列出 GitHub 正式版安装包。草稿不会出现在 latest；切换版本将下载对应 Setup 并启动安装程序。';
-    if (routeNode) {
-      routeNode.hidden = true;
-    }
+  const routeName = routeId ? routeLabel(routes, routeId) : '';
+  const show = Boolean(status?.launcherPackage) && Boolean(routeName);
+  if (routeNode) {
+    routeNode.textContent = routeName;
+  }
+  if (routeWrap) {
+    routeWrap.hidden = !show;
+  } else if (routeNode) {
+    routeNode.hidden = !show;
+  }
+  if (pop) {
+    pop.innerHTML = routes.map((route) => `
+      <button type="button" role="option" class="route-opt"
+        data-route-opt="${escapeHtml(route.id)}"
+        aria-selected="${route.id === routeId ? 'true' : 'false'}"
+        ${route.verified ? '' : 'disabled'}>
+        <span class="route-opt-check" aria-hidden="true">${route.id === routeId ? '✓' : ''}</span>
+        <span class="route-opt-body">
+          <span class="route-opt-title">${escapeHtml(route.label || route.id)}${route.verified ? '' : ' <span class="badge warn">未启用</span>'}</span>
+          <span class="route-opt-desc">${escapeHtml(route.detail || '')}${route.verified ? '' : '（待验证，暂不可用）'}</span>
+        </span>
+      </button>`).join('');
+    pop.querySelectorAll('[data-route-opt]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        routePopoverOpen(false);
+        if (button.dataset.routeOpt === routeId) {
+          return;
+        }
+        try {
+          await pageShell()?.saveLauncherConfig({ downloadRoute: button.dataset.routeOpt });
+          await refreshStatus();
+          void refreshReleases();
+        } catch (error) {
+          setHint(errText(error, '设置保存失败'));
+        }
+      });
+    });
   }
 }
 
 async function installTag(tag, kind) {
   const api = pageShell();
-  if (!api || !tag) {
+  if (!api || !tag || updateBusy) {
     return;
   }
   const launcherPackage = lastStatus?.launcherPackage === true;
-  let message = `将安装 ${tag} 并替换当前应用，是否继续？`;
+  let title = '安装版本';
+  let message = `将下载 ${tag} 安装包并替换当前安装。`;
+  let confirmText = '安装';
   if (launcherPackage) {
-    message = `将下载并安装 ${tag} 桌面端，是否继续？`;
+    message = `将下载并安装 ${tag} 桌面端，期间桌面端会短暂关闭。`;
   } else if (kind === 'update') {
-    message = `将更新到 ${tag}，Setup 会替换当前安装，是否继续？`;
+    title = '更新桌面端';
+    message = `将更新到 ${tag}，安装程序会替换当前版本。`;
+    confirmText = '更新';
   } else if (kind === 'switch') {
-    message = `将切换到 ${tag}（较旧版本），Setup 会覆盖当前安装，是否继续？`;
+    title = '切换版本';
+    message = `${tag} 早于当前版本，安装程序将覆盖当前安装。`;
+    confirmText = '切换';
   }
-  if (!window.confirm(message)) {
+  if (!(await appConfirm({ title, body: message, confirmText }))) {
     return;
   }
-  $('update-progress').hidden = false;
+  updateBusy = true;
+  const progressTitle = $('update-progress-title');
+  if (progressTitle) {
+    progressTitle.textContent = kind === 'update' ? `正在更新到 ${tag}` : `正在安装 ${tag}`;
+  }
+  paintProgress('update-progress', { phase: 'resolve' });
   $('update-progress').textContent = '正在下载安装包…';
-  const result = await api.installRelease(tag);
-  if (result?.status === 'installed' || (launcherPackage && result?.ok === true)) {
-    $('update-progress').textContent = `安装完成${result?.installed?.version ? `：v${result.installed.version}` : ''}`;
-    void refreshStatus();
+  try {
+    const result = await api.installRelease(tag);
+    if (result?.status === 'installed' || (launcherPackage && result?.ok === true)) {
+      paintProgress('update-progress', { phase: 'done' });
+      $('update-progress').textContent = `安装完成${result?.installed?.version ? `：v${result.installed.version}` : ''}`;
+      void refreshStatus();
+      return;
+    }
+    if (result?.cancelled) {
+      $('update-progress').textContent = result.message || '已取消';
+      return;
+    }
+    if (result && (result.status === 'error' || result.ok === false)) {
+      $('update-progress').textContent = errText(result, '安装失败');
+    }
+  } finally {
+    updateBusy = false;
+  }
+}
+
+async function installDelta(tag) {
+  const api = pageShell();
+  if (!api || typeof api.installDelta !== 'function' || !tag || updateBusy) {
     return;
   }
-  if (result?.cancelled) {
-    $('update-progress').textContent = result.message || '已取消';
+  if (!(await appConfirm({
+    title: '增量更新',
+    body: `将通过增量包更新到 ${tag}，只下载变更部分。增量包不可用时自动改用完整安装包。`,
+    confirmText: '增量更新',
+  }))) {
     return;
   }
-  if (result && (result.status === 'error' || result.ok === false)) {
-    $('update-progress').textContent = result.message === 'no-installer'
-      ? '该版本未提供 Setup 安装包。'
-      : (result.message || '安装失败');
+  updateBusy = true;
+  const title = $('update-progress-title');
+  if (title) {
+    title.textContent = `正在增量更新到 ${tag}`;
+  }
+  paintProgress('update-progress', { phase: 'resolve', mode: 'delta' });
+  $('update-progress').textContent = '正在准备增量包…';
+  try {
+    const result = await api.installDelta(tag);
+    const status = result?.status;
+    const fellBack = result?.mode === 'full' || status === 'fallback-full';
+    if (result?.ok === true || status === 'applied' || status === 'installed') {
+      paintProgress('update-progress', { phase: 'done', mode: fellBack ? 'full' : 'delta' });
+      const version = result?.installed?.version || result?.version || tag;
+      $('update-progress').textContent = fellBack
+        ? `增量包不可用，已通过完整安装包完成安装：v${String(version).replace(/^v/i, '')}`
+        : `已增量更新到 v${String(version).replace(/^v/i, '')}`;
+      void refreshStatus();
+      void refreshReleases();
+      return;
+    }
+    if (fellBack && result?.ok !== false) {
+      // The delta lane reported a full-installer fallback without a final
+      // verdict yet; keep the card up and let progress events carry on.
+      $('update-progress').textContent = result?.message || '增量包不可用，正在改用完整安装包…';
+      if (title) {
+        title.textContent = `正在安装 ${tag}`;
+      }
+      return;
+    }
+    if (result?.cancelled) {
+      $('update-progress').textContent = result.message || '已取消';
+      return;
+    }
+    $('update-progress').textContent = errText(result, '增量更新失败');
+  } catch (error) {
+    $('update-progress').textContent = errText(error, '增量更新失败');
+  } finally {
+    updateBusy = false;
   }
 }
 
@@ -1144,65 +1785,129 @@ async function saveSettings() {
     return;
   }
   try {
-    await api.saveLauncherConfig({
+    const patch = {
       quitAfterStart: $('opt-quit').checked,
       autoStartDesktop: $('opt-auto').checked,
       askOnUpdate: $('opt-ask').checked,
-    });
+    };
+    if ($('row-opt-tray') && !$('row-opt-tray').hidden) {
+      patch.closeToTray = $('opt-tray').checked;
+    }
+    await api.saveLauncherConfig(patch);
   } catch (error) {
-    setHint(error && error.message ? error.message : '设置保存失败');
+    setHint(errText(error, '设置保存失败'));
   }
 }
 
 function bind() {
   const api = pageShell();
   document.querySelectorAll('.tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      showTab(tab.dataset.tab);
-      if (tab.dataset.tab === 'home') void refreshStatus();
-      if (tab.dataset.tab === 'import') void refreshImport({ silent: true });
-      if (tab.dataset.tab === 'versions') void refreshReleases();
-      if (tab.dataset.tab === 'plugins') void refreshPlugins();
-    });
+    tab.addEventListener('click', () => activateTab(tab.dataset.tab));
   });
-  $('btn-start').addEventListener('click', async () => {
-    const btnStart = $('btn-start');
-    if (btnStart.disabled) {
-      return;
-    }
-    const api = pageShell();
-    const status = await api?.launcherStatus();
-    btnStart.disabled = true;
-    if (desktopIsRunning(status?.desktop)) {
-      setHint('正在关闭桌面端…');
-      try {
-        const result = await api?.stopDesktop();
-        if (result && result.ok === false) {
-          setHint(result.error || '关闭失败');
-          return;
-        }
-        setHint('');
-        await refreshStatus();
-      } catch (error) {
-        setHint(error && error.message ? error.message : String(error));
-      } finally {
-        btnStart.disabled = false;
-      }
-      return;
+  document.querySelectorAll('[data-goto]').forEach((link) => {
+    link.addEventListener('click', () => activateTab(link.dataset.goto));
+  });
+  const startDesktopFlow = async (button) => {
+    if (button) {
+      button.disabled = true;
     }
     setHint('正在启动桌面端…');
     try {
       const result = await api?.startDesktop();
       if (result && result.ok === false) {
-        setHint(result.error || '启动失败');
+        setHint(errText(result, '启动失败'));
         return;
       }
       setHint('');
       await refreshStatus();
     } catch (error) {
-      setHint(error && error.message ? error.message : String(error));
+      setHint(errText(error));
     } finally {
-      btnStart.disabled = false;
+      if (button) {
+        button.disabled = false;
+      }
+    }
+  };
+  const stopDesktopFlow = async (button) => {
+    if (button) {
+      button.disabled = true;
+    }
+    setHint('正在关闭桌面端…');
+    try {
+      const result = await api?.stopDesktop();
+      if (result && result.ok === false) {
+        setHint(errText(result, '关闭失败'));
+        return;
+      }
+      setHint('');
+      await refreshStatus();
+    } catch (error) {
+      setHint(errText(error));
+    } finally {
+      if (button) {
+        button.disabled = false;
+      }
+    }
+  };
+  $('btn-start').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    if (button.disabled) {
+      return;
+    }
+    const status = await api?.launcherStatus();
+    if (status) {
+      lastStatus = status;
+    }
+    await startDesktopFlow(button);
+  });
+  if ($('btn-stop')) {
+    $('btn-stop').addEventListener('click', (event) => {
+      const button = event.currentTarget;
+      if (!button.disabled) {
+        void stopDesktopFlow(button);
+      }
+    });
+  }
+  if ($('btn-recovery-retry')) {
+    $('btn-recovery-retry').addEventListener('click', (event) => {
+      const button = event.currentTarget;
+      if (!button.disabled) {
+        void startDesktopFlow(button);
+      }
+    });
+  }
+  if ($('btn-check-update')) {
+    $('btn-check-update').addEventListener('click', () => checkUpdateNow());
+  }
+  if ($('btn-home-update')) {
+    $('btn-home-update').addEventListener('click', () => {
+      const latest = lastUpdateCheck?.latest || lastUpdateCheck?.stableVersion || '';
+      const tag = latest ? (String(latest).startsWith('v') ? String(latest) : `v${latest}`) : '';
+      if (tag) {
+        void installTag(tag, 'update');
+      }
+    });
+  }
+  if ($('btn-check-update-versions')) {
+    $('btn-check-update-versions').addEventListener('click', () => checkUpdateNow());
+  }
+  const routeChip = $('versions-route-btn');
+  if (routeChip) {
+    routeChip.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const pop = $('versions-route-pop');
+      routePopoverOpen(pop ? pop.hidden : false);
+    });
+  }
+  document.addEventListener('click', (event) => {
+    const wrap = document.querySelector('.route-pop-wrap');
+    if (wrap && !wrap.contains(event.target)) {
+      routePopoverOpen(false);
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      routePopoverOpen(false);
     }
   });
   $('btn-skip').addEventListener('click', async () => {
@@ -1210,13 +1915,13 @@ function bind() {
     try {
       const result = await api?.skipUserPlugins();
       if (result && result.ok === false) {
-        setHint(result.error || '启动失败');
+        setHint(errText(result, '启动失败'));
         return;
       }
       setHint('');
       void refreshStatus();
     } catch (error) {
-      setHint(error && error.message ? error.message : String(error));
+      setHint(errText(error));
     }
   });
   $('btn-retry-full').addEventListener('click', async () => {
@@ -1224,14 +1929,14 @@ function bind() {
     try {
       const result = await api?.retryFullPlugins();
       if (result && result.ok === false) {
-        setHint(result.error || '启动失败');
+        setHint(errText(result, '启动失败'));
         void refreshStatus();
         return;
       }
       setHint('');
       void refreshStatus();
     } catch (error) {
-      setHint(error && error.message ? error.message : String(error));
+      setHint(errText(error));
     }
   });
   $('btn-disable-suspects').addEventListener('click', async () => {
@@ -1247,7 +1952,7 @@ function bind() {
       return;
     }
     if (result && result.harnessRestarted === false && result.error) {
-      setHint(result.error);
+      setHint(errText(result));
     } else {
       setHint('');
     }
@@ -1271,10 +1976,19 @@ function bind() {
   $('btn-scan').addEventListener('click', () => refreshImport());
   $('btn-uninstall-app').addEventListener('click', async () => {
     const usesSettings = $('btn-uninstall-app').textContent === '打开应用设置';
-    const prompt = usesSettings
-      ? '将打开 Windows「设置 → 应用」，请在列表中卸载 Deepseek-Harness-Desktop。是否继续？'
-      : '将启动 Windows 卸载程序并移除本机应用，是否继续？';
-    if (!window.confirm(prompt)) {
+    const ok = await appConfirm(usesSettings
+      ? {
+        title: '卸载 Whale Isle',
+        body: '将打开 Windows「设置 → 应用」，请在列表中完成卸载。',
+        confirmText: '打开设置',
+      }
+      : {
+        title: '卸载 Whale Isle',
+        body: '将启动 Windows 卸载程序并移除本机桌面端，其运行数据保留在本机。此操作不可撤销。',
+        confirmText: '卸载',
+        danger: true,
+      });
+    if (!ok) {
       return;
     }
     setHint(usesSettings ? '正在打开应用设置…' : '正在启动卸载程序…');
@@ -1285,10 +1999,31 @@ function bind() {
         return;
       }
       setHint(result?.message || (result?.openedSettings
-        ? '已打开「设置 → 应用」，请在列表中卸载 Deepseek-Harness-Desktop。'
-        : ''));
+        ? '已打开「设置 → 应用」，请在列表中卸载 Whale Isle。'
+        : ''), { fade: true });
     } catch (error) {
-      setHint(error && error.message ? error.message : String(error));
+      setHint(errText(error, '无法启动卸载程序'));
+    }
+  });
+  $('app-confirm-ok').addEventListener('click', () => settleConfirm(true));
+  $('app-confirm-cancel').addEventListener('click', () => settleConfirm(false));
+  $('app-confirm').addEventListener('click', (event) => {
+    if (event.target === $('app-confirm')) {
+      settleConfirm(false);
+    }
+  });
+  $('app-confirm').addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      settleConfirm(false);
+    } else if (event.key === 'Tab') {
+      const focusables = [$('app-confirm-cancel'), $('app-confirm-ok')];
+      const idx = focusables.indexOf(document.activeElement);
+      const next = event.shiftKey
+        ? (idx <= 0 ? focusables.length - 1 : idx - 1)
+        : (idx < 0 || idx === focusables.length - 1 ? 0 : idx + 1);
+      event.preventDefault();
+      focusables[next].focus();
     }
   });
   document.querySelectorAll('[data-import-cat]').forEach((button) => {
@@ -1366,20 +2101,19 @@ function bind() {
   }
   $('btn-refresh-releases').addEventListener('click', () => refreshReleases());
   $('btn-refresh-plugins').addEventListener('click', () => refreshPlugins());
-  ['opt-quit', 'opt-auto', 'opt-ask'].forEach((id) => {
+  ['opt-quit', 'opt-auto', 'opt-ask', 'opt-tray'].forEach((id) => {
     $(id).addEventListener('change', () => saveSettings());
   });
   if (api?.onShowTab) {
     api.onShowTab((payload) => {
-      if (payload?.tab) showTab(payload.tab);
-      if (payload?.tab === 'import') void refreshImport({ silent: true });
-      if (payload?.tab === 'plugins') void refreshPlugins();
-      if (payload?.tab === 'home') void refreshStatus();
+      if (payload?.tab) {
+        activateTab(payload.tab);
+      }
     });
   }
   if (api?.onDesktopFailed) {
     api.onDesktopFailed((payload) => {
-      showTab('home');
+      activateTab('home');
       setHint(payload?.error || '桌面端启动失败。可在下方恢复工作台处理插件冲突后重试。');
       void refreshStatus();
       void refreshPlugins();
@@ -1406,12 +2140,11 @@ function bind() {
   if (api?.onUpdateProgress) {
     api.onUpdateProgress((payload) => {
       const text = installPhaseText(payload);
-      $('update-progress').hidden = false;
-      $('update-progress').textContent = text;
-      const installProgress = $('install-progress');
-      if (installProgress && installBusy) {
-        installProgress.hidden = false;
-        installProgress.textContent = text;
+      const prefix = installBusy ? 'install-progress' : 'update-progress';
+      paintProgress(prefix, payload);
+      const line = $(prefix);
+      if (line && text) {
+        line.textContent = text;
       }
     });
   }
@@ -1444,5 +2177,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.watchShellTheme();
   }
   bind();
+  mountComponents();
   void refreshStatus();
 });
+
+if (typeof module === 'object' && module.exports) {
+  module.exports = { renderReleases };
+}

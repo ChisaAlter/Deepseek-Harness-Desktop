@@ -5,7 +5,7 @@
   --boot-rail-inset: 16px;
   --boot-rail-size: 28px;
   --boot-log-inset: 64px;
-  --boot-log-max: 12rem;
+  --boot-log-max: min(12rem, 20vh);
 }
 
 * {
@@ -23,7 +23,7 @@ body {
 }
 
 /* The main window is transparent: the silhouette is drawn by the rounded
-   .stage card, so html/body paint no background of their own (a body
+   .stage canvas, so html/body paint no background of their own (a body
    background would propagate to the canvas and fill the corners square). */
 html,
 body {
@@ -90,13 +90,14 @@ body[data-harness-covered] {
 
 .stage {
   position: relative;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   border-radius: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: calc(48px + var(--caption-h)) 32px calc(var(--boot-log-inset) + var(--boot-log-max) + 16px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "meta" "core" "logs";
+  row-gap: 12px;
+  padding: calc(var(--caption-h) + 20px) 0 var(--boot-log-inset);
   background-color: var(--boot-bg);
   background-image:
     linear-gradient(var(--boot-grid) 1px, transparent 1px),
@@ -141,12 +142,13 @@ body[data-harness-covered] {
 }
 
 .meta {
-  position: absolute;
-  top: calc(var(--caption-h) + 20px);
-  left: 48px;
-  right: 48px;
+  grid-area: meta;
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  margin-inline: 48px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   pointer-events: none;
@@ -196,10 +198,25 @@ body[data-state="error"] .stamp-code {
 }
 
 .core {
+  grid-area: core;
+  justify-self: center;
+  position: relative;
+  z-index: 2;
+  width: min(100%, 44rem);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  padding: 8px 16px;
+}
+
+.core::before,
+.core::after {
+  content: "";
+  flex: 1 0 16px;
 }
 
 .mark {
@@ -207,6 +224,7 @@ body[data-state="error"] .stamp-code {
   z-index: 2;
   width: 112px;
   height: 112px;
+  flex: 0 0 112px;
   color: var(--boot-ink);
   animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) both;
 }
@@ -239,7 +257,7 @@ body[data-state="error"] .status {
 
 .status {
   margin: 8px 0 0;
-  max-width: 36rem;
+  width: min(100%, 36rem);
   font-size: 14px;
   line-height: 22px;
   color: var(--boot-muted);
@@ -256,7 +274,7 @@ body[data-state="error"] .status {
 
 .hint {
   margin: 8px 0 0;
-  max-width: 36rem;
+  width: min(100%, 36rem);
   color: var(--boot-muted);
   font-size: 12px;
   line-height: 18px;
@@ -266,9 +284,17 @@ body[data-state="error"] .status {
 .failure,
 .recovery {
   margin: 8px 0 0;
-  max-width: 42rem;
+  width: min(100%, 42rem);
   font-size: 12px;
   line-height: 18px;
+}
+
+.status,
+.hint,
+.failure,
+.recovery {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .failure {
@@ -286,6 +312,9 @@ body[data-state="error"] .status {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
   gap: 8px;
   margin-top: 24px;
   -webkit-app-region: no-drag;
@@ -300,8 +329,9 @@ body[data-state="error"] .status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
-  padding: 0 14px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 6px 14px;
   border: 1px solid var(--boot-accent);
   border-radius: 0;
   background: transparent;
@@ -309,10 +339,16 @@ body[data-state="error"] .status {
   font-family: inherit;
   font-size: 14px;
   line-height: 22px;
+  white-space: normal;
+  text-align: center;
   font-weight: 500;
   letter-spacing: 0.08em;
   cursor: pointer;
   -webkit-app-region: no-drag;
+}
+
+.actions button[hidden] {
+  display: none;
 }
 
 .actions .primary {
@@ -339,16 +375,44 @@ body[data-state="error"] .status {
 }
 
 .log-dock {
-  position: fixed;
+  grid-area: logs;
+  position: relative;
   z-index: 2;
-  left: var(--boot-log-inset);
-  right: var(--boot-log-inset);
-  bottom: var(--boot-log-inset);
-  max-height: var(--boot-log-max);
+  min-height: 0;
+  height: var(--boot-log-max);
+  margin-inline: var(--boot-log-inset);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+}
+
+@media (max-height: 700px) {
+  :root {
+    --boot-log-inset: 48px;
+    --boot-log-max: clamp(64px, 15vh, 96px);
+  }
+
+  .stage {
+    row-gap: 8px;
+    padding-top: calc(var(--caption-h) + 8px);
+  }
+
+  .meta {
+    margin-inline: 32px;
+  }
+
+  .core {
+    padding-block: 4px;
+  }
+
+  .brand {
+    margin-top: 12px;
+  }
+
+  .actions {
+    margin-top: 16px;
+  }
 }
 
 .log {

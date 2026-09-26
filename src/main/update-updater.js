@@ -23,7 +23,7 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 
-const PRODUCT_NAME = 'Deepseek-Harness-Desktop';
+const PRODUCT_NAME = 'Whale Isle';
 
 function readPackagedFlag(deps) {
   if (deps && deps.isPackaged !== undefined) {
@@ -196,6 +196,15 @@ async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}
     const result = tracker.finish();
     if (typeof onProgress === 'function') {
       onProgress({ phase: 'install', percent: 100, differential: result.differential });
+    }
+    // Task protection runs between download and quit — `quitAndInstall` is a
+    // terminal side effect, so a denied coordination must not reach it.
+    const protection = deps.taskProtection;
+    if (protection && typeof protection.coordinate === 'function') {
+      const coordination = await protection.coordinate('update', { terminal: true });
+      if (!coordination.proceeded) {
+        return { ok: false, reason: 'cancelled' };
+      }
     }
     autoUpdater.quitAndInstall(true, true);
     return {

@@ -14,8 +14,8 @@ it('ships install metadata with the built web application', async () => {
   // so only an absent `id`, which defaults to the resolved `start_url`, gives
   // each mount its own identity. `public-mount.e2e.ts` reads the resolved form.
   expect(manifest).toEqual({
-    name: 'DeepSeek Harness',
-    short_name: 'DSH',
+    name: 'Whale Isle',
+    short_name: 'Whale Isle',
     start_url: './',
     scope: './',
     display: 'fullscreen',

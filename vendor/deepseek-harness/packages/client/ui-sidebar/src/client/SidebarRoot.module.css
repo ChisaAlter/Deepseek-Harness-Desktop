@@ -115,10 +115,6 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-:global([data-windows-titlebar]) .collapsed .toggle .panelIcon {
-  display: inline;
-}
-
 /* Scrollbars in the column are a pointer affordance: the shell adds this
    class whenever the pointer is not inside (SidebarRoot.tsx owns the linger),
    and rebinding ui-theme's indirection pair to `transparent` takes the thumb
@@ -283,6 +279,10 @@
   height: 38px;
 }
 
+.brandIdentity:has([data-whale-isle-brand='name']) .brandMark {
+  display: none;
+}
+
 .brandMark:empty {
   display: none;
 }
@@ -381,11 +381,11 @@
   display: inline;
 }
 
-.collapsed .toggle:hover .panelIcon {
+.collapsed .toggle:is(:hover, :focus-visible) .panelIcon {
   display: inline;
 }
 
-.collapsed .toggle:hover .railMark {
+.collapsed .toggle:is(:hover, :focus-visible) .railMark {
   display: none;
 }
 

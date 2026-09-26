@@ -31,7 +31,7 @@ import {
 export const name = 'dshbot-ask-participant';
 export const inject = ['tools'];
 
-const NS = 'dshbot';
+const NS = 'dsh-bot';
 
 /** @type {Map<string, AbortController>} */
 const inFlightByRoom = new Map();
@@ -76,7 +76,7 @@ function askParticipantIdentity(ctx, args) {
   const requestedId = String(args?.botId ?? '').trim();
   let items = [];
   try {
-    const configured = ctx.settings?.get?.(NS)?.items;
+    const configured = ctx.settings?.describe?.().find((entry) => entry.ns === NS)?.value?.items;
     if (Array.isArray(configured)) items = configured;
   } catch {
     // Presentation must remain replay-safe when the catalog service is absent.
@@ -465,7 +465,7 @@ export function registerAskParticipant(ctx) {
       return [{ type: 'text', text: `Error: ${askParticipantErrorText(result, identity)}` }];
     },
     presentCall: (args) => {
-      const items = ctx.settings.get(NS)?.items ?? [];
+      const items = ctx.settings.describe().find((entry) => entry.ns === NS)?.value?.items ?? [];
       return {
         card: 'generic',
         title: memberDisplayName(items, args.botId),
@@ -502,7 +502,7 @@ export function registerAskParticipant(ctx) {
       const roomSessionId = parent.session.id;
       const epoch = currentTurnEpoch(roomSessionId);
 
-      const catalog = ctx.settings.get(NS);
+      const catalog = ctx.settings.describe().find((entry) => entry.ns === NS)?.value;
       const items = catalog?.items ?? [];
       const target = resolveAskTarget(items, roomSessionId, args.botId);
       const bot = target.bot;

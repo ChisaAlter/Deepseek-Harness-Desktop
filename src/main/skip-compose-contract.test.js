@@ -15,6 +15,7 @@ const path = require('node:path');
 
 const {
   CANARY_ID,
+  TASK_CONTROL_ID,
   INSTALL_ID,
   IM_ID,
   USAGE_ID,
@@ -22,13 +23,15 @@ const {
   BOT_ID,
   WHALE_ID,
   REMOTE_ID,
+  WORKSPACE_DEPS_ID,
+  SKILL_OFFICE_ID,
   SESSION_SEARCH_ID,
   composeContractProblems,
   composeContractRounds,
   runSkipComposeContract,
 } = require('../../scripts/check-skip-compose-contract');
 
-const DESKTOP_ROWS = `- id: ${INSTALL_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${WHALE_ID}\n- id: ${REMOTE_ID}\n`;
+const DESKTOP_ROWS = `- id: ${TASK_CONTROL_ID}\n- id: ${INSTALL_ID}\n- id: ${WORKSPACE_DEPS_ID}\n- id: ${SKILL_OFFICE_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${WHALE_ID}\n- id: ${REMOTE_ID}\n`;
 const FULL_ONLY_ROWS = `- id: ${SESSION_SEARCH_ID}\n  config:\n    openAt: first-search\n`;
 
 test('composeContractProblems demands positive evidence before canary absence', () => {
@@ -42,14 +45,15 @@ test('composeContractProblems demands positive evidence before canary absence', 
   // Empty/truncated dump must fail on the missing desktop rows, not pass
   // because the canary vanished with everything else.
   const empty = composeContractProblems('skip', '');
-  assert.equal(empty.length, 7);
-  assert.match(empty[0], new RegExp(INSTALL_ID));
-  assert.match(empty[1], new RegExp(USAGE_ID));
-  assert.match(empty[2], new RegExp(IM_ID));
-  assert.match(empty[3], new RegExp(MARKET_ID));
-  assert.match(empty[4], new RegExp(BOT_ID));
-  assert.match(empty[5], new RegExp(WHALE_ID));
-  assert.match(empty[6], new RegExp(REMOTE_ID));
+  assert.equal(empty.length, 10);
+  assert.match(empty[0], new RegExp(TASK_CONTROL_ID));
+  assert.match(empty[1], new RegExp(INSTALL_ID));
+  assert.match(empty[2], new RegExp(USAGE_ID));
+  assert.match(empty[3], new RegExp(IM_ID));
+  assert.match(empty[4], new RegExp(MARKET_ID));
+  assert.match(empty[5], new RegExp(BOT_ID));
+  assert.match(empty[6], new RegExp(WHALE_ID));
+  assert.match(empty[7], new RegExp(REMOTE_ID));
   // Skip round that still composes the user layer is the core violation.
   const resurrect = composeContractProblems('skip', `${DESKTOP_ROWS}- id: ${CANARY_ID}\n`);
   assert.equal(resurrect.length, 1);
@@ -67,23 +71,27 @@ test('composeContractProblems demands positive evidence before canary absence', 
   assert.equal(doubledIm.length, 1);
   assert.match(doubledIm[0], /dsh-im/);
   assert.match(doubledIm[0], /双挂载/);
+  // Missing task-control alone is a violation (it rides every start).
+  const missingTaskControl = composeContractProblems('skip', `- id: ${INSTALL_ID}\n- id: ${WORKSPACE_DEPS_ID}\n- id: ${SKILL_OFFICE_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${WHALE_ID}\n- id: ${REMOTE_ID}\n`);
+  assert.equal(missingTaskControl.length, 1);
+  assert.match(missingTaskControl[0], new RegExp(TASK_CONTROL_ID));
   // Missing dsh-im alone is a violation too (built-in must ride every start).
-  const missingIm = composeContractProblems('skip', `- id: ${INSTALL_ID}\n- id: ${USAGE_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${WHALE_ID}\n- id: ${REMOTE_ID}\n`);
+  const missingIm = composeContractProblems('skip', `- id: ${TASK_CONTROL_ID}\n- id: ${INSTALL_ID}\n- id: ${WORKSPACE_DEPS_ID}\n- id: ${SKILL_OFFICE_ID}\n- id: ${USAGE_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${WHALE_ID}\n- id: ${REMOTE_ID}\n`);
   assert.equal(missingIm.length, 1);
   assert.match(missingIm[0], new RegExp(IM_ID));
   // Missing dshbot alone is a violation too (built-in must ride every start).
-  const missingBot = composeContractProblems('skip', `- id: ${INSTALL_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${WHALE_ID}\n- id: ${REMOTE_ID}\n`);
+  const missingBot = composeContractProblems('skip', `- id: ${TASK_CONTROL_ID}\n- id: ${INSTALL_ID}\n- id: ${WORKSPACE_DEPS_ID}\n- id: ${SKILL_OFFICE_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${WHALE_ID}\n- id: ${REMOTE_ID}\n`);
   assert.equal(missingBot.length, 1);
   assert.match(missingBot[0], new RegExp(BOT_ID));
   // Missing dsh-whale alone is a violation too (the contract run always
   // mounts its overlay with enabled:true — production gates it on config).
-  const missingWhale = composeContractProblems('skip', `- id: ${INSTALL_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${REMOTE_ID}\n`);
+  const missingWhale = composeContractProblems('skip', `- id: ${TASK_CONTROL_ID}\n- id: ${INSTALL_ID}\n- id: ${WORKSPACE_DEPS_ID}\n- id: ${SKILL_OFFICE_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${REMOTE_ID}\n`);
   assert.equal(missingWhale.length, 1);
   assert.match(missingWhale[0], new RegExp(WHALE_ID));
   // Missing dsh-remote alone is a violation too (the contract run always
   // mounts its overlay — production gates it on remoteWorkspaceEnabled,
   // default ON).
-  const missingRemote = composeContractProblems('skip', `- id: ${INSTALL_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${WHALE_ID}\n`);
+  const missingRemote = composeContractProblems('skip', `- id: ${TASK_CONTROL_ID}\n- id: ${INSTALL_ID}\n- id: ${WORKSPACE_DEPS_ID}\n- id: ${SKILL_OFFICE_ID}\n- id: ${USAGE_ID}\n- id: ${IM_ID}\n- id: ${MARKET_ID}\n- id: ${BOT_ID}\n- id: ${WHALE_ID}\n`);
   assert.equal(missingRemote.length, 1);
   assert.match(missingRemote[0], new RegExp(REMOTE_ID));
   const doubledWhale = composeContractProblems('full', `- id: ${CANARY_ID}\n${DESKTOP_ROWS}${FULL_ONLY_ROWS}- id: ${WHALE_ID}\n`);
@@ -102,6 +110,7 @@ test('composeContractProblems demands positive evidence before canary absence', 
 
 test('composeContractRounds mirrors production overlay order on skip and full starts', () => {
   const rounds = composeContractRounds('/h/apps/cli/lib/bin.js', [
+    '/p/desktop-task-control.patch.yml',
     '/p/desktop-install.patch.yml',
     '/p/desktop-usage.patch.yml',
     '/p/desktop-dsh-im.patch.yml',
@@ -110,6 +119,7 @@ test('composeContractRounds mirrors production overlay order on skip and full st
     '/p/desktop-dsh-whale.patch.yml',
     '/p/desktop-dsh-remote.patch.yml',
   ], [
+    '/p/desktop-task-control.patch.yml',
     '/p/desktop-install.patch.yml',
     '/p/desktop-usage.patch.yml',
     '/p/session-search.patch.yml',
@@ -122,6 +132,7 @@ test('composeContractRounds mirrors production overlay order on skip and full st
   assert.deepEqual(rounds.map((row) => row.round), ['skip', 'full']);
   assert.deepEqual(rounds[0].args, [
     '/h/apps/cli/lib/bin.js', 'web', '--skip-user-plugins',
+    '--patch', '/p/desktop-task-control.patch.yml',
     '--patch', '/p/desktop-install.patch.yml',
     '--patch', '/p/desktop-usage.patch.yml',
     '--patch', '/p/desktop-dsh-im.patch.yml',
@@ -133,6 +144,7 @@ test('composeContractRounds mirrors production overlay order on skip and full st
   ]);
   assert.deepEqual(rounds[1].args, [
     '/h/apps/cli/lib/bin.js', 'web',
+    '--patch', '/p/desktop-task-control.patch.yml',
     '--patch', '/p/desktop-install.patch.yml',
     '--patch', '/p/desktop-usage.patch.yml',
     '--patch', '/p/session-search.patch.yml',
@@ -179,7 +191,9 @@ test('runSkipComposeContract replays the managed-block migration and passes over
   // keeping the canary user row (asserted inside the run).
   const home = skipCall.options.env.DSH_HOME;
   assert.ok(home && home.startsWith(os.tmpdir()));
+  const taskControlOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'dsh-task-control', 'desktop-task-control.patch.yml');
   const installOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'install-dsh-plugin', 'desktop-install.patch.yml');
+  const officeOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'office', 'desktop-office.patch.yml');
   const usageOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'dsh-usage-panel', 'desktop-usage-panel.patch.yml');
   const imOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'dsh-im', 'desktop-dsh-im.patch.yml');
   const marketOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'dsh-market', 'desktop-dsh-market.patch.yml');
@@ -187,27 +201,33 @@ test('runSkipComposeContract replays the managed-block migration and passes over
   const whaleOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'dsh-whale', 'desktop-dsh-whale.patch.yml');
   const remoteOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'dsh-remote', 'desktop-dsh-remote.patch.yml');
   const searchOverlay = path.join(home, 'profiles', 'web', 'desktop-plugins', 'session-search', 'desktop-session-search.patch.yml');
-  assert.equal(skipCall.args[4], installOverlay);
+  assert.equal(skipCall.args[4], taskControlOverlay);
   assert.equal(skipCall.args[5], '--patch');
-  assert.equal(skipCall.args[6], usageOverlay);
+  assert.equal(skipCall.args[6], installOverlay);
   assert.equal(skipCall.args[7], '--patch');
-  assert.equal(skipCall.args[8], imOverlay);
+  assert.equal(skipCall.args[8], officeOverlay);
   assert.equal(skipCall.args[9], '--patch');
-  assert.equal(skipCall.args[10], marketOverlay);
+  assert.equal(skipCall.args[10], usageOverlay);
   assert.equal(skipCall.args[11], '--patch');
-  assert.equal(skipCall.args[12], botOverlay);
+  assert.equal(skipCall.args[12], imOverlay);
   assert.equal(skipCall.args[13], '--patch');
-  assert.equal(skipCall.args[14], whaleOverlay);
+  assert.equal(skipCall.args[14], marketOverlay);
   assert.equal(skipCall.args[15], '--patch');
-  assert.equal(skipCall.args[16], remoteOverlay);
-  assert.equal(skipCall.args[17], '--dump-config');
+  assert.equal(skipCall.args[16], botOverlay);
+  assert.equal(skipCall.args[17], '--patch');
+  assert.equal(skipCall.args[18], whaleOverlay);
+  assert.equal(skipCall.args[19], '--patch');
+  assert.equal(skipCall.args[20], remoteOverlay);
+  assert.equal(skipCall.args[21], '--dump-config');
   // dsh-home rule: the child composes only against the throwaway home.
   assert.equal(skipCall.options.env.DSHD_HOME, undefined);
   assert.equal(skipCall.options.env.DSH_HARNESS_ROOT, undefined);
   // Full starts add session-search between usage and dsh-im; market and
   // dshbot trail in production order.
   assert.deepEqual(fullCall.args.slice(1), [
-    'web', '--patch', installOverlay,
+    'web', '--patch', taskControlOverlay,
+    '--patch', installOverlay,
+    '--patch', officeOverlay,
     '--patch', usageOverlay,
     '--patch', searchOverlay,
     '--patch', imOverlay,

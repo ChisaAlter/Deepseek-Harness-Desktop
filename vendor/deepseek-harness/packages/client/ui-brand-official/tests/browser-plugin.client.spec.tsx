@@ -83,14 +83,16 @@ describe('official browser-brand plugin', () => {
     const name = render(<OfficialBrandName />)
     expect(name.container.textContent).toContain('鲸屿')
     expect(name.getByText('WHALE ISLE')).toBeTruthy()
+    expect(name.container.textContent!.indexOf('鲸屿')).toBeLessThan(name.container.textContent!.indexOf('WHALE ISLE'))
     expect(name.getByText('BASED ON DEEPSEEK HARNESS')).toBeTruthy()
     expect(name.container.querySelector('img')?.getAttribute('src')).toBe('/whale-isle-head.png')
     name.unmount()
 
     const mark = render(<OfficialBrandMark size={34} />)
-    expect(mark.container.childElementCount).toBe(0)
+    expect(mark.container.querySelector('img')?.getAttribute('src')).toBe('/whale-isle-head.png')
+    expect(mark.container.querySelector('img')?.getAttribute('width')).toBe('34')
     mark.rerender(<OfficialBrandMark size={24} />)
-    expect(mark.container.childElementCount).toBe(0)
+    expect(mark.container.querySelector('img')?.getAttribute('width')).toBe('24')
   })
 
   it('keeps the same integrated brand with a desktop preload', () => {
@@ -103,6 +105,6 @@ describe('official browser-brand plugin', () => {
     name.unmount()
 
     const mark = render(<OfficialBrandMark size={24} />)
-    expect(mark.container.childElementCount).toBe(0)
+    expect(mark.container.querySelector('img')?.getAttribute('src')).toBe('/whale-isle-head.png')
   })
 })

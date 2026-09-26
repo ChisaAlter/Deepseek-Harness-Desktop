@@ -1,0 +1,67 @@
+HTTP/1.1 302 Found
+Server: ADAS/1.0.214
+Date: Fri, 25 Sep 2026 04:58:47 GMT
+Content-Type: text/html; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-XSS-Protection: 1; mode=block
+X-Content-Type-Options: nosniff
+X-UA-Compatible: chrome=1
+Referrer-Policy: same-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Expires: Sun, 1 Jan 2000 01:00:00 GMT
+Pragma: must-revalidate, no-cache, private
+Location: https://gitee.com/ayase/Deepseek-Harness-Desktop/attach_files/3268224/download/SHA512SUMS.txt
+Cache-Control: no-cache
+Set-Cookie: user_locale=zh-CN; domain=.gitee.com; path=/; expires=Tue, 25 Sep 2046 04:58:47 -0000
+Set-Cookie: oschina_new_user=false; path=/; expires=Tue, 25 Sep 2046 04:58:47 -0000
+Set-Cookie: gitee-session-n=dEtqU2JCbmRQbWowalg1Q0NrSEdieTZGZjhwQk9HRlpCM0M3YVJyMXprQUNRVm9CL2xLRlVjQ3JZYzBUY3lqaDVydmF4aUFzVm4yV1FWNUhkNVZlcGc9PS0tbERFZm1UckZsdllqSHJWd0VPLzNIUT09--7c8cbebdd58024ac80236dde149a3e6d96e4aa18; domain=.gitee.com; path=/; secure; HttpOnly; SameSite=Lax
+X-Request-Id: 3f6e8e9283584c5515acf896292907e5
+X-Runtime: 0.061550
+Vary: Origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: frame-ancestors 'self' https://*.gitee.com
+BDWAF-Request-ID: ec32571f-9ed7-4c03-af12-ea04d6540b34
+Set-Cookie: abymg_id=1_2c42eb8c5c25dfd4a8918c1494c15afe66339e9ce11eb4f1c9ec260ac783ea08; Max-Age=86400; Path=/; Domain=gitee.com; HttpOnly; Secure; SameSite=None
+Set-Cookie: BEC=4431548549a19240b277aa1ec69b0837;Path=/;Max-Age=126000
+
+HTTP/1.1 302 Found
+Server: ADAS/1.0.214
+Date: Fri, 25 Sep 2026 04:58:47 GMT
+Content-Type: text/html; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-XSS-Protection: 1; mode=block
+X-Content-Type-Options: nosniff
+X-UA-Compatible: chrome=1
+Referrer-Policy: same-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Expires: Sun, 1 Jan 2000 01:00:00 GMT
+Pragma: must-revalidate, no-cache, private
+Location: https://foruda.gitee.com/attach_file/1790312297516405996/sha512sums.txt?token=ec4d3644fbc637826b14c20d31219ff1&ts=1790312327&attname=SHA512SUMS.txt
+Cache-Control: no-cache
+Set-Cookie: user_locale=zh-CN; domain=.gitee.com; path=/; expires=Tue, 25 Sep 2046 04:58:47 -0000
+Set-Cookie: oschina_new_user=false; path=/; expires=Tue, 25 Sep 2046 04:58:47 -0000
+Set-Cookie: gitee-session-n=VGRhK0pQUDRTZHc4c2JWTm5pUkxIL1cvSmttMVlIbWU5VWovSkdmbUlyZ3JiRldIVGtnK3RyRXROaWdnNXhMV3lJcy9hVFRJaVBPTUtaZU9WRWVJU0E9PS0telE3U2tiamxMZ1JibDRwUlhqc3hhZz09--bd79128a06a64393307231e0d67610b1b7133dd9; domain=.gitee.com; path=/; secure; HttpOnly; SameSite=Lax
+X-Request-Id: 9ea0f69e9a0593a4d5ff667fe6116c02
+X-Runtime: 0.127194
+Vary: Origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: frame-ancestors 'self' https://*.gitee.com
+BDWAF-Request-ID: b12e09a3-fd87-404a-b147-2ec81625407e
+Set-Cookie: abymg_id=1_df0db046ac054d4f7c510c6df509191a065dc25e470af34cc9ec260ac783ea08; Max-Age=86400; Path=/; Domain=gitee.com; HttpOnly; Secure; SameSite=None
+Set-Cookie: BEC=8ddb6c1710618f9098bae11a2ceedd43;Path=/;Max-Age=126000
+
+HTTP/1.1 200 OK
+Server: ADAS/1.0.214
+Date: Fri, 25 Sep 2026 04:58:47 GMT
+Content-Type: application/octet-stream
+Content-Length: 182
+Connection: keep-alive
+Cache-Control: max-age=2592000
+Content-Disposition: attachment; filename="SHA512SUMS.txt"
+Vary: Origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: frame-ancestors 'self' https://*.gitee.com
+Set-Cookie: BEC=88597e59d42bb01c4649d5c631bbb39c;Path=/;Max-Age=120000
+

@@ -40,6 +40,7 @@ function FlaskIcon() {
  */
 export function DshbotRow({ t }: DshbotRowProps) {
   const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
   const shell = desktopShell()
 
   useEffect(() => {
@@ -67,9 +68,15 @@ export function DshbotRow({ t }: DshbotRowProps) {
       <Switch
         label={t('dshbot.title')}
         checked={enabled}
+        disabled={busy}
         onChange={(next: boolean) => {
           setEnabled(next)
-          void shell?.saveConfig?.({ dshbotEnabled: next })
+          setBusy(true)
+          // Failed writes revert the switch: an optimistic flip that silently
+          // stays flipped lies about the mounted overlay state.
+          void Promise.resolve(shell?.saveConfig?.({ dshbotEnabled: next }))
+            .catch(() => setEnabled(!next))
+            .finally(() => setBusy(false))
         }}
       />
     </div>

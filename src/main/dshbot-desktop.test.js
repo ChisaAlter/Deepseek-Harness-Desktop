@@ -231,6 +231,20 @@ test('ensureDesktopDshbot fails closed on missing runtime dependencies', () => {
   }
 });
 
+test('vendored dshbot peers satisfy the vendored runtime compatibility gate', async () => {
+  // The Loader disables a row whose @deepseek-ai/dsh-* peers reject the
+  // running runtime — exact pins stale after an upstream merge silently
+  // unmount the plugin (no route, no client bundle). Evaluate the shipped
+  // manifest through app-boot's real gate so the check travels with the pin.
+  const appBoot = pathToFileURL(path.join(
+    __dirname, '..', '..', 'vendor', 'deepseek-harness', 'packages', 'boot', 'app-boot', 'lib', 'index.js',
+  )).href;
+  const { evaluatePluginCompatibility, getDshRuntimeVersion } = await import(appBoot);
+  const dir = path.join(__dirname, '..', '..', 'vendor', 'dshbot');
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+  assert.equal(evaluatePluginCompatibility(manifest, {}, getDshRuntimeVersion()), undefined);
+});
+
 test('gitignore does not ignore vendored dshbot runtime dependencies', () => {
   const { spawnSync } = require('node:child_process');
   const root = path.join(__dirname, '..', '..');
@@ -241,6 +255,129 @@ test('gitignore does not ignore vendored dshbot runtime dependencies', () => {
     const result = spawnSync('git', ['check-ignore', '-q', file], { cwd: root, windowsHide: true });
     assert.equal(result.status, 1, `${file} must not match the repo node_modules/ ignore`);
   }
+});
+
+test('dshbot catalog scope reads/writes through the volatile Config namespace', async () => {
+  // 0.1.7 removed settings.register/get, and overlay-mounted entries cannot
+  // write through settings.update (the ConfigEditor overlay check rejects
+  // them): the catalog rides the entry's own volatile Config fields under ns
+  // `dsh-bot`, persists to its own JSON file, and commits in place through
+  // Entry.update — describe() revisions fence concurrent writes. Drive the
+  // scope against a fake entry/settings pair so a future API drift fails here
+  // instead of at boot.
+  const catalogScopeHref = pathToFileURL(path.join(
+    __dirname, '..', '..', 'vendor', 'dshbot', 'lib', 'catalog-scope.js',
+  )).href;
+  const { createCatalogScope, projectCatalog } = await import(catalogScopeHref);
+  const EMPTY = { routines: [], sections: [], items: [], tasks: [], audit: [], avatarShapeMigration: 0, triggerToken: '' };
+  const CATALOG_KEYS = Object.keys(EMPTY);
+  const catalogOf = (config) => Object.fromEntries(CATALOG_KEYS.map((key) => [key, config?.[key] ?? EMPTY[key]]));
+
+  const makeRuntime = () => {
+    const listeners = {};
+    const entry = { options: { config: {} }, async update(options) {
+      entry.options.config = { ...entry.options.config, ...options.config };
+    } };
+    let revision = 0;
+    let lastRaw;
+    const settings = {
+      writable: true,
+      describe: () => {
+        const raw = JSON.stringify(entry.options.config ?? {});
+        revision = lastRaw === undefined ? 0 : revision + Number(lastRaw !== raw);
+        lastRaw = raw;
+        return [{ ns: 'dsh-bot', revision, value: catalogOf(entry.options.config), schema: {}, applies: 'live' }];
+      },
+      update: async () => { throw new Error('settings.update must not write overlay entries'); },
+    };
+    const ctx = { fiber: { entry }, on: (name, fn) => { (listeners[name] ??= []).push(fn); } };
+    return { ctx, entry, settings, listeners };
+  };
+  const validate = (value) => {
+    if (!Array.isArray(value.items)) throw new Error('catalog.items must be an array');
+    return value;
+  };
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dshbot-catalog-'));
+  const file = path.join(dir, 'dshbot-catalog.json');
+  const { ctx, entry, settings } = makeRuntime();
+  const scope = createCatalogScope(ctx, settings, { empty: EMPTY, schema: validate, file });
+
+  assert.deepEqual(scope.get().items, []);
+  const previous = scope.get();
+  await scope.set({ ...previous, items: [{ id: 'b1', name: 'Bot' }] }, previous);
+  assert.equal(entry.options.config.items.length, 1);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).items.length, 1);
+
+  // A write stamped with a stale snapshot conflicts; projectCatalog re-reads
+  // and retries instead of losing the other writer's change.
+  const stale = scope.get();
+  entry.options.config = { ...entry.options.config, audit: [{ id: 'foreign' }] };
+  await assert.rejects(
+    scope.set({ ...stale, tasks: [{ id: 't1' }] }, stale),
+    (error) => error?.code === 'SETTINGS_CONFLICT',
+  );
+  await projectCatalog(scope, (latest) => ({
+    ...latest,
+    sections: [{ id: 's1', name: 'S', createdAt: 1, updatedAt: 1 }],
+  }));
+  assert.equal(entry.options.config.sections.length, 1);
+  assert.equal(entry.options.config.items.length, 1);
+  assert.equal(entry.options.config.audit.length, 1);
+
+  // A fresh entry restores the persisted catalog on activation.
+  const next = makeRuntime();
+  const restored = createCatalogScope(next.ctx, next.settings, { empty: EMPTY, schema: validate, file });
+  assert.equal(await restored.restore(), true);
+  assert.equal(restored.get().items[0].id, 'b1');
+  await assert.rejects(
+    restored.set({ ...restored.get(), items: 'not-an-array' }, restored.get()),
+    /items must be an array/,
+  );
+
+  // Reconciles (settings writes, patch watches, plugin installs) re-apply the
+  // overlay row's declared config — which never carries the catalog fields —
+  // and the volatile commit then resets the refs to defaults. The fiber-scoped
+  // loader/volatile-update event marks that wipe: the scope re-seeds from the
+  // persisted file instead of letting the catalog go empty.
+  next.entry.options.config = {};
+  for (const listener of next.listeners['loader/volatile-update'] ?? []) {
+    listener([['items'], ['sections'], ['tasks']]);
+  }
+  for (let i = 0; i < 50 && restored.get().items.length === 0; i++) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(restored.get().items[0].id, 'b1');
+  assert.equal(next.entry.options.config.items.length, 1);
+
+  // A catalog that fails to parse or validate is set aside as a .rejected-*
+  // sibling (evidence kept) instead of re-tripping every start or silently
+  // shadowing the next write; the catalog then comes up empty.
+  fs.writeFileSync(file, '{"items":"corrupt-shape"', 'utf8');
+  const quarantined = makeRuntime();
+  const quarantinedScope = createCatalogScope(
+    { ...quarantined.ctx, logger: { warn: () => {} } },
+    quarantined.settings,
+    { empty: EMPTY, schema: validate, file },
+  );
+  assert.equal(await quarantinedScope.restore(), false);
+  assert.equal(fs.existsSync(file), false);
+  const rejected = fs.readdirSync(dir).filter((name) => name.includes('.rejected-'));
+  assert.equal(rejected.length, 1);
+  assert.equal(fs.readFileSync(path.join(dir, rejected[0]), 'utf8'), '{"items":"corrupt-shape"');
+  assert.deepEqual(quarantinedScope.get().items, []);
+
+  // Before the fiber turns ACTIVE describe() serves no descriptor: reads fall
+  // back to the resolved volatile Config refs, writes stay fenced off.
+  const cold = createCatalogScope(
+    { fiber: { entry: { options: { config: {} }, update: async () => { throw new Error('must not write pre-activation'); } } } },
+    { describe: () => [] },
+    { config: { items: { get: () => [{ id: 'cold-bot' }] } }, empty: EMPTY },
+  );
+  assert.equal(cold.get().items[0].id, 'cold-bot');
+  assert.deepEqual(cold.get().tasks, []);
+  const coldSnapshot = cold.get();
+  await assert.rejects(cold.set({ ...coldSnapshot, tasks: [{ id: 't' }] }, coldSnapshot), /not active/);
 });
 
 test('dshbot aliases strip from the disable list (desktop built-in)', () => {

@@ -23,12 +23,12 @@ test('normalizeRoute accepts known ids only', () => {
   assert.equal(releaseSource.normalizeRoute(undefined), '');
 });
 
-test('listRoutes exposes both mirrors; gitee stays unverified until validated', () => {
+test('listRoutes exposes both mirrors; both verified after anonymous parity evidence', () => {
   const routes = releaseSource.listRoutes();
   const github = routes.find((row) => row.id === 'github');
   const gitee = routes.find((row) => row.id === 'gitee');
   assert.equal(github.verified, true);
-  assert.equal(gitee.verified, false);
+  assert.equal(gitee.verified, true);
   assert.match(gitee.page, /gitee\.com/);
 });
 
@@ -71,17 +71,23 @@ test('latestFor(gitee) only touches gitee hosts and normalizes download_url asse
     const target = String(url);
     seen.push(target);
     assert.match(target, /gitee\.com/, 'gitee route must not query github');
+    // Gitee's /latest returns prereleases, so the route reads the list and
+    // skips draft/prerelease rows — the mock serves a newer prerelease first
+    // plus the expected stable row to pin that behavior.
     return {
       ok: true,
       status: 200,
-      json: async () => ({
-        tag_name: 'v2.0.0',
-        name: 'v2.0.0',
-        body: '',
-        assets: [
-          { name: 'Deepseek-Harness-Desktop-Setup-2.0.0.exe', download_url: 'https://gitee.com/ayase/x/releases/download/v2.0.0/setup.exe' },
-        ],
-      }),
+      json: async () => ([
+        { tag_name: 'v9.9.9-beta', prerelease: true, assets: [] },
+        {
+          tag_name: 'v2.0.0',
+          name: 'v2.0.0',
+          body: '',
+          assets: [
+            { name: 'Deepseek-Harness-Desktop-Setup-2.0.0.exe', download_url: 'https://gitee.com/ayase/x/releases/download/v2.0.0/setup.exe' },
+          ],
+        },
+      ]),
     };
   };
   try {
@@ -90,6 +96,50 @@ test('latestFor(gitee) only touches gitee hosts and normalizes download_url asse
     assert.equal(check.route, 'gitee');
     assert.equal(check.assetUrl, 'https://gitee.com/ayase/x/releases/download/v2.0.0/setup.exe');
     assert.ok(seen.every((url) => url.includes('gitee.com')));
+  } finally {
+    global.fetch = previousFetch;
+  }
+});
+
+test('listFor rows attach delta info only for the installed→to pair', async () => {
+  const previousFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ([
+      {
+        tag_name: 'v2.0.0',
+        name: 'v2.0.0',
+        published_at: '2026-09-19T06:00:27Z',
+        assets: [
+          { name: 'Deepseek-Harness-Desktop-Setup-2.0.0.exe', browser_download_url: 'https://github.com/dl/setup.exe', size: 100 },
+          { name: 'Whale-Isle-delta-1.0.0-2.0.0.zip', browser_download_url: 'https://github.com/dl/delta.zip', size: 12 },
+          { name: 'Whale-Isle-delta-9.9.9-2.0.0.zip', browser_download_url: 'https://github.com/dl/other.zip', size: 34 },
+        ],
+      },
+      {
+        tag_name: 'v1.5.0',
+        name: 'v1.5.0',
+        assets: [
+          { name: 'Deepseek-Harness-Desktop-Setup-1.5.0.exe', browser_download_url: 'https://github.com/dl/setup-1.5.exe' },
+        ],
+      },
+    ]),
+  });
+  try {
+    const list = await releaseSource.listFor('github', { installedVersion: '1.0.0' });
+    assert.equal(list.status, 'ok');
+    assert.equal(list.releases.length, 2);
+    assert.deepEqual(list.releases[0].delta, {
+      name: 'Whale-Isle-delta-1.0.0-2.0.0.zip',
+      from: '1.0.0',
+      to: '2.0.0',
+      size: 12,
+    });
+    assert.equal(list.releases[1].delta, null);
+    // Row meta fields feeding the prototype's "date · full-package size" line.
+    assert.equal(list.releases[0].publishedAt, '2026-09-19T06:00:27Z');
+    assert.equal(list.releases[0].assetSize, 100);
   } finally {
     global.fetch = previousFetch;
   }
@@ -433,4 +483,93 @@ test('startExternalDesktop reports a rejected spawn instead of throwing', async 
   const result = await runtimeInstall.startExternalDesktop([], deps);
   assert.equal(result.ok, false);
   assert.equal(result.error, 'ENOENT');
+});
+
+// --- external boot forensics log --------------------------------------------
+
+function streamedChild() {
+  const child = installerChild();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  return child;
+}
+
+test('startExternalDesktop pipes child stdio into the bounded boot log', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-rt-bootlog-'));
+  try {
+    const seen = {};
+    const { deps } = startDeps({
+      probes: [true],
+      spawnImpl: (exe, args, options) => {
+        seen.options = options;
+        const child = streamedChild();
+        setImmediate(() => child.stderr.emit(
+          'data',
+          Buffer.from('failed to apply loader entry app (@evil/plugin)\n'),
+        ));
+        return child;
+      },
+    });
+    deps.stateDir = () => dir;
+    const result = await runtimeInstall.startExternalDesktop([], deps);
+    assert.equal(result.ok, true);
+    assert.deepEqual(seen.options.stdio, ['ignore', 'pipe', 'pipe']);
+    const text = fs.readFileSync(path.join(dir, 'logs', 'last-external-boot.log'), 'utf8');
+    assert.match(text, /failed to apply loader entry app \(@evil\/plugin\)/);
+    assert.match(text, /spawning external runtime:/);
+    assert.match(text, /launcher verdict: launched/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startExternalDesktop writes the crash evidence and exit verdict to the boot log', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-rt-crashlog-'));
+  try {
+    const { deps } = startDeps({
+      probes: [true, false],
+      spawnImpl: () => {
+        const child = streamedChild();
+        setImmediate(() => {
+          child.stderr.emit(
+            'data',
+            Buffer.from("Cannot find package '@evil/plugin' imported from C:\\profiles\\web\n"),
+          );
+          child.emit('exit', 1, null);
+        });
+        return child;
+      },
+    });
+    deps.stateDir = () => dir;
+    const result = await runtimeInstall.startExternalDesktop([], deps);
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'runtime-exited');
+    const text = fs.readFileSync(path.join(dir, 'logs', 'last-external-boot.log'), 'utf8');
+    assert.match(text, /Cannot find package '@evil\/plugin'/);
+    assert.match(text, /external runtime exited code 1/);
+    assert.match(text, /launcher verdict: runtime-exited/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('startExternalDesktop records a spawn-failed verdict in the boot log', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-rt-spawnlog-'));
+  try {
+    const { deps } = startDeps({
+      spawnImpl: () => {
+        const child = streamedChild();
+        setImmediate(() => child.emit('error', new Error('ENOENT')));
+        return child;
+      },
+    });
+    deps.stateDir = () => dir;
+    const result = await runtimeInstall.startExternalDesktop([], deps);
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'ENOENT');
+    const text = fs.readFileSync(path.join(dir, 'logs', 'last-external-boot.log'), 'utf8');
+    assert.match(text, /launcher verdict: spawn failed \(ENOENT\)/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

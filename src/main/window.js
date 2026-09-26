@@ -17,6 +17,61 @@ const {
 const { applyHarnessCookieToSession, launchTokenFromUrl, loadUrlAfterRedeem } = require('./harness-browser-auth');
 
 const PLUGIN_BOOT_TIMEOUT_MS = 90_000;
+
+// Both shell windows are transparent + frameless: a dead renderer would
+// leave an invisible click-swallowing surface with no recovery path. Offer
+// reload-or-quit so a crash never strands the user. The dialog is anchored
+// to no window so it stays visible even when the surface is hidden in tray.
+function attachRendererRecovery(contents, label) {
+  if (!contents || contents.__dshdRecoveryAttached) {
+    return;
+  }
+  contents.__dshdRecoveryAttached = true;
+  let recovering = false;
+  const recover = async (why) => {
+    if (recovering || contents.isDestroyed()) {
+      return;
+    }
+    recovering = true;
+    try {
+      const { dialog, app } = require('electron');
+      const choice = await dialog.showMessageBox({
+        type: 'error',
+        title: '界面异常',
+        message: `${label}界面发生异常（${why}）`,
+        detail: '可重新加载界面；若反复出现请退出后从启动器重新启动。',
+        buttons: ['重新加载', '退出应用'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      }).catch(() => ({ response: 0 }));
+      if (choice.response === 0 && !contents.isDestroyed()) {
+        contents.reloadIgnoringCache();
+      } else if (choice.response === 1) {
+        app.quit();
+      }
+    } finally {
+      recovering = false;
+    }
+  };
+  contents.on('render-process-gone', (_event, details) => {
+    const reason = details && details.reason;
+    if (reason === 'clean-exit' || reason === 'killed') {
+      return;
+    }
+    void recover(reason || '渲染进程退出');
+  });
+  contents.on('did-fail-load', (_event, code, desc, _url, isMainFrame) => {
+    if (isMainFrame === false || code === -3) {
+      return;
+    }
+    void recover(`页面加载失败（${desc || code}）`);
+  });
+  contents.on('unresponsive', () => {
+    void recover('界面无响应');
+  });
+}
+
 const PLUGIN_BOOT_PROBE = `(() => {
   const boot = document.querySelector('[data-dshd-boot-status]');
   const status = boot ? boot.getAttribute('data-dshd-boot-status') : null;
@@ -106,6 +161,7 @@ function createMainWindow() {
     allowUrl: isLocalAppNavigationUrl,
     openDeniedExternal: true,
   });
+  attachRendererRecovery(mainWindow.webContents, '桌面端');
 
   return mainWindow;
 }
@@ -155,6 +211,10 @@ function attachPrivilegedNavigationGuards(contents, options) {
 
 function getMainWindow() {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+}
+
+function getHarnessView() {
+  return harnessView && !harnessView.webContents.isDestroyed() ? harnessView : null;
 }
 
 function getHarnessWebContents(win) {
@@ -364,11 +424,18 @@ function ensureHarnessView(win) {
   });
   win.addBrowserView(harnessView);
   harnessView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  try {
+    require('./shortcuts').getShortcutService()?.attach(harnessView);
+  } catch {
+    // The shortcut service installs during app ready; a view created earlier
+    // simply runs without the bridge until the next view creation.
+  }
   attachPrivilegedNavigationGuards(harnessView.webContents, {
     allowUrl: isHarnessNavigationUrl,
     openDeniedExternal: true,
     openDeniedLoopback: true,
   });
+  attachRendererRecovery(harnessView.webContents, '桌面端主');
   const applyChrome = () => {
     if (!harnessRevealed || !harnessView || harnessView.webContents.isDestroyed()) {
       return;
@@ -378,6 +445,7 @@ function ensureHarnessView(win) {
   };
   harnessView.webContents.on('did-finish-load', applyChrome);
   harnessView.webContents.on('dom-ready', applyChrome);
+  harnessView.webContents.on('did-navigate', applyChrome);
   harnessView.webContents.on('did-navigate-in-page', applyChrome);
   if (!win._dshHarnessResizeBound) {
     win._dshHarnessResizeBound = true;
@@ -390,6 +458,23 @@ function ensureHarnessView(win) {
     // scale-factor swap reports no size delta at all.
     win.on('moved', relayout);
     win.on('restore', relayout);
+    // The reveal/nav inject can still be lost to a frame swap mid-eval or a
+    // page DOM rebuild between navigations; re-assert it (throttled) when the
+    // user returns to the window instead of staying chromeless.
+    let lastChromeAssert = 0;
+    const reassertChrome = () => {
+      if (!harnessRevealed || !harnessView || harnessView.webContents.isDestroyed()) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastChromeAssert < 800) {
+        return;
+      }
+      lastChromeAssert = now;
+      syncHarnessChrome(win, harnessView.webContents);
+    };
+    win.on('focus', reassertChrome);
+    win.on('show', reassertChrome);
     const relayoutOnMetricsChange = () => {
       if (!win.isDestroyed()) relayout();
     };
@@ -558,10 +643,10 @@ function createLauncherWindow() {
   }
   launcherWindow = new BrowserWindow({
     ...windowChrome({
-      width: 900,
-      height: 680,
-      minWidth: 760,
-      minHeight: 520,
+      width: 1060,
+      height: 660,
+      minWidth: 860,
+      minHeight: 560,
       show: false,
       icon: iconImage(),
       transparent: true,
@@ -588,6 +673,7 @@ function createLauncherWindow() {
     allowUrl: isLauncherNavigationUrl,
     openDeniedExternal: true,
   });
+  attachRendererRecovery(launcherWindow.webContents, '启动器');
   return launcherWindow;
 }
 
@@ -637,6 +723,7 @@ function closeLauncherWindow() {
 module.exports = {
   createMainWindow,
   getMainWindow,
+  getHarnessView,
   getHarnessWebContents,
   getHarnessOrigin,
   onHarnessOriginChange,

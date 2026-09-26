@@ -1,0 +1,16 @@
+{
+  "id": "launcher-notes",
+  "pid": 37920,
+  "version": "2.0.0",
+  "port": 52568,
+  "url": "http://127.0.0.1:52568/",
+  "endpoints": [
+    "GET /",
+    "GET /state",
+    "GET /notes",
+    "POST /notes",
+    "GET /stats"
+  ],
+  "startedAt": "2026-09-25T05:19:41.537Z",
+  "heartbeatAt": "2026-09-25T13:46:45.757Z"
+}

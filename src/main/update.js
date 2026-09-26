@@ -483,7 +483,7 @@ async function installFromAsset(info, onProgress, options = {}) {
       const outcome = await installLatestViaUpdater(
         { timeoutMs: DOWNLOAD_TIMEOUT_MS },
         onProgress,
-        options.updaterDeps || {},
+        { ...options.updaterDeps, taskProtection: options.taskProtection },
       );
       if (outcome && outcome.ok) {
         return {
@@ -493,6 +493,11 @@ async function installFromAsset(info, onProgress, options = {}) {
           differential: Boolean(outcome.differential),
           downloadPercent: outcome.downloadPercent ?? null,
         };
+      }
+      if (outcome && outcome.reason === 'cancelled') {
+        // A cancelled protection prompt is a decision, not an updater
+        // shortfall — never fall back into the installer path.
+        return { ...info, launched: false, cancelled: true, code: 'cancelled' };
       }
       console.warn(`electron-updater path unavailable (${outcome && outcome.reason}); falling back to full download${outcome && outcome.message ? `: ${outcome.message}` : ''}`);
     } catch (error) {
@@ -506,7 +511,7 @@ async function installFromAsset(info, onProgress, options = {}) {
   }
   const dir = path.join(options.userDataDir || app.getPath('userData'), 'updates');
   fs.mkdirSync(dir, { recursive: true });
-  const safeName = path.basename(info.assetName || 'DeepSeek-Harness-Setup.exe').replace(/[^\w.\-]+/g, '_');
+  const safeName = path.basename(info.assetName || 'Whale-Isle-Setup.exe').replace(/[^\w.\-]+/g, '_');
   const dest = path.join(dir, safeName);
   await downloadFile(info.assetUrl, dest, onProgress, { signal: options.signal });
   if (info.checksumUrl) {
@@ -526,6 +531,31 @@ async function installFromAsset(info, onProgress, options = {}) {
   }
   if (typeof onProgress === 'function') {
     onProgress({ phase: 'install', percent: 100 });
+  }
+  // Caller-side gate (launcher runtime installs stop the managed desktop
+  // first) and the task-protection check both run AFTER download + verify —
+  // the download itself is not a destructive side effect.
+  if (typeof options.beforeInstall === 'function') {
+    const gate = await options.beforeInstall({ dest });
+    if (gate && gate.ok === false) {
+      return {
+        ...info,
+        launched: false,
+        cancelled: gate.cancelled === true,
+        code: gate.code || 'install-gated',
+        message: gate.message,
+      };
+    }
+  }
+  const protection = options.taskProtection;
+  if (protection && typeof protection.coordinate === 'function') {
+    const willQuit = options.quitAfterInstall !== undefined
+      ? Boolean(options.quitAfterInstall)
+      : app.isPackaged;
+    const result = await protection.coordinate('update', { terminal: willQuit });
+    if (!result.proceeded) {
+      return { ...info, launched: false, cancelled: true, code: result.code || 'cancelled' };
+    }
   }
   const child = launchInstaller(dest);
   // The child handle lets a surviving caller (runtime install) observe the

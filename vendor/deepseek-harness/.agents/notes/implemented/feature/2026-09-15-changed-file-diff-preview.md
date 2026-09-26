@@ -16,7 +16,7 @@ Files git does not cover are compared the way Codex's turn diff tracker compares
 
 Two bounds keep the copies and the comparisons small. `maxFileBytes` caps a copy and a snapshot blob read for a comparison; a larger file is listed with `oversized`, without counts, and its comparison is refused, which is what makes whole-file copies affordable. `diffTimeoutMs` bounds the line comparison, the same 100 ms Codex uses; past it the comparison degrades to one hunk that replaces every line, marked `coarse`, so a pathological file never stalls the turn's record or the tab. Both are Config fields.
 
-The comparison is computed when asked for, on the Host, from the two content sources kept beside the served summary: a path in a snapshot tree, read with `ls-tree -l` and `cat-file blob` under the byte cap, or a copy read from disk. Snapshot sides git reported as binary and copies holding a NUL byte serve no lines. The tab renders the hunks with old and new line numbers and no syntax highlighting; the side-by-side view pairs each run of deletions with the additions that follow it row by row. A comparison the Host no longer serves, a failed read, a binary file, and an oversized file each show one line.
+The comparison is computed when asked for, on the Host, from the two content sources kept beside the served summary: a path in a snapshot tree, read with `ls-tree -l` and `cat-file blob` under the byte cap, or a copy read from disk. Snapshot sides git reported as binary and copies holding a NUL byte serve no lines. The tab renders the hunks through the shared `ReviewDiff` primitive (`packages/client/ui-primitives/src/ReviewDiff.tsx`) with old and new line numbers, bounds each comparison to 5000 rendered lines, and highlights syntax on a Worker with an inline-sliced fallback when no Worker exists; the side-by-side view pairs each run of deletions with the additions that follow it row by row. A comparison the Host no longer serves, a failed read, a binary file, and an oversized file each show one line.
 
 Content still lives only as long as the Session in this Host process, as the card decision settled; the comparison shares the card's lifetime, so a conversation reopened after a Host restart has neither.
 
@@ -32,7 +32,7 @@ Content still lives only as long as the Session in this Host process, as the car
 
 **One tab per file**, titled by the file name, was the first implementation; reviewing a turn meant one tab per row. One tab per turn with a file selector keeps the turn's changes together and lets the row still land on its file.
 
-**Syntax highlighting** in the tab is deferred until the plain view proves insufficient.
+**Syntax highlighting** in the tab was deferred at the time until the plain view proved insufficient; the shared `ReviewDiff` primitive later added it, tokenizing on a Worker so no main-thread highlighting task exceeds 50 ms, with oversized lines staying readable plain text.
 
 **Keeping rows opening the current file** would have left the comparison one click further away; the current file still opens from the prose links and the Files tab.
 

@@ -117,7 +117,7 @@ test('manifest keeps the NSIS installer branding contract', () => {
   const nsis = pkg.build?.nsis;
   assert.equal(nsis?.oneClick, false);
   assert.equal(nsis?.allowToChangeInstallationDirectory, true);
-  assert.equal(nsis?.artifactName, 'Deepseek-Harness-Desktop-Setup-${version}.${ext}');
+  assert.equal(nsis?.artifactName, 'Whale-Isle-Setup-${version}.${ext}');
   assert.equal(nsis?.include, 'build/installer.nsh');
   assert.deepEqual(nsis?.installerLanguages, ['zh_CN', 'en_US']);
   assert.match(pkg.version, /^\d+\.\d+\.\d+$/);

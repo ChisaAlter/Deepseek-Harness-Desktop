@@ -49,6 +49,7 @@ npm run dist:mac      # macOS 真机
 - 下载校验：`SHA512SUMS.txt` 使用 `sha512sum` 标准格式，随同一批 Release 资产发布；桌面更新器按清单强制校验（缺条目 / 不匹配 / 清单拉取失败均中止并删除下载文件）。`v0.2.7` 已有该清单；其它旧版本若缺少清单，当前更新器先请求明确确认，拒绝则不下载，不会静默安装未校验文件。
 - 发布不再由 `v*` tag push 触发。先手动运行候选构建并完成验收，再手动运行 `publish.yml`，显式提供候选 run ID、release tag 和 Setup SHA256；晋级工作流按 run ID 下载原始资产并以 `--target` 固定候选 SHA。
 - SQLite 等格式与 rc 版本兼容性以发版说明为准。
+- **Office 运行时闭包（P3）**：`npm run prepare:office-runtime` 驱动上游 `scripts/primary-runtime/prepare.ts`（lock.json SHA-256 钉归档）产出 `build/office-runtime/{primary-runtime,office-skills}`，经 extraResources 落 `resources/runtime/`；win32 目标 `assertOfficeRuntime` 钉 payload（runtime.json 平台/arch/payloadDigest、node.exe、python.exe、pnpm.mjs、site-packages）与 harness 内 `dsh-office-to-pdf`/`dsh-skill-office`/`workspace-dependencies`/`libreoffice-kit@0.1.1`/`libreoffice-kit-win32-x64`（exe + prebuilds.json 与 kit 同版、built）全闭包，缺失即 fail build；非 win32 目标跳过该断言（暂无 payload，为已知限制）。桌面 overlay（`desktop-office.patch.yml`）携带显式 `source/root/assetRoot/node/cli` 绝对路径，每次启动（含 skip）经 `--patch` 挂载，skip-compose 契约两轮断言两行各恰好一次。详见 [office-runtime 卡](../../features/office-runtime.md)。
 
 ## 门槛
 

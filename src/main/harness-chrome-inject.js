@@ -4,6 +4,7 @@
   const CONTROL_SIZE = 32;
   const CONTROL_GAP = 0;
   const FRAME_CANVAS_ID = 'dshd-frame-canvas';
+  const FRAME_RING_ID = 'dshd-frame-ring';
   const EDGE = 8;
   const CLUSTER = 8;
   /** Full titlebar height so the no-drag plate covers drag padding around the 32px buttons. */
@@ -156,10 +157,26 @@
         border-radius: 20px;
         overflow: hidden;
       }
+      /* A hairline ring just inside the silhouette anchors the rounded edge:
+         the bare alpha-AA edge reads as blur on a transparent window. A real
+         element (not body::after) keeps the ring immune to client stylesheets
+         claiming body's pseudo-elements, and lets the self-heal observer
+         watch it by id like the other chrome nodes. */
+      #${FRAME_RING_ID} {
+        position: fixed;
+        inset: 0;
+        border-radius: 20px;
+        box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.4));
+        pointer-events: none;
+        z-index: 2147483646;
+      }
       html[data-window-maximized] body,
       html[data-window-maximized] #dsh-wallpaper,
       html[data-window-maximized] #${FRAME_CANVAS_ID} {
         border-radius: 0;
+      }
+      html[data-window-maximized] #${FRAME_RING_ID} {
+        display: none;
       }
     `;
     if (style.textContent !== css) {
@@ -177,8 +194,22 @@
     document.body.appendChild(el);
   }
 
+  function ensureFrameRing() {
+    if (!document.body || document.getElementById(FRAME_RING_ID)) {
+      return;
+    }
+    const el = document.createElement('div');
+    el.id = FRAME_RING_ID;
+    el.setAttribute('aria-hidden', 'true');
+    // Inside body: the --dsw-alias-* tokens are defined on body (light/dark
+    // tables), so a ring sibling to body would only ever see the fallback.
+    // position:fixed still escapes body's rounded overflow clip.
+    document.body.appendChild(el);
+  }
+
   function ensureControls() {
     ensureFrameCanvas();
+    ensureFrameRing();
     let host = document.getElementById(CONTROLS_ID);
     if (host) {
       return host;
@@ -269,11 +300,35 @@
       timer = window.setTimeout(measure, 80);
     };
     window.addEventListener('resize', schedule);
+    // A page rebuild between navigations can drop the injected nodes; grow
+    // them back instead of staying chromeless until the next re-assert.
+    if (typeof MutationObserver === 'function') {
+      const healer = new MutationObserver(() => {
+        if (
+          !document.getElementById(STYLE_ID)
+          || !document.getElementById(CONTROLS_ID)
+          || !document.getElementById(FRAME_CANVAS_ID)
+          || !document.getElementById(FRAME_RING_ID)
+        ) {
+          schedule();
+        }
+      });
+      healer.observe(document.documentElement, { childList: true, subtree: true });
+    }
     if (window.shell && typeof window.shell.onWindowState === 'function') {
       window.shell.onWindowState((state) => {
         window.__dshShellMaximized = Boolean(state && state.maximized);
         measure();
       });
+    }
+    // State pushes only arrive on transitions; a fresh document injected while
+    // the window is already maximized would otherwise draw the rounded
+    // silhouette until the next geometry event.
+    if (window.shell && typeof window.shell.getWindowState === 'function') {
+      Promise.resolve(window.shell.getWindowState()).then((state) => {
+        window.__dshShellMaximized = Boolean(state && state.maximized);
+        measure();
+      }).catch(() => {});
     }
     window.setTimeout(measure, 200);
     window.setTimeout(measure, 800);

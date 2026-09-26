@@ -266,6 +266,26 @@ test('parseUnifiedDiff keeps +++ and --- hunk lines as content', () => {
   ]);
 });
 
+test('parseUnifiedDiff keeps the no-newline marker as an eof line', () => {
+  const files = parseUnifiedDiff([
+    'diff --git a/foo.c b/foo.c',
+    '--- a/foo.c',
+    '+++ b/foo.c',
+    '@@ -1,1 +1,1 @@',
+    '-old',
+    '+new',
+    '\\ No newline at end of file',
+    ' tail',
+  ].join('\n'));
+  assert.equal(files.length, 1);
+  assert.deepEqual(files[0].hunks[0].lines, [
+    { kind: 'del', text: 'old' },
+    { kind: 'add', text: 'new' },
+    { kind: 'eof', text: 'No newline at end of file' },
+    { kind: 'context', text: 'tail' },
+  ]);
+});
+
 test('run kills a hung child after the timeout', async () => {
   const result = await run(
     process.execPath,

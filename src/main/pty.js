@@ -709,6 +709,11 @@ function createPtyController(options = {}) {
       return () => eventListeners.delete(listener);
     },
 
+    /** Live session count — read-only surface for task-protection prompts. */
+    count() {
+      return sessions.size;
+    },
+
     /** Kill every live PTY (app quit, harness restart, renderer teardown). */
     killAll() {
       const cleanup = [];

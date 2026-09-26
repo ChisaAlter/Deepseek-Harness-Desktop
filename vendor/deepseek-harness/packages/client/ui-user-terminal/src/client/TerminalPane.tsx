@@ -214,7 +214,9 @@ export function TerminalPane({
     <div className={css.paneTerminalWrap}>
       <div
         ref={hostRef}
-        className={`${css.paneTerminal} thread-terminal-drawer`}
+        // The `xterm` class declares the terminal input region to the shortcut
+        // dispatcher's region detection (closest('.xterm') → 'terminal').
+        className={`${css.paneTerminal} thread-terminal-drawer xterm`}
         data-terminal-pane={id}
         role="log"
         aria-label={id}

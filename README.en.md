@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/icon.png" width="88" alt="Deepseek-Harness-Desktop" />
+  <img src="assets/icon.png" width="88" alt="Whale Isle" />
 </p>
 
-<h1 align="center">Deepseek-Harness-Desktop</h1>
+<h1 align="center">Whale Isle</h1>
 
 <p align="center">
   An open-source desktop client for DeepSeek Harness<br />
@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshot-home.jpg" alt="Deepseek-Harness-Desktop main window" width="920" />
+  <img src="assets/screenshot-home.jpg" alt="Whale Isle main window" width="920" />
 </p>
 
 This is an independently maintained Electron desktop shell, not an official DeepSeek client. It brings the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI, tool calls, and plugin system to the local desktop, with a launcher, workspaces, window and tray integration, and updates. Installed builds do not require a separate Node.js installation or a manual `dsh web` setup.

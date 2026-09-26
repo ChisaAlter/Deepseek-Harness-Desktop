@@ -933,6 +933,24 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
   // instance (including a peer variant with identical files) needs its own
   // module location. Remember which source claimed each flattened location.
   const targetSource = new Map(workspaceSources.map((item) => [path.resolve(item.target), realOf(item.source)]));
+  // Demand table: dep name -> resolved source instance -> workspace consumer
+  // dirs. When several workspace packages resolve the same instance and the
+  // flattened root already serves a different version, per-owner nested copies
+  // would split one source into multiple module instances — the shared copy
+  // must instead land at the consumers' common-ancestor node_modules.
+  const depDemand = new Map();
+  for (const item of workspaceSources) {
+    for (const name of runtimeDependencyEntries(item.manifest).keys()) {
+      const sourceDep = resolvePackageFrom(item.source, name, harnessSrc);
+      if (!sourceDep) { continue; }
+      const desired = realOf(sourceDep);
+      let bySource = depDemand.get(name);
+      if (!bySource) { bySource = new Map(); depDemand.set(name, bySource); }
+      let owners = bySource.get(desired);
+      if (!owners) { owners = new Set(); bySource.set(desired, owners); }
+      owners.add(path.resolve(item.target));
+    }
+  }
   const invalidateVisitedAfterCopy = (changed) => {
     for (const key of visited) {
       const target = key.slice(key.indexOf('\0') + 1);
@@ -972,7 +990,27 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
       if (kind === 'peer' && dependencyOwner === harnessDest) {
         throw new Error(`顶层 peer 依赖冲突: ${manifest.name} → ${name}`);
       }
-      const nestedDest = destForPackageName(path.join(dependencyOwner, 'node_modules'), name);
+      let nestedDest = destForPackageName(path.join(dependencyOwner, 'node_modules'), name);
+      const demand = depDemand.get(name) && depDemand.get(name).get(desired);
+      if (demand && demand.size > 1) {
+        const common = commonAncestorDir([...demand]);
+        if (common) {
+          const commonDir = path.resolve(common);
+          const sharedBase = path.basename(commonDir) === 'node_modules' ? commonDir : path.join(commonDir, 'node_modules');
+          const sharedDest = destForPackageName(sharedBase, name);
+          const resolvedShared = path.resolve(sharedDest);
+          const insideHarness = resolvedShared.startsWith(path.resolve(harnessDest) + path.sep);
+          const ancestorOfOwner = path.resolve(dependencyOwner).startsWith(commonDir + path.sep);
+          const occupied = targetSource.get(resolvedShared)
+            || (fs.existsSync(path.join(resolvedShared, 'package.json')) ? 'occupied' : null);
+          // A shared scope-level copy may shadow same-name demands wanting a
+          // different source — those consumers self-heal on the next pass by
+          // nesting their own version, which the convergence check verifies.
+          if (insideHarness && ancestorOfOwner && !occupied) {
+            nestedDest = sharedDest;
+          }
+        }
+      }
       const resolvedNested = path.resolve(nestedDest);
       if (!resolvedNested.startsWith(path.resolve(harnessDest) + path.sep)) {
         throw new Error(`工作区依赖目标越界: ${resolvedNested}`);
@@ -987,7 +1025,12 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
       await ensureDependencies(desired, nestedDest, depth + 1);
     }
   };
-  for (let pass = 0; pass < 4; pass += 1) {
+  // Consolidation cascades: collapsing one shared instance re-maps resolvers
+  // and orphans another generation of nested copies, so a deep graph (the
+  // AWS/OTel trees) needs more than a couple of passes to settle. The bound
+  // stays finite — every pass either copies or deletes at least one package.
+  const MAX_REPAIR_PASSES = 12;
+  for (let pass = 0; pass < MAX_REPAIR_PASSES; pass += 1) {
     const before = copied;
     visited.clear();
     for (const item of workspaceSources) {
@@ -1007,7 +1050,15 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
         sourceTargets.get(sourceKey).add(targetKey);
         const previousSource = targetSources.get(targetKey);
         if (previousSource && previousSource !== sourceKey) {
-          throw new Error(`工作区依赖实例被合并: ${name} (${previousSource} / ${sourceKey})`);
+          // .pnpm peer variants (same version, distinct context suffixes like
+          // `send@1.2.1_supports-color@9.4.0`) can hold byte-identical files;
+          // flattening legitimately serves both consumers from one copy, and a
+          // divergent dep subtree already fails `fileMatches` during the
+          // graphMatches pass. Only a content-divergent merge is a real
+          // identity violation.
+          if (!samePublishedPackageFiles(previousSource, sourceKey, harnessSrc)) {
+            throw new Error(`工作区依赖实例被合并: ${name} at ${targetKey} (${previousSource} / ${sourceKey})`);
+          }
         }
         targetSources.set(targetKey, sourceKey);
         const key = `${sourceKey}\0${targetKey}`;
@@ -1022,17 +1073,122 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
         }
       };
       for (const item of workspaceSources) { checkIdentity(item.source, item.target); }
+      let consolidated = false;
       for (const [source, targets] of sourceTargets) {
         if (targets.size < 2) { continue; }
         const name = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8')).name;
-        // Matching files and versions do not preserve module-level shared
-        // state. A conflicting root version is not a safe-copy exemption.
-        throw new Error(`工作区依赖实例被拆分: ${name} (${[...targets].join(' / ')})`);
+        // Flatten first-wins can leave orphan copies (e.g. a root slot nobody
+        // resolves once consumers nested their own). Prune them before
+        // judging a real split.
+        const alive = new Set(targets);
+        const resolvers = new Set();
+        for (const target of targets) {
+          const found = findResolvers(harnessDest, name, target);
+          if (found.length === 0) {
+            console.log(`拍平孤儿副本清理: ${name} <- ${target}`);
+            fs.rmSync(longPath(target), { recursive: true, force: true });
+            alive.delete(target);
+            continue;
+          }
+          for (const dir of found) { resolvers.add(dir); }
+        }
+        if (alive.size < 2) { continue; }
+        // One shared source instance duplicated under multiple consumers:
+        // collapse to a single copy at the resolvers' common-ancestor
+        // node_modules so all of them still resolve the same module (pnpm's
+        // shared-instance semantics), then re-verify on the next pass.
+        const common = commonAncestorDir([...resolvers]);
+        const sharedBase = common && path.basename(common) === 'node_modules'
+          ? common
+          : common && path.join(common, 'node_modules');
+        const sharedDest = sharedBase
+          ? path.resolve(destForPackageName(sharedBase, name))
+          : null;
+        const harnessRoot = path.resolve(harnessDest);
+        // An already-occupied ancestor slot serves the collapse only when it
+        // holds this same source's bytes — a different package there would
+        // shadow these resolvers with the wrong module.
+        const occupiedByOther = sharedDest !== null
+          && fs.existsSync(path.join(sharedDest, 'package.json'))
+          && !samePublishedPackageFiles(source, sharedDest, harnessSrc);
+        // A surviving copy of `name` between a resolver and the shared slot
+        // shadows the collapse (the resolver would land on a different
+        // source's bytes) — in that case the nested copy must stay.
+        const shadowed = sharedDest !== null && [...resolvers].some((dir) => {
+          const stop = path.dirname(sharedBase);
+          let probe = path.resolve(dir);
+          while (probe !== stop && probe !== path.dirname(probe)) {
+            const candidate = path.resolve(destForPackageName(path.join(probe, 'node_modules'), name));
+            if (candidate !== sharedDest
+                && !alive.has(candidate)
+                && fs.existsSync(path.join(candidate, 'package.json'))) {
+              return true;
+            }
+            probe = path.dirname(probe);
+          }
+          return false;
+        });
+        // Moving the package also re-maps ITS dependency resolutions: nested
+        // copies often exist precisely because ancestor slots serve a
+        // different source, so the shared copy must still satisfy its own
+        // dep graph at the new location before we collapse.
+        const depsStillMatch = sharedDest !== null && graphMatches(source, sharedDest);
+        const collapsible = sharedDest !== null
+          && sharedDest.startsWith(harnessRoot + path.sep)
+          && !occupiedByOther
+          && !shadowed
+          && depsStillMatch
+          && [...resolvers].every((dir) => {
+            const resolvedDir = path.resolve(dir);
+            const commonDir = path.resolve(common);
+            // A resolver may itself be the common ancestor (its own
+            // node_modules hosts the shared copy) — equality is containment.
+            return resolvedDir === commonDir || resolvedDir.startsWith(commonDir + path.sep);
+          });
+        if (!collapsible) {
+          // pnpm's store can share one instance across arbitrary consumer
+          // positions; a flat node_modules cannot when a different version
+          // occupies every expressible common slot. The surviving copies are
+          // then forced duplicates — each resolver still sees this source —
+          // which is standard npm nesting, not an identity violation.
+          const detail = `common=${common} sharedDest=${sharedDest} occupiedByOther=${occupiedByOther} shadowed=${shadowed} depsMatch=${depsStillMatch} resolvers=${resolvers.size}`;
+          console.log(`拍平共享实例无法收拢（强制重复，各自解析正确）: ${name} ×${alive.size} ${detail}`);
+          continue;
+        }
+        console.log(`拍平共享实例收拢: ${name} ×${alive.size} -> ${sharedDest}`);
+        if (!fs.existsSync(path.join(sharedDest, 'package.json'))) {
+          const omit = runtimeOmitRootDirs(source, harnessSrc);
+          copied += await copyFiles(collectFiles(source, sharedDest, false, false, omit), 32);
+        }
+        alive.delete(sharedDest);
+        for (const target of alive) {
+          fs.rmSync(longPath(target), { recursive: true, force: true });
+          invalidateAfterCopy(target);
+          invalidateVisitedAfterCopy(target);
+        }
+        // Every former resolver must land exactly on the shared copy — an
+        // interposed same-name copy between a resolver and the ancestor
+        // would shadow it, in which case the split stands.
+        for (const dir of resolvers) {
+          const resolved = resolvePackageFrom(dir, name, harnessDest);
+          if (!resolved || path.resolve(resolved) !== sharedDest) {
+            throw new Error(`工作区依赖实例被拆分: ${name} (${[...alive].join(' / ')})`);
+          }
+        }
+        targetSource.set(sharedDest, source);
+        consolidated = true;
       }
-      return copied;
+      if (!consolidated) {
+        return copied;
+      }
     }
-    if (copied === before || pass === 3) {
-      throw new Error(`工作区运行时依赖图不一致: ${invalid.name}`);
+    if (!invalid && copied !== before && pass < MAX_REPAIR_PASSES - 1) {
+      // Shared-instance consolidation mutated the tree; re-verify the whole
+      // graph on the next pass before declaring convergence.
+      continue;
+    }
+    if (copied === before || pass === MAX_REPAIR_PASSES - 1) {
+      throw new Error(`工作区运行时依赖图不一致: ${invalid ? invalid.name : '合并/拆分后未收敛'}`);
     }
   }
   throw new Error('工作区运行时依赖隔离未收敛');
@@ -1100,9 +1256,71 @@ function samePublishedPackageFiles(source, target, harnessSrc) {
   return true;
 }
 
+/**
+ * Count packages under harnessDest whose `package.json` declares `name` and
+ * whose Node-style resolution lands exactly on `targetDir`. Used to decide
+ * whether a flattened copy is a live resolution target or dead weight the
+ * first-wins pass left behind.
+ */
+function findResolvers(harnessDest, name, targetDir) {
+  const wanted = path.resolve(targetDir);
+  const resolvers = [];
+  const stack = [path.join(harnessDest, 'node_modules')];
+  const seen = new Set();
+  while (stack.length) {
+    const dir = stack.pop();
+    if (seen.has(dir)) { continue; }
+    seen.add(dir);
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) { continue; }
+      const child = path.join(dir, entry.name);
+      if (entry.name === 'node_modules' || entry.name.startsWith('@')) {
+        stack.push(child);
+        continue;
+      }
+      stack.push(path.join(child, 'node_modules'));
+      const manifestPath = path.join(child, 'package.json');
+      if (!fs.existsSync(manifestPath)) { continue; }
+      let manifest;
+      try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch { continue; }
+      const deps = {
+        ...(manifest.dependencies || {}),
+        ...(manifest.optionalDependencies || {}),
+        ...(manifest.peerDependencies || {}),
+      };
+      if (!Object.hasOwn(deps, name)) { continue; }
+      const resolved = resolvePackageFrom(child, name, harnessDest);
+      if (resolved && path.resolve(resolved) === wanted) { resolvers.push(child); }
+    }
+  }
+  return resolvers;
+}
+
+function countResolvers(harnessDest, name, targetDir) {
+  return findResolvers(harnessDest, name, targetDir).length;
+}
+
+function commonAncestorDir(dirs) {
+  const parts = dirs.map((dir) => path.resolve(dir).split(path.sep));
+  const first = parts[0];
+  let depth = 0;
+  while (depth < first.length && parts.every((segs) => segs.length > depth && segs[depth] === first[depth])) {
+    depth += 1;
+  }
+  return depth > 0 ? first.slice(0, depth).join(path.sep) || path.sep : null;
+}
+
 function resolvePackageFrom(fromDir, packageName, stopDir) {
-  let current = path.resolve(fromDir);
-  const stop = path.resolve(stopDir);
+  // Mirror Node resolution (preserve-symlinks off): a symlinked importer
+  // resolves deps through its realpath, so a `.pnpm/<pkg>@v/node_modules/`
+  // sibling store must win over the literal-path ancestors. Walking the
+  // unresolved path would mistake a consumer's hoisted sibling (e.g.
+  // `apps/desktop/node_modules/semver`) for the dependency the real
+  // consumer actually sees (`.pnpm/semver@<other>`).
+  let current = realOf(fromDir);
+  const stop = realOf(stopDir);
   const segments = String(packageName).split('/');
   while (true) {
     const candidate = path.join(current, 'node_modules', ...segments);
@@ -1194,7 +1412,7 @@ function resolveResourcesDir(context) {
     return context.packager.getResourcesDir(context.appOutDir);
   }
   if (context?.electronPlatformName === 'darwin') {
-    const product = context.packager?.appInfo?.productFilename || 'Deepseek-Harness-Desktop';
+    const product = context.packager?.appInfo?.productFilename || 'Whale Isle';
     return path.join(context.appOutDir, `${product}.app`, 'Contents', 'Resources');
   }
   return path.join(context.appOutDir, 'resources');
@@ -1365,6 +1583,117 @@ function assertHarnessRuntime(harnessDest, pin) {
   assertMcpSdkAjv(harnessDest);
 }
 
+/**
+ * Directory size in bytes for the evidence ledger log lines.
+ * @param {string} root
+ * @returns {number}
+ */
+function directorySize(root) {
+  let bytes = 0;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const full = path.join(root, entry.name);
+    if (entry.isDirectory()) { bytes += directorySize(full); }
+    else if (entry.isFile()) { bytes += fs.statSync(full).size; }
+  }
+  return bytes;
+}
+
+/**
+ * P3 Office closure: the packaged build must ship the locked win-x64 payload
+ * (resources/runtime/primary-runtime), the skill assets
+ * (resources/runtime/office-skills), and the complete LibreOffice Kit
+ * closure inside the flattened Harness runtime — including the native engine
+ * declared for win32-x64. WASM fallback is not a win32-x64 deliverable, so a
+ * missing engine fails the build instead of degrading silently.
+ * @param {string} resources - packaged resources directory
+ * @param {string} harnessDest - assembled (pre-tar) harness runtime
+ */
+function assertOfficeRuntime(resources, harnessDest) {
+  const payload = path.join(resources, 'runtime', 'primary-runtime');
+  const manifestFile = path.join(payload, 'runtime.json');
+  if (!fs.existsSync(manifestFile)) {
+    throw new Error(
+      `安装包缺少 Office 运行时清单 ${manifestFile}——请先运行 npm run prepare:office-runtime`,
+    );
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  if (manifest.platform !== 'win32' || manifest.arch !== 'x64' || typeof manifest.payloadDigest !== 'string') {
+    throw new Error(`Office 运行时清单无效：platform=${manifest.platform} arch=${manifest.arch}（需要 win32/x64 + payloadDigest）`);
+  }
+  const requiredPayload = [
+    path.join(payload, 'dependencies', 'node', 'bin', 'node.exe'),
+    path.join(payload, 'dependencies', 'python', 'python.exe'),
+    path.join(payload, 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'),
+    path.join(payload, 'dependencies', 'python', 'Lib', 'site-packages'),
+  ];
+  const skills = path.join(resources, 'runtime', 'office-skills');
+  const requiredSkills = [
+    path.join(skills, 'scripts', 'check_office.py'),
+    ...['office-docx', 'office-pptx', 'office-xlsx'].map((dir) => path.join(skills, dir, 'SKILL.md')),
+  ];
+  const missingPayload = [...requiredPayload, ...requiredSkills]
+    .filter((file) => !fs.existsSync(file));
+  if (missingPayload.length > 0) {
+    throw new Error(`安装包的 Office 运行时不完整：${missingPayload.join(', ')}`);
+  }
+
+  const nm = path.join(harnessDest, 'node_modules', '@deepseek-ai');
+  // Resolve the kit the way the runtime does — from the skill package's own
+  // dir — because flattening may nest it below the top-level slot (which can
+  // even hold an unreachable stale store copy of another version).
+  const skillDir = path.join(nm, 'dsh-skill-office');
+  const kitDir = resolvePackageFrom(skillDir, '@deepseek-ai/libreoffice-kit', harnessDest);
+  const engineDir = kitDir
+    && resolvePackageFrom(kitDir, '@deepseek-ai/libreoffice-kit-win32-x64', harnessDest);
+  const requiredClosure = [
+    path.join(nm, 'dsh-office-to-pdf', 'package.json'),
+    path.join(skillDir, 'package.json'),
+    path.join(nm, 'dsh-tool-workspace-dependencies', 'package.json'),
+    ...(kitDir ? [path.join(kitDir, 'lib', 'cli.js')] : []),
+    ...(engineDir
+      ? [path.join(engineDir, 'bin', 'libreoffice-kit.exe'), path.join(engineDir, 'prebuilds.json')]
+      : []),
+  ];
+  if (!kitDir || !engineDir) {
+    throw new Error(
+      `安装包的 LibreOffice Kit 闭包不完整：dsh-skill-office 无法解析 kit/engine`
+      + `（kit=${kitDir || 'unresolved'} engine=${engineDir || 'unresolved'}）`,
+    );
+  }
+  const missingClosure = requiredClosure.filter((file) => !fs.existsSync(file));
+  if (missingClosure.length > 0) {
+    throw new Error(`安装包的 LibreOffice Kit 闭包不完整：${missingClosure.join(', ')}`);
+  }
+  const kitVersion = JSON.parse(fs.readFileSync(path.join(kitDir, 'package.json'), 'utf8')).version;
+  // The pnpm store can hold an orphaned kit copy (installed under an older
+  // lockfile) which flattening hoists to the top-level slot — dead weight that
+  // would wrongly serve any consumer resolving from a shallow position.
+  for (const sibling of ['libreoffice-kit', 'libreoffice-kit-win32-x64']) {
+    const stale = path.join(nm, sibling);
+    if (path.resolve(stale) === path.resolve(kitDir) || path.resolve(stale) === path.resolve(engineDir || '')) { continue; }
+    const manifestFile = path.join(stale, 'package.json');
+    if (!fs.existsSync(manifestFile)) { continue; }
+    const staleVersion = JSON.parse(fs.readFileSync(manifestFile, 'utf8')).version;
+    if (countResolvers(harnessDest, `@deepseek-ai/${sibling}`, stale) > 0) { continue; }
+    console.log(`Office 孤儿副本清理: @deepseek-ai/${sibling}@${staleVersion}（零解析者，实际解析到 ${path.resolve(stale) === path.resolve(engineDir) ? engineDir : kitDir}）`);
+    fs.rmSync(longPath(stale), { recursive: true, force: true });
+  }
+  const engineManifest = JSON.parse(fs.readFileSync(path.join(engineDir, 'package.json'), 'utf8'));
+  const prebuilds = JSON.parse(fs.readFileSync(path.join(engineDir, 'prebuilds.json'), 'utf8'));
+  if (engineManifest.version !== kitVersion
+    || prebuilds.version !== kitVersion
+    || prebuilds.status !== 'built'
+    || prebuilds.platform !== 'win32-x64') {
+    throw new Error(`Office 引擎与 kit 不一致：kit@${kitVersion} engine@${engineManifest.version} prebuilds=${prebuilds.platform}/${prebuilds.status}`);
+  }
+  console.log(
+    `Office 闭包校验通过：kit@${kitVersion} + win32-x64 引擎`
+    + `（engine ${(directorySize(engineDir) / 1048576).toFixed(1)} MB，`
+    + `payload ${(directorySize(payload) / 1048576).toFixed(1)} MB，`
+    + `digest ${manifest.payloadDigest}）`,
+  );
+}
+
 module.exports = async function afterPack(context) {
   const projectDir = context.packager.projectDir;
   const resources = resolveResourcesDir(context);
@@ -1390,6 +1719,9 @@ module.exports = async function afterPack(context) {
   restoreVendoredPluginNodeModules(projectDir, resources, 'dsh-remote');
   installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-remote'), { skipIfComplete: true });
   assertVendoredPluginRuntimeDeps(resources, 'dsh-remote');
+  // dsh-task-control is dependency-free (node:* + relative imports only);
+  // the closure assert still proves the packaged copy ships its lib/.
+  assertVendoredPluginRuntimeDeps(resources, 'dsh-task-control');
   await assertDshdRemoteRuntime(resources);
   const harnessDest = path.join(resources, 'vendor', 'deepseek-harness');
   const deployDir = resolveDeployDir(process.env.DSH_DEPLOY_DIR);
@@ -1424,6 +1756,12 @@ module.exports = async function afterPack(context) {
     `${JSON.stringify(pin, null, 2)}\n`,
   );
   assertHarnessRuntime(harnessDest, pin);
+  // Office payload + kit closure is a win-x64 deliverable only (see the
+  // feature card's limitations); other targets ship without Office and the
+  // desktop overlay stays unwritten because the bundled payload is absent.
+  if (context.electronPlatformName === 'win32') {
+    assertOfficeRuntime(resources, harnessDest);
+  }
   // Skip compose contract against the REAL packaged CLI: unit tests mock
   // dsh.start, so this dist-path gate is the only automated place where the
   // shipped runtime proves `--skip-user-plugins` drops the user layer while
@@ -1461,6 +1799,7 @@ module.exports.resolveDeployDir = resolveDeployDir;
 module.exports.resolveResourcesDir = resolveResourcesDir;
 module.exports.assertDesktopForkRuntime = assertDesktopForkRuntime;
 module.exports.assertHarnessRuntime = assertHarnessRuntime;
+module.exports.assertOfficeRuntime = assertOfficeRuntime;
 module.exports.assertHarnessVersions = assertHarnessVersions;
 module.exports.assertNodePtyPrebuild = assertNodePtyPrebuild;
 module.exports.assertVendoredPluginRuntimeDeps = assertVendoredPluginRuntimeDeps;

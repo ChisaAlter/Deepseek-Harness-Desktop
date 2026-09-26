@@ -48,6 +48,10 @@ export function PanelToggles({
   const showSurfaces = useSurfacesToggle(value => value)
 
   useEffect(() => {
+    // Desktop runtime owns both chords through the shortcut registry
+    // (surfaces.toggle / terminal.drawer.toggle in apply.ts); keeping this DOM
+    // listener would be a second track racing the same actions.
+    if (document.documentElement.dataset.platform !== undefined) return
     const onKey = (event: KeyboardEvent) => {
       if (isRightPanelShortcut(event)) {
         if (isEditableKeyboardTarget(event.target)) return

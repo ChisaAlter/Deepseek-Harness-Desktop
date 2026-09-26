@@ -5,13 +5,52 @@ const dataImport = require('../main/data-import');
 const marketInstall = require('../main/marketplace-install');
 const { listInstalledPlugins: listProfilePlugins, OFFICIAL_TEMPLATE_BUNDLES } = require('../main/plugins');
 const { kernelIsRunning, disablePlugins, enablePlugin } = require('../main/profile-ops');
+const { getTaskProtection } = require('../main/task-protection');
 const { inspectPlugins, isPresetPlugin } = require('../main/plugin-forensics');
 const { isPluginTreeFailure } = require('../main/plugin-tree-failure');
 const { readLastDesktopStart, stickySkipActive, peekParkedUpdateCheck } = require('../main/launcher-gate');
 const { loadConfig, saveConfig, normalizeLauncherConfigPatch } = require('../main/config');
 const releaseSource = require('./release-source');
 const runtimeInstall = require('./runtime-install');
-const { isLauncherPackage, runtimeTarget, desktopStateDir } = require('./product');
+const forensicsLog = require('./forensics-log');
+const { isLauncherPackage, runtimeTarget, desktopStateDir, desktopUserDataDir } = require('./product');
+
+// In the slim package this process's config.json is the LAUNCHER's own file —
+// desktop-owned keys (disabledPlugins, pluginRecovery) live in the runtime's
+// userData. Plain JSON merge there: the desktop normalizes on its own boot.
+function desktopConfigFile() {
+  const path = require('path');
+  return path.join(desktopUserDataDir(app), 'config.json');
+}
+
+function loadPluginConfig() {
+  if (!isLauncherPackage()) {
+    return loadConfig();
+  }
+  try {
+    const fs = require('fs');
+    return JSON.parse(fs.readFileSync(desktopConfigFile(), 'utf8')) || {};
+  } catch {
+    return {};
+  }
+}
+
+function savePluginConfig(patch) {
+  if (!isLauncherPackage()) {
+    return saveConfig(patch);
+  }
+  const fs = require('fs');
+  const path = require('path');
+  const file = desktopConfigFile();
+  const next = { ...loadPluginConfig(), ...patch };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
+  fs.renameSync(tmp, file);
+  return next;
+}
+
+const pluginConfigIO = { load: loadPluginConfig, save: savePluginConfig };
 
 function configLocale(config = loadConfig()) {
   return config.locale === 'en' ? 'en' : 'zh';
@@ -33,15 +72,23 @@ function createLauncherService(deps) {
     startDesktop,
     stopDesktopCleanup,
     configPayload,
+    statusContributors = [],
+    taskProtection,
   } = deps;
+  const protection = taskProtection || getTaskProtection();
 
   function collectForensics() {
     const listed = listProfilePlugins();
-    const config = loadConfig();
-    const lastStart = readLastDesktopStart(desktopStateDir(app));
-    const logs = Array.isArray(dsh?.logs)
+    const config = loadPluginConfig();
+    const stateDir = desktopStateDir(app);
+    const lastStart = readLastDesktopStart(stateDir);
+    // In slim mode dsh.logs is a stub: the captured external-runtime boot log
+    // plus the kernel log tail the runtime stamps into last-desktop-start.json
+    // are what carry plugin loader errors into suspect attribution there.
+    const bootTail = forensicsLog.readBootLogTail(forensicsLog.bootLogPath(stateDir));
+    const logs = (Array.isArray(dsh?.logs)
       ? dsh.logs.map((row) => (typeof row === 'string' ? row : row.message || row.line || String(row)))
-      : [];
+      : []).concat(bootTail, lastStart.logTail || []);
     const corpus = [logs.join('\n'), lastStart.error].filter(Boolean).join('\n');
     const recovery = harness?.pluginRecovery && typeof harness.pluginRecovery === 'object'
       ? harness.pluginRecovery
@@ -117,7 +164,12 @@ function createLauncherService(deps) {
         importAttachments: options.importAttachments === true,
         signal: controller.signal,
         onProgress,
-        installPlugin: (spec) => marketInstall.installImportPlugin(spec, { token: loadConfig().githubToken }),
+        installPlugin: (spec) => (isLauncherPackage()
+          // Slim has no vendored `dsh plugin` CLI; the renderer greys the
+          // plugins category, and a stale caller gets an explicit per-name
+          // failure instead of a spawn ENOENT deep inside the import.
+          ? { ok: false, error: 'desktop-only', name: spec }
+          : marketInstall.installImportPlugin(spec, { token: loadConfig().githubToken })),
       });
       return {
         ...result,
@@ -167,7 +219,10 @@ function createLauncherService(deps) {
       return installRuntimeOp({}, onProgress);
     }
     try {
-      return await update.installUpdate(onProgress, { confirmUnverified: confirmUnverifiedInstall });
+      return await update.installUpdate(onProgress, {
+        confirmUnverified: confirmUnverifiedInstall,
+        taskProtection: protection,
+      });
     } catch (error) {
       return {
         status: 'error',
@@ -189,7 +244,10 @@ function createLauncherService(deps) {
       return installRuntimeOp({ tag }, onProgress);
     }
     try {
-      return await update.installRelease(tag, onProgress, { confirmUnverified: confirmUnverifiedInstall });
+      return await update.installRelease(tag, onProgress, {
+        confirmUnverified: confirmUnverifiedInstall,
+        taskProtection: protection,
+      });
     } catch (error) {
       return { status: 'error', launched: false, message: error.message || String(error) };
     }
@@ -228,21 +286,31 @@ function createLauncherService(deps) {
 
   async function stopOp() {
     if (isLauncherPackage()) {
+      // The managed desktop is another process: ask its peer endpoint to run
+      // task protection; a desktop without the handshake gets a graceful
+      // close, never a force kill.
       return runtimeInstall.stopExternalDesktop();
     }
     const wasRunning = kernelIsRunning(dsh);
-    if (typeof stopDesktopCleanup === 'function') {
-      stopDesktopCleanup();
+    const result = await protection.coordinate('stop', {
+      commit: async () => {
+        if (typeof stopDesktopCleanup === 'function') {
+          stopDesktopCleanup();
+        }
+        if (harness && typeof harness.stopDesktop === 'function') {
+          await harness.stopDesktop();
+        } else {
+          await stopKernelIfRunning();
+        }
+        dismissMainWindow();
+      },
+    });
+    if (!result.proceeded) {
+      return { ok: false, cancelled: result.code === 'cancelled', error: result.code || 'stopped' };
     }
-    if (harness && typeof harness.stopDesktop === 'function') {
-      await harness.stopDesktop();
-    } else {
-      await stopKernelIfRunning();
-    }
-    dismissMainWindow();
     return {
       ok: true,
-      stopped: wasRunning ? !kernelIsRunning(dsh) : false,
+      stopped: wasRunning ? kernelIsRunning(dsh) === false : false,
     };
   }
 
@@ -254,10 +322,20 @@ function createLauncherService(deps) {
     if (isPresetPlugin(raw) || OFFICIAL_TEMPLATE_BUNDLES.has(raw)) {
       return { ok: false, error: 'preset' };
     }
+    if (isLauncherPackage()) {
+      // The slim package ships no vendored `dsh plugin` toolchain — removal
+      // lives in the installed desktop app; never pretend to uninstall.
+      return { ok: false, error: 'desktop-only' };
+    }
     const kernelStopped = await stopKernelIfRunning();
     const result = await marketInstall.uninstallPlugin(raw, { onProgress });
-    const disabled = (loadConfig().disabledPlugins || []).filter((item) => item !== raw);
-    saveConfig({ disabledPlugins: disabled });
+    // Only drop the disabledPlugins entry once the package is really gone —
+    // otherwise a failed uninstall would silently re-enable a disabled plugin.
+    // Slim mode must write the desktop runtime's config, not the launcher's.
+    if (result && result.ok !== false) {
+      const disabled = (pluginConfigIO.load().disabledPlugins || []).filter((item) => item !== raw);
+      pluginConfigIO.save({ disabledPlugins: disabled });
+    }
     return { ...result, kernelStopped, forensics: collectForensics() };
   }
 
@@ -285,6 +363,15 @@ function createLauncherService(deps) {
         downloadRoute: configuredRoute(),
         routes: releaseSource.listRoutes(),
         launcherPackage: isLauncherPackage(),
+        // Lane-owned status keys (frozen contract §5.1): each contributor
+        // returns an object of extra keys merged under the shared payload.
+        ...statusContributors.reduce((acc, contribute) => {
+          try {
+            return Object.assign(acc, contribute() || {});
+          } catch {
+            return acc;
+          }
+        }, {}),
       };
     },
 
@@ -378,7 +465,7 @@ function createLauncherService(deps) {
     pluginForensics: collectForensics,
 
     async disablePlugins(names) {
-      const result = await disablePlugins(names, { dsh, startHarness });
+      const result = await disablePlugins(names, { dsh, startHarness, configIO: pluginConfigIO });
       return result.ok === true ? { ...result, forensics: collectForensics() } : result;
     },
 
@@ -387,7 +474,7 @@ function createLauncherService(deps) {
       if (!raw) {
         return { ok: false, error: 'missing-name' };
       }
-      const result = await disablePlugins([raw], { dsh, startHarness });
+      const result = await disablePlugins([raw], { dsh, startHarness, configIO: pluginConfigIO });
       return result.ok === true ? { ...result, forensics: collectForensics() } : result;
     },
 
@@ -396,7 +483,7 @@ function createLauncherService(deps) {
       if (!raw) {
         return { ok: false, error: 'missing-name' };
       }
-      const result = await enablePlugin(raw, { dsh, startHarness });
+      const result = await enablePlugin(raw, { dsh, startHarness, configIO: pluginConfigIO });
       return { ...result, forensics: collectForensics() };
     },
 

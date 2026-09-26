@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from 'react'
-import clsx from 'clsx'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import {
-  Button, DisclosureRow, IconCodeOutline16, IconRefreshOutline16, Menu, Modal, Tooltip,
+  Button, DisclosureRow, IconCodeOutline16, IconCompareSplitOutlineRegular, IconNowrapFillRegular,
+  IconRefreshOutline16, IconWrapFillRegular, languageForPath, MAX_RENDERED_LINES, Menu, Modal,
+  renderedHunks, ReviewDiff, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ReviewHunk, ReviewNote } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { NS } from './locales.ts'
+import { toReviewHunk } from './review-hunks.ts'
 import {
   isStaged, isUnstaged, type DiffBranchRef, type DiffFile, type DiffShellInjected, type GitStatusEntry,
 } from './shell.ts'
@@ -21,10 +24,46 @@ export interface DiffPanelInjected extends DiffShellInjected {
   openFile: (relativePath: string) => void | Promise<void>
 }
 
-function marker(kind: 'context' | 'add' | 'del'): string {
-  if (kind === 'add') return '+'
-  if (kind === 'del') return '-'
-  return ' '
+/**
+ * One open file's rendered slice: shared-format hunks, whether the panel-wide
+ * row budget cut them, and whether the budget was already gone.
+ */
+interface FileView {
+  hunks: ReviewHunk[]
+  truncated: boolean
+  omitted: boolean
+}
+
+/** The mounted-row ceiling across the whole panel; collapsed files never consume it. */
+const PANEL_RENDER_BUDGET = MAX_RENDERED_LINES
+
+/** The number of files above which rows start collapsed so a large diff mounts on demand. */
+const COLLAPSE_FILE_THRESHOLD = 8
+
+/**
+ * Allocate the panel row budget across open files in display order and convert
+ * each file's IPC hunks to the shared renderer's shape.
+ * @param files - served files.
+ * @param openPaths - expanded paths; only open files consume the budget.
+ * @param order - display order of paths (staged+unstaged when known).
+ * @returns per-path view data.
+ */
+function buildFileViews(files: readonly DiffFile[], openPaths: ReadonlySet<string>, order: readonly string[]): Map<string, FileView> {
+  const views = new Map<string, FileView>()
+  let remaining = PANEL_RENDER_BUDGET
+  for (const path of order) {
+    const file = files.find(entry => entry.path === path)
+    if (file === undefined || !openPaths.has(path)) continue
+    if (remaining === 0) {
+      views.set(path, { hunks: [], truncated: false, omitted: true })
+      continue
+    }
+    const review = file.hunks.map(toReviewHunk)
+    const sliced = renderedHunks(review, remaining)
+    remaining -= sliced.hunks.reduce((sum, hunk) => sum + hunk.lines.length, 0)
+    views.set(path, { hunks: sliced.hunks, truncated: sliced.truncated, omitted: false })
+  }
+  return views
 }
 
 /**
@@ -75,6 +114,8 @@ export function DiffPanel({
   const [openPaths, setOpenPaths] = useState<ReadonlySet<string>>(new Set())
   const [discardPath, setDiscardPath] = useState<string | null>(null)
   const [generation, setGeneration] = useState(0)
+  const [split, setSplit] = useState(false)
+  const [wrap, setWrap] = useState(false)
   const [scope, setScope] = useState<'worktree' | 'branch'>('worktree')
   const [baseRef, setBaseRef] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -126,7 +167,9 @@ export function DiffPanel({
       setFiles(diff.files)
       setTruncated(diff.truncated === true)
       setEntries(porcelain?.ok === true ? porcelain.entries ?? [] : null)
-      setOpenPaths(new Set(diff.files.map(file => file.path)))
+      setOpenPaths(diff.files.length > COLLAPSE_FILE_THRESHOLD
+        ? new Set()
+        : new Set(diff.files.map(file => file.path)))
       setError(null)
       setOpError(null)
     }).catch(() => {
@@ -160,25 +203,59 @@ export function DiffPanel({
     reload()
   }
 
+  const staged = useMemo(() => entries?.filter(entry => isStaged(entry.xy)) ?? [], [entries])
+  const unstaged = useMemo(() => entries?.filter(entry => isUnstaged(entry.xy)) ?? [], [entries])
+  const displayOrder = useMemo(() => {
+    const seen = new Set<string>()
+    const order: string[] = []
+    for (const path of [...staged, ...unstaged].map(entry => entry.path).concat(files.map(file => file.path))) {
+      if (seen.has(path)) continue
+      seen.add(path)
+      order.push(path)
+    }
+    return order
+  }, [staged, unstaged, files])
+
+  const fileViews = useMemo(() => buildFileViews(files, openPaths, displayOrder), [files, openPaths, displayOrder])
+
+  const fileNotes = (file: DiffFile, view: FileView): ReviewNote[] => {
+    const notes: ReviewNote[] = []
+    if (file.status === 'renamed' && file.oldPath !== undefined) {
+      notes.push({ text: t('file.renamed', { from: file.oldPath }), attrs: { 'data-diff-note': 'renamed' } })
+    }
+    if (view.omitted) {
+      notes.push({ text: t('file.omitted'), attrs: { 'data-diff-note': 'omitted' } })
+      return notes
+    }
+    if (file.hunks.length === 0) {
+      notes.push({ text: t('file.binary'), attrs: { 'data-diff-note': 'binary' } })
+      return notes
+    }
+    if (view.truncated) {
+      notes.push({ text: t('file.truncated', { count: String(PANEL_RENDER_BUDGET) }), attrs: { 'data-diff-note': 'truncated' } })
+    }
+    return notes
+  }
+
   const hunksFor = (path: string): ReactNode => {
     const file = files.find(entry => entry.path === path)
     if (file === undefined) return null
+    const view = fileViews.get(path)
+    if (view === undefined) return null
     return (
       <div className={css.hunks}>
-        {file.hunks.map((hunk, index) => (
-          <div key={`${path}:${index}`} className={css.hunk}>
-            <div className={css.hunkHeader}>{hunk.header}</div>
-            {hunk.lines.map((line, lineIndex) => (
-              <div
-                key={lineIndex}
-                className={clsx(css.line, css[line.kind])}
-              >
-                <span className={css.gutter}>{marker(line.kind)}</span>
-                <span>{line.text}</span>
-              </div>
-            ))}
-          </div>
-        ))}
+        {view.omitted
+          ? fileNotes(file, view).map((note, index) => <p key={index} className={css.message} {...note.attrs}>{note.text}</p>)
+          : (
+            <ReviewDiff
+              hunks={view.hunks}
+              language={languageForPath(file.path)}
+              split={split}
+              wrap={wrap}
+              notes={fileNotes(file, view)}
+              skippedNote={t('diff.highlightSkipped')}
+            />
+          )}
       </div>
     )
   }
@@ -206,8 +283,6 @@ export function DiffPanel({
     </div>
   )
 
-  const staged = entries?.filter(entry => isStaged(entry.xy)) ?? []
-  const unstaged = entries?.filter(entry => isUnstaged(entry.xy)) ?? []
   const scopeLabel = scope === 'branch' && baseRef !== null
     ? `${t('scope.branch')} · ${baseRef}`
     : t('scope.worktree')
@@ -298,6 +373,30 @@ export function DiffPanel({
         >
           {t('expandAll')}
         </button>
+        <Tooltip label={t(split ? 'view.unified' : 'view.split')} side="bottom">
+          <button
+            type="button"
+            className={css.refresh}
+            aria-pressed={split}
+            aria-label={t('view.splitAria')}
+            data-diff-tool="split"
+            onClick={() => { setSplit(value => !value) }}
+          >
+            <IconCompareSplitOutlineRegular />
+          </button>
+        </Tooltip>
+        <Tooltip label={t(wrap ? 'view.nowrap' : 'view.wrap')} side="bottom">
+          <button
+            type="button"
+            className={css.refresh}
+            aria-pressed={wrap}
+            aria-label={t('view.wrapAria')}
+            data-diff-tool="wrap"
+            onClick={() => { setWrap(value => !value) }}
+          >
+            {wrap ? <IconNowrapFillRegular /> : <IconWrapFillRegular />}
+          </button>
+        </Tooltip>
         <Tooltip label={t('refresh')} side="bottom">
           <button
             type="button"

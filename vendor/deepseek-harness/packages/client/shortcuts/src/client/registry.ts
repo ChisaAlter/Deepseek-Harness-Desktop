@@ -1,7 +1,7 @@
 /** Command registration, normalized default bindings, and synchronous dispatch. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { bindingIssue, bindingKey, effectiveShortcuts, initialShortcutConfig, isWebBindingAllowed, normalizeBinding, overlappingBindings, presentBinding, resolveShortcutDefault } from '../protocol.ts'
-import type { ShortcutCommandId, ShortcutConfigSnapshot, ShortcutDefinition, ShortcutPlatform, ShortcutRuntime } from '../protocol.ts'
+import { bindingIssue, bindingKey, effectiveShortcuts, initialShortcutConfig, isWebBindingAllowed, localFirstProtected, normalizeBinding, overlappingBindings, presentBinding, resolveShortcutDefault } from '../protocol.ts'
+import type { ShortcutCommandId, ShortcutConfigSnapshot, ShortcutDefinition, ShortcutInputPolicy, ShortcutPlatform, ShortcutRuntime } from '../protocol.ts'
 import type { ShortcutCatalogEntry, ShortcutCommand, ShortcutContext, ShortcutGesture,
   ShortcutFixedCommand, ShortcutFixedCatalogEntry } from './types.ts'
 
@@ -25,7 +25,9 @@ export class ShortcutRegistry {
   readonly fixedCatalog = createSnapshotStore<readonly ShortcutFixedCatalogEntry[]>([])
 
   constructor(readonly runtime: ShortcutRuntime, readonly platform: ShortcutPlatform,
-    config: ShortcutConfigSnapshot = { ...initialShortcutConfig(), status: 'ready' }) {
+    config: ShortcutConfigSnapshot = { ...initialShortcutConfig(), status: 'ready' },
+    /** Input-arbitration policy; deployments choose explicitly, never inferred from runtime. */
+    readonly policy: ShortcutInputPolicy = 'native-priority') {
     this.state = createSnapshotStore<{ catalog: readonly ShortcutCatalogEntry[]; config: ShortcutConfigSnapshot }>({ catalog: [], config })
     this.catalog = { getSnapshot: () => this.state.getSnapshot().catalog,
       subscribe: (listener: () => void) => this.state.subscribe(listener) }
@@ -158,7 +160,9 @@ export class ShortcutRegistry {
       ...(gesture.secondCode === undefined ? {} : { secondCode: gesture.secondCode }) })
     const key = this.bindings.has(pairKey) || this.conflicts.has(pairKey) ? pairKey : bindingKey({ code: gesture.code, modifiers })
     const command = this.bindings.get(key) ?? this.conflicts.get(key)
-    const priority = this.runtime === 'desktop' && (this.platform === 'windows' || this.platform === 'macos')
+    if (this.policy === 'local-first' && localFirstProtected(gesture, context)) return { status: 'pass' }
+    const priority = this.policy === 'native-priority'
+      && this.runtime === 'desktop' && (this.platform === 'windows' || this.platform === 'macos')
     if (command === undefined || (!priority && !command.regions.includes(context.region))) return { status: 'pass' }
     if (!priority && context.region === 'terminal' && gesture.control && !gesture.meta && !gesture.alt && !gesture.shift
       && (gesture.code === 'KeyW' || gesture.code === 'KeyR')) return { status: 'pass' }

@@ -203,9 +203,12 @@ export function RemoteSection({
 
   let statusText: string | null = null
   if (error) {
-    statusText = humanizeRemoteError(error) === 'portInUse'
+    const remoteKind = humanizeRemoteError(error)
+    statusText = remoteKind === 'portInUse'
       ? t('errorPortInUse')
-      : t('statusErrorGeneric')
+      : remoteKind === 'bindGone'
+        ? t('errorBindGone')
+        : t('statusErrorGeneric')
   } else if (enabled && !relayConnected) {
     const relayKind = humanizeRelayError(relayError)
     if (relayKind === 'disconnected') statusText = t('relayDownDisconnected')

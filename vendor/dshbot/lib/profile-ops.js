@@ -406,12 +406,13 @@ export function createProfileOperations(ctx, scope, {
   };
   const checkRevision = (revision) => {
     if (ctx.settings.writable === false) fail('Bot catalog is read-only.');
-    const descriptor = ctx.settings.describe().find((entry) => entry.ns === 'dshbot');
+    const descriptor = ctx.settings.describe().find((entry) => entry.ns === 'dsh-bot');
     if (!Number.isInteger(revision) || descriptor?.revision !== revision) fail('Bot catalog changed. Refresh and try again.');
   };
   const currentView = () => {
-    const descriptor = ctx.settings.describe().find((entry) => entry.ns === 'dshbot') ?? fail('Bot catalog is unavailable.');
-    return { ns: 'dshbot', revision: descriptor.revision, value: descriptor.value,
+    const descriptor = ctx.settings.describe().find((entry) => entry.ns === 'dsh-bot') ?? fail('Bot catalog is unavailable.');
+    return { ns: 'dsh-bot', revision: descriptor.revision, value: descriptor.value,
+      autoGenerate: descriptor.autoGenerate ?? false,
       schema: descriptor.schema ?? {}, applies: descriptor.applies ?? 'live', secrets: [] };
   };
 

@@ -32,8 +32,10 @@ function openLauncherLabel() {
  * an auto-restart is scheduled or running the failure is not settled yet, so
  * the bridge stays hidden and the countdown actions keep the stage.
  */
-function showLauncherBridge(state) {
-  return state === 'error';
+function showLauncherBridge(state, recoveryStatus) {
+  return state === 'error'
+    && recoveryStatus !== 'scheduled'
+    && recoveryStatus !== 'restarting';
 }
 
 function isImportantBootLog(line) {

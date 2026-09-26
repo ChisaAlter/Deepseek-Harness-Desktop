@@ -40,7 +40,7 @@
 ## Do not touch
 
 - `package-lock.json` 的解析结果与已锁定依赖版本（改清单不等于改锁）
-- artifact 命名、`SHA512SUMS.txt` 生成与更新器校验流
+- `SHA512SUMS.txt` 生成与更新器校验流；发行资产名称按 `windows-installer` 卡同步
 - 真实发布、签名与 mac DMG 上传策略
 
 ## Gates

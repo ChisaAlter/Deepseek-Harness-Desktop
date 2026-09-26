@@ -65,6 +65,7 @@ export const zh = {
   'diff.unchanged': '两侧内容相同',
   'diff.coarse': '逐行对比超时，按整个文件替换显示',
   'diff.truncated': '只显示前 {count} 行',
+  'diff.highlightSkipped': '部分内容过大，未语法高亮',
 }
 
 /** English dictionary (same key set). */
@@ -129,6 +130,7 @@ export const en: Record<DeliverablesKey, string> = {
   'diff.unchanged': 'Both sides hold the same lines',
   'diff.coarse': 'Line comparison timed out; shown as a whole-file replacement',
   'diff.truncated': 'Showing the first {count} lines',
+  'diff.highlightSkipped': 'Some content is too large to syntax-highlight',
 }
 
 /** Union of this namespace's dictionary keys. */

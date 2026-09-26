@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `remote-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-24 — IM 的鲸鱼娘默认路由复用常驻会话；定向验证见本次变更。此前 2026-09-18 — 装机「开启远程→未响应」修复：主进程 `loadServerApi` 窄化为 `pairing-offer.js` + `relay-device-credential-store.js`（原 barrel ~3 万模块同步加载冻结主线程）；`DSH_VENDOR_PACKAGES` 改镜像 + parity 测试。`dshd-remote` 36 pass、`dshd-daemon-runner`/`remote-epipe`/`stdio-guard`/`lan`/`ipc` 80 pass、`ui-settings-remote` 45/45、`check:governance` 6/6、`npm run pack`（80.7MiB runtime、sqlite ABI probe、daemon probe、skip compose）、打包布局窄入口 import+铸码 68ms、真实 Electron `qa:remote` 双冷启动 11/11（含 cold.openShowsQr）。此前：2026-09-11 — rc.1 后 dsh-im 各 channel 的 caller-scoped webServer 注入已修复；dsh-im check 19 pass / 1 skip、官方 remote specs、真实 source smoke 与 package dry-run 通过。再前：2026-09-08 — 默认服务器切到 `ayase.cn:443` + TLS，公网 SPA 切到 `https://ayase.cn/dshd/`；旧内置 IP 精确迁移、自定义服务器保留。VPS relay 容器 `healthy` / 0 restart，nginx live 与候选配置通过；Node 远程聚焦 92 pass / 0 fail / 1 环境 skip，设置 UI 10/10，公网目录一致性通过，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。未执行真机相机、Android WebView 或正式安装包升级验收。 |
+| **last verified** | 2026-09-25 — 失效监听地址修复：`ensureMobileWebServer` 把 `EADDRNOTAVAIL`/`EACCES` 翻成人话并指回「监听范围」（不静默回落通配、不改写配置），弹窗 `bindGone` 分类，已失效的已存地址在下拉标「已失效」，`ipcErrorMessage` 剥 IPC 包装。`dshd-remote` 37 pass（含 192.0.2.1 确定性 EADDRNOTAVAIL 回归）、`ui-settings-remote` 51/51、locale parity + verify-client-ui-i18n 7/7、包类型检查通过。此前 2026-09-24 — IM 的鲸鱼娘默认路由复用常驻会话；定向验证见本次变更。此前 2026-09-18 — 装机「开启远程→未响应」修复：主进程 `loadServerApi` 窄化为 `pairing-offer.js` + `relay-device-credential-store.js`（原 barrel ~3 万模块同步加载冻结主线程）；`DSH_VENDOR_PACKAGES` 改镜像 + parity 测试。`dshd-remote` 36 pass、`dshd-daemon-runner`/`remote-epipe`/`stdio-guard`/`lan`/`ipc` 80 pass、`ui-settings-remote` 45/45、`check:governance` 6/6、`npm run pack`（80.7MiB runtime、sqlite ABI probe、daemon probe、skip compose）、打包布局窄入口 import+铸码 68ms、真实 Electron `qa:remote` 双冷启动 11/11（含 cold.openShowsQr）。此前：2026-09-11 — rc.1 后 dsh-im 各 channel 的 caller-scoped webServer 注入已修复；dsh-im check 19 pass / 1 skip、官方 remote specs、真实 source smoke 与 package dry-run 通过。再前：2026-09-08 — 默认服务器切到 `ayase.cn:443` + TLS，公网 SPA 切到 `https://ayase.cn/dshd/`；旧内置 IP 精确迁移、自定义服务器保留。VPS relay 容器 `healthy` / 0 restart，nginx live 与候选配置通过；Node 远程聚焦 92 pass / 0 fail / 1 环境 skip，设置 UI 10/10，公网目录一致性通过，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。未执行真机相机、Android WebView 或正式安装包升级验收。 |
 
 ## User paths
 
@@ -36,7 +36,8 @@
 - dsh-im 桌面内置：insert 在自有 overlay `desktop-plugins/dsh-im/desktop-dsh-im.patch.yml`，`--patch` 叠加（full+skip）；`cordis.patch.yml` 不写受管块（只 strip 迁移）；禁插件 / Recovery 不可关（IPC 返回 `desktop-builtin`，config 归一化剔除别名）；vendor 运行时缺损 fail start（skip 修不了）。
 - 渠道主操作 36px（飞书扫码无 `size=small`）。
 - **断管不崩**：vendored `resolveDshVendorDir` 的 `execSync` 必须携带显式 `stdio`（tripwire 在 `remote-epipe.test.js`）；主进程 stdout/stderr 常驻 `stdio-guard`（断管类流错误吞掉，uncaughtException 仅吞断管写入、其余复刻 Electron 默认对话框）。
-- 弹窗失败态可见：启动中 `startingHint`；持久失败人话（端口占用 / 通用）；On 对 `!listening` 或无 pairingUrl 可重试；打开弹窗立刻 refresh 且缺码时至多一次 sync 自愈；弹窗无 raw relay code、无裸 `#offer=` 文本；`HarnessController` 关停走 `stopDaemon()`，引导期 sync 失败必进 dsh 日志。
+- 弹窗失败态可见：启动中 `startingHint`；持久失败人话（端口占用 / 监听地址失效 `bindGone` / 通用）；On 对 `!listening` 或无 pairingUrl 可重试；打开弹窗立刻 refresh 且缺码时至多一次 sync 自愈；弹窗无 raw relay code、无裸 `#offer=` 文本；`HarnessController` 关停走 `stopDaemon()`，引导期 sync 失败必进 dsh 日志。
+- 持久化单网卡监听地址失效（`EADDRNOTAVAIL`/`EACCES`）时报人话并指回「监听范围」改选；禁止静默回落 `0.0.0.0` 扩大监听面、禁止归一化时改写仍为合法 IPv4 的已存地址；下拉里已失效的已存地址标注「已失效」。
 - `qa:remote` 必含 `cold.openShowsQr` / `cold.noBareOfferText` / `cold.copyAndRotateControls`；第二 Electron 冷 boot（`DSH_QA_REMOTE=cold`，开窗前禁止 `setRemote`）；QR 只认 `[data-dsh-remote-qr]`；中继未连时这三条断言「无码 + 无复制/刷新 + 有 status」。`prestart-ensure` 校验 `copyLink` / `data-dsh-remote-copy-link`。
 - 桌面 harness 完备（12 个 dsh vendor 包均有 `lib/index.js`）时才向**子进程**注入 `CHISACODE_DSH_VENDOR_DIR`；优先级 `DSHD_DSH_VENDOR_DIR` > 继承的 `CHISACODE_DSH_VENDOR_DIR` > 完备自带目录 > 不设（子进程内保留已加固的 npm 全局回退）。
 - `dsh-acp-demo` shim 仅在 harness acp-demo 构建产物存在时物化（`<home>/bin`，prepend 子进程 PATH）；产物缺失时 provider 如实显示不可用，禁止伪造可用性。
@@ -67,6 +68,7 @@
 ## Sources
 
 - Decision: [远端 CLI 身份文件回落到绝对 home](../decisions/proposed/bug-fix/2026-09-19-remote-home-identity-isolation.md)
+- Decision: [远程失效监听地址的人话错误与下拉标注](../decisions/implemented/bug-fix/2026-09-25-remote-stale-bind-address.md)
 
 - [2026-09-08 ayase.cn 远程服务器迁移](../qa/results/2026-09-08/remote-ayase-deployment.md)
 - Plan：gateway_product_redo / fix_qr_pairing / [2026-08-28-remote-epipe-hardening](../superpowers/plans/2026-08-28-remote-epipe-hardening.md)

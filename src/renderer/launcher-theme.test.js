@@ -124,13 +124,22 @@ test('launcher home toggles start/stop desktop from running state', () => {
   assert.match(js, /stopDesktop/);
 });
 
-test('launcher versions panel shows installed card and action labels', () => {
+test('launcher versions panel: current version on top, expandable release rows, inline route dropdown', () => {
   const js = fs.readFileSync(path.join(rendererDir, 'launcher.js'), 'utf8');
-  assert.match(html, /id="installed-card"/);
+  assert.match(html, /id="ver-now"/);
+  assert.match(html, /id="ver-num"/);
+  assert.match(html, /id="release-list"/);
+  assert.match(html, /id="versions-route-pop"/);
+  assert.match(html, /id="versions-route-btn"/);
   assert.match(html, /id="btn-uninstall-app"/);
-  assert.match(js, /renderInstalledCard/);
+  assert.match(js, /renderVersionLead/);
+  assert.match(js, /data-rel-toggle/);
+  assert.match(js, /releaseDetailHtml/);
+  assert.match(js, /routePopoverOpen/);
   assert.match(js, /更新到此版本/);
   assert.match(js, /切换至此版本/);
   assert.match(js, /uninstallApp/);
-  assert.match(css, /\.installed-card/);
+  assert.match(css, /\.ver-now/);
+  assert.match(css, /\.rel-detail/);
+  assert.match(css, /\.route-pop/);
 });

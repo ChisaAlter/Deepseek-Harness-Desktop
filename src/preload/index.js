@@ -208,6 +208,15 @@ function launcherApi(renderer) {
     uninstallApp: invoke(renderer, 'shell:uninstall-app'),
     installRuntime: invoke(renderer, 'shell:install-runtime'),
     cancelRuntimeInstall: invoke(renderer, 'shell:cancel-runtime-install'),
+    installDelta: invoke(renderer, 'shell:install-delta'),
+    componentsList: invoke(renderer, 'shell:components-list'),
+    componentsInstall: invoke(renderer, 'shell:components-install'),
+    componentsStart: invoke(renderer, 'shell:components-start'),
+    componentsStop: invoke(renderer, 'shell:components-stop'),
+    componentsUpdate: invoke(renderer, 'shell:components-update'),
+    componentsRollback: invoke(renderer, 'shell:components-rollback'),
+    componentsUninstall: invoke(renderer, 'shell:components-uninstall'),
+    onComponentsProgress: subscribe(renderer, 'shell:components-progress'),
     skipUserPlugins: invoke(renderer, 'shell:start-desktop-skipped'),
     retryFullPlugins: invoke(renderer, 'shell:retry-full-plugins'),
     onPluginProgress: subscribe(renderer, 'shell:plugin-progress'),
@@ -276,6 +285,39 @@ function buildShellApi(role, renderer, remoteFeature = remoteFeatureEnabled()) {
 const role = shellRole();
 const isMainFrame = process.isMainFrame !== false;
 const api = isMainFrame ? buildShellApi(role, ipcRenderer) : null;
+
+// Desktop shortcut bridge (upstream ctx.shortcuts contract): the trusted
+// product main frame is marked for runtime detection, and a deliberately
+// narrow dshDesktop facade — keyboard + shortcuts only, never the full
+// official product API (browser/updates) — routes through the shell channels.
+if (role === 'harness' && isMainFrame) {
+  const markPlatform = () => {
+    if (typeof document === 'undefined' || document.documentElement === null) return;
+    document.documentElement.dataset.platform = process.platform;
+    document.documentElement.dataset.shortcutPolicy = 'local-first';
+  };
+  if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.documentElement === null) {
+    window.addEventListener('DOMContentLoaded', markPlatform, { once: true });
+  } else {
+    markPlatform();
+  }
+  contextBridge.exposeInMainWorld('dshDesktop', {
+    protocolVersion: 1,
+    keyboard: {
+      closeWindow: invoke(ipcRenderer, 'shell:shortcuts-close-window'),
+      subscribe: subscribe(ipcRenderer, 'shell:shortcuts-input'),
+    },
+    shortcuts: {
+      get: (definitions) => ipcRenderer.invoke(
+        'shell:shortcuts-get', definitions,
+        (() => { try { return window.localStorage.getItem('dsh.keybindings.v1'); } catch { return null; } })(),
+      ),
+      edit: invoke(ipcRenderer, 'shell:shortcuts-edit'),
+      recording: invoke(ipcRenderer, 'shell:shortcuts-recording'),
+      subscribe: subscribe(ipcRenderer, 'shell:shortcuts-changed'),
+    },
+  });
+}
 
 if (api) {
   contextBridge.exposeInMainWorld('shell', api);

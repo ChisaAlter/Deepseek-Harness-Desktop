@@ -41,8 +41,40 @@ test('injected chrome owns only the window-control plate', () => {
   assert.doesNotMatch(injectSource, /findTitlebarRow/);
   assert.doesNotMatch(injectSource, /placeDragGutter/);
   assert.doesNotMatch(injectSource, /reservedRight/);
-  assert.doesNotMatch(injectSource, /MutationObserver/);
   assert.doesNotMatch(injectSource, /\[data-surfaces-collapsed\]/);
+});
+
+test('injected silhouette keeps a hairline ring element that maximization removes', () => {
+  // The transparent window's bare alpha-AA edge reads as blur; an inset
+  // hairline inside the rounded clip anchors the edge visually. The ring is
+  // a real element (not body::after) so the self-heal observer can watch it
+  // and no client stylesheet can collide with body's pseudo-elements.
+  assert.match(injectSource, /FRAME_RING_ID = 'dshd-frame-ring'/);
+  assert.match(injectSource, /box-shadow: inset 0 0 0 1px var\(--dsw-alias-border-l2/);
+  assert.match(injectSource, /html\[data-window-maximized\] #\$\{FRAME_RING_ID\} \{\s*display: none;/);
+  // The ring must live inside body: --dsw-alias-* tokens are declared on
+  // body, so a sibling element would only ever resolve the fallback color.
+  assert.match(injectSource, /document\.body\.appendChild\(el\)/);
+});
+
+test('injected chrome seeds the maximized flag from getWindowState on first run', () => {
+  // State pushes only arrive on transitions; a document injected while the
+  // window is already maximized must query the current state once or it
+  // draws the rounded silhouette at the screen edge indefinitely.
+  assert.match(injectSource, /window\.shell\.getWindowState\(\)/);
+  assert.match(injectSource, /window\.shell\.onWindowState\(/);
+});
+
+test('injected chrome regrows dropped nodes through a scoped self-heal observer', () => {
+  // The observer is self-healing only: it watches the document for removal of
+  // the injected ids and must not scrape app layout or attributes.
+  assert.match(injectSource, /typeof MutationObserver === 'function'/);
+  assert.match(injectSource, /healer\.observe\(document\.documentElement, \{ childList: true, subtree: true \}\)/);
+  assert.match(injectSource, /getElementById\(STYLE_ID\)/);
+  assert.match(injectSource, /getElementById\(CONTROLS_ID\)/);
+  assert.match(injectSource, /getElementById\(FRAME_CANVAS_ID\)/);
+  assert.match(injectSource, /getElementById\(FRAME_RING_ID\)/);
+  assert.doesNotMatch(injectSource, /healer\.observe\([^)]*attributes/);
 });
 
 test('injected chrome script can be evaluated twice in one realm', () => {

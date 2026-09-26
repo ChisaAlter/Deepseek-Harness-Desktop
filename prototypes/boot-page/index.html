@@ -1,0 +1,178 @@
+<!doctype html>
+<!-- Three materially different boot-page directions on one preview page (?variant=a|b|c). Throwaway design prototype. -->
+<html lang="zh-CN" data-boot-theme>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Boot Page — Design Prototype</title>
+  <link rel="stylesheet" href="../../src/shared/dsh-webui-tokens.css" />
+  <link rel="stylesheet" href="../../src/renderer/boot-tokens.css" />
+  <link rel="stylesheet" href="./boot-prototype.css" />
+</head>
+<body data-fixture="startup">
+  <span class="rail rail-tl" aria-hidden="true"></span>
+  <span class="rail rail-tr" aria-hidden="true"></span>
+  <span class="rail rail-bl" aria-hidden="true"></span>
+  <span class="rail rail-br" aria-hidden="true"></span>
+
+  <main class="prototype-stage" id="prototype-stage">
+    <section class="canvas canvas-a" data-variant="a" aria-label="方向 A：宽分栏">
+      <header class="meta">
+        <span class="code">DSH-DESKTOP</span>
+        <div class="stamp-block">
+          <span class="stamp-code" data-slot="stamp-code">BOOT</span>
+          <span class="stamp" data-slot="stamp">启动中</span>
+        </div>
+      </header>
+      <div class="wide-split">
+        <section class="identity-lockup" aria-label="产品品牌">
+          <div class="whale-frame">
+            <img class="whale-spin" src="../../assets/whale-spin.svg" alt="" />
+            <img class="whale-still" src="../../assets/whale-head.png" alt="" />
+          </div>
+          <div class="identity-copy">
+            <h1>Whale Isle</h1>
+            <p>BASED ON DEEPSEEK HARNESS</p>
+          </div>
+        </section>
+        <div class="registration-rule" aria-hidden="true"></div>
+        <section class="operations" aria-label="启动状态与日志">
+          <div class="state-copy">
+            <p class="status" data-slot="status" role="status" aria-live="polite">正在启动运行时</p>
+            <p class="hint" data-slot="hint">本机 dsh web 启动中。关闭应用时服务一并退出。</p>
+            <p class="failure" data-slot="failure" hidden></p>
+            <p class="recovery" data-slot="recovery" aria-live="polite" hidden></p>
+            <div class="actions" data-slot="actions" hidden>
+              <button type="button" class="primary" data-action="retry" hidden>重试</button>
+              <button type="button" class="ghost" data-action="cancel-restart" hidden>取消自动重启</button>
+              <button type="button" class="ghost" data-action="open-launcher" hidden>回启动器排查</button>
+              <button type="button" class="ghost" data-action="save-log" hidden>下载日志</button>
+            </div>
+          </div>
+          <section class="logs-area" aria-label="最近启动日志">
+            <h2>启动日志 <span>LIVE OUTPUT</span></h2>
+            <ol class="log-list" data-slot="logs" aria-live="polite">
+              <li>[app] 本机服务目录已识别</li>
+              <li>[app] 启动 Harness Runtime</li>
+              <li>[app] 等待本地服务就绪</li>
+            </ol>
+          </section>
+        </section>
+      </div>
+    </section>
+
+    <section class="canvas canvas-b" data-variant="b" aria-label="方向 B：状态海报" hidden>
+      <header class="meta">
+        <span class="code">DSH-DESKTOP</span>
+        <div class="stamp-block">
+          <span class="stamp-code" data-slot="stamp-code">BOOT</span>
+          <span class="stamp" data-slot="stamp">启动中</span>
+        </div>
+      </header>
+      <div class="poster-layout">
+        <div class="poster-hero">
+          <div class="poster-copy">
+            <p class="poster-brand">Whale Isle <span>· DEEPSEEK HARNESS</span></p>
+            <h1 class="status poster-status" data-slot="status" role="status" aria-live="polite">正在启动运行时</h1>
+            <p class="hint" data-slot="hint">本机 dsh web 启动中。关闭应用时服务一并退出。</p>
+          </div>
+          <div class="poster-whale" aria-hidden="true">
+            <img class="whale-spin" src="../../assets/whale-spin.svg" alt="" />
+            <img class="whale-still" src="../../assets/whale-head.png" alt="" />
+          </div>
+        </div>
+        <div class="poster-rule" aria-hidden="true"></div>
+        <div class="poster-evidence">
+          <section class="poster-recovery" aria-label="恢复信息与操作">
+            <p class="failure" data-slot="failure" hidden></p>
+            <p class="recovery" data-slot="recovery" aria-live="polite" hidden></p>
+            <div class="actions" data-slot="actions" hidden>
+              <button type="button" class="primary" data-action="retry" hidden>重试</button>
+              <button type="button" class="ghost" data-action="cancel-restart" hidden>取消自动重启</button>
+              <button type="button" class="ghost" data-action="open-launcher" hidden>回启动器排查</button>
+              <button type="button" class="ghost" data-action="save-log" hidden>下载日志</button>
+            </div>
+          </section>
+          <section class="poster-logs" aria-label="最近启动日志">
+            <h2>启动日志 <span>LIVE OUTPUT</span></h2>
+            <ol class="log-list" data-slot="logs" aria-live="polite">
+              <li>[app] 本机服务目录已识别</li>
+              <li>[app] 启动 Harness Runtime</li>
+              <li>[app] 等待本地服务就绪</li>
+            </ol>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="canvas canvas-c" data-variant="c" aria-label="方向 C：诊断边栏" hidden>
+      <header class="meta">
+        <span class="code">DSH-DESKTOP</span>
+        <div class="stamp-block">
+          <span class="stamp-code" data-slot="stamp-code">BOOT</span>
+          <span class="stamp" data-slot="stamp">启动中</span>
+        </div>
+      </header>
+      <div class="diagnostic-layout">
+        <aside class="diagnostic-margin" aria-label="启动日志">
+          <p class="margin-code">BOOT LOG / LOCAL</p>
+          <div class="margin-log-wrap">
+            <h2>最近日志</h2>
+            <ol class="log-list" data-slot="logs" aria-live="polite">
+              <li>[app] 本机服务目录已识别</li>
+              <li>[app] 启动 Harness Runtime</li>
+              <li>[app] 等待本地服务就绪</li>
+            </ol>
+          </div>
+        </aside>
+        <section class="diagnostic-main" aria-label="品牌、状态与恢复操作">
+          <h1 class="diagnostic-brand">Whale Isle</h1>
+          <div class="diagnostic-hero">
+            <div class="diagnostic-whale" aria-hidden="true">
+              <img class="whale-spin" src="../../assets/whale-spin.svg" alt="" />
+              <img class="whale-still" src="../../assets/whale-head.png" alt="" />
+            </div>
+            <div class="diagnostic-copy">
+              <p class="status" data-slot="status" role="status" aria-live="polite">正在启动运行时</p>
+              <p class="hint" data-slot="hint">本机 dsh web 启动中。关闭应用时服务一并退出。</p>
+              <p class="failure" data-slot="failure" hidden></p>
+              <p class="recovery" data-slot="recovery" aria-live="polite" hidden></p>
+              <div class="actions" data-slot="actions" hidden>
+                <button type="button" class="primary" data-action="retry" hidden>重试</button>
+                <button type="button" class="ghost" data-action="cancel-restart" hidden>取消自动重启</button>
+                <button type="button" class="ghost" data-action="open-launcher" hidden>回启动器排查</button>
+                <button type="button" class="ghost" data-action="save-log" hidden>下载日志</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <aside class="prototype-switcher" aria-label="原型预览控制">
+    <div class="switch-row">
+      <button type="button" id="previous-variant" aria-label="上一个设计">←</button>
+      <strong id="current-variant">A · 宽分栏</strong>
+      <button type="button" id="next-variant" aria-label="下一个设计">→</button>
+    </div>
+    <div class="control-row">
+      <label>状态样例
+        <select id="fixture-select">
+          <option value="startup">正在启动</option>
+          <option value="plugins-known">插件加载（总数已知）</option>
+          <option value="plugins-unknown">插件加载（总数未知）</option>
+          <option value="error">启动失败</option>
+          <option value="scheduled">已排程重启</option>
+          <option value="restarting">正在重启</option>
+        </select>
+      </label>
+      <button type="button" id="theme-toggle" aria-pressed="false">深色预览</button>
+      <button type="button" id="motion-toggle" aria-pressed="false">减少动效：关</button>
+    </div>
+    <p class="prototype-note" id="prototype-note" role="status">样例状态仅用于预览；操作按钮未连接真实运行时或日志导出。</p>
+  </aside>
+
+  <script src="./boot-prototype.js"></script>
+</body>
+</html>

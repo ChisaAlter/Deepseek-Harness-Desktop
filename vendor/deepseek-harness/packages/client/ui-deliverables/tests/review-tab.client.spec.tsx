@@ -2,7 +2,7 @@
 /** The review tab type: its addresses, its store, the row pairing of the split view, and the states its body draws. */
 import { renderFileActions } from './file-actions.tsx'
 import { useSyncExternalStore } from 'react'
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
@@ -20,7 +20,7 @@ import { PresentedOpenController } from '../src/client/present-open.ts'
 import {
   ReviewTab, type ReviewInjected, type ReviewTabProps,
 } from '../src/client/ReviewTab.tsx'
-import { hunkRows, MAX_RENDERED_LINES, renderedHunks, splitRows } from '../src/client/FileDiff.tsx'
+import { hunkRows, MAX_RENDERED_LINES, renderedHunks, splitRows } from '../../ui-primitives/src/ReviewDiff.tsx'
 import { changesReviewDefinition } from '../src/client/review-definition.ts'
 import { createReviewStore } from '../src/client/review-store.ts'
 import { en, zh } from '../src/client/locales.ts'
@@ -297,7 +297,7 @@ describe('ReviewTab', () => {
     }
   })
 
-  it('syntax-highlights recognized source files with the shared code grammar', () => {
+  it('syntax-highlights recognized source files with the shared code grammar', async () => {
     const summaries = new ChangesSummaryStore()
     summaries.state.set({ [SUMMARY_URL]: summary })
     const diffs = new ChangesDiffStore()
@@ -308,8 +308,11 @@ describe('ReviewTab', () => {
       },
     })
     const { view } = mount({ summaries, diffs })
-    const highlighted = [...view.container.querySelectorAll('[data-diff-code]')]
-    expect(highlighted.map(line => line.textContent)).toEqual(['const before = 1', '', 'const after = 2', ''])
+    // Plain text paints first; token spans land on the cancellable schedule.
+    await waitFor(() => {
+      const highlighted = [...view.container.querySelectorAll('[data-diff-code]')]
+      expect(highlighted.map(line => line.textContent)).toEqual(['const before = 1', '', 'const after = 2', ''])
+    })
     expect(view.container.querySelectorAll('[data-diff-code] span[style]').length).toBeGreaterThan(2)
   })
 

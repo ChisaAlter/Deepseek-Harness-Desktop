@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/icon.png" width="88" alt="Deepseek-Harness-Desktop" />
+  <img src="assets/icon.png" width="88" alt="Whale Isle" />
 </p>
 
-<h1 align="center">Deepseek-Harness-Desktop</h1>
+<h1 align="center">Whale Isle</h1>
 
 <p align="center">
   基于 DeepSeek Harness 的开源桌面客户端<br />
@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshot-home.jpg" alt="Deepseek-Harness-Desktop 主界面" width="920" />
+  <img src="assets/screenshot-home.jpg" alt="Whale Isle 主界面" width="920" />
 </p>
 
 这是一个由社区独立维护的 Electron 桌面壳，非 DeepSeek 官方客户端。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web UI、工具调用和插件体系带到本地桌面，并补充启动器、工作区、窗口、托盘和更新等桌面能力。安装版无需自行配置 Node.js 或启动 `dsh web`。

@@ -28,6 +28,33 @@ export declare function listMonthKeys(days: ReadonlyArray<{
     date: string;
 }>): string[];
 /**
+ * One week column of the contribution graph: seven Monday-first weekday
+ * slots; `null` pads slots outside the day window (leading pad in the first
+ * column, trailing pad in the last).
+ */
+export type GraphWeek = readonly (DayRecord | null)[];
+/**
+ * Group the contiguous day window into Monday-first week columns — the
+ * GitHub contribution-graph layout. `days` must be the contiguous,
+ * zero-filled window produced by {@link buildDayWindow}: each record lands on
+ * its real weekday row, so gaps simply leave null slots.
+ */
+export declare function graphWeeks(days: readonly DayRecord[]): GraphWeek[];
+export interface GraphMonthLabel {
+    /** Week column index where the label sits. */
+    week: number;
+    /** YYYY-MM month key. */
+    monthKey: string;
+}
+/**
+ * GitHub-style month labels: a label sits at the first week column whose
+ * leading day falls in a new month. Only the leading label can collide —
+ * months in the window are otherwise ~4 columns apart — so the first label
+ * is dropped when the second would crowd it (react-activity-calendar's rule:
+ * a partial first month yields its space rather than overlapping text).
+ */
+export declare function graphMonthLabels(weeks: readonly GraphWeek[], minGap?: number): GraphMonthLabel[];
+/**
  * Build the 182-day heatmap window ending today (UTC). Days with no usage get
  * zero-filled records, preserving the v0.1.0 grid shape (fixed-length array).
  * @param byDay - per-day per-model token buckets.

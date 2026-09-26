@@ -224,6 +224,17 @@ describe('GatewaySettingsTab', () => {
     await waitFor(() => { expect(saveRemote).toHaveBeenCalledWith({ remoteLanTls: true }) })
   })
 
+  it('marks a saved bind address missing from the live NIC scan as unavailable', async () => {
+    renderGateway({
+      getRemote: vi.fn(async () => ({ ...SNAP, bindAddress: '172.24.64.1', addresses: ['10.0.0.4'] })),
+    })
+    const select = await screen.findByLabelText(en.bindScope)
+    await waitFor(() => {
+      expect(select.textContent).toContain('172.24.64.1')
+      expect(select.textContent).toContain(en.bindUnavailable)
+    })
+  })
+
   it('rotates the pairing token through rotateRemoteToken', async () => {
     const rotateRemoteToken = vi.fn(async () => SNAP)
     renderGateway({ rotateRemoteToken })

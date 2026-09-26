@@ -91,6 +91,12 @@ export function monthLabel(monthKey: string, locale: Locale): string {
   return EN_MONTHS[m - 1]! + ' ' + y
 }
 
+/** Contribution-graph column label from YYYY-MM: zh "M月", en "Mon". */
+export function monthShort(monthKey: string, locale: Locale): string {
+  const m = Number(monthKey.split('-')[1])
+  return locale === 'zh-CN' ? m + '月' : EN_MONTHS[m - 1]!
+}
+
 /** Monday-first weekday index 0..6 for a UTC day key. */
 export function weekdayIndexUTC(key: string): number {
   return (parseDayKeyUTC(key).getUTCDay() + 6) % 7

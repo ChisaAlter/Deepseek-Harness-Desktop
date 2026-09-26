@@ -11,6 +11,8 @@ const { harnessRoot } = require('./paths');
 const { ensurePackagedHarness, harnessArchivePath } = require('./harness-extract');
 const { childSpawnEnv } = require('../shared/child-spawn-env');
 const { desktopInstallEnv } = require('./desktop-install-control');
+const { officeRuntimeEnv } = require('./office-runtime');
+const { taskControlToken } = require('./task-protection');
 const { readPin } = require('../shared/harness-upstream');
 const { probeHarnessReady, isUnpublishedHarnessNpm } = require('./harness-browser-auth');
 
@@ -826,6 +828,16 @@ class DshManager extends EventEmitter {
       env.DSH_HARNESS_ROOT = root;
     }
     Object.assign(env, desktopInstallEnv());
+    // Carrier declaration for Office rows in any profile layer that reads it;
+    // the desktop overlay already carries absolute paths, so a missing
+    // payload simply leaves this unset.
+    Object.assign(env, officeRuntimeEnv());
+    env.DSHD_TASK_CONTROL_TOKEN = taskControlToken();
+    // Producer-coverage declarations: the control plugin reports these as
+    // `unavailable` (not `intentional-disabled`) when the flag is set but the
+    // service is missing — a load failure must never read as "deliberately off".
+    if (config.dshbotEnabled === true) env.DSHD_DSHBOT_ENABLED = '1';
+    if (config.scheduleEnabled === true) env.DSHD_SCHEDULE_ENABLED = '1';
     return env;
   }
 

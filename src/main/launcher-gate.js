@@ -14,20 +14,39 @@ function readLastDesktopStart(userDataDir) {
       ok: raw.ok === true ? true : raw.ok === false ? false : null,
       at: typeof raw.at === 'string' ? raw.at : '',
       error: typeof raw.error === 'string' ? raw.error : '',
+      // Bounded kernel-log tail captured at the failure instant — the slim
+      // launcher's only window into plugin loader errors, since a packaged
+      // runtime's console does not reliably reach a piped stderr.
+      logTail: Array.isArray(raw.logTail) ? raw.logTail.filter((l) => typeof l === 'string') : [],
     };
   } catch {
-    return { ok: null, at: '', error: '' };
+    return { ok: null, at: '', error: '', logTail: [] };
   }
+}
+
+const LAST_START_LOG_TAIL = 80;
+
+// dsh.logs rows are objects ({message}/{line}) in the kernel but sometimes
+// plain strings — normalize to a flat string tail for last-desktop-start.json.
+function kernelLogTail(dsh, limit = LAST_START_LOG_TAIL) {
+  const rows = Array.isArray(dsh?.logs) ? dsh.logs : [];
+  return rows
+    .slice(-limit)
+    .map((row) => (typeof row === 'string' ? row : row?.message || row?.line || String(row)));
 }
 
 function writeLastDesktopStart(userDataDir, payload) {
   fs.mkdirSync(userDataDir, { recursive: true });
   const file = lastDesktopStartPath(userDataDir);
   const tmp = `${file}.tmp`;
+  const logTail = Array.isArray(payload.logTail)
+    ? payload.logTail.slice(-LAST_START_LOG_TAIL).map((l) => String(l).slice(0, 240))
+    : [];
   fs.writeFileSync(tmp, `${JSON.stringify({
     ok: payload.ok === true,
     at: payload.at || new Date().toISOString(),
     error: payload.error || '',
+    logTail,
   }, null, 2)}\n`);
   fs.renameSync(tmp, file);
 }
@@ -38,7 +57,7 @@ function writeLastDesktopStart(userDataDir, payload) {
  * must go through one writer so a stale `{ ok:false }` can never keep holding
  * the next cold start at the launcher after the desktop actually recovered.
  */
-async function recordLastDesktopStart(userDataDir, work) {
+async function recordLastDesktopStart(userDataDir, work, evidence) {
   try {
     const value = await work();
     writeLastDesktopStart(userDataDir, { ok: true });
@@ -47,6 +66,7 @@ async function recordLastDesktopStart(userDataDir, work) {
     writeLastDesktopStart(userDataDir, {
       ok: false,
       error: error && error.message ? error.message : String(error),
+      logTail: typeof evidence === 'function' ? evidence() : [],
     });
     throw error;
   }
@@ -445,6 +465,7 @@ module.exports = {
   lastDesktopStartPath,
   readLastDesktopStart,
   writeLastDesktopStart,
+  kernelLogTail,
   recordLastDesktopStart,
   shouldPromptUpdate,
   stickySkipActive,

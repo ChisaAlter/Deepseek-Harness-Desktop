@@ -2,7 +2,7 @@
 # desktop runtime. No vendor/ extraResources, no harness stack at runtime —
 # the package carries the launcher surface only.
 appId: ai.deepseek.harness.launcher
-productName: Deepseek-Harness-Launcher
+productName: Whale Isle Launcher
 copyright: MIT
 npmRebuild: false
 
@@ -19,7 +19,7 @@ files:
 
 extraMetadata:
   main: src/main-launcher/index.js
-  productName: Deepseek-Harness-Launcher
+  productName: Whale Isle Launcher
   dshdPackage: launcher
 
 electronDist: node_modules/electron/dist
@@ -45,14 +45,15 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Deepseek-Harness-Launcher
-  artifactName: Deepseek-Harness-Launcher-Setup-${version}.${ext}
+  shortcutName: Whale Isle Launcher
+  artifactName: Whale-Isle-Launcher-Setup-${version}.${ext}
   installerIcon: assets/icon.ico
   uninstallerIcon: assets/icon.ico
   installerHeader: build/installerHeader.bmp
   installerSidebar: build/installerSidebar.bmp
   uninstallerSidebar: build/uninstallerSidebar.bmp
   license: LICENSE
+  include: build/installer.nsh
   installerLanguages:
     - zh_CN
     - en_US

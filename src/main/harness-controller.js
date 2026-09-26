@@ -46,6 +46,8 @@ class HarnessController extends EventEmitter {
     this.currentConfigRevision = options.currentConfigRevision || (() => undefined);
     this.stripDroppedPlugins = options.stripDroppedPlugins;
     this.ensureDesktopInstallPlugin = options.ensureDesktopInstallPlugin || (() => {});
+    this.ensureTaskControlPlugin = options.ensureTaskControlPlugin
+      || (async () => ({ ok: true, added: false }));
     this.removeDshMarketPreset = options.removeDshMarketPreset
       || (async () => ({ ok: true, changed: false }));
     this.ensureUsagePanelPlugin = options.ensureUsagePanelPlugin
@@ -62,6 +64,8 @@ class HarnessController extends EventEmitter {
       || (async () => ({ ok: true, added: false }));
     this.ensureDesktopMarket = options.ensureDesktopMarket
       || (async () => ({ ok: true, added: false }));
+    this.ensureDesktopOfficeRuntime = options.ensureDesktopOfficeRuntime
+      || (async () => ({ ok: true, present: false }));
     this.removeLegacyDshbotPreset = options.removeLegacyDshbotPreset
       || (async () => ({ ok: true, changed: false }));
     this.applyDisabledBundles = options.applyDisabledBundles
@@ -502,8 +506,58 @@ class HarnessController extends EventEmitter {
     // overlays are required on all starts (dshbot only while `dshbotEnabled`
     // is on); full starts insert session-search before dsh-im.
     const patchFiles = [];
+    // Task control mounts first among the overlay plugins so its webServer /
+    // resolveAgent guards are installed before later overlay plugins (dshbot,
+    // dsh-im, remote) register their routes during apply.
+    try {
+      const taskControl = await this.ensureTaskControlPlugin();
+      this.assertOperationCurrent(generation);
+      if (taskControl && taskControl.ok === false) {
+        throw new Error(`桌面内置任务保护失败：${taskControl.error || 'unknown'}`);
+      }
+      if (taskControl?.overlayFile) {
+        patchFiles.push(taskControl.overlayFile);
+      }
+      if (taskControl && taskControl.ok) {
+        this.dsh.log(taskControl.added ? '已接入桌面任务保护' : '桌面任务保护已就绪', 'app');
+      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      if (error instanceof Error && error.message.startsWith('桌面内置任务保护失败：')) {
+        throw error;
+      }
+      throw new Error(`桌面内置任务保护失败：${errorMessage(error)}`);
+    }
     if (desktopInstall?.overlayFile) {
       patchFiles.push(desktopInstall.overlayFile);
+    }
+    // Office is desktop built-in: the workspace-dependencies + skill-office
+    // rows ride --patch on every start (including skipUserPlugins recovery);
+    // the disable list never applies. A missing packaged payload or an
+    // incomplete kit closure is desktop runtime damage — fail the start;
+    // skip cannot fix it.
+    try {
+      const office = await this.ensureDesktopOfficeRuntime();
+      this.assertOperationCurrent(generation);
+      if (office && office.ok === false) {
+        throw new Error(`桌面内置 Office 运行时失败：${office.error || 'unknown'}`);
+      }
+      if (office?.overlayFile) {
+        patchFiles.push(office.overlayFile);
+      }
+      if (office && office.ok && office.disabled) {
+        this.dsh.log('桌面内置 Office 已按环境变量关闭', 'app');
+      } else if (office && office.ok && office.present) {
+        this.dsh.log(office.added ? '已接入桌面内置 Office 运行时' : '桌面内置 Office 运行时已就绪', 'app');
+      } else if (office && office.warning) {
+        this.dsh.log(office.warning, 'app');
+      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      if (error instanceof Error && error.message.startsWith('桌面内置 Office 运行时失败：')) {
+        throw error;
+      }
+      throw new Error(`桌面内置 Office 运行时失败：${errorMessage(error)}`);
     }
     // The marketplace is desktop-owned (settings section `market` +
     // main-process curated engine); every start only clears legacy

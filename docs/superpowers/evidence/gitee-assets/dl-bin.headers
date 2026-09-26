@@ -1,0 +1,67 @@
+HTTP/1.1 302 Found
+Server: ADAS/1.0.214
+Date: Fri, 25 Sep 2026 04:58:45 GMT
+Content-Type: text/html; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-XSS-Protection: 1; mode=block
+X-Content-Type-Options: nosniff
+X-UA-Compatible: chrome=1
+Referrer-Policy: same-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Expires: Sun, 1 Jan 2000 01:00:00 GMT
+Pragma: must-revalidate, no-cache, private
+Location: https://gitee.com/ayase/Deepseek-Harness-Desktop/attach_files/3268223/download/Deepseek-Harness-Desktop-Setup-0.0.0-parity.exe.bin
+Cache-Control: no-cache
+Set-Cookie: user_locale=zh-CN; domain=.gitee.com; path=/; expires=Tue, 25 Sep 2046 04:58:45 -0000
+Set-Cookie: oschina_new_user=false; path=/; expires=Tue, 25 Sep 2046 04:58:45 -0000
+Set-Cookie: gitee-session-n=RmFMZGVNOUhjUDllYnQ4UDVWSWk1Y2Qwc25HbW5FUnBDWkswQUUwTFNxS1diR1Vqb1U3VVBVZ0x0eUpNZXNHWDUwcXgxMzB6L1VHSGMvSi9qMGt3WGc9PS0tOXhocXAxT1pqNVlQc1VBREN4dVVyQT09--67ecfe2aa22bbf38ae654faa5bb07d60e61bbb23; domain=.gitee.com; path=/; secure; HttpOnly; SameSite=Lax
+X-Request-Id: 952d33155884e807365b5f803f263255
+X-Runtime: 0.069744
+Vary: Origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: frame-ancestors 'self' https://*.gitee.com
+BDWAF-Request-ID: 8b6f46cb-a02d-41e6-a3e3-40cb106a5b0b
+Set-Cookie: abymg_id=1_0508ff79804f82ef010e2de80292382eb511e11e3875e212c9ec260ac783ea08; Max-Age=86400; Path=/; Domain=gitee.com; HttpOnly; Secure; SameSite=None
+Set-Cookie: BEC=8ddb6c1710618f9098bae11a2ceedd43;Path=/;Max-Age=126000
+
+HTTP/1.1 302 Found
+Server: ADAS/1.0.214
+Date: Fri, 25 Sep 2026 04:58:45 GMT
+Content-Type: text/html; charset=utf-8
+Transfer-Encoding: chunked
+Connection: keep-alive
+X-XSS-Protection: 1; mode=block
+X-Content-Type-Options: nosniff
+X-UA-Compatible: chrome=1
+Referrer-Policy: same-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Expires: Sun, 1 Jan 2000 01:00:00 GMT
+Pragma: must-revalidate, no-cache, private
+Location: https://foruda.gitee.com/attach_file/1790312292338221629/deepseek-harness-desktop-setup-0.0.0-parity.exe.bin?token=046224761c834e5f441b2a555f7e0413&ts=1790312325&attname=Deepseek-Harness-Desktop-Setup-0.0.0-parity.exe.bin
+Cache-Control: no-cache
+Set-Cookie: user_locale=zh-CN; domain=.gitee.com; path=/; expires=Tue, 25 Sep 2046 04:58:45 -0000
+Set-Cookie: oschina_new_user=false; path=/; expires=Tue, 25 Sep 2046 04:58:45 -0000
+Set-Cookie: gitee-session-n=WU1CQ0hUVTQ2WFNWVUZsdmxVckpzb1VsV2FpTE5rOTJVeWFyd1ByRVBjb2lYY0VKRjI2NXAvRENyNjNrekt3d3hudEFFeVpHVlpwcFQzeVgrMXJPM1E9PS0tUGRzeVRXRE5lZWlaUXpCcGVNUEFaZz09--c3fc060f14878c0c4efe8e3b55cdc7d2e92be3ae; domain=.gitee.com; path=/; secure; HttpOnly; SameSite=Lax
+X-Request-Id: 25b05cb68b4182790d35124544db8833
+X-Runtime: 0.042254
+Vary: Origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: frame-ancestors 'self' https://*.gitee.com
+BDWAF-Request-ID: ad1e2bb2-9e33-4ac7-89c5-c9b52304d90f
+Set-Cookie: abymg_id=1_98931303df9042bd3c8cf95f703a238ce75a64abb28d83cfc9ec260ac783ea08; Max-Age=86400; Path=/; Domain=gitee.com; HttpOnly; Secure; SameSite=None
+Set-Cookie: BEC=4431548549a19240b277aa1ec69b0837;Path=/;Max-Age=126000
+
+HTTP/1.1 200 OK
+Server: ADAS/1.0.214
+Date: Fri, 25 Sep 2026 04:58:45 GMT
+Content-Type: application/octet-stream
+Content-Length: 1572864
+Connection: keep-alive
+Cache-Control: max-age=2592000
+Content-Disposition: attachment; filename="Deepseek-Harness-Desktop-Setup-0.0.0-parity.exe.bin"
+Vary: Origin
+X-Frame-Options: SAMEORIGIN
+Content-Security-Policy: frame-ancestors 'self' https://*.gitee.com
+Set-Cookie: BEC=88597e59d42bb01c4649d5c631bbb39c;Path=/;Max-Age=120000
+

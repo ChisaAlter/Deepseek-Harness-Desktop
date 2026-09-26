@@ -280,7 +280,24 @@ function stepPose() {
     pose[42] -= 0.12;
   }
   applyLiveState();
+  isolateClosedEyes();
   idle.lastDrawX = drawPos.x;
+}
+
+// Blink/wink must win after idle, tap and live-state eye shapes have composed.
+// THA4 distorts eyelids when full natural closure overlaps happy/relaxed eyes.
+// Fade only the closing eye's competing shapes; keep the other eye and mouth.
+function isolateClosedEyes() {
+  const leftClosed = clamp01(pose[12]);
+  const rightClosed = clamp01(pose[13]);
+  for (let side = 0; side < 2; side += 1) {
+    const open = 1 - (side === 0 ? leftClosed : rightClosed);
+    for (let ch = 14 + side; ch < 26; ch += 2) { pose[ch] *= open; }
+  }
+  // Iris rotation is shared by both eyes: retain it for a one-eyed wink.
+  const gaze = 1 - Math.min(leftClosed, rightClosed);
+  pose[37] *= gaze;
+  pose[38] *= gaze;
 }
 
 // ── ONNX runtime ──
@@ -845,13 +862,11 @@ const LIVE_STATES = {
   },
   'sleep-enter'(S, t) {
     const p = smooth(clamp01((t - rigStateT0) / 1.2));
-    S.set(12, p); S.set(13, p);
     S.set(39, 0.2 * p);
     S.fx.rot = -1.0 * p;
     S.fx.dy = 14 * p;
   },
   sleep(S, t) {
-    S.set(12, 1); S.set(13, 1);          // eyes closed
     S.set(39, 0.16);                     // head sags
     S.mul(44, 1.5);                      // slower, deeper breath
     S.fx.rot = -1.0;                     // lies on her side
@@ -1009,7 +1024,18 @@ const LIVE_EXPRESSIONS = {
   laugh(S) { S.set(14, 1); S.set(15, 1); S.set(26, 0.7); },
   curious(S) { S.set(16, 0.35); S.set(17, 0.35); S.set(41, 0.35); },
   sleepy(S) { S.set(18, 0.65); S.set(19, 0.65); },
-  asleep(S) { S.set(12, 1); S.set(13, 1); },
+  asleep(S) {
+    const closed = stillCtl.name === 'sleep-enter'
+      ? smooth(clamp01((rigT - rigStateT0) / 1.2)) : 1;
+    // The distilled face does not compose wink + relaxed/happy eyes safely:
+    // leftover idle shapes and gaze enlarge/displace the sleeping eyelids.
+    // Fade the whole facial pose to neutral, then use only natural closure.
+    // Head/body motion and breathing remain live; wake releases this owner.
+    for (let ch = 0; ch < 39; ch += 1) {
+      if (ch !== 12 && ch !== 13) { S.mul(ch, 1 - closed); }
+    }
+    S.set(12, closed); S.set(13, closed);
+  },
   surprised(S) { S.set(16, 0.9); S.set(17, 0.9); S.set(22, 0.5); },
   panicked(S) { S.set(2, 0.75); S.set(3, 0.75); S.set(26, 0.4); },
   dizzy(S) { S.set(18, 0.35); S.set(19, 0.35); S.set(41, 0.4); },
@@ -1019,7 +1045,7 @@ const LIVE_EXPRESSIONS = {
 };
 const LIVE_ACTION_EXPRESSION = {
   'idle-float': 'neutral', swim: 'happy', twirl: 'laugh', look: 'curious',
-  doze: 'sleepy', 'sleep-enter': 'sleepy', sleep: 'asleep', wake: 'surprised',
+  doze: 'sleepy', 'sleep-enter': 'asleep', sleep: 'asleep', wake: 'surprised',
   pickup: 'panicked', 'drag-sway': 'panicked', fling: 'panicked',
   recover: 'dizzy', 'food-notice': 'surprised', eat: 'happy', chew: 'happy',
   full: 'happy', pat: 'happy', poke: 'surprised', wave: 'happy', shy: 'blush',

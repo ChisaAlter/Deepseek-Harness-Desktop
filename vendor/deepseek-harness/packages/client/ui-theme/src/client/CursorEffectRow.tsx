@@ -344,7 +344,7 @@ export function CursorEffectRow({
     <section className={css.block} aria-labelledby="appearance-cursor-fx-heading">
       <div className={css.effectRow}>
         <div className={css.effectText}>
-          <h2 id="appearance-cursor-fx-heading" className={css.heading}>{t('cursorFx.title')}</h2>
+          <h2 id="appearance-cursor-fx-heading" className={css.rowTitle}>{t('cursorFx.title')}</h2>
           <p className={css.hint}>{t('cursorFx.description')}</p>
         </div>
         <div className={css.effectActions}>

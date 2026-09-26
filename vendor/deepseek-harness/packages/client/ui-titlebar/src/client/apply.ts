@@ -11,6 +11,8 @@ import { ChromeVisibility } from './chrome-visibility.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-shortcuts/client'
+import type { ShortcutBinding, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import {
   SURFACES_TOGGLE_FIELD, TERMINAL_TOGGLE_FIELD, TITLEBAR_SETTINGS_NAMESPACE,
   type TitlebarSettings,
@@ -28,7 +30,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Services required by the titlebar plugin. */
-export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'configForms']
+export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'configForms', 'shortcuts']
 
 /** The DSHD panel button owns the classic surfaces track. */
 function toggleRightPanel(ctx: Context): void {
@@ -44,6 +46,38 @@ function toggleRightPanel(ctx: Context): void {
  */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-titlebar: dictionaries')
+  const t = ctx.locale.bind(NS)
+
+  // Desktop runtime: the panel chords are registry commands (single owner,
+  // rebindable, region-gated). The DOM listener in PanelToggles stays as the
+  // web fallback only.
+  const panels: ShortcutBinding = { code: 'Backslash', modifiers: ['primary'] }
+  const drawer: ShortcutBinding = { code: 'Backquote', modifiers: ['primary'] }
+  ctx.effect(() => ctx.shortcuts.register({
+    id: 'surfaces.toggle' as ShortcutCommandId, label: () => t('surfaces.toggle'),
+    aliases: ['right panel', 'surfaces', 'right sidebar'],
+    defaults: {
+      'desktop:macos': panels, 'desktop:windows': panels, 'desktop:linux': panels,
+    },
+    regions: ['page'], modals: [],
+    resolve: () => ({ status: 'handled', run: () => { toggleRightPanel(ctx) } }),
+  }), 'ui-titlebar: surfaces.toggle')
+  ctx.effect(() => ctx.shortcuts.register({
+    id: 'terminal.drawer.toggle' as ShortcutCommandId, label: () => t('terminal.toggle'),
+    aliases: ['terminal drawer', 'terminal toggle'],
+    defaults: {
+      'desktop:macos': drawer, 'desktop:windows': drawer, 'desktop:linux': drawer,
+    },
+    regions: ['page', 'terminal'], modals: [],
+    resolve: () => {
+      const items = (ctx.get('workspaces') as { list?: { getSnapshot(): { items?: unknown[] } } } | undefined)
+        ?.list?.getSnapshot().items
+      if (items !== undefined && items.length === 0) {
+        return { status: 'blocked', reason: t('terminal.toggle') }
+      }
+      return { status: 'handled', run: () => { ctx.layout.toggleTerminalDrawer() } }
+    },
+  }), 'ui-titlebar: terminal.drawer.toggle')
 
   const host = ctx.configForms.get<TitlebarSettings>(TITLEBAR_SETTINGS_NAMESPACE)
   const terminalChrome = new ChromeVisibility(host, TERMINAL_TOGGLE_FIELD)

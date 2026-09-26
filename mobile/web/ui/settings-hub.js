@@ -86,7 +86,7 @@ function settingsGroups({ channel, accessMode, gitLine, scheme, remoteReadOnly =
     },
     {
       label: '关于',
-      rows: [{ pane: '关于', desc: 'Deepseek-Harness-Desktop' }],
+      rows: [{ pane: '关于', desc: 'Whale Isle' }],
     },
   ];
 }

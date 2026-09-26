@@ -103,7 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist-out
-          gh run download "$CANDIDATE_RUN_ID" --name DeepSeek-Harness-windows-x64 --dir dist-out
+          gh run download "$CANDIDATE_RUN_ID" --name Whale-Isle-windows-x64 --dir dist-out
 
       - name: Verify candidate assets, metadata and Setup SHA256
         env:
@@ -135,10 +135,10 @@ jobs:
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
           set -euo pipefail
-          mac_count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "DeepSeek-Harness-macos-arm64" and .expired == false)] | length')
+          mac_count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "Whale-Isle-macos-arm64" and .expired == false)] | length')
           if [ "$mac_count" -gt 0 ]; then
             mkdir -p macos-out
-            gh run download "$CANDIDATE_RUN_ID" --name DeepSeek-Harness-macos-arm64 --dir macos-out
+            gh run download "$CANDIDATE_RUN_ID" --name Whale-Isle-macos-arm64 --dir macos-out
           fi
 
       - name: Build checksums and provenance notes
@@ -149,11 +149,11 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          windows_files=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap dist-out/latest.yml)
+          windows_files=(dist-out/Whale-Isle-Setup-*.exe dist-out/Whale-Isle-Setup-*.exe.blockmap dist-out/latest.yml)
           (( ${#windows_files[@]} >= 3 )) || { echo "No complete Windows candidate asset set to checksum" >&2; exit 1; }
           (
             cd dist-out
-            sha512sum Deepseek-Harness-Desktop-Setup-*.exe Deepseek-Harness-Desktop-Setup-*.exe.blockmap latest.yml > SHA512SUMS.txt
+            sha512sum Whale-Isle-Setup-*.exe Whale-Isle-Setup-*.exe.blockmap latest.yml > SHA512SUMS.txt
           )
           macos_files=(macos-out/*.dmg)
           if (( ${#macos_files[@]} > 0 )); then
@@ -203,11 +203,11 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          assets=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap macos-out/Deepseek-Harness-Desktop-*.dmg dist-out/latest.yml dist-out/SHA512SUMS.txt)
+          assets=(dist-out/Whale-Isle-Setup-*.exe dist-out/Whale-Isle-Setup-*.exe.blockmap macos-out/Whale-Isle-*.dmg dist-out/latest.yml dist-out/SHA512SUMS.txt)
           (( ${#assets[@]} >= 4 )) || { echo "Release assets are incomplete" >&2; exit 1; }
           gh release create "$RELEASE_TAG" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$CANDIDATE_SHA" \
-            --title "Deepseek-Harness-Desktop $RELEASE_TAG" \
+            --title "Whale Isle $RELEASE_TAG" \
             --notes-file release-body.md \
             --latest

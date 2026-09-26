@@ -59,34 +59,37 @@ Gate: <卡上 gates>
 | [settings-select](settings-select.md) | 设置内值选择统一为官方胶囊 + Menu | `SettingsSelect` | vendor client spec |
 | [account-settings-entry](account-settings-entry.md) | 设置与远程配对收束到账户菜单，缺席时保留原入口 | `ui-settings-account` / `settings.launcher` | 定向测试、官方构建、桌面复核 |
 | [account-browser-sign-in](account-browser-sign-in.md) | 桌面登录链接就绪时自动打开系统浏览器 | `ui-settings-account` / `shell.openExternal` | 定向测试、桌面复核 |
-| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；入口开放，配对默认关闭 | `DshdRemote` / `ui-settings-remote` | 以卡内实机矩阵为准；0.3.1 不将 Web/Android 排除项记为 Pass |
+| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；入口开放，配对默认关闭 | `DshdRemote` / `ui-settings-remote` | 卡内实机矩阵为准 |
 | [remote-settings](remote-settings.md) | 设置→远程双标签（网关 + dsh-im）；未配置时默认服务器模式 | `ui-settings-remote` / `dsh-im-desktop` | 桌面装配回归；真实账号绑定/收发按卡内门槛验收 |
-| [remote-workspace](remote-workspace.md) | SSH 机器管理、远程目录选择与镜像工作区 | `dsh-remote-desktop` / `vendor/dsh-remote` / picker fork | ensure/overlay/skip-compose + 远程负路径测试；实机验收单独记录 |
+| [remote-workspace](remote-workspace.md) | SSH 机器管理、远程目录选择与镜像工作区 | `dsh-remote-desktop` / `vendor/dsh-remote` | ensure/overlay/skip-compose + 负路径测试 |
 | [dshbot](dshbot.md) | 桌面内置 Bots：vendor 快照 + overlay 每次启动挂载（含 skip） | `dshbot-desktop` / `legacy-dshbot-preset` | 升级 / 用户数据保留 |
-| [plugin-session-navigation](plugin-session-navigation.md) | 插件固定会话的持久化标题、普通列表隔离与空会话聊天布局 | vendor session-controller / ui-workspace / ui-conversation | 投影、导航与真实插件桌面链路 |
+| [plugin-session-navigation](plugin-session-navigation.md) | 插件固定会话的持久化标题、列表隔离与空会话布局 | vendor session-controller / ui-workspace | 投影、导航与真实插件链路 |
 | [dsh-home](dsh-home.md) | 桌面 `userData/dsh-home`；Harness 不读官方 `~/.dsh` | `dsh-home.js` / spawnEnv | TC-INST-009、011；TC-WS-006 |
 | [desktop-launcher](desktop-launcher.md) | 冷启动闸门：更新询问、启停桌面、版本、插件问诊 | `launcher.*` / launcher-gate | TC-LAUNCH-001…007 |
 | [launcher-distribution](launcher-distribution.md) | 现有启动器轻量分发、双线路完整包与独立增量包（拟议） | `launcher.*` / 分发服务 / release workflows | 唯一启动器、签名清单、双镜像与 CI Setup 实机 |
 | [launcher-components](launcher-components.md) | 现有启动器按需安装并监管独立工具或服务（拟议） | `launcher.*` / component supervisor | 签名包、运行与回滚实机 |
 | [data-import](data-import.md) | 启动器只读导入官方会话/插件名单 | `data-import.js` | TC-LAUNCH-004 |
 | [session-archive](session-archive.md) | 归档隐藏；已归档里恢复/删除 | ui-workspace / workspace RPC | TC-CHAT-010、013 |
-| [no-directory-sessions](no-directory-sessions.md) | 「无工作目录」会话（Host scratch cwd）；删除工作区即隐藏其会话，重新添加目录才回来 | vendor `workspace` / `api/workspace-controller` / `ui-workspace` / `ui-conversation` | vendor client+host specs + 桌面 marker 单测 |
+| [no-directory-sessions](no-directory-sessions.md) | 「无工作目录」会话（Host scratch cwd）；删工作区即隐藏，重加目录恢复 | vendor `workspace` / `workspace-controller` / `ui-workspace` | vendor specs + 桌面 marker 单测 |
 | [git-titlebar](git-titlebar.md) | 标题栏分支/提交/推拉；登记工作区即授权 | `git.js` / workspace-authority | TC-WS-006、TC-GIT-001…007 |
 | [usage-stats](usage-stats.md) | 设置内跨会话 Token 用量；预置改版 dsh-usage-panel | `usage-panel-preset` / vendor 插件 | TC-EXT-008 |
 | [composer-beam](composer-beam.md) | 运行态输入卡四角连续边光，4px 裁切壳不覆盖 dock | vendor ui-conversation InputBar | vendor focused CSS + Chromium 像素复现 |
 | [composer-typing-fx](composer-typing-fx.md) | 外观分区可配置键入特效：叠加层 echo + 自定义光标，不碰 Lexical 文本 DOM | vendor ui-conversation `TypingFxLayer` / `TypingFxRow` | vendor focused specs + tsc + 桌面 marker 单测 |
-| [composer-family-width](composer-family-width.md) | 输入卡改宽时统计行、Dock 卡与空会话 Hero 控件联动跟随 | vendor ui-chat / ui-conversation / ui-goal CSS | vendor vitest + 桌面 marker 单测 + 实机坐标 |
-| [composer-stats-peak-valley](composer-stats-peak-valley.md) | 会话统计/峰谷行与输入卡宽度对齐；官方峰谷时状态条与开关 | vendor `ui-conversation` / `ui-model-selection` | vendor client specs（peak-valley / chat-apply / host） |
+| [composer-family-width](composer-family-width.md) | 输入卡改宽时统计行、Dock 与 Hero 控件联动 | vendor ui-chat / ui-conversation CSS | vendor vitest + marker 单测 + 实机坐标 |
+| [composer-stats-peak-valley](composer-stats-peak-valley.md) | 会话统计/峰谷行与输入卡对齐；官方峰谷状态条与开关 | vendor `ui-conversation` / `ui-model-selection` | vendor client specs |
 | [message-edit](message-edit.md) | 最新用户消息编辑后始终在当前会话重发 | vendor `ui-message-edit` | vendor client/host specs + test:gui + keyless edit e2e |
 | [composer-draft-transition](composer-draft-transition.md) | 草稿首次发送时输入框连续落位、不贴底回弹 | vendor `ui-conversation` | 组件回归 + keyless 逐帧几何 |
 | [windows-installer](windows-installer.md) | NSIS 品牌化安装器；`/S` 静默与 artifact 名不变 | `build.nsis` / `build/installer.nsh` | installer-branding 单测；TC-INST-001、009、010 |
 | [dsh-tools](dsh-tools.md) | 工具调用名/ID 校验、失败重试与旧会话投影修复 | vendor llm / agent-loop / session / tools | focused Harness specs |
 | [harness-upstream-sync](harness-upstream-sync.md) | 上游三方合并、桌面特性保真与集成验收 | `harness-sync` / `harness-desktop-forks` | sync/forks、构建、GUI/核心契约与源码冒烟 |
 | [desktop-pet](desktop-pet.md) | Desktop shell 内受限宠物浮层：Codex 皮肤、点击/拖拽动画、右键换肤、托盘开关与位置持久化 | `desktop-pet` / `desktop-pets` / `window` / `tray` | TC-DESK-010；focused tests |
-| [desktop-live2d-pet](desktop-live2d-pet.md) | 整屏透明 BrowserWindow 的 Live2D 鲸鱼娘伙伴：点击穿透、拖拽/抛掷物理、对话气泡、token 投喂成长与养成状态卡 | `desktop-live2d` / `pet-growth` / `pet-stats` / `pet-live2d.*` | `node --test` focused（101）；TC-DESK-011 |
-| [whale-assistant](whale-assistant.md) | 第一方 `dsh-whale` 插件：常驻 whale-girl 助理会话 + 设置分区 + 侧栏入口 + preset 统筹工具 + pet-outbox 桌宠桥 | `dsh-whale-desktop` / `vendor/dsh-whale` / `pet-dsh-watch` | `dsh-whale-desktop.test.js` + skip-compose 契约 |
+| [desktop-live2d-pet](desktop-live2d-pet.md) | 整屏透明 Live2D 鲸鱼娘：点击穿透、拖拽物理、对话气泡、token 投喂成长 | `desktop-live2d` / `pet-growth` / `pet-live2d.*` | `node --test` focused；TC-DESK-011 |
+| [whale-assistant](whale-assistant.md) | 第一方 `dsh-whale` 插件：常驻助理会话 + 设置分区 + 侧栏入口 + 桌宠桥 | `dsh-whale-desktop` / `vendor/dsh-whale` | `dsh-whale-desktop.test.js` + skip-compose |
 | [directory-picker-drives](directory-picker-drives.md) | 目录选择器 Win32 卷选择层：「此电脑」列出全部盘符，可跨盘选工作区 | vendor `directory-picker` / `directory-picker-browse` | vendor spec + marker 单测 |
 | [custom-instructions](custom-instructions.md) | 设置→通用自定义指令，作为系统提示词末段随每次请求发送 | `ui-conversation.customInstructions` / `SystemPromptProjection` | ui-conversation 定向测试 + 真实模型验证 |
 | [session-cost-display](session-cost-display.md) | 会话累计费用显示与按峰谷分桶计价；开关关闭时整行隐藏 | `PeakValleyRow` / `billedUsage` 投影 / `ui-model-selection` | vendor client specs + 设置开关回归 |
 | [skills-groups](skills-groups.md) | 技能分组多选 tag picker 与分组开关批量切换 | vendor skills 设置（fork） | vendor 51/51 + fork 门禁 |
 | [desktop-build-runtime](desktop-build-runtime.md) | 桌面清单与打包运行时契约：scripts/依赖/build 字段、vendor 资源与 afterPack 装配 | `package.json` / `package-contract.test.js` / `after-pack.js` | 结构契约测试 + packaged smoke |
+| [task-protection](task-protection.md) | 退出/停止/更新前检查活动任务并确认；锁接纳排空后放行 | task-protection / dsh-task-control / peer 握手 | 协调器+插件单测；实机验收待 C |
+| [office-runtime](office-runtime.md) | 文档格式：DOCX/PPTX 创建编辑校验、PDF/XLSX 预览（拟议） | standalone runtime / `libreoffice-kit` | 待 P3 收口 |
+| [keyboard-shortcuts](keyboard-shortcuts.md) | 统一快捷键体系（拟议） | 快捷键注册层 | 待 P2 收口 |

@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-09-26-review-diff-performance-gate.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-26-review-diff-performance-gate.md
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer:
+  en: 2009773b49fc62ae
+  zh: 5915c8f0222272d5
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer/problem:
+  en: d7974cdfa6f75ea2
+  zh: 882ab3383cfda573
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer/decision:
+  en: 1af84202d0c29895
+  zh: 85b6ed3cae34e485
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer/timing-boundaries-and-memory-endpoints:
+  en: 8ede207d796aa753
+  zh: aa3ace0404a166ba
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer/calibration-reference:
+  en: acfa35fba5dbcb17
+  zh: b33ac5cf9488c003
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer/alternatives-considered:
+  en: a16edbdb4a5b7847
+  zh: 6fc936f8cdd7cf60
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer/consequences:
+  en: 7147ca6cdf86eaa8
+  zh: 500aebb66ab66fd2
+/agent-note-review-diff-benchmark-for-the-shared-comparison-renderer/known-exclusions:
+  en: b58361fc839679d6
+  zh: e5fe72b2e29b1120

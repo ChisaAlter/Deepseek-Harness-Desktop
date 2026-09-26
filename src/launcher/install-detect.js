@@ -4,13 +4,17 @@ const { spawn, execFileSync } = require('child_process');
 const { app, shell } = require('electron');
 
 const APP_ID = 'ai.deepseek.harness.gui';
-const PRODUCT_NAME = 'Deepseek-Harness-Desktop';
+const { PRODUCT_NAME, LEGACY_PRODUCT_NAME } = require('../shared/product-identity');
 // The desktop runtime keeps this identity even once a slim launcher package
 // exists: the launcher then scans for this product, not for itself.
 const DESKTOP_TARGET = { appId: APP_ID, productName: PRODUCT_NAME };
 const WINDOWS_UNINSTALL_REL = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall';
 const WINDOWS_UNINSTALL_WOW = 'Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall';
 const SETTINGS_APPS_URL = 'ms-settings:appsfeatures';
+
+function productNames(productName) {
+  return productName === PRODUCT_NAME ? [PRODUCT_NAME, LEGACY_PRODUCT_NAME] : [productName];
+}
 
 // `deps.target` selects which product's install registration to inspect.
 // Absent → self (today's full package installs the desktop identity).
@@ -53,7 +57,7 @@ function uninstallExeCandidates(installDir, productName = PRODUCT_NAME) {
     return [];
   }
   return [
-    path.join(installDir, `Uninstall ${productName}.exe`),
+    ...productNames(productName).map((name) => path.join(installDir, `Uninstall ${name}.exe`)),
     path.join(installDir, 'Uninstall.exe'),
   ];
 }
@@ -63,10 +67,10 @@ function desktopExeCandidates(installPath, productName = PRODUCT_NAME) {
   if (!installPath) {
     return [];
   }
-  return [
-    path.join(installPath, `${productName}.exe`),
-    path.join(installPath, 'app', `${productName}.exe`),
-  ];
+  return productNames(productName).flatMap((name) => [
+    path.join(installPath, `${name}.exe`),
+    path.join(installPath, 'app', `${name}.exe`),
+  ]);
 }
 
 function firstExistingPath(candidates, existsSync = fs.existsSync.bind(fs)) {
@@ -76,6 +80,53 @@ function firstExistingPath(candidates, existsSync = fs.existsSync.bind(fs)) {
     }
   }
   return '';
+}
+
+// Installs predating the product rename can leave DisplayVersion blank in the
+// registry record; the runtime exe still carries its version resource, so probe
+// it once per exe change (cached by path+mtime — a powershell spawn per status
+// poll would be noticeable).
+const exeVersionCache = new Map();
+
+function exeProductVersion(exePath, deps = {}) {
+  if (!exePath) {
+    return '';
+  }
+  const stat = typeof deps.statSync === 'function' ? deps.statSync : fs.statSync.bind(fs);
+  const exec = deps.execFileSync || execFileSync;
+  let mtimeMs = 0;
+  try {
+    mtimeMs = stat(exePath).mtimeMs;
+  } catch {
+    return '';
+  }
+  const hit = exeVersionCache.get(exePath);
+  if (hit && hit.mtimeMs === mtimeMs) {
+    return hit.version;
+  }
+  let version = '';
+  try {
+    const quoted = exePath.replace(/'/g, "''");
+    const out = exec('powershell', [
+      '-NoProfile', '-Command',
+      `(Get-Item -LiteralPath '${quoted}').VersionInfo.ProductVersion`,
+    ], { windowsHide: true, timeout: 5000 });
+    // Windows file versions are four-part; drop a trailing ".0" so it reads
+    // like the semver the registry would have recorded.
+    version = String(out).trim().replace(/^(\d+\.\d+\.\d+)\.0+$/, '$1');
+  } catch {
+    version = '';
+  }
+  exeVersionCache.set(exePath, { mtimeMs, version });
+  return version;
+}
+
+function installedExeVersion(installPath, target, deps = {}) {
+  const exe = firstExistingPath(
+    desktopExeCandidates(installPath, target.productName),
+    typeof deps.existsSync === 'function' ? deps.existsSync : undefined,
+  );
+  return exeProductVersion(exe, deps);
 }
 
 function extractUninstallExe(uninstallCommand) {
@@ -155,31 +206,33 @@ function findRegisteredWindowsInstall(deps = {}) {
   }
   const execReg = deps.execFileSync || execFileSync;
   for (const root of uninstallSearchRoots()) {
-    try {
-      const out = execReg('reg', [
-        'query',
-        root,
-        '/s',
-        '/f',
-        target.productName,
-      ], { encoding: 'utf8', windowsHide: true });
-      const blocks = out.split(/\r?\n\r?\n/);
-      for (const block of blocks) {
-        if (!/DisplayName/i.test(block)) {
-          continue;
+    for (const name of productNames(target.productName)) {
+      try {
+        const out = execReg('reg', [
+          'query',
+          root,
+          '/s',
+          '/f',
+          name,
+        ], { encoding: 'utf8', windowsHide: true });
+        const blocks = out.split(/\r?\n\r?\n/);
+        for (const block of blocks) {
+          if (!/DisplayName/i.test(block)) {
+            continue;
+          }
+          const keyMatch = block.match(/^HKEY_[^\r\n]+/m);
+          const parsed = parseRegBlock(block, keyMatch ? keyMatch[0] : root);
+          if (parsed && (
+            parsed.displayName.includes(name)
+            || parsed.uninstallCommand.includes(name)
+            || parsed.installPath.includes(name)
+          )) {
+            return parsed;
+          }
         }
-        const keyMatch = block.match(/^HKEY_[^\r\n]+/m);
-        const parsed = parseRegBlock(block, keyMatch ? keyMatch[0] : root);
-        if (parsed && (
-          parsed.displayName.includes(target.productName)
-          || parsed.uninstallCommand.includes(target.productName)
-          || parsed.installPath.includes(target.productName)
-        )) {
-          return parsed;
-        }
+      } catch {
+        // try next product name or registry root
       }
-    } catch {
-      // try next root
     }
   }
   return null;
@@ -333,8 +386,10 @@ function getInstalledAppInfo(deps = {}) {
   let version = target.explicit ? '' : runningVersion;
   let installPath = '';
   if (registeredInstall) {
-    version = discovery.version || (target.explicit ? '' : runningVersion);
     installPath = discovery.installPath || '';
+    version = discovery.version
+      || installedExeVersion(installPath, target, deps)
+      || (target.explicit ? '' : runningVersion);
   } else if (packaged && !target.explicit) {
     try {
       installPath = path.dirname(process.execPath);
@@ -467,16 +522,21 @@ function probeDesktopProcess(deps = {}) {
   }
   const target = resolveTarget(deps);
   const execTasklist = deps.execFileSync || execFileSync;
-  try {
-    const out = execTasklist('tasklist', [
-      '/FI', `IMAGENAME eq ${target.productName}.exe`,
-      '/FO', 'CSV',
-      '/NH',
-    ], { encoding: 'utf8', windowsHide: true });
-    return new RegExp(`"${target.productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.exe"`, 'i').test(String(out));
-  } catch {
-    return false;
+  for (const name of productNames(target.productName)) {
+    try {
+      const out = execTasklist('tasklist', [
+        '/FI', `IMAGENAME eq ${name}.exe`,
+        '/FO', 'CSV',
+        '/NH',
+      ], { encoding: 'utf8', windowsHide: true });
+      if (new RegExp(`"${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.exe"`, 'i').test(String(out))) {
+        return true;
+      }
+    } catch {
+      // try the other executable name
+    }
   }
+  return false;
 }
 
 module.exports = {
@@ -492,6 +552,7 @@ module.exports = {
   findRegisteredWindowsInstall,
   probeDesktopProcess,
   desktopExeCandidates,
+  productNames,
   parseRegBlock,
   uninstallExeCandidates,
 };

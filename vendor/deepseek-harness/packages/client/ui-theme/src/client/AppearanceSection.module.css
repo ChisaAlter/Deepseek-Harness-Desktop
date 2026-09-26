@@ -13,15 +13,27 @@
 
 .heading {
   margin: 0;
-  font-size: var(--dsw-font-size-l);
-  font-weight: var(--dsw-font-weight-semibold);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
   color: var(--dsw-alias-label-primary);
 }
 
 .subtitle {
   margin: 0;
-  font-size: var(--dsw-font-size-l);
-  font-weight: var(--dsw-font-weight-semibold);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Collapsed-row titles (背景特效 / 指针特效 / 按钮悬停光泽) share the
+   typing-fx row footprint: a 14/22 title over a 12/18 hint. */
+.rowTitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 400;
   color: var(--dsw-alias-label-primary);
 }
 
@@ -34,12 +46,14 @@
 
 .hint {
   margin: 0;
-  font-size: var(--dsw-font-size-s);
+  font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-secondary);
 }
 
 .value {
-  font-size: var(--dsw-font-size-s);
+  font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -97,7 +111,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: var(--dsw-font-size-s);
+  font-size: 14px;
+  line-height: 22px;
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -105,7 +120,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: var(--dsw-font-size-s);
+  font-size: 14px;
+  line-height: 22px;
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
 }
@@ -314,7 +330,8 @@
 
 .cardName {
   margin: 0;
-  font-size: var(--dsw-font-size-s);
+  font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-primary);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -527,7 +544,8 @@
 }
 
 .schemeName {
-  font-size: var(--dsw-font-size-s);
+  font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-primary);
 }
 
@@ -574,7 +592,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: var(--dsw-font-size-s);
+  font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-secondary);
   pointer-events: none;
   user-select: none;
@@ -622,7 +641,8 @@
 
 .sourceKind {
   color: var(--dsw-alias-label-secondary);
-  font-size: var(--dsw-font-size-s);
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .sourceForm {
@@ -793,7 +813,8 @@
 }
 
 .galleryTitle {
-  font-size: var(--dsw-font-size-s);
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .galleryCopyright {

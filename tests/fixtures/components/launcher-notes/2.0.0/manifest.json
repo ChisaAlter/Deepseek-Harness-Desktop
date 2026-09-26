@@ -1,0 +1,8 @@
+{
+  "id": "launcher-notes",
+  "name": "启动器便签",
+  "version": "2.0.0",
+  "description": "本地便签服务组件 v2：新增 /stats 统计端点与端点清单，数据目录跨版本保留便签。",
+  "entry": "notes.js",
+  "kind": "service"
+}

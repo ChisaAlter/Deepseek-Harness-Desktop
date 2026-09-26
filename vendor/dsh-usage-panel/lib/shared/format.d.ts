@@ -27,6 +27,8 @@ export declare function dateLabel(key: string): string;
 export declare function dateCN(key: string, locale: Locale): string;
 /** Month picker label from YYYY-MM: zh "YYYY年M月", en "Mon YYYY". */
 export declare function monthLabel(monthKey: string, locale: Locale): string;
+/** Contribution-graph column label from YYYY-MM: zh "M月", en "Mon". */
+export declare function monthShort(monthKey: string, locale: Locale): string;
 /** Monday-first weekday index 0..6 for a UTC day key. */
 export declare function weekdayIndexUTC(key: string): number;
 /** Time-of-day label for "updated at" (UTC, matching the day-key declaration). */

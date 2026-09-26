@@ -145,6 +145,7 @@ function loadIpc(options = {}) {
       locale: 'zh',
       theme: 'midnight',
       workspace: '',
+      ...(options.config || {}),
     }),
     saveConfig: (patch) => {
       saveConfigCalls.push(patch);
@@ -283,7 +284,7 @@ function loadIpc(options = {}) {
     },
     uninstallPlugin: async (name, opts) => {
       uninstallCalls.push({ name, options: opts });
-      return { ok: true };
+      return options.uninstallResult || { ok: true };
     },
     installMarketplacePlugin: async (id, opts) => {
       installMarketplaceCalls.push({ id, options: opts });
@@ -1317,6 +1318,82 @@ test('disable-plugin keeps ok when harness restart fails after disk write', asyn
     assert.equal(ipc.startHarness(), 1);
   } finally {
     ipc.restore();
+  }
+});
+
+test('remove-plugin drops the disabled entry only after a successful uninstall', async () => {
+  const ipc = loadIpc({
+    config: { disabledPlugins: ['user-pack', 'other-pack'] },
+    dsh: {
+      state: 'idle',
+      logs: [],
+      snapshot: () => ({ state: 'idle' }),
+    },
+  });
+  try {
+    const result = await ipc.invoke('shell:remove-plugin', launcherEvent(), 'user-pack');
+    assert.equal(result.ok, true);
+    const writes = ipc.saveConfigCalls.filter((patch) => Array.isArray(patch.disabledPlugins));
+    assert.equal(writes.length, 1);
+    assert.deepEqual(writes[0].disabledPlugins, ['other-pack']);
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('remove-plugin keeps the disabled entry when uninstall fails', async () => {
+  const ipc = loadIpc({
+    config: { disabledPlugins: ['user-pack'] },
+    uninstallResult: { ok: false, error: 'io-error' },
+    dsh: {
+      state: 'idle',
+      logs: [],
+      snapshot: () => ({ state: 'idle' }),
+    },
+  });
+  try {
+    const result = await ipc.invoke('shell:remove-plugin', launcherEvent(), 'user-pack');
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'io-error');
+    // A crashed-plugin disable must survive a failed uninstall — writing
+    // disabledPlugins here would silently re-enable it on the next start.
+    assert.equal(
+      ipc.saveConfigCalls.filter((patch) => patch.disabledPlugins !== undefined).length,
+      0,
+    );
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('remove-plugin in the slim package refuses with desktop-only', async () => {
+  process.env.DSHD_LAUNCHER_PACKAGE = '1';
+  const productPath = require.resolve('../launcher/product');
+  const previousProduct = require.cache[productPath];
+  delete require.cache[productPath];
+  const ipc = loadIpc({
+    dsh: {
+      state: 'idle',
+      logs: [],
+      snapshot: () => ({ state: 'idle' }),
+    },
+  });
+  try {
+    const result = await ipc.invoke('shell:remove-plugin', launcherEvent(), 'user-pack');
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'desktop-only');
+    // The vendored `dsh plugin` CLI does not exist in the slim package — the
+    // op must refuse before touching the runtime config or spawning.
+    assert.equal(ipc.uninstallCalls.length, 0);
+    assert.equal(
+      ipc.saveConfigCalls.filter((patch) => patch.disabledPlugins !== undefined).length,
+      0,
+    );
+  } finally {
+    ipc.restore();
+    delete process.env.DSHD_LAUNCHER_PACKAGE;
+    delete require.cache[productPath];
+    if (previousProduct) require.cache[productPath] = previousProduct;
   }
 });
 

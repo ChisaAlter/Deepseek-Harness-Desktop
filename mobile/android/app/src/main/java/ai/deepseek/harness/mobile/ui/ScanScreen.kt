@@ -132,7 +132,7 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit, onPaste: () -> Un
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    "连接 DeepSeek Harness",
+                    "连接 Whale Isle",
                     color = palette.labelPrimary,
                     fontSize = 16.sp,
                     lineHeight = 22.sp,

@@ -63,9 +63,9 @@ function fakeSettings(registered = true): FakeSettings {
     section: {},
     events: [],
     failWrites: null,
-    get(ns: string): unknown {
-      if (!fake.registered || ns !== 'ui-conversation') return undefined
-      return fake.section
+    describe(): Array<{ ns: string; value: unknown }> {
+      if (!fake.registered) return []
+      return [{ ns: 'ui-conversation', value: fake.section }]
     },
     async update(ns: string, patch: object): Promise<void> {
       if (!fake.registered) throw new Error('settings namespace "' + ns + '" is not registered')

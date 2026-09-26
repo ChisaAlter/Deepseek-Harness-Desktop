@@ -6,18 +6,21 @@
 | **status** | `active` |
 | **last verified (restart)** | 2026-09-08 — 105 项 controller/window/IPC 检查通过；延迟 boot 导航回归及隔离 Electron 内置重启恢复可见 Bot 界面通过 |
 | **last verified (boot canvas)** | 2026-09-18 — 用户提供的 `assets/whale-spin.svg` 原样用作 112px 中区旋转加载动画，减少动态效果时换 `assets/whale-head.png`；Electron 两帧验证旋转/静态切换，32 项定向与全量 1775 项通过（2 跳过）；源码预启动构建受已有 openNoDirectory 类型错误阻塞。 |
+| **implementation note (boot canvas)** | 2026-09-25 — 三段响应式布局、隐藏按钮样式和恢复跳板条件已更新；本次没有运行测试或检查运行时画面，验证待补。 |
 | **last verified (IPC auth, B2)** | 2026-09-20 — boot 角色授权边界复核：`ipcSenderRole` 仅在 sender 属于主窗 boot webContents、frame 为其**顶层 frame**、URL 通过 `isLocalAppNavigationUrl` 且 sender 未销毁时才返回 `IPC_ROLES.BOOT`；子 frame、已销毁 sender、导航离开 boot 页、被替换的 webContents 一律 `null`，`assertIpcSender` 抛 `ERR_DSH_IPC_SENDER`。`ipc-authorization.test.js` 7/7。boot 页动作面仍限定为 `shell:restart` / `shell:open-launcher` 等既有通道，本轮未新增 boot 侧 IPC，也未改 `--boot-*` 作用域。 |
 | **last verified** | 2026-09-19 — 最小化/还原闪屏两连修：①`data-harness-covered` 下 boot 文档 `visibility:hidden` + html/body 画布透明，合成层空窗期回落到与 harness 页面同步的窗口背景而非仪器画布；②harness BrowserView `backgroundThrottling:false`，窗口隐藏期间持续产帧，消除还原时主表面先上屏、View 帧晚一拍的空白闪屏（浅色主题下表现为白屏）。window-harness-cover 契约 11 项通过。此前：2026-09-18 — 用户提供的 `assets/whale-spin.svg` 原样用作 112px 中区旋转加载动画，减少动态效果时换 `assets/whale-head.png`；Electron 两帧验证旋转/静态切换，32 项定向与全量 1775 项通过（2 跳过）；源码预启动构建受已有 openNoDirectory 类型错误阻塞。 |
 
 ## User paths
 
-1. 冷启动先开启动器（更新 / 导入 / 版本 / 问诊）。启动桌面端后，主窗见仪器画布：鲸鱼旋转加载动画（`assets/whale-spin.svg` 2 秒循环 112px，`.mark` 提到扫描线遮罩之上，`prefers-reduced-motion` 换 `assets/whale-head.png` 静态头像）、品牌名、状态戳、等宽日志；插件进度留在此页。
+1. 冷启动先开启动器（更新 / 导入 / 版本 / 问诊）。启动桌面端后，主窗见三段式仪器画布：顶部状态戳、中央鲸鱼旋转加载动画（`assets/whale-spin.svg` 2 秒循环 112px，`.mark` 提到扫描线遮罩之上，`prefers-reduced-motion` 换 `assets/whale-head.png` 静态头像）与 Whale Isle 名称、底部等宽日志；布局随窗口高度变化，短窗的诊断详情与动作可滚动访问；插件进度留在此页。
 2. 就绪后露出官方 Web UI；不切到官方「正在加载插件」页代替 boot。
-3. 失败：ERROR 态、重试、导出日志，另有「回启动器排查」跳板打开启动器 home tab（Recovery Board）；用户插件弄挂可跳过插件树后再试完整插件。插件级排查（归因、逐项/批量禁用）在 Recovery Board 做，不在 boot 页。
+3. 失败：ERROR 态、重试、导出日志；自动重启排程或进行期间隐藏「回启动器排查」跳板，恢复停止后该跳板可打开启动器 home tab（Recovery Board）；用户插件弄挂可跳过插件树后再试完整插件。插件级排查（归因、逐项/批量禁用）在 Recovery Board 做，不在 boot 页。
 
 ## Invariants
 
 - 启动页是整窗仪器画布例外；`--boot-*` **不得**扩散到启动器、设置、关闭遮罩、标题栏或官方 Web UI。
+- 启动画布的品牌名为 Whale Isle；保留仪器画布产品结构与既有恢复语义，画布内布局可按窗口高度响应式调整。
+- 插件进度只呈现 controller / 插件事件提供的状态，不估算百分比或添加虚构步骤；启动器跳板只在 settled `error` 且恢复状态非 `scheduled` / `restarting` 时出现。
 - 禁止 NERV / MAGI / SEELE / EVA 等商标或官方标志挪用。
 - 插件装载进度留在 boot 画布。
 - 未完成的 boot 导航由恢复与手动重启共享等待；旧导航不得在新的 Harness 揭示后覆盖主界面。
@@ -28,9 +31,9 @@
 ## Allowed touch
 
 - `src/renderer/boot.html` / `boot.css` / `boot.js` / `boot-tokens.css` / `boot-recovery.js`
-- `src/main/harness-controller.js`、`harness-extract.js`、`window.js`、`boot-log-dump.js`、`plugin-tree-failure.js`、`plugin-recovery-actions.js`
+- `src/main/harness-controller.js`、`harness-extract.js`、`window.js`、`window-harness-cover.test.js`（boot 布局断言）、`boot-log-dump.js`、`plugin-tree-failure.js`、`plugin-recovery-actions.js`
 - `assets/whale-spin.svg`、`assets/whale-head.png` — 用户指定的加载与品牌资源
-- 本卡与 handbook boot / plugin-recovery 章
+- 本卡、[启动页决策记录](../decisions/implemented/product/2026-09-25-boot-page-responsive-instrument-canvas.md)、handbook boot / plugin-recovery 章、[design-language 桌面启动页段](../design-language.md#桌面启动页)及其英文配对
 
 ## Do not touch
 
@@ -46,6 +49,7 @@
 
 ## Sources
 
+- Decision: [启动页使用三段响应式仪器画布](../decisions/implemented/product/2026-09-25-boot-page-responsive-instrument-canvas.md)
 - Decision: [统一鲸鱼品牌资源](../decisions/implemented/product/2026-09-18-whale-brand-assets.md)
 
 - Handbook：[../handbook/modules/boot-lifecycle.md](../handbook/modules/boot-lifecycle.md)、[../handbook/flows/boot-to-ready.md](../handbook/flows/boot-to-ready.md)

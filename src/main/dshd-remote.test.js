@@ -531,6 +531,17 @@ test('daemon start failure surfaces the child error and stderr tail', async () =
   assert.match(snap.error, /EADDRINUSE/);
 });
 
+test('a stale saved bind address fails the pairing page listen with an actionable error', async () => {
+  const remote = new DshdRemote({
+    getConfig: () => ({ remoteBindAddress: '192.0.2.1' }),
+    getHomeDir: () => os.tmpdir(),
+  });
+  // 192.0.2.1 (TEST-NET-1) is never a local address → deterministic EADDRNOTAVAIL,
+  // same failure shape as a WSL/vEthernet address surviving a subnet rebuild.
+  await assert.rejects(remote.ensureMobileWebServer(), /监听地址 192\.0\.2\.1 已失效.*监听范围/);
+  assert.equal(remote.mobileWebServer, null);
+});
+
 test('a spawn failure (missing executable) rejects fast instead of stalling on a ghost child', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   const f = fakeRemote({

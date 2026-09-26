@@ -6,6 +6,8 @@
 // construction (no such webContents can exist).
 const { createLauncherService } = require('../launcher/launcher-service');
 const { registerLauncherChannels, configPayload } = require('../main/ipc-launcher');
+const ipcComponents = require('../main/ipc-components');
+const ipcDelta = require('../main/ipc-delta');
 const runtimeInstall = require('../launcher/runtime-install');
 
 function registerSlimIpc() {
@@ -27,6 +29,7 @@ function registerSlimIpc() {
     startDesktop: startExternal,
     stopDesktopCleanup: () => {},
     configPayload,
+    statusContributors: [ipcComponents.contributeStatus, ipcDelta.contributeStatus],
   });
   registerLauncherChannels({
     launcher,
@@ -34,6 +37,7 @@ function registerSlimIpc() {
     harness: null,
     startDesktop: startExternal,
     recordBootRestart: async () => {},
+    extraChannels: [ipcComponents, ipcDelta],
   });
 }
 

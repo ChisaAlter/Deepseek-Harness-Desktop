@@ -1280,7 +1280,7 @@ function createPricesSource(settings, warn) {
   function readSection() {
     let section;
     try {
-      section = settings.get(CONVERSATION_SETTINGS_NS);
+      section = settings.describe().find((entry) => entry.ns === CONVERSATION_SETTINGS_NS)?.value;
     } catch (err) {
       warnOnce("settings read failed: " + String(err?.message ?? err));
       return false;
@@ -1299,11 +1299,8 @@ function createPricesSource(settings, warn) {
       if (!observed) readSection();
       return cached;
     },
-    adoptSection(section) {
-      const prices = pricesOf(section);
-      if (prices === null) return;
-      cached = prices;
-      observed = true;
+    refresh() {
+      readSection();
     },
     async save(prices) {
       const { prices: repaired } = repairFlatEntries(prices);
@@ -1450,6 +1447,113 @@ async function compressZstdFrame(input) {
   return zstdCompressAsync(input, CHECKSUM_OPTIONS);
 }
 
+// src/host/storage-rows.ts
+var CHUNK_TAGS = /* @__PURE__ */ new Set(["text-chunks", "reasoning-chunks", "tool-call-chunks"]);
+function isRecord(value) {
+  return typeof value === "object" && value !== null;
+}
+function hasExactKeys(value, keys) {
+  return Object.keys(value).length === keys.length && keys.every((k) => Object.hasOwn(value, k));
+}
+function malformed(tag, why) {
+  throw new Error(`malformed ${tag} storage row: ${why}`);
+}
+function validateRunData(tag, data, payloadKey) {
+  if (typeof data.turn !== "number" || typeof data.step !== "number" || typeof data.index !== "number") {
+    malformed(tag, "turn/step/index must be numbers");
+  }
+  const payload = data[payloadKey];
+  if (!Array.isArray(payload) || payload.length === 0 || payload.some((entry) => typeof entry !== "string")) {
+    malformed(tag, `${payloadKey} must be a non-empty string array`);
+  }
+  const dt = data.dt;
+  if (!Array.isArray(dt) || dt.some((gap) => !Number.isSafeInteger(gap))) {
+    malformed(tag, "dt must be an array of safe integers");
+  }
+  if (dt.length !== payload.length - 1) {
+    malformed(tag, `dt length ${dt.length} does not match ${payload.length} members`);
+  }
+  return payload;
+}
+function validateRow(value, tag) {
+  if (!hasExactKeys(value, ["type", "seq0", "time0", "data"])) {
+    malformed(tag, "envelope must be exactly {type, seq0, time0, data}");
+  }
+  if (!Number.isSafeInteger(value.seq0) || value.seq0 < 0) malformed(tag, "seq0 must be a non-negative safe integer");
+  if (!Number.isSafeInteger(value.time0)) malformed(tag, "time0 must be a safe integer");
+  const data = value.data;
+  if (!isRecord(data)) malformed(tag, "data must be an object");
+  let payload;
+  if (tag === "tool-call-chunks") {
+    const withName = hasExactKeys(data, ["turn", "step", "index", "id", "name", "dt", "args"]);
+    if (!withName && !hasExactKeys(data, ["turn", "step", "index", "id", "dt", "args"])) {
+      malformed(tag, "data must be exactly {turn, step, index, id, name?, dt, args}");
+    }
+    if (typeof data.id !== "string" || withName && typeof data.name !== "string") {
+      malformed(tag, "id (and name when present) must be strings");
+    }
+    payload = validateRunData(tag, data, "args");
+  } else {
+    if (!hasExactKeys(data, ["turn", "step", "index", "dt", "texts"])) {
+      malformed(tag, "data must be exactly {turn, step, index, dt, texts}");
+    }
+    payload = validateRunData(tag, data, "texts");
+  }
+  if (!Number.isSafeInteger(value.seq0 + payload.length - 1)) malformed(tag, "member seqs must stay safe integers");
+  let time = value.time0;
+  for (const gap of data.dt) {
+    time += gap;
+    if (!Number.isSafeInteger(time)) malformed(tag, "member times must stay safe integers");
+  }
+  return value;
+}
+function expandRow(row) {
+  const members = row.type === "tool-call-chunks" ? row.data.args : row.data.texts;
+  const events = [];
+  let time = row.time0;
+  for (let k = 0; k < members.length; k++) {
+    if (k > 0) time += row.data.dt[k - 1];
+    let chunk;
+    switch (row.type) {
+      case "text-chunks":
+        chunk = { type: "text-delta", index: row.data.index, text: members[k] };
+        break;
+      case "reasoning-chunks":
+        chunk = { type: "reasoning-delta", index: row.data.index, text: members[k] };
+        break;
+      case "tool-call-chunks":
+        chunk = {
+          type: "tool-call-delta",
+          index: row.data.index,
+          id: row.data.id,
+          ...Object.hasOwn(row.data, "name") ? { name: row.data.name } : {},
+          argumentsDelta: members[k]
+        };
+        break;
+      default:
+        throw new Error(`unreachable chunk row tag: ${row.type}`);
+    }
+    events.push({
+      type: "assistant/chunk",
+      seq: row.seq0 + k,
+      time,
+      data: { turn: row.data.turn, step: row.data.step, chunk }
+    });
+  }
+  return events;
+}
+function decodeStorageRecord(value) {
+  if (!isRecord(value)) return [value];
+  const tag = value.type;
+  if (tag !== "text-chunks" && tag !== "reasoning-chunks" && tag !== "tool-call-chunks") {
+    if (typeof tag === "string" && CHUNK_TAGS.has(tag) === false && tag.endsWith("-chunks")) {
+      throw new Error(`unrecognised packed storage row tag: ${tag}`);
+    }
+    return [value];
+  }
+  return expandRow(validateRow(value, tag));
+}
+
 // src/host/session-repair.ts
 function resolveDshHome() {
   const env = process.env.DSH_HOME;
@@ -1508,6 +1612,101 @@ async function locateSessionArtifact(home, sessionId) {
   }
   return null;
 }
+var SESSION_FORMAT_VERSION = 4;
+var RELEASED_V3_EVENT_TYPES = /* @__PURE__ */ new Set([
+  "agent-preset/selected",
+  "agent/inbox/spliced",
+  "approval/asked",
+  "approval/decided",
+  "approval/policy",
+  "assistant/attempt",
+  "assistant/message",
+  "command/done",
+  "command/run",
+  "compaction/end",
+  "compaction/prune",
+  "compaction/start",
+  "compaction/summary",
+  "deliverables/presented",
+  "feedback/message-delete",
+  "feedback/message-put",
+  "feedback/record",
+  "goal/change",
+  "hook/invoked",
+  "hook/result",
+  "image/offload",
+  "llm/retry",
+  "llm/retry-started",
+  "model/selection",
+  "permission/preset",
+  "plan/mode",
+  "request/context",
+  "request/header",
+  "sandbox/mode",
+  "schedule/change",
+  "session-log-deepseek/delivery-accepted",
+  "session/end-seed",
+  "session/title",
+  "session/title-llm-request",
+  "step/end",
+  "step/start",
+  "subagent/catalog",
+  "subagent/descriptor",
+  "subagent/model-selection-policy",
+  "system/message",
+  "team/member",
+  "team/message/delivered",
+  "team/message/queued",
+  "team/task",
+  "todo/write",
+  "tool-workflow/agent-end",
+  "tool-workflow/agent-start",
+  "tool-workflow/run-end",
+  "tool-workflow/run-start",
+  "tool/call",
+  "tool/ptc-dispatch",
+  "tool/ptc-dispatch-start",
+  "tool/result",
+  "turn/end",
+  "turn/start",
+  "user/message",
+  "web/deepseek-search-llm-request",
+  "workspace/changes"
+]);
+function headerVersion(header) {
+  let parsed;
+  try {
+    parsed = JSON.parse(header);
+  } catch {
+    throw new Error("corrupt session log: header line is not valid JSON");
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("corrupt session log: first line is not a session header");
+  }
+  const version = parsed.version;
+  return typeof version === "number" ? version : void 0;
+}
+function admitV3Lines(bodyLines) {
+  const out = [];
+  for (let i = 0; i < bodyLines.length; i++) {
+    const line = bodyLines[i];
+    if (line.trim() === "") continue;
+    let row;
+    try {
+      row = JSON.parse(line);
+    } catch {
+      throw new Error("unparsable committed event at line " + (i + 2));
+    }
+    const record = row;
+    if (typeof record === "object" && record !== null && !Array.isArray(record) && typeof record.type === "string" && typeof record.seq === "number" && !RELEASED_V3_EVENT_TYPES.has(record.type) && record["ignorable"] !== true) {
+      record.ignorable = true;
+      out.push(JSON.stringify(record));
+    } else {
+      out.push(line);
+    }
+  }
+  return out;
+}
 async function rebuildSessionLog(bytes, decode) {
   const { frames, tornStart } = scanZstdFrames(bytes);
   if (frames.length === 0) {
@@ -1519,9 +1718,22 @@ async function rebuildSessionLog(bytes, decode) {
   const lines = plain.split("\n");
   const header = lines[0] ?? "";
   if (header.trim() === "") throw new Error("empty or header-less session log");
+  const version = headerVersion(header);
+  if (version !== void 0 && version > SESSION_FORMAT_VERSION) {
+    throw new Error(`session log format v${version} is newer than the supported v${SESSION_FORMAT_VERSION}`);
+  }
   let bodyLines = lines.slice(1);
   if (!plain.endsWith("\n") && bodyLines.length > 0) {
     bodyLines = bodyLines.slice(0, -1);
+  }
+  if (version === 3) {
+    const admitted = admitV3Lines(bodyLines);
+    if (admitted.length === 0) throw new Error("no events found in session log");
+    const rebuilt2 = Buffer.concat([
+      await compressZstdFrame(header + "\n"),
+      await compressZstdFrame(admitted.join("\n") + "\n")
+    ]);
+    return { events: admitted.length, rebuilt: rebuilt2, header };
   }
   const events = [];
   for (let i = 0; i < bodyLines.length; i++) {
@@ -1564,12 +1776,6 @@ async function repairSessionLog(home, sessionId, decode) {
     backup,
     bytesBefore: bytes.length,
     bytesAfter: rebuilt.rebuilt.length
-  };
-}
-async function runtimeCodec() {
-  const mod = await import("@deepseek-ai/dsh-session");
-  return {
-    decode: (value) => mod.decodeStorageRecord(value)
   };
 }
 
@@ -1739,8 +1945,8 @@ function apply(ctx) {
   });
   const settings = ctx.get("settings");
   const pricesSource = createPricesSource(settings, (message) => console.warn(tag, message));
-  ctx.on("settings/updated", (ns, next) => {
-    if (String(ns) === CONVERSATION_SETTINGS_NS) pricesSource.adoptSection(next);
+  ctx.on("settings/document-updated", (ns) => {
+    if (String(ns) === CONVERSATION_SETTINGS_NS) pricesSource.refresh();
   });
   const pricesRepair = createPricesRepair({
     prices: pricesSource,
@@ -2108,8 +2314,7 @@ function apply(ctx) {
     if (!isRepairableSessionId(sessionId, failedSessionIds)) {
       throw new Error("invalid session id");
     }
-    const codec = await runtimeCodec();
-    const outcome = await repairSessionLog(resolveDshHome(), sessionId, codec.decode);
+    const outcome = await repairSessionLog(resolveDshHome(), sessionId, decodeStorageRecord);
     failedSessionIds = failedSessionIds.filter((id) => id !== sessionId);
     cache = null;
     aggregate = null;

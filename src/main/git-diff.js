@@ -110,6 +110,7 @@ function parseUnifiedDiff(text) {
     if (!hunk) continue;
     if (line.startsWith('+')) hunk.lines.push({ kind: 'add', text: line.slice(1) });
     else if (line.startsWith('-')) hunk.lines.push({ kind: 'del', text: line.slice(1) });
+    else if (line.startsWith('\\')) hunk.lines.push({ kind: 'eof', text: line.slice(1).trim() });
     else if (line.startsWith(' ')) hunk.lines.push({ kind: 'context', text: line.slice(1) });
   }
   if (current) files.push(current);

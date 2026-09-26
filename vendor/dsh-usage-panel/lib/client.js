@@ -67,16 +67,11 @@ window.__ModuleLoader__.load({
       "kpi.cost.none": "\u6682\u65E0\u5DF2\u5B9A\u4EF7\u6A21\u578B",
       "sessions.cost.none": "\u8BE5\u4F1A\u8BDD\u6A21\u578B\u672A\u5B9A\u4EF7",
       "heat.title": "\u6D3B\u8DC3\u70ED\u529B\u56FE",
-      "heat.sub": "{month} \xB7 UTC",
       "heat.sub.fallback": "\u6700\u8FD1 182 \u5929 \xB7 UTC",
-      "heat.month": "\u6708\u4EFD",
-      "heat.start": "\u5F00\u59CB\u65E5\u671F",
-      "heat.end": "\u7ED3\u675F\u65E5\u671F",
-      "heat.reset": "\u91CD\u7F6E\u65E5\u671F",
-      "heat.summary": "\u6D3B\u8DC3 {active} \u5929 \xB7 \u5DF2\u9009 {total} \u5929",
-      "heat.monthNav": "\u5207\u6362\u6708\u4EFD",
-      "heat.prev": "\u4E0A\u4E00\u6708",
-      "heat.next": "\u4E0B\u4E00\u6708",
+      "heat.window": "{tokens} Tokens \xB7 \u6D3B\u8DC3 {active} \u5929",
+      "heat.range": "{range}\uFF1A{tokens} Tokens \xB7 \u6D3B\u8DC3 {active}/{total} \u5929",
+      "heat.clear": "\u6E05\u9664\u9009\u62E9",
+      "heat.hint": "\u5355\u51FB\u9009\u4E2D\u65E5\u671F\uFF0CShift+\u5355\u51FB\u6269\u5C55\u8303\u56F4",
       "heat.less": "\u5C11",
       "heat.more": "\u591A",
       "heat.day": "{date} \xB7 {tokens} Tokens",
@@ -215,16 +210,11 @@ window.__ModuleLoader__.load({
       "kpi.cost.none": "No priced models yet",
       "sessions.cost.none": "This session has unpriced models",
       "heat.title": "Activity heatmap",
-      "heat.sub": "{month} \xB7 UTC",
       "heat.sub.fallback": "Last 182 days \xB7 UTC",
-      "heat.month": "Month",
-      "heat.start": "From",
-      "heat.end": "To",
-      "heat.reset": "Reset dates",
-      "heat.summary": "{active} active days \xB7 {total} selected",
-      "heat.monthNav": "Switch month",
-      "heat.prev": "Previous month",
-      "heat.next": "Next month",
+      "heat.window": "{tokens} tokens \xB7 {active} active days",
+      "heat.range": "{range}: {tokens} tokens \xB7 {active}/{total} active days",
+      "heat.clear": "Clear selection",
+      "heat.hint": "Click a day \xB7 Shift+click for a range",
       "heat.less": "Less",
       "heat.more": "More",
       "heat.day": "{date} \xB7 {tokens} tokens",
@@ -488,30 +478,32 @@ window.__ModuleLoader__.load({
       ".dsw-ust-empty{background:var(--dsw-alias-bg-layer-1);border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;padding:32px 20px;text-align:center;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}",
       ".dsw-ust-empty-title{font-size:14px;line-height:22px;font-weight:600;color:var(--dsw-alias-label-primary);margin-bottom:4px}",
       ".dsw-ust-heat-card{overflow:hidden}",
-      ".dsw-ust-calendar-controls{display:flex;align-items:end;gap:8px 12px;flex-wrap:wrap;padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--dsw-alias-border-l1)}",
-      ".dsw-ust-calendar-field{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
-      ".dsw-ust-calendar-field input{width:110px;max-width:100%;font-size:12px;line-height:18px}",
-      ".dsw-ust-heat-layout{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap}",
-      ".dsw-ust-calendar{width:224px;flex:0 0 224px;max-width:100%}",
-      ".dsw-ust-calendar-weekdays,.dsw-ust-calendar-grid{display:grid;grid-template-columns:repeat(7,24px);gap:6px 8px}",
-      ".dsw-ust-calendar-weekdays{margin-bottom:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;text-align:center}",
-      ".dsw-ust-calendar-day,.dsw-ust-calendar-blank{width:24px;height:24px;border-radius:4px}",
-      ".dsw-ust-calendar-day{padding:0;border:0;color:var(--dsw-alias-label-primary);font:500 11px/24px var(--dsw-font-family);text-align:center;cursor:pointer;transition:opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out),box-shadow var(--ds-transition-duration-fast) var(--ds-ease-in-out)}",
-      ".dsw-ust-calendar-day.dsw-ust-h3,.dsw-ust-calendar-day.dsw-ust-h4{color:var(--dsw-alias-bg-layer-1)}",
-      ".dsw-ust-calendar-day.is-outside{opacity:.3}",
-      ".dsw-ust-calendar-day:hover,.dsw-ust-calendar-day:focus-visible{opacity:1;outline:2px solid var(--dsw-alias-state-link-primary);outline-offset:2px}",
-      ".dsw-ust-calendar-day[aria-pressed=true]{outline:2px solid var(--dsw-alias-state-link-primary);outline-offset:2px}",
-      ".dsw-ust-heat-summary{display:flex;flex-direction:column;align-items:flex-start;min-width:160px;flex:1;padding-top:24px}",
-      ".dsw-ust-heat-summary-label,.dsw-ust-heat-summary-unit,.dsw-ust-heat-summary-detail{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
-      ".dsw-ust-heat-summary strong{margin-top:6px;font-size:22px;line-height:28px;font-weight:600;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}",
-      ".dsw-ust-heat-summary-detail{margin-top:8px}",
-      ".dsw-ust-h0{background:color-mix(in srgb, var(--dsw-alias-label-secondary) 14%, var(--dsw-alias-bg-layer-1));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l2)}",
-      ".dsw-ust-h1{background:var(--dsw-static-deepseek-100)}",
-      ".dsw-ust-h2{background:var(--dsw-static-deepseek-300)}",
-      ".dsw-ust-h3{background:var(--dsw-static-deepseek-500)}",
-      ".dsw-ust-h4{background:var(--dsw-static-deepseek-600)}",
-      ".dsw-ust-heat-legend{display:flex;align-items:center;gap:4px;margin-top:18px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);flex-shrink:0}",
-      ".dsw-ust-heat-swatch{width:12px;height:12px;border-radius:4px;display:inline-block}",
+      ".dsw-ust-graph-wrap{overflow-x:auto;padding-bottom:2px}",
+      '.dsw-ust-graph{display:inline-grid;grid-template-areas:"corner months" "weekdays cells";grid-template-columns:auto auto;column-gap:6px;row-gap:4px;min-width:max-content}',
+      ".dsw-ust-graph-months{grid-area:months;display:grid;column-gap:3px;height:16px;overflow:visible}",
+      ".dsw-ust-graph-months>span{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary);white-space:nowrap}",
+      ".dsw-ust-graph-weekdays{grid-area:weekdays;display:grid;grid-template-rows:repeat(7,12px);row-gap:3px;width:20px}",
+      ".dsw-ust-graph-weekdays>span{font-size:10px;line-height:12px;color:var(--dsw-alias-label-tertiary);overflow:hidden;white-space:nowrap}",
+      ".dsw-ust-graph-cells{grid-area:cells;display:grid;grid-template-rows:repeat(7,12px);grid-auto-columns:12px;grid-auto-flow:column;gap:3px}",
+      ".dsw-ust-graph-day,.dsw-ust-graph-pad{width:12px;height:12px;border-radius:3px}",
+      ".dsw-ust-graph-day{display:block;padding:0;border:0;cursor:pointer;transition:opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out),box-shadow var(--ds-transition-duration-fast) var(--ds-ease-in-out)}",
+      ".dsw-ust-graph-pad{display:block;visibility:hidden}",
+      ".dsw-ust-graph-day.is-outside{opacity:.3}",
+      ".dsw-ust-graph-day:hover,.dsw-ust-graph-day:focus-visible{opacity:1;outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}",
+      ".dsw-ust-graph-day[aria-pressed=true]{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:1px}",
+      ".dsw-ust-graph-footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;min-height:24px}",
+      ".dsw-ust-graph-summary{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}",
+      ".dsw-ust-graph-hint{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary)}",
+      ".dsw-ust-h0{background:color-mix(in srgb, var(--dsw-alias-label-secondary) 14%, transparent)}",
+      // Levels mix the brand accent over the card surface so the ramp stays
+      // monotonic in BOTH themes — static deepseek-100..600 reads inverted on
+      // dark (level 1 near-white, level 4 darker than 3).
+      ".dsw-ust-h1{background:color-mix(in srgb, var(--dsw-static-deepseek-500) 26%, var(--dsw-alias-bg-layer-1))}",
+      ".dsw-ust-h2{background:color-mix(in srgb, var(--dsw-static-deepseek-500) 48%, var(--dsw-alias-bg-layer-1))}",
+      ".dsw-ust-h3{background:color-mix(in srgb, var(--dsw-static-deepseek-500) 74%, var(--dsw-alias-bg-layer-1))}",
+      ".dsw-ust-h4{background:var(--dsw-static-deepseek-500)}",
+      ".dsw-ust-heat-legend{display:flex;align-items:center;gap:4px;margin-left:auto;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);flex-shrink:0}",
+      ".dsw-ust-heat-swatch{width:12px;height:12px;border-radius:3px;display:inline-block}",
       ".dsw-ust-bar-seg{transform-origin:bottom;transform-box:fill-box;animation:dsw-ust-bar-grow .9s cubic-bezier(.16,1,.3,1) both}",
       ".dsw-ust-donut-seg{transform-box:fill-box;transform-origin:center;animation:dsw-ust-donut-spin .9s cubic-bezier(.16,1,.3,1) both}",
       "@keyframes dsw-ust-bar-grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}",
@@ -522,7 +514,7 @@ window.__ModuleLoader__.load({
       ".dsw-ust-table-head{display:flex;align-items:center;gap:12px;padding:4px 4px 6px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}",
       ".dsw-ust-sort{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
       ".dsw-ust-sort select{padding:2px 6px;border-radius:4px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px}",
-      ".dsw-ust-more{display:block;margin:10px auto 0;border:none;background:transparent;color:var(--dsw-alias-state-link-primary);font-size:12px;line-height:18px;cursor:pointer;padding:2px 8px}",
+      ".dsw-ust-more{display:block;margin:10px auto 0;border:none;background:transparent;color:var(--dsw-alias-state-business-primary);font-size:12px;line-height:18px;cursor:pointer;padding:2px 8px}",
       ".dsw-ust-more:disabled{opacity:0.5;cursor:default}",
       // Rank-column widths shared by the session/project tables (fixed header).
       ".dsw-ust-th-rank{width:20px;flex-shrink:0}",
@@ -592,7 +584,7 @@ window.__ModuleLoader__.load({
       ".dsw-ust-bill-configured-badge.is-official{color:var(--dsw-alias-state-success-primary);border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 45%, transparent)}",
       ".dsw-ust-bill-configured-badge.is-custom{color:var(--dsw-alias-state-business-primary);border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent)}",
       ".dsw-ust-bill-configured-values{color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}",
-      ".dsw-ust-bill-link{border:none;background:transparent;color:var(--dsw-alias-state-link-primary);font-size:12px;line-height:18px;padding:2px 4px;cursor:pointer}",
+      ".dsw-ust-bill-link{border:none;background:transparent;color:var(--dsw-alias-state-business-primary);font-size:12px;line-height:18px;padding:2px 4px;cursor:pointer}",
       ".dsw-ust-bill-link.danger{color:var(--dsw-alias-state-error-primary)}",
       ".dsw-ust-bill-input{display:flex;align-items:center;gap:4px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
       ".dsw-ust-bill-input input{width:72px;padding:2px 6px;border-radius:4px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px;font-variant-numeric:tabular-nums}",
@@ -626,17 +618,33 @@ window.__ModuleLoader__.load({
     function monthKeyUTC(dayKey) {
       return dayKey.slice(0, 7);
     }
-    function listMonthKeys(days) {
-      const keys = [];
-      let prev = "";
-      for (const d of days) {
-        const m = monthKeyUTC(d.date);
-        if (m !== prev) {
-          keys.push(m);
-          prev = m;
+    function graphWeeks(days) {
+      const weeks = [];
+      let week = new Array(7).fill(null);
+      for (const day of days) {
+        const row = (parseDayKeyUTC(day.date).getUTCDay() + 6) % 7;
+        week[row] = day;
+        if (row === 6) {
+          weeks.push(week);
+          week = new Array(7).fill(null);
         }
       }
-      return keys;
+      if (week.some((cell) => cell !== null)) weeks.push(week);
+      return weeks;
+    }
+    function graphMonthLabels(weeks, minGap = 2) {
+      const labels = [];
+      let prevKey = "";
+      for (let w = 0; w < weeks.length; w++) {
+        const first = weeks[w].find((cell) => cell !== null);
+        if (!first) continue;
+        const key = monthKeyUTC(first.date);
+        if (key === prevKey) continue;
+        prevKey = key;
+        labels.push({ week: w, monthKey: key });
+      }
+      if (labels.length > 1 && labels[1].week - labels[0].week < minGap) labels.shift();
+      return labels;
     }
     function hitRate(b) {
       const denominator = b.input + b.cacheRead + b.cacheWrite;
@@ -703,15 +711,9 @@ window.__ModuleLoader__.load({
       return locale === "zh-CN" ? m + "\u6708" + d + "\u65E5" : m + "/" + d;
     }
     var EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    function monthLabel(monthKey, locale) {
-      const p = monthKey.split("-");
-      const y = p[0];
-      const m = Number(p[1]);
-      if (locale === "zh-CN") return y + "\u5E74" + m + "\u6708";
-      return EN_MONTHS[m - 1] + " " + y;
-    }
-    function weekdayIndexUTC(key) {
-      return (parseDayKeyUTC(key).getUTCDay() + 6) % 7;
+    function monthShort(monthKey, locale) {
+      const m = Number(monthKey.split("-")[1]);
+      return locale === "zh-CN" ? m + "\u6708" : EN_MONTHS[m - 1];
     }
     function formatClock(ts, locale) {
       const d = new Date(ts);
@@ -1195,23 +1197,26 @@ window.__ModuleLoader__.load({
     var import_react3 = require("react");
     var UiPrimitives = __toESM(require("@deepseek-ai/dsh-client-ui-primitives"), 1);
     var React3 = __toESM(require("react"), 1);
-    var { Button, Input, SettingsSelect } = UiPrimitives;
+    var { Button } = UiPrimitives;
     function Heatmap({ days, i18n, onTip, prices, peakValley = true, modelProviders = {} }) {
       const t = i18n.t;
       const locale = i18n.locale;
-      const months = listMonthKeys(days);
       const minDate = days[0]?.date ?? "";
       const maxDate = days[days.length - 1]?.date ?? "";
-      const [pickedMonth, setPickedMonth] = (0, import_react3.useState)(null);
+      const weeks = (0, import_react3.useMemo)(() => graphWeeks(days), [days]);
+      const monthLabels = (0, import_react3.useMemo)(() => graphMonthLabels(weeks), [weeks]);
+      const q = (0, import_react3.useMemo)(
+        () => quartileThresholds(days.filter((day) => day.total > 0).map((day) => day.total)),
+        [days]
+      );
       const [pickedStart, setPickedStart] = (0, import_react3.useState)(null);
       const [pickedEnd, setPickedEnd] = (0, import_react3.useState)(null);
-      const monthKey = pickedMonth && months.includes(pickedMonth) ? pickedMonth : months[months.length - 1] ?? "";
-      const start = pickedStart && pickedStart >= minDate && pickedStart <= maxDate ? pickedStart : minDate;
-      const end = pickedEnd && pickedEnd >= start && pickedEnd <= maxDate ? pickedEnd : maxDate;
-      const byDate = new Map(days.map((day) => [day.date, day]));
-      const monthDays = days.filter((day) => monthKeyUTC(day.date) === monthKey);
-      const selected = days.filter((day) => day.date >= start && day.date <= end && monthKeyUTC(day.date) === monthKey);
-      const q = quartileThresholds(monthDays.filter((day) => day.total > 0).map((day) => day.total));
+      const [focusKey, setFocusKey] = (0, import_react3.useState)(null);
+      const gridRef = (0, import_react3.useRef)(null);
+      const hasRange = pickedStart !== null && pickedEnd !== null && pickedEnd >= minDate;
+      const start = hasRange ? pickedStart : minDate;
+      const end = hasRange ? pickedEnd : maxDate;
+      const selected = days.filter((day) => day.date >= start && day.date <= end);
       const selectedTotal = selected.reduce((sum, day) => sum + day.total, 0);
       const activeDays = selected.filter((day) => day.total > 0).length;
       const showTip = (element, rec) => {
@@ -1237,64 +1242,93 @@ window.__ModuleLoader__.load({
           lines
         });
       };
+      const pick = (key, extend) => {
+        if (extend && pickedStart !== null) {
+          if (key >= pickedStart) {
+            setPickedEnd(key);
+          } else {
+            setPickedEnd(pickedEnd ?? pickedStart);
+            setPickedStart(key);
+          }
+        } else {
+          setPickedStart(key);
+          setPickedEnd(key);
+        }
+      };
+      const focusable = focusKey !== null && focusKey >= minDate && focusKey <= maxDate ? focusKey : maxDate;
+      const moveFocus = (fromKey, delta) => {
+        const d = parseDayKeyUTC(fromKey);
+        d.setUTCDate(d.getUTCDate() + delta);
+        const key = keyOfDateUTC(d);
+        if (key < minDate || key > maxDate) return;
+        setFocusKey(key);
+        gridRef.current?.querySelector(`[data-day="${key}"]`)?.focus();
+      };
+      const onGridKeyDown = (event) => {
+        const cell = event.target.closest("[data-day]");
+        if (!cell) return;
+        const key = cell.dataset.day;
+        const delta = event.key === "ArrowLeft" ? -7 : event.key === "ArrowRight" ? 7 : event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+        if (delta !== 0) {
+          event.preventDefault();
+          moveFocus(key, delta);
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          moveFocus(minDate, 0);
+        } else if (event.key === "End") {
+          event.preventDefault();
+          moveFocus(maxDate, 0);
+        }
+      };
       const cells = [];
-      if (monthKey) {
-        const [year, month] = monthKey.split("-").map(Number);
-        const lead = weekdayIndexUTC(monthKey + "-01");
-        const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
-        const slots = Math.ceil((lead + count) / 7) * 7;
-        for (let slot = 0; slot < slots; slot++) {
-          const date = new Date(Date.UTC(year, month - 1, slot - lead + 1));
-          const key = keyOfDateUTC(date);
-          const rec = monthKeyUTC(key) === monthKey ? byDate.get(key) : void 0;
-          if (!rec) {
-            cells.push(/* @__PURE__ */ React3.createElement("span", { key: key + "-blank", className: "dsw-ust-calendar-blank", "aria-hidden": "true" }));
+      for (const week of weeks) {
+        for (let r = 0; r < 7; r++) {
+          const rec = week[r];
+          if (rec === null || rec === void 0) {
+            cells.push(/* @__PURE__ */ React3.createElement("i", { key: "pad-" + cells.length, className: "dsw-ust-graph-pad", "aria-hidden": "true" }));
             continue;
           }
+          const key = rec.date;
           const outside = key < start || key > end;
-          const level = heatLevel(rec.total, q);
           cells.push(
             /* @__PURE__ */ React3.createElement(
               "button",
               {
                 key,
                 type: "button",
-                className: "dsw-ust-calendar-day dsw-ust-h" + level + (outside ? " is-outside" : ""),
+                "data-day": key,
+                className: "dsw-ust-graph-day dsw-ust-h" + heatLevel(rec.total, q) + (outside ? " is-outside" : ""),
+                tabIndex: key === focusable ? 0 : -1,
                 "aria-label": t("heat.day", { date: dateCN(key, locale), tokens: fmtTokens(rec.total, locale) }),
-                "aria-pressed": start === key && end === key,
-                onClick: () => {
-                  setPickedStart(key);
-                  setPickedEnd(key);
-                },
+                "aria-pressed": hasRange && start === key && end === key,
+                onClick: (event) => pick(key, event.shiftKey),
                 onMouseEnter: (event) => showTip(event.currentTarget, rec),
                 onMouseLeave: () => onTip(null),
-                onFocus: (event) => showTip(event.currentTarget, rec),
+                onFocus: (event) => {
+                  setFocusKey(key);
+                  showTip(event.currentTarget, rec);
+                },
                 onBlur: () => onTip(null)
-              },
-              date.getUTCDate()
+              }
             )
           );
         }
       }
-      const weekdays = locale === "zh-CN" ? ["\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D", "\u65E5"] : ["M", "T", "W", "T", "F", "S", "S"];
-      return /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card dsw-ust-heat-card" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-head" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-title" }, /* @__PURE__ */ React3.createElement("h3", null, t("heat.title")), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-card-sub" }, t("heat.sub.fallback")))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar-controls" }, /* @__PURE__ */ React3.createElement("label", { className: "dsw-ust-calendar-field" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.month")), /* @__PURE__ */ React3.createElement(SettingsSelect, { value: monthKey, options: months.map((key) => ({ id: key, label: monthLabel(key, locale) })), onChange: setPickedMonth, "aria-label": t("heat.month") })), /* @__PURE__ */ React3.createElement("label", { className: "dsw-ust-calendar-field" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.start")), /* @__PURE__ */ React3.createElement(Input, { type: "date", value: start, min: minDate, max: maxDate, onChange: (event) => {
-        const value = event.currentTarget.value;
-        if (value) {
-          setPickedStart(value);
-          if (value > end) setPickedEnd(value);
-          setPickedMonth(monthKeyUTC(value));
-        }
-      } })), /* @__PURE__ */ React3.createElement("label", { className: "dsw-ust-calendar-field" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.end")), /* @__PURE__ */ React3.createElement(Input, { type: "date", value: end, min: minDate, max: maxDate, onChange: (event) => {
-        const value = event.currentTarget.value;
-        if (value) {
-          setPickedEnd(value);
-          if (value < start) setPickedStart(value);
-          setPickedMonth(monthKeyUTC(value));
-        }
-      } })), /* @__PURE__ */ React3.createElement(Button, { variant: "ghost", size: "sm", onClick: () => {
+      const weekdayText = locale === "zh-CN" ? ["\u4E00", "", "\u4E09", "", "\u4E94", "", ""] : ["Mon", "", "Wed", "", "Fri", "", ""];
+      const rangeText = start === end ? dateCN(start, locale) : dateCN(start, locale) + " \u2013 " + dateCN(end, locale);
+      const summaryText = hasRange ? t("heat.range", { range: rangeText, tokens: fmtTokens(selectedTotal, locale), active: activeDays, total: selected.length }) : t("heat.window", { tokens: fmtTokens(selectedTotal, locale), active: activeDays });
+      return /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card dsw-ust-heat-card" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-head" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-title" }, /* @__PURE__ */ React3.createElement("h3", null, t("heat.title")), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-card-sub" }, t("heat.sub.fallback")))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-graph-wrap" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-graph", role: "group", "aria-label": t("heat.title"), onKeyDown: onGridKeyDown }, /* @__PURE__ */ React3.createElement(
+        "div",
+        {
+          className: "dsw-ust-graph-months",
+          "aria-hidden": "true",
+          style: { gridTemplateColumns: "repeat(" + weeks.length + ", 12px)" }
+        },
+        monthLabels.map((label) => /* @__PURE__ */ React3.createElement("span", { key: label.week, style: { gridRow: 1, gridColumn: label.week + 1 } }, monthShort(label.monthKey, locale)))
+      ), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-graph-weekdays", "aria-hidden": "true" }, weekdayText.map((text, row) => /* @__PURE__ */ React3.createElement("span", { key: row, style: { gridRow: row + 1 } }, text))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-graph-cells", ref: gridRef }, cells))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-graph-footer" }, /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-graph-summary", "aria-live": "polite" }, summaryText), hasRange ? /* @__PURE__ */ React3.createElement(Button, { variant: "ghost", size: "sm", onClick: () => {
         setPickedStart(null);
         setPickedEnd(null);
-      } }, t("heat.reset"))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-layout" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar", role: "group", "aria-label": monthLabel(monthKey, locale) }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar-weekdays" }, weekdays.map((day, index) => /* @__PURE__ */ React3.createElement("span", { key: index }, day))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar-grid" }, cells)), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-summary", "aria-live": "polite" }, /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-heat-summary-label" }, monthLabel(monthKey, locale)), /* @__PURE__ */ React3.createElement("strong", null, fmtTokens(selectedTotal, locale)), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-heat-summary-unit" }, "Tokens"), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-heat-summary-detail" }, t("heat.summary", { active: activeDays, total: selected.length })), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-legend" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.less")), [0, 1, 2, 3, 4].map((level) => /* @__PURE__ */ React3.createElement("i", { key: level, className: "dsw-ust-heat-swatch dsw-ust-h" + level })), /* @__PURE__ */ React3.createElement("span", null, t("heat.more"))))));
+      } }, t("heat.clear")) : /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-graph-hint" }, t("heat.hint")), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-legend" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.less")), [0, 1, 2, 3, 4].map((level) => /* @__PURE__ */ React3.createElement("i", { key: level, className: "dsw-ust-heat-swatch dsw-ust-h" + level })), /* @__PURE__ */ React3.createElement("span", null, t("heat.more")))));
     }
 
     // src/client/components/BarChart.tsx

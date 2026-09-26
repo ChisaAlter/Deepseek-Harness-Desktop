@@ -50,6 +50,16 @@ const {
 const {
   ensureSessionSearchOverlay,
 } = require('../src/main/session-search-overlay');
+const {
+  ensureDesktopOfficeRuntime,
+  OFFICE_SKILLS_DIRNAME,
+  OFFICE_SKILL_FOLDERS,
+} = require('../src/main/office-runtime');
+const {
+  ensureDesktopTaskControl,
+  TASK_CONTROL_PACKAGE,
+  TASK_CONTROL_INSERT_ID,
+} = require('../src/main/task-control-overlay');
 
 /**
  * Skip compose contract against the REAL dsh CLI (`dsh web --dump-config`):
@@ -70,6 +80,7 @@ const {
  */
 
 const CANARY_ID = 'dshd-contract-canary-user-plugin';
+const TASK_CONTROL_ID = TASK_CONTROL_INSERT_ID;
 const INSTALL_ID = 'dshd-desktop-plugin-install';
 const IM_ID = DSH_IM_INSERT_ID;
 const USAGE_ID = 'usage-stats';
@@ -77,6 +88,8 @@ const MARKET_ID = DSH_MARKET_INSERT_ID;
 const BOT_ID = DSHBOT_INSERT_ID;
 const WHALE_ID = DSH_WHALE_INSERT_ID;
 const REMOTE_ID = DSH_REMOTE_INSERT_ID;
+const WORKSPACE_DEPS_ID = 'workspace-dependencies';
+const SKILL_OFFICE_ID = 'skill-office';
 const SESSION_SEARCH_ID = 'session-query-sqlite';
 const DUMP_TIMEOUT_MS = 120_000;
 
@@ -258,6 +271,65 @@ function writeDshRemoteFixture(home) {
 }
 
 /**
+ * Minimal first-party dsh-task-control fixture: the real
+ * ensureDesktopTaskControl junctions it into the throwaway profile and emits
+ * its overlay. Task control rides EVERY start (skip included) — the contract
+ * asserts exactly-once composition of its row.
+ * @param {string} home - the throwaway DSH_HOME.
+ * @returns {string} the fixture source directory.
+ */
+function writeTaskControlFixture(home) {
+  const dir = path.join(home, 'fixtures', 'dsh-task-control');
+  fs.mkdirSync(path.join(dir, 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: TASK_CONTROL_PACKAGE,
+    version: '0.0.0-contract',
+    type: 'module',
+    main: './lib/index.js',
+    exports: {
+      '.': './lib/index.js',
+      './cordis.patch.yml': './cordis.patch.yml',
+    },
+    dependencies: {},
+  }, null, 2), 'utf8');
+  fs.writeFileSync(path.join(dir, 'lib', 'index.js'), 'export function apply() {}\n', 'utf8');
+  fs.writeFileSync(path.join(dir, 'cordis.patch.yml'), `- insert:\n    - id: ${TASK_CONTROL_ID}\n      name: ${JSON.stringify(TASK_CONTROL_PACKAGE)}\n`, 'utf8');
+  return dir;
+}
+
+/**
+ * Minimal bundled Office payload fixture so the REAL
+ * ensureDesktopOfficeRuntime writes its overlay in the contract run: a
+ * runtime.json matching the host, a stub standalone Node binary, and the
+ * sibling office-skills tree. The kit CLI/engine checks run against the real
+ * harnessRoot passed to runSkipComposeContract.
+ * @param {string} home - Throwaway DSH_HOME fixture root.
+ * @returns {string} the payload directory to pass as bundledRuntimeDir.
+ */
+function writeOfficeRuntimeFixture(home) {
+  const source = path.join(home, 'fixtures', 'primary-runtime');
+  fs.mkdirSync(path.join(source, 'dependencies', 'node', 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(source, 'runtime.json'), `${JSON.stringify({
+    platform: process.platform,
+    arch: process.arch,
+    payloadDigest: 'contract-fixture',
+  })}\n`, 'utf8');
+  fs.writeFileSync(
+    path.join(source, 'dependencies', 'node', 'bin', process.platform === 'win32' ? 'node.exe' : 'node'),
+    'stub\n',
+    'utf8',
+  );
+  const assetRoot = path.join(path.dirname(source), OFFICE_SKILLS_DIRNAME);
+  fs.mkdirSync(path.join(assetRoot, 'scripts'), { recursive: true });
+  fs.writeFileSync(path.join(assetRoot, 'scripts', 'check_office.py'), '# stub\n', 'utf8');
+  for (const folder of OFFICE_SKILL_FOLDERS) {
+    fs.mkdirSync(path.join(assetRoot, folder), { recursive: true });
+    fs.writeFileSync(path.join(assetRoot, folder, 'SKILL.md'), '---\ndescription: stub\n---\n', 'utf8');
+  }
+  return source;
+}
+
+/**
  * Pure verdict on one dump-config round. The positive assertion comes first:
  * an empty or truncated dump must fail on the missing desktop rows, never
  * pass because the canary also vanished with everything else. Exactly one
@@ -272,6 +344,7 @@ function composeContractProblems(round, stdout) {
   const text = String(stdout || '');
   const problems = [];
   const requiredRows = [
+    [TASK_CONTROL_ID, '桌面内置任务保护'],
     [INSTALL_ID, '桌面安装插件'],
     [USAGE_ID, '桌面内置用量统计'],
     [IM_ID, '桌面内置 dsh-im'],
@@ -279,6 +352,8 @@ function composeContractProblems(round, stdout) {
     [BOT_ID, '桌面内置 dshbot'],
     [WHALE_ID, '桌面内置 dsh-whale'],
     [REMOTE_ID, '桌面内置 dsh-remote'],
+    [WORKSPACE_DEPS_ID, '桌面内置 Office 工作区依赖'],
+    [SKILL_OFFICE_ID, '桌面内置 Office 技能'],
   ];
   for (const [id, label] of requiredRows) {
     const count = countRows(text, id);
@@ -361,9 +436,29 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
       `${CANARY_PATCH}\n${LEGACY_MANAGED_BLOCK(stalePlaceholderHref)}\n${LEGACY_DSH_IM_BLOCK}\n${LEGACY_DSHBOT_BLOCK}\n${LEGACY_DSH_WHALE_BLOCK}\n${LEGACY_DSH_REMOTE_BLOCK}`,
       'utf8',
     );
+    const taskControlEnsure = ensureDesktopTaskControl({
+      sourceDir: writeTaskControlFixture(home),
+      profileDir,
+    });
+    if (!taskControlEnsure || taskControlEnsure.ok !== true) {
+      throw new Error(`skip compose 契约门禁：ensureDesktopTaskControl 失败（${(taskControlEnsure && taskControlEnsure.error) || 'unknown'}）`);
+    }
     const ensure = ensureDesktopInstallPlugin({ profileDir });
     if (!ensure || ensure.ok !== true) {
       throw new Error(`skip compose 契约门禁：ensureDesktopInstallPlugin 失败（${(ensure && ensure.reason) || 'unknown'}）`);
+    }
+    // Office is built-in on every start: the fixture payload stands in for
+    // the packaged resources/runtime payload; kit resolution runs against
+    // the real harnessRoot under test.
+    const officeEnsure = ensureDesktopOfficeRuntime({
+      profileDir,
+      bundledRuntimeDir: writeOfficeRuntimeFixture(home),
+      harnessRoot,
+      dshHome: home,
+      isPackaged: false,
+    });
+    if (!officeEnsure || officeEnsure.ok !== true) {
+      throw new Error(`skip compose 契约门禁：ensureDesktopOfficeRuntime 失败（${(officeEnsure && officeEnsure.error) || 'unknown'}）`);
     }
     const imEnsure = ensureDesktopDshIm({ sourceDir: writeDshImFixture(home), profileDir });
     if (!imEnsure || imEnsure.ok !== true) {
@@ -425,7 +520,9 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
     // inserted before dsh-im on full starts, while dsh-im, market, and
     // dshbot remain present on skip starts too.
     const overlayFiles = [
+      taskControlEnsure.overlayFile,
       ensure.overlayFile,
+      officeEnsure.overlayFile,
       usageEnsure.overlayFile,
       imEnsure.overlayFile,
       marketEnsure.overlayFile,
@@ -434,7 +531,9 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
       remoteEnsure.overlayFile,
     ];
     const fullOverlayFiles = [
+      taskControlEnsure.overlayFile,
       ensure.overlayFile,
+      officeEnsure.overlayFile,
       usageEnsure.overlayFile,
       searchEnsure.overlayFile,
       imEnsure.overlayFile,
@@ -473,6 +572,7 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
 
 module.exports = {
   CANARY_ID,
+  TASK_CONTROL_ID,
   INSTALL_ID,
   IM_ID,
   USAGE_ID,
@@ -480,6 +580,8 @@ module.exports = {
   BOT_ID,
   WHALE_ID,
   REMOTE_ID,
+  WORKSPACE_DEPS_ID,
+  SKILL_OFFICE_ID,
   SESSION_SEARCH_ID,
   composeContractProblems,
   composeContractRounds,

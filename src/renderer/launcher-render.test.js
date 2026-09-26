@@ -1,0 +1,129 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+// Minimal DOM for renderReleases: the function writes innerHTML on the list
+// element, stamps text on the installed card, then binds listeners through
+// querySelectorAll (empty here — wiring is exercised by the real page).
+function fakeDocument() {
+  const els = new Map();
+  const el = () => ({
+    innerHTML: '',
+    textContent: '',
+    hidden: false,
+    title: '',
+    className: '',
+    setAttribute() {},
+    querySelectorAll: () => [],
+    classList: { toggle() {} },
+  });
+  return {
+    els,
+    getElementById(id) {
+      if (!els.has(id)) els.set(id, el());
+      return els.get(id);
+    },
+    querySelectorAll: () => [],
+    addEventListener() {},
+  };
+}
+
+global.window = {};
+global.document = fakeDocument();
+
+const { renderReleases } = require('./launcher');
+
+test('renderReleases renders the delta button when the row carries row.delta', () => {
+  renderReleases({
+    status: 'ok',
+    installed: { version: '0.3.2' },
+    releases: [{
+      tag: 'v0.3.3',
+      version: '0.3.3',
+      newer: true,
+      installable: true,
+      assetName: 'Whale-Isle-Setup-0.3.3.exe',
+      delta: { name: 'Whale-Isle-delta-0.3.2-0.3.3.zip', from: '0.3.2', to: '0.3.3', size: 1200 },
+    }],
+  });
+  const html = global.document.getElementById('release-list').innerHTML;
+  assert.match(html, /data-delta-tag="v0\.3\.3"/);
+  assert.match(html, /增量更新/);
+  assert.match(html, /增量包/);
+});
+
+test('renderReleases falls back to payload.deltas entries shaped as an array', () => {
+  renderReleases({
+    status: 'ok',
+    installed: { version: '0.3.2' },
+    deltas: { available: [{ tag: 'v0.3.3', name: 'd.zip', size: 9 }] },
+    releases: [{
+      tag: 'v0.3.3',
+      version: '0.3.3',
+      newer: true,
+      installable: true,
+      assetName: 'setup.exe',
+    }],
+  });
+  const html = global.document.getElementById('release-list').innerHTML;
+  assert.match(html, /data-delta-tag="v0\.3\.3"/);
+});
+
+test('renderReleases surfaces a newer version badge and CTA on the top card', () => {
+  renderReleases({
+    status: 'ok',
+    installed: { version: '0.3.2' },
+    releases: [{
+      tag: 'v0.3.3',
+      version: '0.3.3',
+      newer: true,
+      installable: true,
+      assetName: 'setup.exe',
+      delta: { name: 'd.zip', size: 5 },
+    }],
+  });
+  assert.match(global.document.getElementById('ver-badge').textContent, /发现新版本 v0\.3\.3/);
+  const cta = global.document.getElementById('ver-cta').innerHTML;
+  assert.match(cta, /增量更新/);
+  assert.match(cta, /更新到此版本/);
+  // The newest row stays collapsed by default; its detail expands in place.
+  const html = global.document.getElementById('release-list').innerHTML;
+  assert.match(html, /data-rel-toggle/);
+  assert.match(html, /rel-detail/);
+});
+
+test('renderReleases shows 已是最新 and an empty CTA when nothing is newer', () => {
+  renderReleases({
+    status: 'ok',
+    installed: { version: '0.3.3' },
+    releases: [{
+      tag: 'v0.3.3',
+      version: '0.3.3',
+      current: true,
+      installable: true,
+      assetName: 'setup.exe',
+    }],
+  });
+  const badgeEl = global.document.getElementById('ver-badge');
+  assert.equal(badgeEl.textContent, '已是最新');
+  assert.equal(badgeEl.hidden, false);
+  assert.equal(global.document.getElementById('ver-cta').innerHTML, '');
+});
+
+test('renderReleases renders no delta button without delta evidence', () => {
+  renderReleases({
+    status: 'ok',
+    installed: { version: '0.3.2' },
+    releases: [{
+      tag: 'v0.3.3',
+      version: '0.3.3',
+      newer: true,
+      installable: true,
+      assetName: 'setup.exe',
+    }],
+  });
+  const html = global.document.getElementById('release-list').innerHTML;
+  assert.doesNotMatch(html, /data-delta-tag/);
+  assert.doesNotMatch(html, /增量更新/);
+});

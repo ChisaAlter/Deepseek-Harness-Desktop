@@ -13,7 +13,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'))
 const distDir = path.join(root, 'dist')
 const timeoutMs = Number(process.env.DSH_SMOKE_TIMEOUT_MS) || 600_000
-const PRODUCT_EXE = 'Deepseek-Harness-Desktop.exe'
+const PRODUCT_EXE = 'Whale Isle.exe'
 const STALE_HARNESS_VERSION = '0.1.0-rc.7'
 
 function packagedExecutable() {
@@ -51,7 +51,7 @@ function productExeRunning() {
 function assertProductNotRunning() {
   if (productExeRunning()) {
     throw new Error(
-      `${PRODUCT_EXE} is already running (same appId lock). Quit Deepseek-Harness-Desktop.exe first. Do not kill Cursor.`,
+      `${PRODUCT_EXE} is already running (same appId lock). Quit Whale Isle.exe first. Do not kill Cursor.`,
     )
   }
 }
@@ -158,7 +158,7 @@ async function printSetupSha() {
     console.warn('No dist/ Setup exe; GitHub Release must use the matching Setup for this win-unpacked rehearsal.')
     return
   }
-  const setups = readdirSync(distDir).filter((name) => /^Deepseek-Harness-Desktop-Setup-.*\.exe$/i.test(name))
+  const setups = readdirSync(distDir).filter((name) => /^Whale-Isle-Setup-.*\.exe$/i.test(name))
   if (setups.length === 0) {
     console.warn('win-unpacked is the gate; GitHub Release must use the matching Setup. No Setup exe in dist/.')
     return
@@ -174,7 +174,7 @@ function assertPackagedP0Result(result, extractRoot) {
   const packagedP0 = result.packagedP0
   if (!packagedP0) {
     throw new Error(
-      'dshd-smoke.json has no packagedP0. Rebuild dist/win-unpacked (npm run dist with Node 22.23.2) so the asar includes DSH_SMOKE_SIBLING, then re-run qa:packaged. Quit Deepseek-Harness-Desktop.exe first.',
+      'dshd-smoke.json has no packagedP0. Rebuild dist/win-unpacked (npm run dist with Node 22.23.2) so the asar includes DSH_SMOKE_SIBLING, then re-run qa:packaged. Quit Whale Isle.exe first.',
     )
   }
   if (packagedP0.ok !== true) {

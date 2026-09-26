@@ -38,7 +38,7 @@ function fakeSource(current: SessionCostPrices, registered = true): FakeSource {
     failSave: null,
     snapshot: () => fake.current,
     isSectionRegistered: () => fake.registered,
-    adoptSection: () => {},
+    refresh: () => {},
     async save(prices: SessionCostPrices): Promise<void> {
       if (fake.failSave !== null) throw new Error(fake.failSave)
       fake.saves.push(prices)

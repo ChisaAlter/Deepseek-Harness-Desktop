@@ -1,0 +1,377 @@
+{
+  "fixture": "pure-add",
+  "environment": {
+    "viewport": "1440x900",
+    "devicePixelRatio": 1,
+    "chromium": "149.0.7827.55",
+    "node": "v26.7.0",
+    "platform": "win32 x64",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz",
+    "cores": 16,
+    "ramGb": 32,
+    "desktopCommit": "5eed678db9c4bce624e87415d6d15edba309254c",
+    "upstreamPin": "0.1.7-rc.2"
+  },
+  "samples": [
+    {
+      "coldReadable": 519.531100000022,
+      "warmReadable": 426.3033999999752,
+      "highlightSettledCold": 90.90000000596046,
+      "highlightSettledWarm": 249.90000000596046,
+      "rowsCollapsed": 120,
+      "rowsMounted": 120,
+      "filesListed": 1,
+      "slices": [
+        {
+          "start": 4323.399999991059,
+          "duration": 0.30000001192092896
+        },
+        {
+          "start": 4856.70000000298,
+          "duration": 0.09999999403953552
+        }
+      ],
+      "sliceMax": 0.30000001192092896,
+      "sliceCount": 2,
+      "discards": 0,
+      "longTasks": [
+        {
+          "start": 18718.20000000298,
+          "duration": 70
+        }
+      ],
+      "workerJobs": 2,
+      "workerWorkMs": [
+        204.20000000298023,
+        63.70000000298023
+      ],
+      "heapBaselineMb": 23.371257781982422,
+      "heapPeakMb": 24.633499145507812,
+      "heapAfterCloseMb": 23.43548583984375,
+      "heapAfterReopenMb": 23.991111755371094,
+      "reopenReadable": 687.200899999938,
+      "inputMs": 331.29099999996834,
+      "modeSwitches": [
+        488.52309999999125,
+        507.70779999997467,
+        509.7210999999661,
+        486.23160000005737,
+        556.4805999998935,
+        513.7580000000307,
+        594.5556999999098,
+        550.5640999999596,
+        618.2632000000449,
+        589.3634000000311,
+        538.0698000000557,
+        547.9074000000255,
+        588.3554000000004,
+        598.2715999999782,
+        606.9603999999817,
+        591.0064000000712,
+        631.7839000000386,
+        670.1321999999927,
+        517.8371000000043,
+        600.5730999999214
+      ],
+      "noteKinds": [],
+      "highlightSkippedNote": false,
+      "truncatedNote": false
+    },
+    {
+      "coldReadable": 516.5204999999842,
+      "warmReadable": 551.7230999999447,
+      "highlightSettledCold": 97.40000000596046,
+      "highlightSettledWarm": 375.29999999701977,
+      "rowsCollapsed": 120,
+      "rowsMounted": 120,
+      "filesListed": 1,
+      "slices": [
+        {
+          "start": 4062,
+          "duration": 0.29999999701976776
+        },
+        {
+          "start": 4746.0999999940395,
+          "duration": 0.20000000298023224
+        }
+      ],
+      "sliceMax": 0.29999999701976776,
+      "sliceCount": 2,
+      "discards": 0,
+      "longTasks": [],
+      "workerJobs": 2,
+      "workerWorkMs": [
+        207.40000000596046,
+        54.6000000089407
+      ],
+      "heapBaselineMb": 23.50395965576172,
+      "heapPeakMb": 25.524974822998047,
+      "heapAfterCloseMb": 24.324283599853516,
+      "heapAfterReopenMb": 24.344566345214844,
+      "reopenReadable": 506.05259999993723,
+      "inputMs": 345.04390000004787,
+      "modeSwitches": [
+        487.28880000009667,
+        509.22259999997914,
+        567.3793999999762,
+        540.3029000000097,
+        567.7789999999804,
+        538.7282999999588,
+        557.73470000003,
+        563.1925000000047,
+        637.7676999999676,
+        567.8302999999141,
+        551.9562000000151,
+        517.9417000000831,
+        575.1465999999782,
+        571.1796000000322,
+        509.62670000002254,
+        547.3483000000706,
+        459.1199000000488,
+        568.6371000000509,
+        698.1337000000058,
+        584.6706000000704
+      ],
+      "noteKinds": [],
+      "highlightSkippedNote": false,
+      "truncatedNote": false
+    },
+    {
+      "coldReadable": 504.49829999997746,
+      "warmReadable": 433.0442000000039,
+      "highlightSettledCold": 75,
+      "highlightSettledWarm": 249.5,
+      "rowsCollapsed": 120,
+      "rowsMounted": 120,
+      "filesListed": 1,
+      "slices": [
+        {
+          "start": 3962.5,
+          "duration": 0.29999999701976776
+        },
+        {
+          "start": 4512.399999991059,
+          "duration": 0.10000000894069672
+        }
+      ],
+      "sliceMax": 0.29999999701976776,
+      "sliceCount": 2,
+      "discards": 0,
+      "longTasks": [],
+      "workerJobs": 2,
+      "workerWorkMs": [
+        192.29999999701977,
+        36.20000000298023
+      ],
+      "heapBaselineMb": 23.433605194091797,
+      "heapPeakMb": 25.52507781982422,
+      "heapAfterCloseMb": 24.320308685302734,
+      "heapAfterReopenMb": 24.343505859375,
+      "reopenReadable": 554.8426000000909,
+      "inputMs": 310.14789999998175,
+      "modeSwitches": [
+        532.1886999999406,
+        500.27860000007786,
+        539.3974999999627,
+        526.1996000000509,
+        516.374300000025,
+        521.4468000000343,
+        549.2539999999572,
+        549.3946999999462,
+        576.7027000000235,
+        599.5498999999836,
+        597.7395000000251,
+        470.1371999999974,
+        501.1795999999158,
+        562.0844999999972,
+        619.2118000000482,
+        486.90870000002906,
+        581.3149999999441,
+        585.9637000000803,
+        568.3005999999586,
+        527.2155000000494
+      ],
+      "noteKinds": [],
+      "highlightSkippedNote": false,
+      "truncatedNote": false
+    },
+    {
+      "coldReadable": 524.7820000000065,
+      "warmReadable": 464.3098999999929,
+      "highlightSettledCold": 63.099999994039536,
+      "highlightSettledWarm": 297.5,
+      "rowsCollapsed": 120,
+      "rowsMounted": 120,
+      "filesListed": 1,
+      "slices": [
+        {
+          "start": 3897.5,
+          "duration": 0.20000000298023224
+        },
+        {
+          "start": 4521.70000000298,
+          "duration": 0.09999999403953552
+        }
+      ],
+      "sliceMax": 0.20000000298023224,
+      "sliceCount": 2,
+      "discards": 0,
+      "longTasks": [],
+      "workerJobs": 2,
+      "workerWorkMs": [
+        191,
+        40.1000000089407
+      ],
+      "heapBaselineMb": 23.39330291748047,
+      "heapPeakMb": 24.599384307861328,
+      "heapAfterCloseMb": 23.440692901611328,
+      "heapAfterReopenMb": 23.99317169189453,
+      "reopenReadable": 525.8075000001118,
+      "inputMs": 292.74030000006314,
+      "modeSwitches": [
+        482.81750000000466,
+        661.2775000000838,
+        539.0013000000035,
+        525.7591999999713,
+        536.5940999999875,
+        498.66539999993984,
+        598.2446000000928,
+        589.9923999999883,
+        571.653399999952,
+        539.671500000055,
+        586.3625999999931,
+        501.2255000000587,
+        547.955100000021,
+        585.5529999999562,
+        517.3315000000875,
+        576.1110999999801,
+        551.1792000000132,
+        567.3843000000343,
+        580.0979999999981,
+        539.6689999999944
+      ],
+      "noteKinds": [],
+      "highlightSkippedNote": false,
+      "truncatedNote": false
+    },
+    {
+      "coldReadable": 670.1056999999564,
+      "warmReadable": 538.6396999999415,
+      "highlightSettledCold": 85.29999999701977,
+      "highlightSettledWarm": 373.70000000298023,
+      "rowsCollapsed": 120,
+      "rowsMounted": 120,
+      "filesListed": 1,
+      "slices": [
+        {
+          "start": 4147.199999988079,
+          "duration": 0.20000000298023224
+        },
+        {
+          "start": 4815.29999999702,
+          "duration": 0.09999999403953552
+        }
+      ],
+      "sliceMax": 0.20000000298023224,
+      "sliceCount": 2,
+      "discards": 0,
+      "longTasks": [],
+      "workerJobs": 2,
+      "workerWorkMs": [
+        203.90000000596046,
+        47.599999994039536
+      ],
+      "heapBaselineMb": 23.387718200683594,
+      "heapPeakMb": 24.59471893310547,
+      "heapAfterCloseMb": 23.436580657958984,
+      "heapAfterReopenMb": 23.969566345214844,
+      "reopenReadable": 481.1988999999594,
+      "inputMs": 314.34459999995306,
+      "modeSwitches": [
+        497.6632999998983,
+        514.9327000000048,
+        561.1966999999713,
+        503.88080000015907,
+        514.9188999999315,
+        490.9496999999974,
+        595.8170000000391,
+        575.4203999999445,
+        570.0487999999896,
+        414.8939000000246,
+        544.778399999952,
+        528.3329999998678,
+        648.2416000000667,
+        595.9787000000942,
+        567.3943999998737,
+        638.0135000001173,
+        576.5639000001829,
+        595.9375,
+        594.251099999994,
+        570.0707000000402
+      ],
+      "noteKinds": [],
+      "highlightSkippedNote": false,
+      "truncatedNote": false
+    }
+  ],
+  "report": {
+    "benchmark": "review-diff/aggregate",
+    "fixture": "pure-add",
+    "environment": {
+      "viewport": "1440x900",
+      "devicePixelRatio": 1,
+      "chromium": "149.0.7827.55",
+      "node": "v26.7.0",
+      "platform": "win32 x64",
+      "cpu": "11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz",
+      "cores": 16,
+      "ramGb": 32,
+      "desktopCommit": "5eed678db9c4bce624e87415d6d15edba309254c",
+      "upstreamPin": "0.1.7-rc.2"
+    },
+    "samples": 5,
+    "sliceCount": 10,
+    "sliceMaxMs": 0.30000001192092896,
+    "sliceViolations": 0,
+    "workerJobs": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "workerWorkMaxMs": 207.40000000596046,
+    "discards": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "rowsCollapsedMedian": 120,
+    "rowsMountedMedian": 120,
+    "heapPeakMedianMb": 24.633499145507812,
+    "heapRecoveryMedianMb": 0.06422805786132812,
+    "modeSwitchMedianMs": 557.73470000003,
+    "candidateVerdicts": [
+      {
+        "metric": "coldReadable",
+        "median": 519.531100000022,
+        "budget": 1000,
+        "ok": true
+      },
+      {
+        "metric": "warmReadable",
+        "median": 464.3098999999929,
+        "budget": 300,
+        "ok": false
+      },
+      {
+        "metric": "input",
+        "median": 314.34459999995306,
+        "budget": 100,
+        "ok": false
+      }
+    ]
+  }
+}

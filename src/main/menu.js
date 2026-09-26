@@ -2,7 +2,21 @@ const { Menu, shell, app } = require('electron');
 const { openHarnessSettings, openMarketplace } = require('./window');
 const { loadConfig } = require('./config');
 
-function buildMenu({ onOpenWorkspace, onOpenLauncher, onRestart, onReload }) {
+function buildMenu({ onOpenWorkspace, onOpenLauncher, onRestart, onReload, shortcuts }) {
+  // Commands with a registry owner dispatch by command id so the accepted
+  // configuration, modal policy, and revision checks all apply; their menu
+  // keycaps mirror the effective binding and refresh on config change.
+  const commandItem = (id, fallbackAccelerator, fallbackClick) => {
+    // Once a config revision is accepted the registry binding is the only
+    // keycap — an unbound command shows none. Before the first snapshot
+    // (loading/unreadable) the shipped default keeps the menu usable.
+    const resolved = shortcuts?.currentRevision?.() !== undefined
+      ? shortcuts.acceleratorFor(id) : fallbackAccelerator;
+    return {
+      ...(resolved ? { accelerator: resolved } : {}),
+      click: () => { if (!shortcuts?.dispatchMenuCommand(id)) fallbackClick(); },
+    };
+  };
   const isMac = process.platform === 'darwin';
 
   const template = [
@@ -21,8 +35,7 @@ function buildMenu({ onOpenWorkspace, onOpenLauncher, onRestart, onReload }) {
       submenu: [
         {
           label: '打开工作区…',
-          accelerator: 'CmdOrCtrl+O',
-          click: () => onOpenWorkspace(),
+          ...commandItem('workspace.add', 'CmdOrCtrl+O', onOpenWorkspace),
         },
         {
           label: '打开启动器',
@@ -40,8 +53,7 @@ function buildMenu({ onOpenWorkspace, onOpenLauncher, onRestart, onReload }) {
         { type: 'separator' },
         {
           label: '设置…',
-          accelerator: 'CmdOrCtrl+,',
-          click: () => { openHarnessSettings(); },
+          ...commandItem('settings.open', 'CmdOrCtrl+,', () => { openHarnessSettings(); }),
         },
         {
           label: '插件市场…',
@@ -69,8 +81,10 @@ function buildMenu({ onOpenWorkspace, onOpenLauncher, onRestart, onReload }) {
           click: () => onRestart(),
         },
         {
+          // Ctrl+R is the registry's page.refresh on desktop; window reload
+          // moves to F5 so one chord never has two owners.
           label: '重新加载界面',
-          accelerator: 'CmdOrCtrl+R',
+          accelerator: 'CmdOrCtrl+F5',
           click: () => onReload(),
         },
       ],

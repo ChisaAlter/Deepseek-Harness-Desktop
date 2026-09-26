@@ -74,12 +74,27 @@ function configPayload(config) {
  * shared-surface channels; the slim package passes stubs and only ever sees
  * launcher-role senders.
  */
-function registerLauncherChannels({ launcher, dsh, harness, startDesktop, recordBootRestart }) {
+function registerLauncherChannels({ launcher, dsh, harness, startDesktop, recordBootRestart, extraChannels = [], onQuitCommit }) {
   const handle = (channel, roles, listener) => {
     ipcMain.handle(channel, (event, ...args) => {
       assertIpcSender(event, roles);
       return listener(event, ...args);
     });
+  };
+  // Extension seam (frozen contract, refactor plan §5.0): lane modules each
+  // export register(ctx) and mount their own channels through the same
+  // authorized wrapper — never by re-opening ipcMain themselves.
+  const laneCtx = {
+    handle,
+    launcher,
+    LAUNCHER_ONLY,
+    IPC_ROLES,
+    onQuitCommit,
+    send: (event, channel, payload) => {
+      if (event.sender && !event.sender.isDestroyed()) {
+        event.sender.send(channel, payload);
+      }
+    },
   };
 
   handle('shell:get-config', ALL_SURFACES, () => configPayload(loadConfig()));
@@ -159,6 +174,12 @@ function registerLauncherChannels({ launcher, dsh, harness, startDesktop, record
   handle('shell:start-desktop', LAUNCHER_ONLY, () => launcher.startDesktop());
 
   handle('shell:start-desktop-skipped', LAUNCHER_ONLY, () => launcher.startDesktopSkipped());
+
+  for (const mod of extraChannels) {
+    if (mod && typeof mod.register === 'function') {
+      mod.register(laneCtx);
+    }
+  }
 }
 
 module.exports = { registerLauncherChannels, configPayload };

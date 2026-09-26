@@ -1,11 +1,17 @@
-// Compact UTC month calendar with a bounded date filter.
-import { useState } from 'react'
+// Contribution graph over the rolling HEAT_DAYS window — the GitHub
+// contribution-calendar idiom: Monday-first week columns, month labels above
+// the grid, weekday labels on Mon/Wed/Fri rows only. Levels come from
+// whole-window quartiles, so a token total colors identically in every month
+// (the retired month grid rescaled per month, making colors incomparable).
+// Selection: click a day for a single-day range, Shift+click to extend it;
+// the range only rescopes this card's summary line.
+import { useMemo, useRef, useState } from 'react'
 import type { DayRecord } from '../../shared/contract.ts'
 import type { SessionCostPrices } from '../../shared/pricing.ts'
-import { fmtTokens, heatLevel, monthLabel, quartileThresholds, weekdayIndexUTC, dateCN } from '../../shared/format.ts'
+import { fmtTokens, heatLevel, monthShort, quartileThresholds, dateCN } from '../../shared/format.ts'
 import { totalCostCents } from '../../shared/cost.ts'
 import { formatCost } from '../../shared/pricing.ts'
-import { keyOfDateUTC, listMonthKeys, monthKeyUTC } from '../../shared/usage.ts'
+import { graphMonthLabels, graphWeeks, keyOfDateUTC, parseDayKeyUTC } from '../../shared/usage.ts'
 import type { I18n } from '../locales.ts'
 import type { Tip } from '../hooks.ts'
 import * as UiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
@@ -13,15 +19,7 @@ import * as React from 'react'
 
 // The vendored desktop pin exports these atoms; the published rc.6 type face
 // used by this plugin's standalone typecheck predates them.
-const { Button, Input, SettingsSelect } = UiPrimitives as typeof UiPrimitives & {
-  Input: React.ComponentType<React.InputHTMLAttributes<HTMLInputElement>>
-  SettingsSelect: React.ComponentType<{
-    value: string
-    options: readonly { id: string; label: string }[]
-    onChange: (id: string) => void
-    'aria-label': string
-  }>
-}
+const { Button } = UiPrimitives as typeof UiPrimitives
 
 interface HeatmapProps {
   days: DayRecord[]
@@ -32,22 +30,28 @@ interface HeatmapProps {
   modelProviders?: Record<string, string>
 }
 
+/** Weekday rows that carry a label (Mon/Wed/Fri), GitHub convention. */
+const LABELED_ROWS = new Set([0, 2, 4])
+
 export function Heatmap({ days, i18n, onTip, prices, peakValley = true, modelProviders = {} }: HeatmapProps): JSX.Element {
   const t = i18n.t
   const locale = i18n.locale
-  const months = listMonthKeys(days)
   const minDate = days[0]?.date ?? ''
   const maxDate = days[days.length - 1]?.date ?? ''
-  const [pickedMonth, setPickedMonth] = useState<string | null>(null)
+  const weeks = useMemo(() => graphWeeks(days), [days])
+  const monthLabels = useMemo(() => graphMonthLabels(weeks), [weeks])
+  const q = useMemo(
+    () => quartileThresholds(days.filter((day) => day.total > 0).map((day) => day.total)),
+    [days],
+  )
   const [pickedStart, setPickedStart] = useState<string | null>(null)
   const [pickedEnd, setPickedEnd] = useState<string | null>(null)
-  const monthKey = pickedMonth && months.includes(pickedMonth) ? pickedMonth : (months[months.length - 1] ?? '')
-  const start = pickedStart && pickedStart >= minDate && pickedStart <= maxDate ? pickedStart : minDate
-  const end = pickedEnd && pickedEnd >= start && pickedEnd <= maxDate ? pickedEnd : maxDate
-  const byDate = new Map(days.map((day) => [day.date, day]))
-  const monthDays = days.filter((day) => monthKeyUTC(day.date) === monthKey)
-  const selected = days.filter((day) => day.date >= start && day.date <= end && monthKeyUTC(day.date) === monthKey)
-  const q = quartileThresholds(monthDays.filter((day) => day.total > 0).map((day) => day.total))
+  const [focusKey, setFocusKey] = useState<string | null>(null)
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const hasRange = pickedStart !== null && pickedEnd !== null && pickedEnd >= minDate
+  const start = hasRange ? pickedStart : minDate
+  const end = hasRange ? pickedEnd : maxDate
+  const selected = days.filter((day) => day.date >= start && day.date <= end)
   const selectedTotal = selected.reduce((sum, day) => sum + day.total, 0)
   const activeDays = selected.filter((day) => day.total > 0).length
 
@@ -75,39 +79,87 @@ export function Heatmap({ days, i18n, onTip, prices, peakValley = true, modelPro
     })
   }
 
+  const pick = (key: string, extend: boolean) => {
+    if (extend && pickedStart !== null) {
+      if (key >= pickedStart) {
+        setPickedEnd(key)
+      } else {
+        setPickedEnd(pickedEnd ?? pickedStart)
+        setPickedStart(key)
+      }
+    } else {
+      setPickedStart(key)
+      setPickedEnd(key)
+    }
+  }
+
+  // Roving tabindex: one cell joins the tab order, arrows move the focus.
+  const focusable = focusKey !== null && focusKey >= minDate && focusKey <= maxDate ? focusKey : maxDate
+  const moveFocus = (fromKey: string, delta: number) => {
+    const d = parseDayKeyUTC(fromKey)
+    d.setUTCDate(d.getUTCDate() + delta)
+    const key = keyOfDateUTC(d)
+    if (key < minDate || key > maxDate) return
+    setFocusKey(key)
+    gridRef.current?.querySelector<HTMLElement>(`[data-day="${key}"]`)?.focus()
+  }
+  const onGridKeyDown = (event: React.KeyboardEvent) => {
+    const cell = (event.target as HTMLElement).closest<HTMLElement>('[data-day]')
+    if (!cell) return
+    const key = cell.dataset.day!
+    const delta =
+      event.key === 'ArrowLeft' ? -7
+        : event.key === 'ArrowRight' ? 7
+          : event.key === 'ArrowUp' ? -1
+            : event.key === 'ArrowDown' ? 1 : 0
+    if (delta !== 0) {
+      event.preventDefault()
+      moveFocus(key, delta)
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      moveFocus(minDate, 0)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      moveFocus(maxDate, 0)
+    }
+  }
+
   const cells: JSX.Element[] = []
-  if (monthKey) {
-    const [year, month] = monthKey.split('-').map(Number)
-    const lead = weekdayIndexUTC(monthKey + '-01')
-    const count = new Date(Date.UTC(year!, month!, 0)).getUTCDate()
-    const slots = Math.ceil((lead + count) / 7) * 7
-    for (let slot = 0; slot < slots; slot++) {
-      const date = new Date(Date.UTC(year!, month! - 1, slot - lead + 1))
-      const key = keyOfDateUTC(date)
-      const rec = monthKeyUTC(key) === monthKey ? byDate.get(key) : undefined
-      if (!rec) {
-        cells.push(<span key={key + '-blank'} className="dsw-ust-calendar-blank" aria-hidden="true" />)
+  for (const week of weeks) {
+    for (let r = 0; r < 7; r++) {
+      const rec = week[r]
+      if (rec === null || rec === undefined) {
+        cells.push(<i key={'pad-' + cells.length} className="dsw-ust-graph-pad" aria-hidden="true" />)
         continue
       }
+      const key = rec.date
       const outside = key < start || key > end
-      const level = heatLevel(rec.total, q)
       cells.push(
         <button
           key={key}
           type="button"
-          className={'dsw-ust-calendar-day dsw-ust-h' + level + (outside ? ' is-outside' : '')}
+          data-day={key}
+          className={'dsw-ust-graph-day dsw-ust-h' + heatLevel(rec.total, q) + (outside ? ' is-outside' : '')}
+          tabIndex={key === focusable ? 0 : -1}
           aria-label={t('heat.day', { date: dateCN(key, locale), tokens: fmtTokens(rec.total, locale) })}
-          aria-pressed={start === key && end === key}
-          onClick={() => { setPickedStart(key); setPickedEnd(key) }}
+          aria-pressed={hasRange && start === key && end === key}
+          onClick={(event) => pick(key, event.shiftKey)}
           onMouseEnter={(event) => showTip(event.currentTarget, rec)}
           onMouseLeave={() => onTip(null)}
-          onFocus={(event) => showTip(event.currentTarget, rec)}
+          onFocus={(event) => { setFocusKey(key); showTip(event.currentTarget, rec) }}
           onBlur={() => onTip(null)}
-        >{date.getUTCDate()}</button>,
+        />,
       )
     }
   }
-  const weekdays = locale === 'zh-CN' ? ['一', '二', '三', '四', '五', '六', '日'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+
+  const weekdayText = locale === 'zh-CN'
+    ? ['一', '', '三', '', '五', '', '']
+    : ['Mon', '', 'Wed', '', 'Fri', '', '']
+  const rangeText = start === end ? dateCN(start, locale) : dateCN(start, locale) + ' – ' + dateCN(end, locale)
+  const summaryText = hasRange
+    ? t('heat.range', { range: rangeText, tokens: fmtTokens(selectedTotal, locale), active: activeDays, total: selected.length })
+    : t('heat.window', { tokens: fmtTokens(selectedTotal, locale), active: activeDays })
   return (
     <div className="dsw-ust-card dsw-ust-heat-card">
       <div className="dsw-ust-card-head">
@@ -116,42 +168,31 @@ export function Heatmap({ days, i18n, onTip, prices, peakValley = true, modelPro
           <span className="dsw-ust-card-sub">{t('heat.sub.fallback')}</span>
         </div>
       </div>
-      <div className="dsw-ust-calendar-controls">
-        <label className="dsw-ust-calendar-field">
-          <span>{t('heat.month')}</span>
-          <SettingsSelect value={monthKey} options={months.map((key) => ({ id: key, label: monthLabel(key, locale) }))} onChange={setPickedMonth} aria-label={t('heat.month')} />
-        </label>
-        <label className="dsw-ust-calendar-field">
-          <span>{t('heat.start')}</span>
-          <Input type="date" value={start} min={minDate} max={maxDate} onChange={(event) => {
-            const value = event.currentTarget.value
-            if (value) { setPickedStart(value); if (value > end) setPickedEnd(value); setPickedMonth(monthKeyUTC(value)) }
-          }} />
-        </label>
-        <label className="dsw-ust-calendar-field">
-          <span>{t('heat.end')}</span>
-          <Input type="date" value={end} min={minDate} max={maxDate} onChange={(event) => {
-            const value = event.currentTarget.value
-            if (value) { setPickedEnd(value); if (value < start) setPickedStart(value); setPickedMonth(monthKeyUTC(value)) }
-          }} />
-        </label>
-        <Button variant="ghost" size="sm" onClick={() => { setPickedStart(null); setPickedEnd(null) }}>{t('heat.reset')}</Button>
-      </div>
-      <div className="dsw-ust-heat-layout">
-        <div className="dsw-ust-calendar" role="group" aria-label={monthLabel(monthKey, locale)}>
-          <div className="dsw-ust-calendar-weekdays">{weekdays.map((day, index) => <span key={index}>{day}</span>)}</div>
-          <div className="dsw-ust-calendar-grid">{cells}</div>
-        </div>
-        <div className="dsw-ust-heat-summary" aria-live="polite">
-          <span className="dsw-ust-heat-summary-label">{monthLabel(monthKey, locale)}</span>
-          <strong>{fmtTokens(selectedTotal, locale)}</strong>
-          <span className="dsw-ust-heat-summary-unit">Tokens</span>
-          <span className="dsw-ust-heat-summary-detail">{t('heat.summary', { active: activeDays, total: selected.length })}</span>
-          <div className="dsw-ust-heat-legend">
-            <span>{t('heat.less')}</span>
-            {[0, 1, 2, 3, 4].map((level) => <i key={level} className={'dsw-ust-heat-swatch dsw-ust-h' + level} />)}
-            <span>{t('heat.more')}</span>
+      <div className="dsw-ust-graph-wrap">
+        <div className="dsw-ust-graph" role="group" aria-label={t('heat.title')} onKeyDown={onGridKeyDown}>
+          <div className="dsw-ust-graph-months" aria-hidden="true"
+            style={{ gridTemplateColumns: 'repeat(' + weeks.length + ', 12px)' }}>
+            {monthLabels.map((label) => (
+              <span key={label.week} style={{ gridRow: 1, gridColumn: label.week + 1 }}>{monthShort(label.monthKey, locale)}</span>
+            ))}
           </div>
+          <div className="dsw-ust-graph-weekdays" aria-hidden="true">
+            {weekdayText.map((text, row) => (
+              <span key={row} style={{ gridRow: row + 1 }}>{text}</span>
+            ))}
+          </div>
+          <div className="dsw-ust-graph-cells" ref={gridRef}>{cells}</div>
+        </div>
+      </div>
+      <div className="dsw-ust-graph-footer">
+        <span className="dsw-ust-graph-summary" aria-live="polite">{summaryText}</span>
+        {hasRange
+          ? <Button variant="ghost" size="sm" onClick={() => { setPickedStart(null); setPickedEnd(null) }}>{t('heat.clear')}</Button>
+          : <span className="dsw-ust-graph-hint">{t('heat.hint')}</span>}
+        <div className="dsw-ust-heat-legend">
+          <span>{t('heat.less')}</span>
+          {[0, 1, 2, 3, 4].map((level) => <i key={level} className={'dsw-ust-heat-swatch dsw-ust-h' + level} />)}
+          <span>{t('heat.more')}</span>
         </div>
       </div>
     </div>

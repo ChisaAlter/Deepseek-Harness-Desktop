@@ -25,6 +25,17 @@ export const zh = {
   'scope.search': '搜索分支…',
   'collapseAll': '全部折叠',
   'expandAll': '全部展开',
+  'view.unified': '统一视图',
+  'view.split': '分栏视图',
+  'view.splitAria': '切换统一/分栏视图',
+  'view.wrap': '折行显示',
+  'view.nowrap': '关闭折行',
+  'view.wrapAria': '切换折行',
+  'file.renamed': '重命名自 {from}',
+  'file.binary': '二进制或过大文件，无逐行差异',
+  'file.omitted': '超出面板渲染预算，折叠其他文件后再展开',
+  'file.truncated': '仅显示前 {count} 行',
+  'diff.highlightSkipped': '部分内容过大，未语法高亮',
 } satisfies Record<string, string>
 
 /** The diff namespace key union. */
@@ -55,6 +66,17 @@ export const en = {
   'scope.search': 'Search branches…',
   'collapseAll': 'Collapse all',
   'expandAll': 'Expand all',
+  'view.unified': 'Unified view',
+  'view.split': 'Split view',
+  'view.splitAria': 'Toggle unified/split view',
+  'view.wrap': 'Wrap lines',
+  'view.nowrap': 'Do not wrap lines',
+  'view.wrapAria': 'Toggle line wrapping',
+  'file.renamed': 'Renamed from {from}',
+  'file.binary': 'Binary or oversized file; no line diff',
+  'file.omitted': 'Over the panel render budget; collapse other files first',
+  'file.truncated': 'Showing the first {count} lines',
+  'diff.highlightSkipped': 'Some content is too large to syntax-highlight',
 } satisfies Record<DiffKey, string>
 
 /** Dictionary namespace owned by this plugin. */

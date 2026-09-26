@@ -8,16 +8,16 @@
 
 ## User paths
 
-1. 双击 Setup（GUI）：欢迎页（品牌侧栏：官方浅色侧栏底 `rgb(249,250,251)` + 鲸鱼娘大头徽标 + 产品名 `Deepseek-Harness-Desktop` + 细蓝强调线 + 右缘发丝线，MUI 本地化中文/英文文案）→ MIT 许可页 → 安装模式/目录选择（可改目录）→ 安装进度（右上白底鲸鱼娘大头徽标 header）→ 完成页（默认勾选「运行 Deepseek-Harness-Desktop」+ 产品仓库链接）。
+1. 双击 Setup（GUI）：欢迎页（品牌侧栏：官方浅色侧栏底 `rgb(249,250,251)` + 鲸鱼娘大头徽标 + 产品名 `Whale Isle` + 细蓝强调线 + 右缘发丝线，MUI 本地化中文/英文文案）→ MIT 许可页 → 安装模式/目录选择（可改目录）→ 安装进度（右上白底鲸鱼娘大头徽标 header）→ 完成页（默认勾选「运行 Whale Isle」+ 产品仓库链接）。
 2. 静默安装 `dsh-setup.exe /S`：跳过全部页面直接装完；同版本 overlay 与覆盖升级保留用户数据（QA TC-INST-009/012、dshbot smoke 依赖）。
 3. 卸载（设置 → 应用 / 开始菜单）：品牌化卸载向导，灰阶侧栏区分移除语境；不删 `userData`（桌面 dsh-home、会话都在那里）。
 
 ## Invariants
 
-- `oneClick: false`、`allowToChangeInstallationDirectory: true`、桌面 + 开始菜单快捷方式、artifact 名 `Deepseek-Harness-Desktop-Setup-${version}.exe` 不得变——release.yml globs、SHA512SUMS、桌面更新器都按这个名字找包。
+- `oneClick: false`、`allowToChangeInstallationDirectory: true`、桌面 + 开始菜单快捷方式、发行 artifact 名 `Whale-Isle-Setup-${version}.exe` 必须与 release.yml globs、SHA512SUMS 和资产校验器一致；旧版 `Deepseek-Harness-Desktop-Setup-*` 仍可被更新客户端识别。
 - `/S` 静默安装必须保持可用。`build/installer.nsh` 只允许 `customWelcomePage` / `customUnWelcomePage` / `customHeader` 三个 GUI 宏 + 一个窄范围的 `customInit` 注册表净化块（见下条）；禁止 MessageBox、Section、RequestExecutionLevel、ExecWait、customInstall 等影响安装语义的内容。`customUnWelcomePage` 是纯页面声明（替换 electron-builder 模板里的裸 `MUI_UNPAGE_WELCOME` 插入点），必须自己重插 `MUI_UNPAGE_WELCOME` 并重定义 `MUI_WELCOMEPAGE_TITLE_3LINES`——MUI2 每插一页就 UNSET 欢迎页设置，安装侧的 define 到不了卸载器，否则卸载欢迎页标题第三行（「…Uninstall」）被裁。
-- `customInit` 注册表净化（2026-09-12 事故修复）：在 `.onInit` 内 `initMultiUser` 之后、页面/区段之前运行——**含静默路径，这是有意为之**（坏记录恰恰在 `/S` 升级时造成破坏）。记录存活的条件 = 绝对路径（`X:\`/`\\`，含引号包裹形态）**且** 文件还在盘上：`InstallLocation` 要求 `<dir>\${APP_EXECUTABLE_FILENAME}` 存在，`UninstallString` 要求引号内卸载器存在（`Call GetInQuotes`/`GetFileParent`——它们是 installUtil.nsh 的 Function，`Call` 目标编译期可解析，但其 `!macro` 包装在 .onInit 后才定义，不能直接 `!insertmacro`）。死记录删除：`InstallLocation` 删值、`UninstallString` 死 → 删整个卸载子键。`$INSTDIR` 按序重算：显式 `/D` > 活 `InstallLocation` > 活卸载器父目录（升级回原目录）> `$LocalAppData\Programs\${APP_FILENAME}`；末尾绝对性兜底同时挡掉 mangled `/D`（drive-relative 复位到默认，不落幻影目录）。不得在此宏里加 UI、exec、网络或其它逻辑。
-- 默认 per-user 安装（`%LOCALAPPDATA%\Programs\Deepseek-Harness-Desktop`，TC-INST-013 依赖）；不设 `perMachine`，不设 `deleteAppDataOnUninstall`。
+- `customInit` 注册表净化（2026-09-12 事故修复）：在 `.onInit` 内 `initMultiUser` 之后、页面/区段之前运行——**含静默路径，这是有意为之**（坏记录恰恰在 `/S` 升级时造成破坏）。记录存活的条件 = 绝对路径（`X:\`/`\\`，含引号包裹形态）**且** 文件还在盘上：`InstallLocation` 要求 `<dir>\${APP_EXECUTABLE_FILENAME}` 或对应旧版 `<dir>\Deepseek-Harness-Desktop.exe` / `<dir>\Deepseek-Harness-Launcher.exe` 存在，`UninstallString` 要求引号内卸载器存在（`Call GetInQuotes`/`GetFileParent`——它们是 installUtil.nsh 的 Function，`Call` 目标编译期可解析，但其 `!macro` 包装在 .onInit 后才定义，不能直接 `!insertmacro`）。死记录删除：`InstallLocation` 删值、`UninstallString` 死 → 删整个卸载子键。`$INSTDIR` 按序重算：显式 `/D` > 活 `InstallLocation` > 活卸载器父目录（升级回原目录）> `$LocalAppData\Programs\${APP_FILENAME}`；末尾绝对性兜底同时挡掉 mangled `/D`（drive-relative 复位到默认，不落幻影目录）。不得在此宏里加 UI、exec、网络或其它逻辑。
+- 默认 per-user 安装；已有 `%LOCALAPPDATA%\Programs\Deepseek-Harness-Desktop` 安装继续原地升级，不设 `perMachine`，不设 `deleteAppDataOnUninstall`。
 - 位图是经典 24 位无压缩 BMP，几何固定：sidebar 164×314、header 150×57。改品牌图先改 `scripts/render-installer-assets.js` 再 `npm run installer:assets` 重新生成，禁止手改二进制或另起配色——色板是官方浅色表（`src/shared/dsh-webui-tokens.css`）的构建期镜像，与启动器同源：侧栏底 `--dsw-specific-sidebar-fill` `rgb(249,250,251)`、画布 `--dsw-alias-bg-base` 白、文字 `--dsw-alias-label-primary/secondary/tertiary`、强调仅细线用 `--dsw-static-deepseek-500` `rgb(65,118,230)`、发丝线 `rgba(0,0,0,.10)`。品牌标 = `assets/icon.png`（源图 `assets/whale-head.png` 保持原字节；白色圆角方形底板、22% 圆角、头像四边各内缩 4%，保持完整比例），安装页原色、卸载页 `grayscale(0.85)+opacity(0.75)` 弱化。禁止近黑营销面板（第二皮肤）、禁止 `--boot-*` 仪器画布扩散进安装器；卸载侧栏是同一浅色构图的灰阶弱化版。
 - 安装器语言 zh_CN（首位 = 兜底）+ en_US；产品中文文案走 MUI 本地化串，不烙进位图。
 - 许可页读根 `LICENSE`（MIT）原文。
@@ -33,13 +33,14 @@
 - `build/` — `installer.nsh` 与生成的 BMP
 - `scripts/render-installer-assets.js`、`scripts/run-render-installer-assets.js` — 位图生成
 - `src/main/installer-branding.test.js` — 自动门禁
+- `.github/workflows/release.yml` / `publish.yml`、`scripts/check-release-assets.mjs` 与测试 — 新发行资产名
 - `.github/workflows/release.yml` windows job 的 packaged smoke、`.github/workflows/publish.yml` 的同一候选资产晋级、手动候选的 Windows-only 默认值与 `src/main/ci-isolation.test.js` 对应钉子（2026-09-06 用户明确要求本版不要 macOS；上传 globs / SHA512SUMS 流仍在 Do not touch）
 - 本卡与 [build-release handbook](../handbook/modules/build-release.md)
 
 ## Do not touch
 
 - `scripts/after-pack.js` 装配逻辑、SHA512SUMS / 更新器校验流
-- artifact 命名与 `release.yml` 上传 globs
+- 资产内容完整性校验与旧版安装目录的原地升级能力
 - mac DMG 打包配置与上传命名；本卡只控制手动工作流是否调度既有 macOS job
 
 ## Gates
@@ -52,7 +53,7 @@
 
 ## Sources
 
-- Decision: [统一鲸鱼品牌资源](../decisions/implemented/product/2026-09-18-whale-brand-assets.md)，[晋级前由共享的只读校验器核对发布资产](../decisions/proposed/process/2026-09-20-release-asset-validation.md)，[发布与晋级工作流使用不可变 action 版本](../decisions/proposed/process/2026-09-19-workflow-action-sha-pinning.md)
+- Decision: [统一鲸鱼品牌资源](../decisions/implemented/product/2026-09-18-whale-brand-assets.md)，[对外应用名统一为 Whale Isle](../decisions/implemented/product/2026-09-25-whale-isle-application-name.md)，[晋级前由共享的只读校验器核对发布资产](../decisions/proposed/process/2026-09-20-release-asset-validation.md)，[发布与晋级工作流使用不可变 action 版本](../decisions/proposed/process/2026-09-19-workflow-action-sha-pinning.md)
 
 - Design: [design-language.md](../design-language.md)（官方浅色表 / 品牌蓝仅强调 / 鲸鱼娘大头徽标；安装器 chrome 对齐「桌面启动器」一节，不是启动页仪器画布），[dsh-webui-tokens.css](../../src/shared/dsh-webui-tokens.css)，`assets/whale-head.png`（用户提供的品牌源图）
 - Spec: electron-builder NSIS 选项（assisted installer 默认无欢迎页、默认 `nsis3-metro.bmp` 侧栏——本卡替换为品牌资产）

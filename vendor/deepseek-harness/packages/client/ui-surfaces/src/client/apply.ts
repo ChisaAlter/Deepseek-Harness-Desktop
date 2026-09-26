@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { en, NS, zh, type SurfacesKey } from './locales.ts'
 import { ensureBaseOpenPath, wrapOpenPath, type OpenPathService } from './openpath-intercept.ts'
+import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { relativeTo } from './paths.ts'
 import { createSurfacesStore } from './stores.ts'
 import type { SurfacesRootInjected } from './SurfacesRoot.tsx'
@@ -90,6 +91,10 @@ const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
 const PENDING_PREVIEW_PRESENTATION_KEY = 'dshd-pending-preview-presentation'
 const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.pdf'])
+/** Office binaries the classic file editor cannot read; the native document
+ * preview (Office→PDF, XLSX→Spreadsheet) renders them through the rightbar
+ * tab system's authorized conversion path. */
+const OFFICE_DOCUMENTS = new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx'])
 
 interface DesktopShell {
   gitStatus?: (cwd: string) => Promise<unknown>
@@ -134,6 +139,26 @@ function openClassicSurfaces(ctx: Context): void {
   if (native?.isExpanded()) native.toggleExpanded()
   ctx.layout.closeRightbar()
   ctx.layout.openSurfaces()
+}
+
+/**
+ * Hand an Office binary to the native document preview: the rightbar column
+ * expands for it (the only right column then visible) and the resource opens
+ * under the `text` type, whose registered renderers convert DOCX/PPTX to PDF
+ * and XLSX to the Spreadsheet view through the authorized Host path.
+ * @param ctx - client root context carrying the sidebar service and layout.
+ * @param sessionId - the Session whose workspace owns the file.
+ * @param relative - workspace-relative path.
+ * @returns true when the file was handed to the document preview.
+ */
+function openOfficeDocument(ctx: Context, sessionId: SessionId, relative: string): boolean {
+  if (!OFFICE_DOCUMENTS.has(documentExtension(relative))) return false
+  const sidebar = ctx.get('sidebarRight')
+  const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+  if (sidebar === undefined || typeof cwd !== 'string' || cwd === '') return false
+  if (!sidebar.openResourceIn(sessionId, fileAddressFor(sessionId, cwd, relative))) return false
+  ctx.layout.closeSurfaces()
+  return true
 }
 
 /**
@@ -278,6 +303,8 @@ export function apply(ctx: Context): void {
       }
       return {
         openSurfaces: () => { openClassicSurfaces(ctx) },
+        openOfficeDocument: (relativePath) =>
+          _sessionId === undefined ? false : openOfficeDocument(ctx, _sessionId, relativePath),
         ...readDesktopShell(),
       }
     },
@@ -305,6 +332,7 @@ export function apply(ctx: Context): void {
           openClassicSurfaces(ctx)
           return true
         }
+        if (openOfficeDocument(ctx, sessionId as SessionId, relative)) return true
         if (options?.presentation === 'mini' && BROWSER_DOCUMENTS.has(documentExtension(relative))) {
           const url = await browserDocumentUrl(cwd, relative)
           if (url !== undefined) {

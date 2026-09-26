@@ -55,32 +55,41 @@ export interface HostLlm {
 // runtime provides the service, the npm type packages do not. The faces below
 // are structural, same precedent as the connection/llm faces above.
 
-/** `ctx.settings` — one registered namespace's resolved value plus its write path. */
+/** One registered namespace as reported by `ctx.settings.describe()`. */
+export interface HostSettingsDescriptor {
+  /** Profile entry id the namespace is registered under. */
+  ns: string
+  /** Resolved value (composition base → user layer → schema defaults). */
+  value: unknown
+}
+
+/** `ctx.settings` — the namespace listing plus the revision-checked write path. */
 export interface HostSettings {
   /**
-   * Resolved value of a registered namespace (composition base → user layer →
-   * schema defaults), or `undefined` while that namespace is unregistered.
+   * Every registered namespace. A missing id means unregistered — the
+   * vendored service has no per-namespace `get`.
    */
-  get(ns: string): unknown
+  describe(): HostSettingsDescriptor[]
   /**
    * Merge a patch into one namespace's user section. REJECTS (it does not
    * no-op) while the namespace is unregistered — callers must treat
    * "registered" as a precondition, never as a guarantee.
    */
-  update(ns: string, patch: object): Promise<void>
+  update(ns: string, patch: object, expectedRevision?: number): Promise<void>
 }
 
 /**
- * `ctx.on('settings/updated', …)` — the settings service's commit event.
- * The listener signature is declared locally because merging this event into
- * the global cordis `Events` map would collide with the harness's own
- * declaration of the same event inside one program; the call site casts the
- * context once instead.
+ * `ctx.on('settings/document-updated', …)` — the settings service's commit
+ * event. The payload is `(ns, revision)` only — the committed value is
+ * re-read through `describe()`. The listener signature is declared locally
+ * because merging this event into the global cordis `Events` map would
+ * collide with the harness's own declaration of the same event inside one
+ * program; the call site casts the context once instead.
  */
 export interface HostSettingsEventSource {
   on(
-    event: 'settings/updated',
-    listener: (ns: unknown, next: unknown, prev: unknown, source: unknown) => void,
+    event: 'settings/document-updated',
+    listener: (ns: unknown, revision: unknown) => void,
   ): () => void
 }
 

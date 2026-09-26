@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { ShortcutRegistry } from './registry.ts'
 import { detectEnvironment, installKeyboard } from './dom.ts'
 import { bindingIssue, initialShortcutConfig, normalizeBinding, overlappingBindings, presentBinding } from '../protocol.ts'
+import type { ShortcutInputPolicy } from '../protocol.ts'
 import type { DesktopKeyboardApi, DesktopShortcutsApi, ShortcutSaveResult } from '../protocol.ts'
 import { desktopShortcutStorage, webShortcutStorage } from './storage.ts'
 import type { Shortcuts } from './types.ts'
@@ -50,7 +51,11 @@ export default class ShortcutsService extends Service implements Shortcuts {
     this.platform = environment.platform
     const config = Config((globalThis as { __DSH_SHORTCUTS_CONFIG__?: unknown }).__DSH_SHORTCUTS_CONFIG__ ?? {})
     this.stopSequenceMs = config.stopSequenceMs
-    this.registry = new ShortcutRegistry(this.runtime, this.platform, initialShortcutConfig())
+    // Desktop deployments choose the input-arbitration policy explicitly via
+    // the document mark; it is never inherited from runtime === 'desktop'.
+    const policy: ShortcutInputPolicy = document.documentElement.dataset.shortcutPolicy === 'local-first'
+      ? 'local-first' : 'native-priority'
+    this.registry = new ShortcutRegistry(this.runtime, this.platform, initialShortcutConfig(), policy)
     this.catalog = this.registry.catalog
     this.config = this.registry.config
     this.fixedCatalog = this.registry.fixedCatalog
@@ -68,7 +73,8 @@ export default class ShortcutsService extends Service implements Shortcuts {
     this.syncDefinitions()
     ctx.effect(() => {
       const off = installKeyboard(window, this.registry, (input) => { this.fixedInput(input) },
-        keyboard !== undefined && (this.platform === 'macos' || this.platform === 'windows'))
+        keyboard !== undefined && policy === 'native-priority'
+          && (this.platform === 'macos' || this.platform === 'windows'))
       return () => { off(); this.fixedListeners.clear() }
     }, 'shortcuts: keyboard')
     ctx.effect(() => ctx.locale.subscribe(() => { this.registry.refreshLabels() }), 'shortcuts: locale')

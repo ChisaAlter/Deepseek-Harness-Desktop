@@ -31,7 +31,7 @@ function expectedOfficialEnvironment() {
   const version = JSON.parse(fs.readFileSync(path.join(harness, 'package.json'), 'utf8')).version;
   return {
     DSH_CLIENT_BUILD_PROFILE: 'official',
-    DSH_CLIENT_TITLE: 'DeepSeek Harness',
+    DSH_CLIENT_TITLE: 'Whale Isle',
     DSH_CLIENT_COMMIT_HASH: commit.status === 0 ? commit.stdout.trim() : '',
     DSH_CLIENT_VERSION: version,
   };
@@ -53,7 +53,7 @@ async function officialBuildReason() {
   }
   const environment = record?.environment;
   if (environment?.DSH_CLIENT_BUILD_PROFILE !== 'official') return 'client build is not official';
-  if (environment?.DSH_CLIENT_TITLE !== 'DeepSeek Harness') return 'client build title is not official';
+  if (environment?.DSH_CLIENT_TITLE !== 'Whale Isle') return 'client build title is not official';
   const expected = expectedOfficialEnvironment();
   const recordedKeys = Object.keys(environment).sort().join(',');
   if (recordedKeys !== Object.keys(expected).sort().join(',')) {

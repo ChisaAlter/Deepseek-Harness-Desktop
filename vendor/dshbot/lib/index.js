@@ -3,7 +3,9 @@
  * room llm/stream dispatch (no chat model), ask_participant / send_room_message,
  * send_to_agent A2A.
  */
+import { join } from 'node:path';
 import z from '@deepseek-ai/schemastery';
+import { FiberState } from '@deepseek-ai/cordis';
 import { createCatalogScope, projectCatalog } from './catalog-scope.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import {
@@ -60,14 +62,6 @@ import {
 
 export const name = 'dsh-bot';
 export const inject = ['settings', 'systemPrompt', 'subagents', 'llm', 'sessions', 'agents', 'tools', 'agentDefaultModel'];
-
-export const Config = z.object({
-  maxSpeaks: z.number().step(1).min(1).max(GROUP_MAX_MEMBER_TURNS).default(DEFAULT_MAX_SPEAKS),
-  maxRounds: z.number().step(1).min(1).max(GROUP_MAX_ROUNDS).default(DEFAULT_MAX_ROUNDS),
-  memoryMaxChars: z.number().step(1).min(1).max(MAX_BOT_MEMORY_CHARS).default(DEFAULT_BOT_MEMORY_LIMIT),
-  memoryUserMaxChars: z.number().step(1).min(1).max(MAX_BOT_MEMORY_CHARS).default(DEFAULT_USER_MEMORY_LIMIT),
-  memoryReviewEvery: z.number().step(1).min(1).max(100).default(10),
-});
 
 const ModelSchema = z.object({
   provider: z.string(),
@@ -259,6 +253,22 @@ export const CatalogSchema = z.object({
   triggerToken: z.string().default(''),
 });
 
+/** Catalog document carried on the entry Config as volatile fields:
+ * `entry.update` commits them without remounting this fiber,
+ * `settings.describe` projects them as namespace `dsh-bot`, and the client's
+ * settingsScope mirror binds that same namespace. Hidden keeps the roster out
+ * of the generated settings form — the Bots UI is its editor. */
+export const Config = z.object({
+  maxSpeaks: z.number().step(1).min(1).max(GROUP_MAX_MEMBER_TURNS).default(DEFAULT_MAX_SPEAKS),
+  maxRounds: z.number().step(1).min(1).max(GROUP_MAX_ROUNDS).default(DEFAULT_MAX_ROUNDS),
+  memoryMaxChars: z.number().step(1).min(1).max(MAX_BOT_MEMORY_CHARS).default(DEFAULT_BOT_MEMORY_LIMIT),
+  memoryUserMaxChars: z.number().step(1).min(1).max(MAX_BOT_MEMORY_CHARS).default(DEFAULT_USER_MEMORY_LIMIT),
+  memoryReviewEvery: z.number().step(1).min(1).max(100).default(10),
+  ...Object.fromEntries(Object.entries(CatalogSchema.dict).map(([key, field]) => [key, field.volatile().hidden()])),
+});
+
+const EMPTY_CATALOG = CatalogSchema({});
+
 function dshHomeDir() {
   return process.env.DSH_HOME || process.env.DSHD_HOME || '';
 }
@@ -296,8 +306,25 @@ export function apply(ctx, config = {}) {
     // Room creation surfaces a missing preset; 1:1 bots are unaffected.
   }
   registerAskParticipant(ctx);
-  const scope = createCatalogScope(ctx.settings, CatalogSchema);
-  void projectCatalog(scope, migrateBlobAvatarShapes).catch(() => {});
+  const scope = createCatalogScope(ctx, ctx.settings, {
+    config,
+    empty: EMPTY_CATALOG,
+    schema: CatalogSchema,
+    file: dshHomeDir() ? join(dshHomeDir(), 'dshbot-catalog.json') : undefined,
+  });
+  // Catalog writes require an ACTIVE entry (the volatile commit path fences
+  // them), so the file restore and blob-avatar migration fire when this fiber
+  // activates, not during apply.
+  ctx.on('internal/status', (fiber) => {
+    if (fiber === ctx.fiber && fiber.state === FiberState.ACTIVE) {
+      void (async () => {
+        await scope.restore();
+        await projectCatalog(scope, migrateBlobAvatarShapes);
+      })().catch((error) => {
+        ctx.logger?.warn?.('dshbot catalog restore/migration failed: %s', error?.message ?? error);
+      });
+    }
+  });
   registerBotModelPolicy(ctx, scope);
   ctx.inject?.(['sessionController'], async (host) => {
     if (typeof host.sessionController.setPresentation !== 'function') {

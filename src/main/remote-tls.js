@@ -25,7 +25,7 @@ const CERT_FILE = 'remote-lan-cert.pem';
 /** Renew ahead of expiry so a long-lived install never serves a dead cert. */
 const RENEW_BEFORE_MS = 30 * 24 * 60 * 60 * 1000;
 const VALID_DAYS = 3650;
-const SUBJECT_CN = 'Deepseek-Harness-Desktop Remote';
+const SUBJECT_CN = 'Whale Isle Remote';
 
 // ---------------------------------------------------------------------------
 // Minimal DER encoding (only the forms this certificate needs).

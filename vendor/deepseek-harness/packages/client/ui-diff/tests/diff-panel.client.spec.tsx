@@ -485,6 +485,82 @@ describe('DiffPanel', () => {
     expect(screen.queryByRole('menuitem', { name: 'origin/main' })).toBeNull()
     expect(screen.getByRole('menuitem', { name: 'Working tree' })).toBeTruthy()
   })
+
+  it('draws numbered rows from the shared renderer and toggles split/wrap', async () => {
+    mount({ cwd: '/tmp/repo', status: { refName: 'main' }, diff: SAMPLE })
+    await waitFor(() => {
+      expect(screen.getByText('README.md')).toBeTruthy()
+    })
+    const view = document.querySelector('[data-review-view]')
+    expect(view?.getAttribute('data-review-view')).toBe('unified')
+    const rows = [...document.querySelectorAll('[data-diff-line]')]
+    expect(rows.map(row => row.getAttribute('data-diff-line'))).toEqual(['context', 'del', 'add'])
+    expect(rows[0]?.querySelectorAll('[class*="_number_"]')[0]?.textContent).toBe('1')
+    fireEvent.click(screen.getByLabelText('Toggle unified/split view'))
+    expect(document.querySelector('[data-review-view]')?.getAttribute('data-review-view')).toBe('split')
+    fireEvent.click(screen.getByLabelText('Toggle line wrapping'))
+    expect(document.querySelector('[data-review-view]')?.hasAttribute('data-review-wrap')).toBe(true)
+  })
+
+  it('renders an end-of-file annotation row without a line number', async () => {
+    mount({
+      cwd: '/tmp/repo',
+      status: { refName: 'main' },
+      diff: {
+        files: [{
+          path: 'a.txt',
+          status: 'modified',
+          hunks: [{
+            header: '@@ -1,2 +1,2 @@',
+            lines: [
+              { kind: 'del', text: 'old' },
+              { kind: 'add', text: 'new' },
+              { kind: 'eof', text: 'No newline at end of file' },
+            ],
+          }],
+        }],
+      },
+    })
+    await waitFor(() => {
+      expect(screen.getByText('No newline at end of file')).toBeTruthy()
+    })
+    expect(document.querySelector('[data-diff-line="eof"]')).not.toBeNull()
+  })
+
+  it('notes a rename and a hunk-less binary file instead of inventing rows', async () => {
+    mount({
+      cwd: '/tmp/repo',
+      status: { refName: 'main' },
+      diff: {
+        files: [
+          { path: 'new-name.ts', status: 'renamed', oldPath: 'old-name.ts', hunks: SAMPLE.files[0]!.hunks },
+          { path: 'logo.png', status: 'added', hunks: [] },
+        ],
+      },
+    })
+    await waitFor(() => {
+      // The spec's `t` stub does not interpolate; assert the note exists and carries the old path's dict slot.
+      expect(document.querySelector('[data-diff-note="renamed"]')?.textContent).toContain('Renamed from')
+    })
+    expect(screen.getByText('Binary or oversized file; no line diff')).toBeTruthy()
+  })
+
+  it('collapses every file when the diff is large, expanding on demand', async () => {
+    const files = Array.from({ length: 10 }, (_v, index) => ({
+      path: `file-${index}.ts`,
+      status: 'modified' as const,
+      hunks: SAMPLE.files[0]!.hunks,
+    }))
+    mount({ cwd: '/tmp/repo', status: { refName: 'main' }, diff: { files } })
+    await waitFor(() => {
+      expect(screen.getByText('file-9.ts')).toBeTruthy()
+    })
+    expect(document.querySelectorAll('[data-diff-line]')).toHaveLength(0)
+    fireEvent.click(screen.getAllByRole('button', { expanded: false })[0]!)
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-diff-line]').length).toBeGreaterThan(0)
+    })
+  })
 })
 
 describe('pickBranchBase', () => {

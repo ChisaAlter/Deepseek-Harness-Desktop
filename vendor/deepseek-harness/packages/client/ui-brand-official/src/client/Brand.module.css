@@ -15,6 +15,11 @@
   object-fit: contain;
 }
 
+.railAvatar {
+  display: block;
+  object-fit: contain;
+}
+
 .nameBlock {
   display: inline-flex;
   flex-direction: column;

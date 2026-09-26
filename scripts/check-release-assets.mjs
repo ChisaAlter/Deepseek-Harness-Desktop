@@ -41,7 +41,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { JSON_SCHEMA, load } from 'js-yaml'
 
-export const SETUP_PREFIX = 'Deepseek-Harness-Desktop-Setup-'
+export const SETUP_PREFIX = 'Whale-Isle-Setup-'
 export const SETUP_SUFFIX = '.exe'
 export const BLOCKMAP_SUFFIX = '.blockmap'
 const BLOCKMAP_FILE_SUFFIX = `${SETUP_SUFFIX}${BLOCKMAP_SUFFIX}`
@@ -302,7 +302,7 @@ export async function validateReleaseAssets({
   }
 
   // electron-builder writes the blockmap as `<full installer filename>.blockmap`,
-  // e.g. `Deepseek-Harness-Desktop-Setup-0.3.2.exe.blockmap`, so the stem is the
+  // e.g. `Whale-Isle-Setup-0.3.2.exe.blockmap`, so the stem is the
   // whole Setup filename up to its final `.blockmap`.
   const expectedBlockmap = `${setupName}.blockmap`
   const blockmapCandidate = requireSingleCandidate(blockmapCandidates, '.exe.blockmap')

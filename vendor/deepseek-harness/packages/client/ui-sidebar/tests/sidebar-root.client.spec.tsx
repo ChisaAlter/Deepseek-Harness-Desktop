@@ -138,12 +138,15 @@ describe('SidebarRoot shell', () => {
     const b = mountShell()
     expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
     expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
+    const expandedToggle = screen.getByRole('button', { name: 'Collapse sidebar' })
+    expect(expandedToggle.querySelector('[data-testid="custom-brand-mark"]')).toBeNull()
+    expect(expandedToggle.querySelector('svg')).toBeTruthy()
     // Expanded, both the wordmark and the capsule start a session.
     const starters = screen.getAllByRole('button', { name: 'New session' })
     expect(starters).toHaveLength(2)
     for (const button of starters) fireEvent.click(button)
     expect(b.startSession).toHaveBeenCalledTimes(2)
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    fireEvent.click(expandedToggle)
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
   })
 
@@ -234,7 +237,10 @@ describe('SidebarRoot shell', () => {
   it('renders statically collapsed on a cold start (no crossfade classes)', () => {
     const b = mountShell({ collapsed: true })
     expect(b.regionOwner().wide).toBe(false)
-    expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+    const toggle = screen.getByRole('button', { name: 'Open sidebar' })
+    expect(toggle.querySelector('[data-testid="custom-brand-mark"]')).toBeTruthy()
+    fireEvent.click(toggle)
+    expect(b.toggleSidebar).toHaveBeenCalledOnce()
   })
 
   it('shows only the badge bubble while the rail badge is hovered inside the toggle', () => {
@@ -291,8 +297,17 @@ it('wires the shell.leading controls to the shared sidebar actions', () => {
   expect(startSession).toHaveBeenCalledOnce()
 })
 
-describe('Windows caption tooltips', () => {
-  afterEach(() => { document.documentElement.removeAttribute('data-windows-titlebar') })
+  describe('Windows caption tooltips', () => {
+    afterEach(() => { document.documentElement.removeAttribute('data-windows-titlebar') })
+
+    it('keeps the collapsed brand mark inside the titlebar expand button', () => {
+      document.documentElement.setAttribute('data-windows-titlebar', '')
+      const shell = mountShell({ collapsed: true, width: 0 })
+      const toggle = screen.getByRole('button', { name: 'Open sidebar' })
+      expect(toggle.querySelector('[data-testid="custom-brand-mark"]')).toBeTruthy()
+      fireEvent.click(toggle)
+      expect(shell.toggleSidebar).toHaveBeenCalledOnce()
+    })
 
   const hover = (button: HTMLElement): void => {
     fireEvent.mouseEnter(button)

@@ -5,7 +5,10 @@
 // downloads, installs, updates, starts, and probes. Only the launcher window
 // and the launcher IPC surface exist here.
 
-const { app, dialog } = require('electron');
+const { app, dialog, Notification } = require('electron');
+const { LAUNCHER_NAME, LEGACY_LAUNCHER_USER_DATA, preserveUserDataPath } = require('../shared/product-identity');
+preserveUserDataPath(app, LEGACY_LAUNCHER_USER_DATA);
+app.setName(LAUNCHER_NAME);
 
 const fs = require('fs');
 const path = require('path');
@@ -20,8 +23,19 @@ try {
     try { fs.appendFileSync(logFile, `${new Date().toISOString()} ${line}\n`); } catch {}
   };
   trace = write;
+  let fatalReported = false;
   process.on('uncaughtException', (error) => {
     write(`uncaughtException: ${error && error.stack ? error.stack : error}`);
+    // A log-only handler would leave a window-less zombie: fail visible.
+    if (fatalReported) {
+      app.exit(1);
+      return;
+    }
+    fatalReported = true;
+    try {
+      dialog.showErrorBox('启动器发生错误', String(error && error.message ? error.message : error));
+    } catch {}
+    app.exit(1);
   });
   process.on('unhandledRejection', (reason) => {
     write(`unhandledRejection: ${reason && reason.stack ? reason.stack : reason}`);
@@ -29,7 +43,10 @@ try {
 } catch {}
 const { getLauncherWindow, prepareLauncher, showLauncher, sendToLauncher } = require('../main/window');
 const { watchSystemTheme } = require('../main/chrome');
-const { loadConfig } = require('../main/config');
+const { loadConfig, saveConfig } = require('../main/config');
+const { hideOnClose } = require('../main/close-behavior');
+const ipcComponents = require('../main/ipc-components');
+const { createLauncherTray } = require('./tray');
 const { desktopStateDir } = require('../launcher/product');
 const {
   setDesktopDshHome,
@@ -45,6 +62,49 @@ const {
 const { registerSlimIpc } = require('./ipc');
 
 let quitting = false;
+let tray = null;
+
+function quitApp() {
+  quitting = true;
+  app.quit();
+}
+
+// Close hides to the tray (A5): supervised components keep running while the
+// window is hidden, and before-quit is still what tears them down on a real
+// quit. If the tray could not be created we must not strand a windowless
+// process — fall through to the default close.
+function supervisedComponentsLabel() {
+  try {
+    const snap = ipcComponents.contributeStatus()?.components;
+    const running = Array.isArray(snap) ? snap.filter((c) => c.state === 'running').length : 0;
+    return running > 0 ? `组件运行中：${running} 个` : '无组件运行';
+  } catch {
+    return undefined;
+  }
+}
+
+function bindLauncherClose(win) {
+  win.on('close', (event) => {
+    if (quitting || !tray || !hideOnClose(loadConfig(), quitting)) {
+      return;
+    }
+    event.preventDefault();
+    win.hide();
+    // First hide only: explain where the window went. Persisted under the
+    // launcher config; written via saveConfig (not the renderer whitelist).
+    try {
+      if (!loadConfig().trayHintShown && Notification.isSupported()) {
+        new Notification({
+          title: '已最小化到托盘',
+          body: '双击托盘图标可重新打开启动器；从托盘菜单可完全退出。',
+        }).show();
+        saveConfig({ trayHintShown: true });
+      }
+    } catch (error) {
+      trace(`tray hint failed: ${error && error.message ? error.message : error}`);
+    }
+  });
+}
 
 async function confirmUnverified(info) {
   const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
@@ -60,6 +120,7 @@ async function confirmUnverified(info) {
 }
 
 async function confirmUpdateAsk(check) {
+  const notes = typeof check?.notes === 'string' ? check.notes.trim() : '';
   const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
     type: 'question',
     buttons: ['更新', '稍后'],
@@ -67,6 +128,7 @@ async function confirmUpdateAsk(check) {
     cancelId: 1,
     title: '发现新版本',
     message: `是否更新到 ${check.latest || check.version || ''}？`,
+    detail: notes ? (notes.length > 600 ? `${notes.slice(0, 600)}…` : notes) : undefined,
     noLink: true,
   });
   return result.response === 0;
@@ -129,6 +191,10 @@ if (!gotLock) {
 
   app.on('before-quit', () => {
     quitting = true;
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
   });
 
   app.whenReady().then(async () => {
@@ -151,6 +217,17 @@ if (!gotLock) {
 
     const win = await prepareLauncher();
     trace('launcher-prepared');
+    try {
+      tray = createLauncherTray({
+        onShow: () => void openLauncher(),
+        onQuit: quitApp,
+        toolTip: '鲸屿启动器',
+        statusLabel: supervisedComponentsLabel,
+      });
+    } catch (error) {
+      trace(`tray create failed: ${error && error.stack ? error.stack : error}`);
+    }
+    bindLauncherClose(win);
     // A visible launcher is the only surface allowed to consume a parked
     // late update check.
     win.on('show', () => {
@@ -178,5 +255,10 @@ if (!gotLock) {
     trace('gate-done');
   }).catch((error) => {
     trace(`whenReady chain failed: ${error && error.stack ? error.stack : error}`);
+    // Never strand a hidden window-less process: tell the user and exit.
+    try {
+      dialog.showErrorBox('启动器初始化失败', String(error && error.message ? error.message : error));
+    } catch {}
+    app.exit(1);
   });
 }

@@ -1,4 +1,4 @@
-# Deepseek-Harness-Desktop 0.3.3
+# Whale Isle 0.3.3
 
 [中文](release-notes.md) | English
 

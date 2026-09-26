@@ -12,7 +12,9 @@ const update = require('../main/update');
 const { loadConfig } = require('../main/config');
 const installDetect = require('./install-detect');
 const releaseSource = require('./release-source');
-const { isLauncherPackage, runtimeTarget } = require('./product');
+const forensicsLog = require('./forensics-log');
+const { isLauncherPackage, runtimeTarget, desktopStateDir } = require('./product');
+const peerClient = require('./task-control-client');
 
 const INSTALL_WAIT_MS = 8 * 60_000;
 const INSTALL_POLL_MS = 2500;
@@ -44,9 +46,11 @@ function invalidateInstalledCache() {
 function configuredRoute(deps = {}) {
   try {
     const config = typeof deps.loadConfig === 'function' ? deps.loadConfig() : loadConfig();
-    return releaseSource.normalizeRoute(config.downloadRoute) || '';
+    // No explicit pick yet → behave as if GitHub were selected, matching the
+    // prototype's default-checked line card and the seg control.
+    return releaseSource.normalizeRoute(config.downloadRoute) || 'github';
   } catch {
-    return '';
+    return 'github';
   }
 }
 
@@ -182,6 +186,9 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
   }
   const updateMod = deps.update || update;
   const source = deps.releaseSource || releaseSource;
+  const ensureExited = typeof deps.ensureDesktopExited === 'function'
+    ? deps.ensureDesktopExited
+    : () => ensureExternalDesktopExited(deps);
   const route = source.normalizeRoute(options.route)
     || configuredRoute(deps)
     || 'github';
@@ -220,6 +227,14 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
       // package keeps self-update semantics (quit when packaged).
       quitAfterInstall: isPackagedNow(deps) && !isLauncherPackageNow(deps),
       confirmUnverified: deps.confirmUnverified,
+      // Between verify and installer launch: the managed desktop must have
+      // exited (peer handshake → task-protected quit, or graceful close).
+      beforeInstall: async () => {
+        const exited = await ensureExited();
+        return exited.ok === true
+          ? { ok: true }
+          : { ok: false, code: exited.code || 'desktop-still-running', cancelled: exited.cancelled === true };
+      },
       onInstallerLaunch: (child) => {
         installerChild = child;
       },
@@ -311,17 +326,40 @@ async function startExternalDesktop(argv = [], deps = {}) {
   if (!exe) {
     return { ok: false, error: 'runtime-exe-missing', installPath: info.installPath };
   }
+  const args = ['--dshd-from-launcher', ...argv];
   const doSpawn = deps.spawn || spawn;
-  const child = doSpawn(exe, ['--dshd-from-launcher', ...argv], {
+  const child = doSpawn(exe, args, {
     detached: true,
-    stdio: 'ignore',
+    // stdout/stderr are piped (stdin stays ignored) so a plugin-caused crash
+    // leaves attributable lines in the bounded boot log; the child drains via
+    // the log writer, so a full pipe buffer can never stall the runtime.
+    // ELECTRON_ENABLE_LOGGING forwards the GUI app's console output (which is
+    // where cordis loader/compose errors land) onto stderr — without it a
+    // packaged runtime emits nothing on these pipes.
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, ELECTRON_ENABLE_LOGGING: '1' },
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: false,
   });
+  const logMod = deps.forensicsLog || forensicsLog;
+  let bootLogPath = '';
+  try {
+    const stateDir = typeof deps.stateDir === 'function' ? deps.stateDir() : desktopStateDir(app);
+    bootLogPath = stateDir ? logMod.bootLogPath(stateDir) : '';
+  } catch {
+    bootLogPath = '';
+  }
+  const bootLog = logMod.attachBootLog(child, bootLogPath);
+  bootLog.line(`spawning external runtime: ${exe} ${args.join(' ')}`);
   // A rejected spawn reports through the error event on the next tick; an
   // unhandled 'error' on a ChildProcess would take the whole launcher down.
   let spawnError = null;
   child.on('error', (error) => {
     spawnError = error;
+  });
+  // Exit after the grace window still lands in the log — a crash at second 30
+  // is as attributable as one at second 1.
+  child.on('exit', (code, signal) => {
+    bootLog.line(`external runtime exited code ${code === null ? 'null' : code}${signal ? ` signal ${signal}` : ''}`);
   });
   child.unref();
   // A successful spawn only proves a child existed for a moment: a runtime
@@ -337,6 +375,7 @@ async function startExternalDesktop(argv = [], deps = {}) {
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, Math.min(pollMs, Math.max(0, deadline - Date.now()))));
     if (spawnError) {
+      bootLog.line(`launcher verdict: spawn failed (${spawnError.message || 'runtime-spawn-failed'})`);
       return { ok: false, error: spawnError.message || 'runtime-spawn-failed', exe };
     }
     const alive = probe();
@@ -346,41 +385,132 @@ async function startExternalDesktop(argv = [], deps = {}) {
     }
     if (seen) {
       // Appeared in the process table then vanished before the grace ended.
+      bootLog.line('launcher verdict: runtime-exited inside alive grace');
       return { ok: false, error: 'runtime-exited', exe };
     }
   }
-  return probe()
+  const alive = probe();
+  bootLog.line(`launcher verdict: ${alive ? 'launched' : seen ? 'runtime-exited' : 'runtime-never-started'}`);
+  return alive
     ? { ok: true, launched: true, external: true, exe }
     : { ok: false, error: seen ? 'runtime-exited' : 'runtime-never-started', exe };
 }
 
 async function stopExternalDesktop(deps = {}) {
   const target = deps.target !== undefined ? deps.target : (runtimeTarget() || installDetect.DESKTOP_TARGET);
-  const image = `${target.productName}.exe`;
+  // Product renames change the exe image name — installed runtimes carry
+  // whichever name they were built with, so kill every known image name.
+  const images = installDetect.productNames
+    ? installDetect.productNames(target.productName)
+    : [target.productName];
   const exec = deps.execFileSync || execFileSync;
   const probe = () => probeDesktopRunning({ ...deps, target });
   if (!probe()) {
     return { ok: true, stopped: false };
   }
-  try {
-    // Graceful first (WM_CLOSE); a tray-parked app may still be alive after.
-    exec('taskkill', ['/IM', image], { windowsHide: true });
-  } catch {
-    // already gone between probe and kill
+  // Prefer the task-control handshake: a new desktop runs its own protection
+  // (prompt/lock/drain) before it stops — the launcher never force-kills it.
+  const handshake = await requestPeerStop('stop-desktop', deps);
+  if (handshake.ok === true) {
+    await waitUntilGone(probe, deps.exitWaitMs ?? 30000);
+    return { ok: !probe(), stopped: !probe(), ...(probe() ? { error: 'desktop-still-running' } : {}) };
   }
-  const grace = deps.stopGraceMs ?? 5000;
-  const deadline = Date.now() + grace;
-  while (probe() && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, Math.min(250, deadline - Date.now())));
+  if (handshake.code === 'peer-cancelled' || handshake.code === 'busy') {
+    return { ok: false, cancelled: handshake.code === 'peer-cancelled', error: handshake.code, stopped: false };
   }
-  if (probe()) {
+  // Legacy desktop (no peer file): WM_CLOSE is the graceful normal exit —
+  // a tray-parked app may stay alive; report instead of force-killing.
+  for (const name of images) {
     try {
-      exec('taskkill', ['/IM', image, '/F', '/T'], { windowsHide: true });
+      exec('taskkill', ['/IM', `${name}.exe`], { windowsHide: true });
     } catch {
-      // best effort already attempted
+      // already gone between probe and close
     }
   }
-  return { ok: true, stopped: !probe() };
+  const grace = deps.stopGraceMs ?? 15000;
+  await waitUntilGone(probe, grace);
+  if (probe()) {
+    return {
+      ok: false,
+      stopped: false,
+      error: 'desktop-still-running',
+      message: '桌面端仍在运行，请从托盘退出后重试',
+    };
+  }
+  return { ok: true, stopped: true };
+}
+
+async function waitUntilGone(probe, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (probe() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(250, Math.max(0, deadline - Date.now()))));
+  }
+  return !probe();
+}
+
+/**
+ * Ask the running desktop's peer endpoint to run one protected operation.
+ * @returns {{ ok: boolean, code?: string }} — `no-peer`/`peer-unreachable`
+ *   when no handshake exists, `peer-cancelled` when the user declined.
+ */
+async function requestPeerStop(op, deps = {}) {
+  const stateDir = typeof deps.stateDir === 'function'
+    ? deps.stateDir()
+    : (typeof deps.stateDir === 'string' ? deps.stateDir : '');
+  if (!stateDir) {
+    try {
+      const { app } = require('electron');
+      const resolved = require('./product').desktopStateDir(app);
+      return requestPeerStop(op, { ...deps, stateDir: resolved });
+    } catch {
+      return { ok: false, code: 'no-peer' };
+    }
+  }
+  const { peer, code } = peerClient.resolvePeer(stateDir, deps);
+  if (!peer) {
+    return { ok: false, code };
+  }
+  const result = await peerClient.callPeer(peer, op, deps.peerBody || {}, deps);
+  if (result.ok === true) {
+    return { ok: true };
+  }
+  if (result.code === 'cancelled' || result.cancelled === true) {
+    return { ok: false, code: 'peer-cancelled' };
+  }
+  return { ok: false, code: result.code || 'peer-failed' };
+}
+
+/**
+ * For install/delta flows: ensure the managed desktop process has exited —
+ * peer handshake (desktop coordinates its own protection and quits) when the
+ * target supports it, otherwise a graceful WM_CLOSE plus confirmation that
+ * the process is really gone. Never force-kills; a desktop still running
+ * blocks the install.
+ */
+async function ensureExternalDesktopExited(deps = {}) {
+  const probe = () => probeDesktopRunning({ ...deps });
+  if (!probe()) {
+    return { ok: true, wasRunning: false };
+  }
+  const handshake = await requestPeerStop('prepare-install', deps);
+  if (handshake.ok === true) {
+    const gone = await waitUntilGone(probe, deps.exitWaitMs ?? 30000);
+    return gone
+      ? { ok: true, wasRunning: true, via: 'peer' }
+      : { ok: false, code: 'desktop-still-running' };
+  }
+  if (handshake.code === 'peer-cancelled' || handshake.code === 'busy') {
+    return { ok: false, code: handshake.code === 'peer-cancelled' ? 'cancelled' : 'busy', cancelled: handshake.code === 'peer-cancelled' };
+  }
+  const stop = await stopExternalDesktop(deps);
+  if (stop.ok !== true || probe()) {
+    return {
+      ok: false,
+      code: stop.error || 'desktop-still-running',
+      cancelled: stop.cancelled === true,
+    };
+  }
+  return { ok: true, wasRunning: true, via: 'graceful' };
 }
 
 module.exports = {
@@ -392,6 +522,8 @@ module.exports = {
   cancelRuntimeInstall,
   startExternalDesktop,
   stopExternalDesktop,
+  ensureExternalDesktopExited,
+  requestPeerStop,
   probeDesktopRunning,
   waitForInstall,
 };

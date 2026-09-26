@@ -5,6 +5,7 @@
 // of these endpoints. Selecting a route must drive every fetch — metadata,
 // installer, checksum — through that route's host only.
 const update = require('../main/update');
+const deltaManifest = require('./delta/manifest');
 
 const ROUTES = {
   github: {
@@ -19,11 +20,10 @@ const ROUTES = {
     id: 'gitee',
     label: 'Gitee',
     detail: '国内线路 · Gitee 镜像',
-    // Plan rule: a route only becomes user-selectable after anonymous
-    // large-file downloads are verified on a real domestic network. The Gitee
-    // mirror repo exists but is private, so this stays a visible-but-disabled
-    // option until C-batch verification flips it.
-    verified: false,
+    // Anonymous parity proven (docs/superpowers/evidence/gitee-parity.md):
+    // release metadata, browser_download_url redirect chain and SHA512SUMS
+    // manifest all resolve without credentials.
+    verified: true,
     apiBase: 'https://gitee.com/api/v5/repos/ayase/Deepseek-Harness-Desktop',
     page: 'https://gitee.com/ayase/Deepseek-Harness-Desktop/releases',
   },
@@ -89,14 +89,48 @@ function normalizeAssets(release) {
   };
 }
 
+// A release row is delta-eligible when it ships
+// `<product>-delta-<installedVersion>-<toVersion>.zip`; install.js re-picks
+// the same asset at apply time, so the row only carries display fields.
+function deltaInfoForRow(release, installedVersion, toVersion) {
+  const from = update.normalizeVersion(installedVersion || '');
+  const to = update.normalizeVersion(toVersion || '');
+  if (!from || !to || !Array.isArray(release?.assets)) {
+    return null;
+  }
+  for (const asset of release.assets) {
+    const parsed = deltaManifest.parseDeltaAssetName(asset?.name || '');
+    if (parsed
+      && update.normalizeVersion(parsed.from) === from
+      && update.normalizeVersion(parsed.to) === to) {
+      return {
+        name: asset.name,
+        from: parsed.from,
+        to: parsed.to,
+        size: typeof asset.size === 'number' ? asset.size : 0,
+      };
+    }
+  }
+  return null;
+}
+
 function summarizeForRoute(route, release, installedVersion) {
-  const summary = update.summarizeRelease(normalizeAssets(release), installedVersion || '');
+  const normalized = normalizeAssets(release);
+  const summary = update.summarizeRelease(normalized, installedVersion || '');
   if (!summary) {
     return null;
   }
   const desc = ROUTES[route];
+  // Prototype row meta needs the publish date + installer size; summarizeRelease
+  // drops the assets, so re-locate the picked installer by its name.
+  const installer = (Array.isArray(normalized?.assets) ? normalized.assets : []).find(
+    (asset) => asset && asset.name === summary.assetName,
+  );
   return {
     ...summary,
+    delta: deltaInfoForRow(release, installedVersion, summary.tag || summary.version),
+    publishedAt: release.published_at || release.created_at || '',
+    assetSize: typeof installer?.size === 'number' ? installer.size : 0,
     htmlUrl: release.html_url || desc.page,
     route,
   };
@@ -112,13 +146,37 @@ function routeSnapshot(route, extra = {}) {
   };
 }
 
+// Raw release payload with assets intact (releaseFor's summary drops them).
+// Gitee's /releases/latest returns prereleases (GitHub's does not) — proven in
+// the parity evidence — so on gitee the no-tag form picks the first non-draft
+// non-prerelease row of the list instead of trusting /latest.
+async function releaseRaw(route, tag, { timeoutMs } = {}) {
+  const desc = ROUTES[route];
+  if (!desc) {
+    return null;
+  }
+  if (tag) {
+    return fetchJson(
+      route,
+      `${desc.apiBase}/releases/tags/${encodeURIComponent(String(tag).trim())}`,
+      timeoutMs,
+    );
+  }
+  if (route === 'gitee') {
+    const list = await fetchJson(route, `${desc.apiBase}/releases?per_page=30`, timeoutMs);
+    return (Array.isArray(list) ? list : [])
+      .find((row) => row && !row.draft && !row.prerelease) || null;
+  }
+  return fetchJson(route, `${desc.apiBase}/releases/latest`, timeoutMs);
+}
+
 async function latestFor(route, { installedVersion = '', timeoutMs } = {}) {
   const desc = ROUTES[route];
   if (!desc) {
     return routeSnapshot('github', { status: 'error', message: 'unknown-route' });
   }
   try {
-    const release = await fetchJson(route, `${desc.apiBase}/releases/latest`, timeoutMs);
+    const release = await releaseRaw(route, null, { timeoutMs });
     if (!release) {
       return routeSnapshot(route, { status: 'none', latest: '', assetName: '', assetUrl: '', htmlUrl: desc.page });
     }
@@ -168,15 +226,7 @@ async function listFor(route, { installedVersion = '', timeoutMs } = {}) {
 }
 
 async function releaseFor(route, tag, { installedVersion = '', timeoutMs } = {}) {
-  const desc = ROUTES[route];
-  if (!desc) {
-    return null;
-  }
-  const release = await fetchJson(
-    route,
-    `${desc.apiBase}/releases/tags/${encodeURIComponent(String(tag || '').trim())}`,
-    timeoutMs,
-  );
+  const release = await releaseRaw(route, tag, { timeoutMs });
   return release ? summarizeForRoute(route, release, installedVersion) : null;
 }
 
@@ -187,5 +237,6 @@ module.exports = {
   latestFor,
   listFor,
   releaseFor,
+  releaseRaw,
   summarizeForRoute,
 };

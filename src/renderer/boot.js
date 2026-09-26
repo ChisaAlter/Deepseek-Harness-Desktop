@@ -13,7 +13,7 @@ const stampCodeEl = document.getElementById('stamp-code');
 
 const HINTS = {
   idle: '等待启动。',
-  starting: '本机 dsh web 启动中。关闭应用时服务一并退出。',
+  starting: '桌面端正在启动。关闭应用时服务一并退出。',
   ready: '正在打开 Web UI。',
   stopping: '正在停止运行时。',
   error: '可立即重启，或根据日志调整配置。',
@@ -158,6 +158,33 @@ function renderPluginBoot(payload) {
   applyPluginBootCopy(payload);
 }
 
+// Failure copy for people, not logs: known technical failures map to a
+// Chinese cause + next step; the raw message stays in the log dock.
+const FAILURE_TEXT_PATTERNS = [
+  [/spawn\s+\S+\s+ENOENT|ENOENT/i, '桌面运行时文件缺失，请重新安装桌面端。'],
+  [/EADDRINUSE|address already in use/i, '启动所需端口被其他程序占用，请关闭占用程序后重试。'],
+  [/EACCES|permission denied|EPERM/i, '没有权限访问所需资源，请检查安全软件拦截或重新安装。'],
+  [/dsh 进程结束|exited? (with|code)/i, '桌面运行时进程已退出，可重试或回启动器排查。'],
+];
+
+function failureText(failure, snapshot) {
+  const raw = String(failure?.message || snapshot?.error || '').trim();
+  if (!raw) {
+    return '';
+  }
+  for (const [pattern, text] of FAILURE_TEXT_PATTERNS) {
+    if (pattern.test(raw)) {
+      return `${text}（详情见下方日志）`;
+    }
+  }
+  // A plain sentence (spaces, CJK, punctuation) is already user copy; a bare
+  // technical token is not.
+  if (!/^[A-Za-z][\w./:-]*$/.test(raw)) {
+    return raw;
+  }
+  return '启动失败，请下载日志后回启动器排查。';
+}
+
 function renderState(snapshot) {
   latestSnapshot = snapshot;
   const state = snapshot?.state || 'starting';
@@ -173,7 +200,7 @@ function renderState(snapshot) {
 
   if (!usingOfficialRecovery) {
     statusEl.textContent = state === 'error'
-      ? (runtimeFailure ? 'Harness 意外退出' : 'Harness 启动失败')
+      ? (runtimeFailure ? '桌面端意外退出' : '桌面端启动失败')
       : LABELS[state] || LABELS.starting;
     statusEl.className = `status ${state}`;
     hintEl.textContent = runtimeFailure
@@ -181,7 +208,7 @@ function renderState(snapshot) {
       : (HINTS[state] || HINTS.starting);
   }
 
-  failureEl.textContent = state === 'error' ? (failure?.message || snapshot?.error || '') : '';
+  failureEl.textContent = state === 'error' ? failureText(failure, snapshot) : '';
   failureEl.hidden = !failureEl.textContent;
 
   const canAct = state === 'error' || recoveryScheduled || recoveryBusy;
@@ -204,9 +231,10 @@ function renderState(snapshot) {
   openLauncherEl.textContent = globalThis.BootRecovery?.openLauncherLabel
     ? globalThis.BootRecovery.openLauncherLabel()
     : '回启动器排查';
+  const recoveryStatus = snapshot?.recovery?.status;
   openLauncherEl.hidden = !(globalThis.BootRecovery?.showLauncherBridge
-    ? globalThis.BootRecovery.showLauncherBridge(state)
-    : state === 'error');
+    ? globalThis.BootRecovery.showLauncherBridge(state, recoveryStatus)
+    : state === 'error' && recoveryStatus !== 'scheduled' && recoveryStatus !== 'restarting');
   cancelRestartEl.hidden = !recoveryScheduled;
   cancelRestartEl.disabled = recoveryBusy;
 

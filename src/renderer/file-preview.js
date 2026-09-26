@@ -92,9 +92,13 @@ function render(state) {
   status(textFor(state, 'failed'));
 }
 
+function uiLocale() {
+  return /^en/i.test(typeof navigator === 'object' ? navigator.language || '' : '') ? 'en' : 'zh';
+}
+
 if (!window.filePreview || typeof window.filePreview.getState !== 'function') {
-  status('File preview bridge is unavailable.');
+  status(uiLocale() === 'en' ? 'File preview bridge is unavailable.' : '预览桥接不可用。');
 } else {
   window.filePreview.onTheme(applyTheme);
-  window.filePreview.getState().then(render).catch(() => status('Could not load this preview.'));
+  window.filePreview.getState().then(render).catch(() => status(textFor({ locale: uiLocale() }, 'failed')));
 }

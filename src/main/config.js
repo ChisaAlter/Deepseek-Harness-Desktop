@@ -9,6 +9,7 @@ const { normalizeRemotePatch } = require('./remote-patch');
 const { normalizeGrowthState } = require('./pet-growth');
 const { normalizeStats } = require('./pet-stats');
 const petSettings = require('./pet-settings');
+const { PRODUCT_NAME, LEGACY_PRODUCT_NAME } = require('../shared/product-identity');
 
 const REMOTE_FEATURE_ENABLED = true;
 
@@ -277,11 +278,12 @@ function normalizeDisabledPlugins(list) {
   const { withoutDshWhaleAliases } = require('./dsh-whale-desktop');
   const { withoutDshRemoteAliases } = require('./dsh-remote-desktop');
   const { withoutUsagePanelAliases } = require('./usage-panel-preset');
-  return [...new Set(withoutDshWhaleAliases(withoutDshbotAliases(withoutDshRemoteAliases(withoutUsagePanelAliases(withoutDshImAliases(
+  const { withoutTaskControlAliases } = require('./task-control-overlay');
+  return [...new Set(withoutTaskControlAliases(withoutDshWhaleAliases(withoutDshbotAliases(withoutDshRemoteAliases(withoutUsagePanelAliases(withoutDshImAliases(
     (Array.isArray(list) ? list : [])
       .map((name) => String(name || '').trim())
       .filter(Boolean),
-  ))))))];
+  )))))))];
 }
 
 function normalizeLauncherSettings(config) {
@@ -301,7 +303,7 @@ function normalizeLauncherConfigPatch(patch) {
   }
   const next = {};
   for (const [key, value] of Object.entries(patch)) {
-    if (['quitAfterStart', 'autoStartDesktop', 'askOnUpdate'].includes(key)) {
+    if (['quitAfterStart', 'autoStartDesktop', 'askOnUpdate', 'closeToTray'].includes(key)) {
       if (typeof value !== 'boolean') {
         throw new TypeError(`${key} must be a boolean`);
       }
@@ -311,6 +313,15 @@ function normalizeLauncherConfigPatch(patch) {
     if (key === 'downloadRoute') {
       if (!['', 'github', 'gitee'].includes(value)) {
         throw new TypeError('downloadRoute must be "", "github" or "gitee"');
+      }
+      next[key] = value;
+      continue;
+    }
+    if (key === 'components') {
+      // Lane-owned namespace (launcher components platform): renderer writes
+      // whole object blobs; the components module validates the inner shape.
+      if (!isPlainObject(value) || JSON.stringify(value).length > 65536) {
+        throw new TypeError('components must be a plain object under 64KiB');
       }
       next[key] = value;
       continue;
@@ -444,7 +455,9 @@ function isUnsafeWorkspace(dir) {
 
 function defaultWorkspace() {
   if (app.isPackaged) {
-    return path.join(app.getPath('documents'), 'Deepseek-Harness-Desktop');
+    const documents = app.getPath('documents');
+    const legacy = path.join(documents, LEGACY_PRODUCT_NAME);
+    return fs.existsSync(legacy) ? legacy : path.join(documents, PRODUCT_NAME);
   }
   return projectRoot();
 }

@@ -401,6 +401,45 @@ test('skip-user-plugins still wires first-party usage-panel and dsh-im', async (
   assert.ok(f.dsh.logs.some((line) => /桌面内置 dsh-im/.test(line)));
 });
 
+test('a failed Office runtime ensure blocks Harness start (desktop runtime damage)', async () => {
+  const f = fixture({
+    ensureDesktopOfficeRuntime: async () => ({ ok: false, error: 'missing-payload' }),
+  });
+  await assert.rejects(
+    () => f.controller.start(),
+    (error) => {
+      assert.match(String(error.message), /桌面内置 Office 运行时失败/);
+      assert.match(String(error.message), /missing-payload/);
+      return true;
+    },
+  );
+  assert.equal(f.dsh.startCalls, 0);
+});
+
+test('Office overlay rides full and skip-user-plugins starts', async () => {
+  const officeOverlay = 'C:/profiles/web/desktop-plugins/office/desktop-office.patch.yml';
+  for (const skipUserPlugins of [false, true]) {
+    const f = fixture({
+      ensureDesktopOfficeRuntime: async () => ({ ok: true, present: true, overlayFile: officeOverlay }),
+    });
+    if (skipUserPlugins) f.controller.writePluginSkip(new Error('recovery'));
+    await f.controller.start();
+    assert.equal(f.dsh.startOptions[0].skipUserPlugins, skipUserPlugins);
+    assert.ok(f.dsh.startOptions[0].patchFiles.includes(officeOverlay));
+    assert.ok(f.dsh.logs.some((line) => /Office/.test(line)));
+  }
+});
+
+test('an explicitly disabled Office runtime mounts no overlay but still starts', async () => {
+  const f = fixture({
+    ensureDesktopOfficeRuntime: async () => ({ ok: true, disabled: true, present: false }),
+  });
+  await f.controller.start();
+  assert.equal(f.dsh.startCalls, 1);
+  assert.ok(!f.dsh.startOptions[0].patchFiles.some((file) => /office/.test(file)));
+  assert.ok(f.dsh.logs.some((line) => /Office.*关闭/.test(line)));
+});
+
 test('dsh-im failure blocks Harness start', async () => {
   const f = fixture({
     ensureDshImPlugin: async () => ({ ok: false, error: 'missing-source:node_modules:zod' }),

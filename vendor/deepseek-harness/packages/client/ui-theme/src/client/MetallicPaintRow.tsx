@@ -25,7 +25,7 @@ export function MetallicPaintRow({
     <section className={css.block} aria-labelledby="appearance-metallic-paint-heading">
       <div className={css.effectRow}>
         <div className={css.effectText}>
-          <h2 id="appearance-metallic-paint-heading" className={css.heading}>{t('metallicPaint.title')}</h2>
+          <h2 id="appearance-metallic-paint-heading" className={css.rowTitle}>{t('metallicPaint.title')}</h2>
           <p className={css.hint}>{t('metallicPaint.description')}</p>
         </div>
         <div className={css.effectActions}>

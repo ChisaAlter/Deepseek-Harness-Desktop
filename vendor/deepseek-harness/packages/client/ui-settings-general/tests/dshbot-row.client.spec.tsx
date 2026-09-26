@@ -70,6 +70,23 @@ describe('DshbotRow', () => {
     expect(screen.getByText('Toggling restarts the Harness automatically.')).toBeTruthy()
   })
 
+  it('reverts the switch when saveConfig rejects and blocks input while busy', async () => {
+    const saveConfig = vi.fn(async () => { throw new Error('write failed') })
+    ;(window as Window & { shell?: unknown }).shell = {
+      getConfig: async () => ({ dshbotEnabled: false }),
+      saveConfig,
+    }
+    mount()
+    const toggle = screen.getByRole('switch', { name: 'Bots' })
+    fireEvent.click(toggle)
+    expect(saveConfig).toHaveBeenCalledWith({ dshbotEnabled: true })
+    await waitFor(() => {
+      const reverted = screen.getByRole('switch', { name: 'Bots' })
+      expect(reverted.getAttribute('aria-checked')).toBe('false')
+      expect((reverted as HTMLButtonElement).disabled).toBe(false)
+    })
+  })
+
   it('stays off when the desktop config cannot be read', async () => {
     ;(window as Window & { shell?: unknown }).shell = {
       getConfig: async () => { throw new Error('unavailable') },

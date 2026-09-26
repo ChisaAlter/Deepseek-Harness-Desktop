@@ -53,11 +53,32 @@ export function writeDesktopFileBuffer(address: string, buffer: DesktopFileBuffe
 }
 
 /**
+ * Binary Office formats this viewer declines: the document preview's own
+ * read-only renderers (Office→PDF, XLSX→Spreadsheet) serve them through the
+ * `text` fallback type, so the desktop editor never receives their bytes as
+ * an undecodable blob. Text-shaped tables (csv/tsv) stay editable here.
+ */
+const OFFICE_PREVIEW_EXTENSIONS = new Set(['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'])
+
+/**
+ * Whether a workspace path ends in an Office extension routed to the
+ * authorized document preview.
+ * @param filePath - workspace-relative path from the file address.
+ * @returns true when the document preview owns this file's rendering.
+ */
+export function isOfficePreviewPath(filePath: string): boolean {
+  const dot = filePath.lastIndexOf('.')
+  if (dot < 0 || dot === filePath.length - 1) return false
+  return OFFICE_PREVIEW_EXTENSIONS.has(filePath.slice(dot + 1).toLowerCase())
+}
+
+/**
  * Whether this Desktop viewer can serve an address.
  *
  * Only a session-scoped address with a real cwd is accepted. An absolute
- * address, malformed address, or session without a workspace stays with the
- * native document preview, which has its own host-side authority path.
+ * address, malformed address, a session without a workspace, or an Office
+ * document stays with the native document preview, which has its own
+ * host-side authority path.
  * @param address - candidate resource address.
  * @param cwdOf - resolves the owning session's workspace root.
  * @returns true when the address has a session and that session has a cwd.
@@ -68,6 +89,7 @@ export function canOpenDesktopFile(
 ): boolean {
   const parsed = parseFileAddress(address)
   if (parsed?.scope !== 'session') return false
+  if (isOfficePreviewPath(parsed.path)) return false
   const cwd = cwdOf(parsed.sessionId)
   return cwd !== undefined && cwd !== ''
 }

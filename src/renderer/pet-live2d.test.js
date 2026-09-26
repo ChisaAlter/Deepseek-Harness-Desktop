@@ -569,6 +569,113 @@ test('registered live state expressions use the original avatar', () => {
   assert.equal(pet.run('liveFx.rot'), -1);
 });
 
+test('sleep owns the face despite drowsiness, cursor gaze and an unfinished happy micro-action', () => {
+  const pet = loadPet();
+  pet.run(`session = {}; sleepEnter();`);
+  pet.setNow(pet.now() + 1300);
+  pet.run(`tickStill(performance.now()); stillCtl.alpha = 1;
+    idle.sleepy = 1; idle.lastInteract = performance.now() - 300000;
+    idle.act = ACTS[3]; idle.actStart = performance.now() - 950;
+    idle.ix = idle.mx = idle.targetMx = 0.8;
+    idle.iy = idle.my = idle.targetMy = -0.8;
+    idle.nextBlink = 100; idle.blinkTimer = 0;
+    stepPose();`);
+  assert.equal(pet.run('stillCtl.name'), 'sleep');
+  const face = Array.from(pet.run('pose.slice(0, 39)'));
+  for (let ch = 0; ch < face.length; ch += 1) {
+    assert.equal(Math.abs(face[ch]), ch === 12 || ch === 13 ? 1 : 0,
+      `sleep channel ${ch} must not distort the closed eyelids`);
+  }
+});
+
+test('sleep entry releases other facial shapes continuously before fully closing the eyes', () => {
+  const pet = loadPet();
+  pet.run(`session = {}; sleepEnter(); stillCtl.alpha = 1;`);
+  const stages = [0, 0.6, 1.2].map((elapsed) => {
+    pet.run(`pose.fill(0); pose[18] = pose[19] = 0.6;
+      pose[14] = pose[15] = 0.8; pose[37] = 0.7;
+      rigT = rigStateT0 + ${elapsed}; applyLiveState();`);
+    return Array.from(pet.run('[pose[12], pose[14], pose[18], pose[37]]'));
+  });
+  assert.equal(stages[0][0], 0);
+  assert.ok(stages[1][0] > 0 && stages[1][0] < 1, 'eyelids close progressively');
+  for (let i = 1; i < 4; i += 1) {
+    assert.ok(stages[1][i] > 0 && stages[1][i] < stages[0][i], 'competing shape fades');
+    assert.equal(stages[2][i], 0, 'no competing shape at the end of sleep entry');
+  }
+  assert.equal(stages[2][0], 1);
+});
+
+test('waking releases sleep face control and restores gaze and ordinary blinking', () => {
+  const pet = loadPet();
+  pet.run(`session = {}; sleepEnter(); stillCtl.name = 'sleep'; stillCtl.alpha = 1;
+    pose.fill(0); applyLiveState(); wake();`);
+  assert.equal(pet.run('sleeping'), false);
+  assert.equal(pet.run('stillCtl.name'), 'wake');
+  pet.run(`stepPose();`);
+  assert.equal(pet.run('pose[12]'), 0, 'waking is not pinned shut');
+  pet.run(`stillCtl.name = null; stillCtl.alpha = 0; idle.tapUntil = 0;
+    idle.act = null; idle.nextAct = 100;
+    idle.ix = idle.mx = idle.targetMx = 0.8;
+    idle.iy = idle.my = idle.targetMy = -0.8;
+    idle.blinkState = 0; idle.blinkTimer = 0; idle.nextBlink = 100;
+    stepPose();`);
+  assert.ok(Math.abs(pet.run('pose[37]')) > 0.5, 'gaze is restored');
+  pet.run('idle.blinkState = 2; idle.blinkTimer = 0; stepPose();');
+  assert.equal(pet.run('pose[12]'), 1, 'normal blink still closes the eyes');
+});
+
+test('idle blinks close cleanly during happy and drowsy micro-actions, then restore the expression', () => {
+  for (const microAction of ['ACTS[3]', 'YAWN']) {
+    const pet = loadPet();
+    pet.run(`session = {}; idle.last = performance.now();
+      idle.sleepy = 1; idle.lastInteract = performance.now() - 100000;
+      idle.act = ${microAction}; idle.actStart = performance.now() - idle.act.dur * 500;
+      idle.ix = idle.targetMx = 0.8; idle.iy = idle.targetMy = -0.8;
+      idle.blinkState = 2; idle.blinkTimer = 0; stepPose();`);
+    assert.equal(pet.run('pose[12]'), 1);
+    assert.equal(pet.run('pose[13]'), 1);
+    assert.ok(Array.from(pet.run('pose.slice(14, 26)')).every((v) => v === 0),
+      `${microAction}: full closure excludes competing eye shapes`);
+    assert.equal(Math.abs(pet.run('pose[37]')), 0, 'closed eyes do not retain iris motion');
+    assert.ok(pet.run('pose.slice(26, 37).some((v) => v > 0)'), 'mouth expression remains');
+  }
+  const pet = loadPet();
+  pet.run(`idle.act = ACTS[3]; idle.actStart = performance.now() - 950;
+    idle.blinkState = 2; idle.blinkTimer = 0; stepPose();
+    idle.blinkState = 0; idle.blinkTimer = 0; idle.nextBlink = 100; stepPose();`);
+  assert.equal(pet.run('pose[12]'), 0);
+  assert.ok(pet.run('pose[14]') > 0.7, 'smile returns when eyes reopen');
+});
+
+test('unilateral idle wink suppresses only the closing eye', () => {
+  const pet = loadPet();
+  pet.run(`idle.sleepy = 1; idle.lastInteract = performance.now() - 100000;
+    idle.act = ACTS[5]; idle.actStart = performance.now() - 450;
+    idle.blinkState = 0; idle.blinkTimer = 0; idle.nextBlink = 100;
+    idle.ix = idle.targetMx = 0.8; stepPose();`);
+  assert.equal(pet.run('pose[12]'), 1);
+  assert.equal(pet.run('pose[13]'), 0);
+  assert.equal(Math.abs(pet.run('pose[18]')), 0, 'wink has no relaxed-eye overlap');
+  assert.ok(pet.run('pose[19]') > 0.5, 'open eye retains its drowsy shape');
+  assert.ok(Math.abs(pet.run('pose[38]')) > 0.5, 'open eye retains gaze');
+});
+
+test('blink composition follows live expression overrides and fades across closure', () => {
+  const pet = loadPet();
+  const samples = [0, 0.5, 1].map((closed) => {
+    pet.run(`stillCtl.name = 'full'; stillCtl.alpha = 1;
+      idle.last = performance.now(); idle.blinkState = 1;
+      idle.blinkTimer = idle.blinkDur * ${closed}; stepPose();`);
+    return Array.from(pet.run('[pose[12], pose[14], pose[30]]'));
+  });
+  assert.equal(samples[0][0], 0);
+  assert.ok(samples[0][1] > samples[1][1] && samples[1][1] > samples[2][1],
+    'happy-eye override progressively yields to blink');
+  assert.equal(samples[2][1], 0);
+  assert.equal(samples[0][2], samples[2][2], 'blink does not erase the mouth');
+});
+
 test('chewing morphs continuously across variable inference intervals', () => {
   const pet = loadPet();
   const samples = pet.run(`(() => {

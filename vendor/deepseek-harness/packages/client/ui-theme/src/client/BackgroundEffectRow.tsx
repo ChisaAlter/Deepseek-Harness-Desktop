@@ -334,7 +334,7 @@ export function BackgroundEffectRow({
     <section className={css.block} aria-labelledby="appearance-effect-heading">
       <div className={css.effectRow}>
         <div className={css.effectText}>
-          <h2 id="appearance-effect-heading" className={css.heading}>{t('effect.title')}</h2>
+          <h2 id="appearance-effect-heading" className={css.rowTitle}>{t('effect.title')}</h2>
           <p className={css.hint}>{t('effect.description')}</p>
           {wallpaperSet && gradient ? (
             <p className={css.hint}>{t('effect.pausedByWallpaper')}</p>

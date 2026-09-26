@@ -38,12 +38,14 @@ test('boot log docks above the corner rails and clips older lines from the top',
   assert.match(css, /--boot-log-inset:\s*64px/);
   assert.match(css, /--boot-rail-inset:\s*16px/);
   assert.match(css, /--boot-rail-size:\s*28px/);
-  assert.match(css, /\.log-dock[\s\S]*?position:\s*fixed/);
-  assert.match(css, /\.log-dock[\s\S]*?bottom:\s*var\(--boot-log-inset\)/);
-  assert.match(css, /\.log-dock[\s\S]*?left:\s*var\(--boot-log-inset\)/);
+  assert.match(css, /\.stage\s*\{[\s\S]*?grid-template-rows:\s*auto minmax\(0,\s*1fr\) auto/);
+  assert.match(css, /\.stage\s*\{[\s\S]*?grid-template-areas:\s*"meta" "core" "logs"/);
+  assert.match(css, /\.core\s*\{[\s\S]*?overflow-y:\s*auto/);
+  assert.match(css, /\.log-dock\s*\{[\s\S]*?grid-area:\s*logs/);
+  assert.match(css, /\.log-dock\s*\{[\s\S]*?height:\s*var\(--boot-log-max\)/);
   assert.match(css, /\.log-dock[\s\S]*?justify-content:\s*flex-end/);
   assert.match(css, /\.log-dock[\s\S]*?overflow:\s*hidden/);
-  assert.match(css, /\.stage[\s\S]*?padding:[^;]*boot-log-inset[^;]*boot-log-max/);
+  assert.match(css, /@media\s*\(max-height:\s*700px\)[\s\S]*?--boot-log-max:\s*clamp\(64px,\s*15vh,\s*96px\)/);
   assert.doesNotMatch(css, /\.log li\s*\{[^}]*opacity:\s*0/);
 });
 
@@ -74,6 +76,20 @@ test('harness view relayouts after cross-monitor moves and metric changes', () =
   assert.match(src, /win\.on\('restore', relayout\)/);
   assert.match(src, /screen\.on\('display-metrics-changed', relayoutOnMetricsChange\)/);
   assert.match(src, /win\.once\('closed', \(\) => \{\s*screen\.removeListener\('display-metrics-changed', relayoutOnMetricsChange\)/);
+});
+
+test('injected chrome re-applies on navigation commit and re-asserts on window return', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
+  assert.match(src, /webContents\.on\('did-navigate', applyChrome\)/);
+  assert.match(src, /win\.on\('focus', reassertChrome\)/);
+  assert.match(src, /win\.on\('show', reassertChrome\)/);
+});
+
+test('chrome inject retries transient eval rejections and maximize state reads geometry', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'chrome.js'), 'utf8');
+  assert.match(src, /CHROME_INJECT_RETRY_MS/);
+  assert.match(src, /isEffectivelyMaximized/);
+  assert.match(src, /win\.on\('resize', syncMaximizedState\)/);
 });
 
 test('setBootHarnessCovered toggles the boot flag only on boot.html', () => {

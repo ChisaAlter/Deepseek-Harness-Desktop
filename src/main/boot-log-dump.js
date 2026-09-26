@@ -29,7 +29,7 @@ function bootLogFilename(now = new Date()) {
 function formatBootLogDump({ version, savedAt, snapshot = {}, logs = [] } = {}) {
   const failure = snapshot.failure || {};
   const lines = [
-    `Deepseek-Harness-Desktop ${dash(version).replace(/^-$/, '')}`.trimEnd(),
+    `Whale Isle ${dash(version).replace(/^-$/, '')}`.trimEnd(),
     `savedAt: ${dash(savedAt)}`,
     `state: ${dash(snapshot.state)}`,
     `error: ${dash(snapshot.error)}`,

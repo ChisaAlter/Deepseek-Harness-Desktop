@@ -31,10 +31,10 @@ function fakeSettings(registered = true, section: Record<string, unknown> = {}):
     failWrites: null,
     failReads: null,
     reshape: null,
-    get(ns: string): unknown {
+    describe(): Array<{ ns: string; value: unknown }> {
       if (fake.failReads !== null) throw new Error(fake.failReads)
-      if (!fake.registered || ns !== CONVERSATION_SETTINGS_NS) return undefined
-      return fake.section
+      if (!fake.registered) return []
+      return [{ ns: CONVERSATION_SETTINGS_NS, value: fake.section }]
     },
     async update(ns: string, patch: object): Promise<void> {
       // The real service REJECTS for an unregistered namespace (it never no-ops).
@@ -76,18 +76,20 @@ test('an unregistered section is not evidence of "no prices": the read is retrie
 
 test('an invalid record reads as empty and warns once per distinct message', () => {
   const sink = collector()
-  const source = createPricesSource(fakeSettings(), sink.warn)
   const invalid = (key: string): Record<string, unknown> => ({
     [SESSION_COST_PRICES_FIELD]: { [key]: { inputCacheHit: -1, inputCacheMiss: 3, output: 9 } },
   })
-  source.adoptSection(invalid('a/b'))
+  const settings = fakeSettings()
+  settings.section = invalid('a/b')
+  const source = createPricesSource(settings, sink.warn)
   assert.deepEqual(source.snapshot(), {})
-  source.adoptSection(invalid('a/b'))
+  source.refresh()
   assert.deepEqual(source.snapshot(), {})
   assert.equal(sink.warns.length, 1)
   assert.match(sink.warns[0]!, /failed validation/)
   // A different broken key is a different message: still reported.
-  source.adoptSection(invalid('c/d'))
+  settings.section = invalid('c/d')
+  source.refresh()
   assert.equal(sink.warns.length, 2)
 })
 
@@ -158,19 +160,25 @@ test('save refuses invalid prices before touching the service', async () => {
   assert.deepEqual(source.snapshot(), {})
 })
 
-test('adoptSection keeps the snapshot fresh from settings/updated', () => {
-  const source = createPricesSource(fakeSettings(), () => {})
-  source.adoptSection({ [SESSION_COST_PRICES_FIELD]: PRICES })
+test('refresh keeps the snapshot fresh from settings/document-updated', () => {
+  const settings = fakeSettings()
+  const source = createPricesSource(settings, () => {})
+  // The event carries only (ns, revision): the committed section is re-read.
+  settings.section = { [SESSION_COST_PRICES_FIELD]: PRICES }
+  source.refresh()
   assert.deepEqual(source.snapshot(), PRICES)
-  // A payload that is not a section object is not evidence of anything.
-  source.adoptSection(null)
+  // A resolved value that is not a section object is not evidence of anything.
+  settings.section = 'deepseek' as unknown as Record<string, unknown>
+  source.refresh()
   assert.deepEqual(source.snapshot(), PRICES)
-  // The event carries the RESOLVED section: an absent record there means the
-  // user has no custom price for anything, so the cache empties with it.
-  source.adoptSection({})
+  // An absent record in the resolved section means the user has no custom
+  // price for anything, so the cache empties with it.
+  settings.section = {}
+  source.refresh()
   assert.deepEqual(source.snapshot(), {})
-  // A later edit anywhere reprices the ranking: the adopted value wins.
-  source.adoptSection({ [SESSION_COST_PRICES_FIELD]: PRICES })
+  // A later edit anywhere reprices the ranking: the re-read value wins.
+  settings.section = { [SESSION_COST_PRICES_FIELD]: PRICES }
+  source.refresh()
   assert.deepEqual(source.snapshot(), PRICES)
 })
 

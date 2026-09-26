@@ -17,6 +17,7 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
   } = primitives;
 
   const NS = "dshbot";
+  const CATALOG_NS = "dsh-bot";
   const TAB_ID = "bots";
   const DEFAULT_BOT_NAME = "新机器人";
   const GROUP_MIN_MEMBERS = 2;
@@ -6790,7 +6791,7 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
     injectCss();
     ctx.effect(() => ctx.locale.register(NS, { zh, en }), "dshbot: dictionaries");
     const t = ctx.locale.bind(NS);
-    const catalog = ctx.settingsScope.bind({ namespace: "dshbot" });
+    const catalog = ctx.configForms.get(CATALOG_NS);
     let editor = { open: false, mode: "edit", itemId: null, error: "", warnings: [], deletePreview: null };
     const editorListeners = new Set();
     const editorSource = {
@@ -6815,7 +6816,7 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
     const controlAvailable = typeof connection?.rpc?.call === "function";
 
     const acceptControlView = (view) => {
-      if (view?.ns !== NS || !Number.isInteger(view.revision) || !view.value || typeof view.value !== "object") {
+      if (view?.ns !== CATALOG_NS || !Number.isInteger(view.revision) || !view.value || typeof view.value !== "object") {
         throw new Error(t("catalogUnavailable"));
       }
       const current = catalog.getSnapshot();
@@ -6824,7 +6825,7 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
         && JSON.stringify(view.value) !== JSON.stringify(current.value)) {
         throw new Error(t("saveConflict"));
       }
-      const describe = ctx.settingsScope.describe();
+      const describe = ctx.configForms.describe();
       if (typeof describe?.acceptView !== "function") throw new Error(t("catalogUnavailable"));
       describe.acceptView(view);
       return view;
@@ -6847,11 +6848,32 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
       },
     };
     const uiSession = ctx.uiSession ?? ctx.get?.("uiSession");
-    const pendingInteractionHostSource = uiSession?.pendingInteractions;
+    const pendingInteractionHostSource = uiSession?.sessionStatus ?? uiSession?.pendingInteractions;
+    // The current host folds pending interactions into per-session
+    // SessionStatus rows (`sessionStatus`); older builds exposed the Map
+    // directly (`pendingInteractions`). Project the interaction column and
+    // memoize on the source snapshot — a fresh Map per getSnapshot call would
+    // loop the host's synthesized hook forever.
+    let pendingCache = { source: undefined, projected: new Map() };
     const pendingInteractionSource = {
       getSnapshot: () => {
-        if (typeof pendingInteractionHostSource?.getSnapshot === "function") return pendingInteractionHostSource.getSnapshot();
-        return pendingInteractionHostSource?.value ?? pendingInteractionHostSource ?? new Map();
+        const raw = typeof pendingInteractionHostSource?.getSnapshot === "function"
+          ? pendingInteractionHostSource.getSnapshot()
+          : pendingInteractionHostSource?.value ?? pendingInteractionHostSource;
+        if (raw === pendingCache.source) return pendingCache.projected;
+        let projected = new Map();
+        if (raw instanceof Map) {
+          const sample = raw.values().next().value;
+          if (sample !== undefined && typeof sample === "object" && "pendingInteraction" in sample) {
+            for (const [id, status] of raw) {
+              if (status?.pendingInteraction !== undefined) projected.set(id, status.pendingInteraction);
+            }
+          } else {
+            projected = raw;
+          }
+        }
+        pendingCache = { source: raw, projected };
+        return projected;
       },
       subscribe: (listener) => typeof pendingInteractionHostSource?.subscribe === "function"
         ? pendingInteractionHostSource.subscribe(listener)
@@ -6992,13 +7014,8 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
     };
 
     const persistItems = async (items, expectedRevision = editableSnapshot().revision) => {
-      editableSnapshot();
-      const view = rpcValue(await ctx.remote.settings.mutate("dshbot", [
-        { op: "set", path: ["items"], value: items },
-      ], expectedRevision));
-      if (view?.ns !== "dshbot" || !Number.isInteger(view.revision)) throw new Error(t("catalogUnavailable"));
-      ctx.settingsScope.describe().acceptView(view);
-      return view.revision;
+      const result = await controlCommand("catalog/items", { items }, expectedRevision, t("catalogUnavailable"));
+      return result?.view?.revision;
     };
 
     const fail = (error) => {
@@ -7560,7 +7577,7 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
   }
 
   exports.name = "dsh-bot";
-  exports.inject = ["slots", "locale", "sessions", "uiSession", "workspaces", "settingsScope", "settingsNavigation", "connection", "remote", "remote.settings", "remote.session", "inputTriggers"];
+  exports.inject = ["slots", "locale", "sessions", "uiSession", "workspaces", "configForms", "settingsNavigation", "connection", "remote", "remote.session", "inputTriggers"];
   exports.apply = apply;
   return module.exports;
 }});

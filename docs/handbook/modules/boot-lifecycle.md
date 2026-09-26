@@ -26,9 +26,13 @@
 - `src/renderer/launcher.html` / `launcher.js` / `launcher.css`
 - `src/renderer/boot.html` / `boot.js` / `boot.css` / `boot-tokens.css`
 
+## 退出/更新保护（P1）
+
+退出、重启、停止、reload、更新、增量安装全部过 `src/main/task-protection.js` 协调器：`inspect → 脏则原生确认 → acquire（Host 接纳锁 + drain）→ 复查 → commit`。Host 侧 `vendor/dsh-task-control`（overlay `desktop-task-control.patch.yml` 每次启动挂载）包裹 webServer 路由/升级/`connection/request` 瀑布与 `sessionController.resolveAgent`、`jobs.start`，锁定期间新工作一律拒绝，解锁时驱动 schedule `requestDrive` 恢复到期投递。slim 包经 userData 的 `task-control-peer.json` 握手让外部桌面自己跑协调；无握手的旧桌面走 WM_CLOSE，进程仍在即阻断，不再 `taskkill /F`。决策记录：[../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md](../../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md)。
+
 ## 不变量
 
-- Feature card：[../../features/desktop-launcher.md](../../features/desktop-launcher.md)、[../../features/boot-page.md](../../features/boot-page.md)、[../../features/dsh-home.md](../../features/dsh-home.md)
+- Feature card：[../../features/desktop-launcher.md](../../features/desktop-launcher.md)、[../../features/boot-page.md](../../features/boot-page.md)、[../../features/dsh-home.md](../../features/dsh-home.md)、[../../features/task-protection.md](../../features/task-protection.md)
 - 启动器走官方 `--dsw-alias-*`；`--boot-*` 不得用于启动器 / 设置 / 官方 UI / 关闭遮罩。
 - 启动器浅色/深色跟官方 dsh web 表（`data-ds-dark-theme`），不把 Appearance 壁纸种子写进 token。
 - 桌面家目录见 [dsh-home.md](dsh-home.md)：`userData/dsh-home`，不读官方 `~/.dsh`。

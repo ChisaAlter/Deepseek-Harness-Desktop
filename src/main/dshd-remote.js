@@ -524,6 +524,14 @@ class DshdRemote extends EventEmitter {
       if (code === 'EADDRINUSE') {
         throw new Error(`手机配对页端口 ${MOBILE_WEB_PORT} 已被占用，请关闭占用进程或修改 remote 配置后重试`);
       }
+      // 持久化的单网卡地址会随网卡失效过期（WSL/vEthernet 子网重建、DHCP 换租），
+      // 不能静默退回 0.0.0.0 扩大监听面；指回「监听范围」让用户重选。
+      if (code === 'EADDRNOTAVAIL') {
+        throw new Error(`监听地址 ${bind} 已失效：网卡断开或地址已变更（EADDRNOTAVAIL），请在「监听范围」改选其他地址`);
+      }
+      if (code === 'EACCES') {
+        throw new Error(`系统拒绝在 ${bind}:${MOBILE_WEB_PORT} 监听（EACCES）：端口可能被 Windows 保留，请重启后重试`);
+      }
       throw err;
     }
     this.mobileWebServer = server;
