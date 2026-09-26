@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-ds-dark-theme>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>启动页定稿 · 海平线 + 底缘 ticker — Boot Redesign</title>
+<style>
+/* ===== tokens：海平线方案的 --b-* 表（落地时进 boot-tokens.css） ===== */
+:root {
+  --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ds-font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+    'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scene {
+  /* 深空在上、深海在下 */
+  --b-ink: rgb(234, 240, 244);
+  --b-mut: rgb(118, 132, 144);
+  --b-acc: rgb(234, 240, 244);
+  --b-alert: rgb(255, 92, 80);
+  --b-hairline: rgba(190, 224, 240, 0.4);
+  --b-under: rgb(132, 194, 214);
+  --b-under-bg: rgba(14, 44, 66, 0.52);
+  --b-under-alert: rgb(255, 140, 128);
+  --b-btn-ink: rgb(6, 14, 22);
+  /* 天空层：星云三团 + 银河斜带 */
+  --b-nebula-a: rgba(72, 112, 168, 0.22);
+  --b-nebula-b: rgba(116, 88, 154, 0.17);
+  --b-nebula-c: rgba(60, 120, 150, 0.16);
+  --b-band-edge: rgba(150, 190, 220, 0.07);
+  --b-band: rgba(160, 200, 228, 0.12);
+  /* 水下介质 */
+  --b-falloff: rgba(96, 170, 200, 0.16);
+  /* 闪光字标：基底比 ink 略沉，扫掠亮带才看得清 */
+  --b-brand-base: rgba(214, 226, 236, 0.68);
+  --b-shine: rgb(255, 255, 255);
+  --b-snow: rgba(175, 212, 230, 0.5);
+  --b-abyss: rgba(1, 6, 12, 0.55);
+  --b-panel: rgba(8, 16, 26, 0.88);
+  background: linear-gradient(180deg,
+    rgb(2, 4, 9) 0%,
+    rgb(4, 9, 17) 40%,
+    rgb(8, 18, 30) 55%,
+    rgb(12, 34, 48) 62%,
+    rgb(8, 24, 38) 78%,
+    rgb(4, 13, 23) 100%);
+  color: var(--b-ink);
+}
+/* 浅色：天空在上、深海在下，交接线处换色 */
+html:not([data-ds-dark-theme]) .scene {
+  --b-ink: rgb(24, 42, 54);
+  --b-mut: rgb(96, 116, 128);
+  --b-acc: rgb(24, 42, 54);
+  --b-alert: rgb(198, 46, 36);
+  --b-hairline: rgba(30, 60, 76, 0.38);
+  --b-under: rgb(230, 244, 249);
+  --b-under-bg: rgba(96, 150, 176, 0.3);
+  --b-under-alert: rgb(140, 30, 22);
+  --b-btn-ink: rgb(244, 249, 251);
+  /* 天空层：浅色读作高空云气 */
+  --b-nebula-a: rgba(255, 240, 214, 0.7);
+  --b-nebula-b: rgba(182, 212, 228, 0.62);
+  --b-nebula-c: rgba(208, 228, 238, 0.6);
+  /* 银河斜带只属夜空：浅色下不设，否则会读成一道抹痕 */
+  --b-band-edge: transparent;
+  --b-band: transparent;
+  --b-falloff: rgba(255, 255, 255, 0.5);
+  --b-brand-base: rgb(24, 42, 54);
+  --b-shine: rgb(255, 255, 255);
+  --b-snow: rgba(60, 110, 135, 0.28);
+  --b-abyss: rgba(40, 80, 105, 0.18);
+  --b-panel: rgba(248, 251, 253, 0.92);
+  background: linear-gradient(180deg,
+    rgb(241, 246, 248) 0%,
+    rgb(229, 239, 243) 55%,
+    rgb(204, 227, 235) 62%,
+    rgb(160, 192, 210) 70%,
+    rgb(118, 160, 182) 85%,
+    rgb(84, 128, 152) 100%);
+}
+
+/* ===== 原型预览框架（不属于产品 UI） ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dsw-font-family);
+  background: #5b6169;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 48px;
+}
+.proto-bar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+  width: 100%; padding: 10px 16px;
+  background: rgba(20, 22, 25, 0.92);
+  color: #cfd3d6; font-size: 12px; line-height: 18px;
+}
+.proto-bar .proto-label { color: #81858c; margin-right: 4px; }
+.proto-bar .proto-name { color: #e8eaec; font-weight: 600; margin-right: 12px; }
+.proto-bar button {
+  font: inherit; color: #cfd3d6;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent; border-radius: 999px; padding: 3px 12px; cursor: pointer;
+}
+.proto-bar button:hover { background: rgba(255, 255, 255, 0.1); }
+.proto-bar button.is-on { background: #e4edfd; border-color: #e4edfd; color: #0f1115; }
+.proto-notes {
+  width: 1440px; max-width: calc(100vw - 48px);
+  margin-top: 20px; padding: 18px 22px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92); color: #2a2e33;
+  font-size: 13px; line-height: 21px;
+}
+.proto-notes h2 { margin: 0 0 8px; font-size: 14px; }
+.proto-notes p { margin: 4px 0; }
+.proto-notes code { font-family: var(--ds-font-family-code); font-size: 12px; }
+
+/* ===== 窗口剪影 ===== */
+.win {
+  position: relative;
+  width: 1440px; max-width: calc(100vw - 48px); height: 920px;
+  margin-top: 24px; border-radius: 20px; overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.win.short { height: 640px; }
+.caption { position: absolute; top: 0; left: 0; right: 120px; height: 48px; z-index: 9; }
+.window-controls {
+  position: absolute; top: 0; right: 0; z-index: 9;
+  display: flex; align-items: center; justify-content: flex-end;
+  height: 48px; padding: 12px 8px 4px;
+}
+.window-controls button {
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 8px; background: transparent; color: var(--b-ink); cursor: default;
+}
+.window-controls button svg { width: 12px; height: 12px; display: block; }
+.window-controls button:hover { background: rgba(140, 150, 160, 0.16); }
+.window-controls button[data-act="close"]:hover { background: #e81123; color: #fff; }
+
+/* ===== 场景层 ===== */
+.scene { position: absolute; inset: 0; }
+
+/* 天空层：星云三团 + 银河斜带（浅色读作云气，银河带仅深色可见） */
+.stars {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 38%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 48% 34% at 26% 26%, var(--b-nebula-a), transparent 72%),
+    radial-gradient(ellipse 40% 30% at 70% 14%, var(--b-nebula-b), transparent 72%),
+    radial-gradient(ellipse 34% 22% at 52% 46%, var(--b-nebula-c), transparent 72%),
+    linear-gradient(115deg,
+      transparent 32%, var(--b-band-edge) 45%,
+      var(--b-band) 50%, var(--b-band-edge) 55%, transparent 68%);
+}
+
+/* 星尘层：两距双密度的细小星点（仅深色） */
+.stars::before {
+  content: ""; position: absolute; inset: 0; display: none;
+  background:
+    radial-gradient(1.4px 1.4px at 15% 42%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 22% 30%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 33% 46%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 40% 22%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 47% 38%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 52% 8%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 66% 30%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 74% 44%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 88% 22%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 5% 48%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 8% 26%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 36% 14%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 61% 12%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 79% 36%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 96% 14%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1px 1px at 13% 60%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 31% 66%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 44% 56%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 60% 62%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 77% 58%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 95% 54%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 19% 74%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 37% 80%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 55% 72%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 70% 78%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 85% 68%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 3% 30%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 97% 46%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 11% 38%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 25% 52%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 42% 68%, rgba(200, 222, 240, 0.6) 50%, transparent 58%),
+    radial-gradient(1px 1px at 49% 24%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 57% 48%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 64% 70%, rgba(200, 222, 240, 0.6) 50%, transparent 58%),
+    radial-gradient(1px 1px at 72% 16%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 83% 76%, rgba(200, 222, 240, 0.55) 50%, transparent 58%),
+    radial-gradient(1px 1px at 91% 62%, rgba(200, 222, 240, 0.6) 50%, transparent 58%),
+    radial-gradient(1px 1px at 17% 16%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 29% 6%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 45% 4%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 69% 4%, rgba(200, 222, 240, 0.7) 50%, transparent 58%);
+}
+
+/* 亮星层：6 颗带晕亮星缓慢呼吸（仅深色） */
+.stars::after {
+  content: ""; position: absolute; inset: 0; display: none;
+  background:
+    radial-gradient(3.2px 3.2px at 9% 20%, rgba(222, 238, 250, 0.5) 30%, transparent 70%),
+    radial-gradient(1.4px 1.4px at 9% 20%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3.4px 3.4px at 26% 10%, rgba(222, 238, 250, 0.5) 30%, transparent 70%),
+    radial-gradient(1.4px 1.4px at 26% 10%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3px 3px at 58% 16%, rgba(222, 238, 250, 0.45) 30%, transparent 70%),
+    radial-gradient(1.3px 1.3px at 58% 16%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3.6px 3.6px at 82% 12%, rgba(222, 238, 250, 0.55) 30%, transparent 70%),
+    radial-gradient(1.5px 1.5px at 82% 12%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3px 3px at 93% 34%, rgba(222, 238, 250, 0.4) 30%, transparent 70%),
+    radial-gradient(1.3px 1.3px at 93% 34%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(2.8px 2.8px at 44% 8%, rgba(255, 232, 200, 0.4) 30%, transparent 70%),
+    radial-gradient(1.2px 1.2px at 44% 8%, rgb(255, 240, 220) 55%, transparent 64%);
+  animation: twinkle 5.5s var(--ds-ease-in-out) infinite alternate;
+}
+html[data-ds-dark-theme] .stars::before,
+html[data-ds-dark-theme] .stars::after { display: block; }
+
+/* 交接线：一条干净的 1px 分界，无辉光无装饰 */
+.horizon {
+  position: absolute; left: 0; right: 0; top: 62%;
+  height: 1px; background: var(--b-hairline); pointer-events: none;
+}
+
+/* 水下罩层：整体调暗 + 表层透光；无光束无条纹 */
+.underwater {
+  position: absolute; left: 0; right: 0; top: 62%; bottom: 0;
+  background: linear-gradient(180deg, var(--b-under-bg), transparent 62%);
+  pointer-events: none; z-index: 1; overflow: hidden;
+}
+/* 表层透光：天光入水第一截，向深处软衰减 */
+.underwater::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 120% 58% at 50% 0%, var(--b-falloff), transparent 72%);
+}
+/* 海底暗角：让深处真的沉下去 */
+.abyss {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 22%;
+  background: linear-gradient(0deg, var(--b-abyss), transparent);
+  pointer-events: none; z-index: 1;
+}
+/* 悬浮微粒（marine snow）缓沉 */
+.snow {
+  position: absolute; top: 8%;
+  width: 2px; height: 2px; border-radius: 50%;
+  background: var(--b-snow);
+  animation: snow-fall 16s linear infinite;
+}
+.snow:nth-child(1) { left: 32%; animation-duration: 14s; }
+.snow:nth-child(2) { left: 41%; animation-duration: 19s; animation-delay: -6s; width: 1.5px; height: 1.5px; }
+.snow:nth-child(3) { left: 53%; animation-duration: 16s; animation-delay: -3s; }
+.snow:nth-child(4) { left: 62%; animation-duration: 21s; animation-delay: -11s; width: 1.5px; height: 1.5px; }
+.snow:nth-child(5) { left: 71%; animation-duration: 17s; animation-delay: -8s; }
+
+body[data-state="error"] .horizon { background: color-mix(in srgb, var(--b-alert) 45%, transparent); }
+
+.core {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center;
+  padding: 0 24px 26vh; pointer-events: none; z-index: 3;
+}
+.brand {
+  margin: 0;
+  font-family: 'Didot', 'Bodoni MT', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-size: 44px; line-height: 54px; font-weight: 400; letter-spacing: 0.08em;
+  /* 闪光：一道窄亮带 6s 周期扫过英文名 */
+  background: linear-gradient(105deg,
+    var(--b-brand-base) 45.5%, var(--b-shine) 50%, var(--b-brand-base) 54.5%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: brand-sheen 6s ease-in-out infinite;
+}
+.brand small {
+  display: block; margin-top: 9px;
+  font-family: var(--ds-font-family-code);
+  font-size: 11.5px; letter-spacing: 0.5em; text-indent: 0.25em;
+  color: var(--b-mut); -webkit-text-fill-color: var(--b-mut);
+  text-transform: uppercase; font-weight: 400;
+}
+.status { margin: 26px 0 0; max-width: 36rem; font-size: 14px; line-height: 22px; color: var(--b-mut); }
+.status.ready { color: var(--b-ink); }
+.status.error { color: var(--b-alert); }
+/* 「启动中」动效省略号：三点依次呼吸 */
+.status .dots { display: none; }
+body[data-state="starting"] .status .dots {
+  display: inline-flex; gap: 4px; margin-left: 7px;
+}
+.status .dots i {
+  width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+  animation: dot-blink 1.3s infinite;
+}
+.status .dots i:nth-child(2) { animation-delay: 0.2s; }
+.status .dots i:nth-child(3) { animation-delay: 0.4s; }
+.hint, .failure, .recovery {
+  margin: 6px 0 0; max-width: 38rem; font-size: 12px; line-height: 18px; color: var(--b-mut); overflow-wrap: anywhere;
+}
+.failure { font-family: var(--ds-font-family-code); color: var(--b-alert); }
+.recovery { color: var(--b-acc); }
+.failure[hidden], .recovery[hidden] { display: none; }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 26px; pointer-events: auto; }
+.actions[hidden] { display: none !important; }
+.actions button {
+  appearance: none; min-height: 34px; padding: 5px 18px;
+  border: 1px solid var(--b-hairline); border-radius: 999px;
+  background: transparent; color: var(--b-ink);
+  font-family: inherit; font-size: 12px; line-height: 20px; letter-spacing: 0.06em; cursor: pointer;
+}
+.actions .primary { background: var(--b-ink); border-color: var(--b-ink); color: var(--b-btn-ink); }
+.actions .primary:hover { opacity: 0.85; }
+.actions .ghost:hover { background: color-mix(in srgb, var(--b-ink) 8%, transparent); }
+body[data-state="error"] .actions .primary { background: var(--b-alert); border-color: var(--b-alert); color: #fff; }
+
+/* ===== 底缘 ticker：加载信息只占一行 ===== */
+.ticker {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0 56px 24px;
+  display: flex; justify-content: center;
+  pointer-events: none; z-index: 2;
+}
+.ticker-inner {
+  display: flex; align-items: baseline; gap: 10px;
+  font-family: var(--ds-font-family-code);
+  font-size: 11.5px; line-height: 18px;
+  color: var(--b-under);
+  max-width: 72ch;
+  pointer-events: auto; cursor: pointer;
+  padding: 4px 14px; border-radius: 999px;
+}
+.ticker-inner:hover { background: color-mix(in srgb, var(--b-under) 10%, transparent); }
+.ticker-open { opacity: 0.55; white-space: nowrap; }
+.ticker-inner:hover .ticker-open { opacity: 1; }
+.ticker-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--b-under); flex: 0 0 5px; align-self: center;
+  animation: pulse 1.6s infinite;
+}
+body[data-state="error"] .ticker-dot { background: var(--b-under-alert); }
+.ticker-line {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--ds-font-family-code);
+}
+.ticker-line.important { color: var(--b-under-alert); }
+.ticker-count { color: var(--b-under); opacity: 0.6; letter-spacing: 0.08em; }
+
+/* ===== 日志抽屉：点 ticker 弹出全部日志 ===== */
+.logdrawer {
+  position: absolute; inset: 0; z-index: 6;
+  background: rgba(0, 0, 0, 0.32);
+  display: flex; align-items: flex-end; justify-content: center;
+  animation: drawer-fade 0.18s ease-out;
+}
+.logdrawer[hidden] { display: none; }
+.logdrawer-panel {
+  width: min(760px, calc(100% - 96px)); max-height: 46%;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--b-hairline); border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  background: var(--b-panel);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  animation: drawer-rise 0.24s var(--ds-ease-in-out);
+}
+.logdrawer-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 12px 18px; border-bottom: 1px solid var(--b-hairline);
+}
+.logdrawer-title { font-size: 12px; letter-spacing: 0.14em; color: var(--b-ink); }
+.logdrawer-count { font-family: var(--ds-font-family-code); font-size: 10.5px; color: var(--b-mut); }
+.logdrawer-close {
+  margin-left: auto; border: 0; background: transparent;
+  color: var(--b-mut); font-size: 16px; line-height: 1;
+  padding: 0 4px; cursor: pointer;
+}
+.logdrawer-close:hover { color: var(--b-ink); }
+.logdrawer-lines {
+  margin: 0; padding: 10px 18px 16px 36px; list-style: decimal outside;
+  font-family: var(--ds-font-family-code); font-size: 11.5px; line-height: 19px;
+  color: var(--b-mut); overflow-y: auto;
+}
+.logdrawer-lines li::marker { color: var(--b-mut); font-size: 10px; }
+.logdrawer-lines li.important { color: var(--b-alert); }
+
+@keyframes pulse { 50% { opacity: 0.35; } }
+@keyframes dot-blink { 0%, 70%, 100% { opacity: 0.22; } 30% { opacity: 1; } }
+@keyframes drawer-fade { from { opacity: 0; } }
+@keyframes drawer-rise { from { transform: translateY(14px); opacity: 0.4; } }
+@keyframes twinkle { from { opacity: 0.55; } to { opacity: 1; } }
+/* 光泽从右肩扫到左肩：2s 扫掠 + 4s 停驻 */
+@keyframes brand-sheen {
+  0%, 22% { background-position: 135% 0; }
+  55%, 100% { background-position: -35% 0; }
+}
+@keyframes snow-fall {
+  from { transform: translateY(-4vh); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 0.8; }
+  to { transform: translateY(30vh); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-dot, .stars::after, .brand, .snow, .status .dots i,
+  .logdrawer, .logdrawer-panel { animation: none !important; }
+}
+</style>
+</head>
+<body data-state="starting">
+
+<div class="proto-bar">
+  <span class="proto-name">定稿 · 海平线 + 底缘 ticker</span>
+  <span class="proto-label">状态</span>
+  <button type="button" data-ps="starting" class="is-on">启动中</button>
+  <button type="button" data-ps="ready">就绪</button>
+  <button type="button" data-ps="error">异常</button>
+  <span class="proto-label">　视口</span>
+  <button type="button" id="proto-height">短窗 640</button>
+  <button type="button" id="proto-theme">明/暗</button>
+</div>
+
+<div class="win" id="win">
+  <div class="caption" aria-hidden="true"></div>
+  <div class="window-controls">
+    <button type="button" data-act="minimize" aria-label="最小化"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.4" width="8" height="1.2" rx="0.6" fill="currentColor"/></svg></button>
+    <button type="button" data-act="maximize" aria-label="最大化"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
+    <button type="button" data-act="close" aria-label="关闭"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3L3 9" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg></button>
+  </div>
+
+  <main class="scene">
+    <div class="stars" aria-hidden="true"></div>
+    <div class="horizon" aria-hidden="true"></div>
+    <div class="underwater" aria-hidden="true">
+      <span class="snow"></span><span class="snow"></span><span class="snow"></span><span class="snow"></span><span class="snow"></span>
+    </div>
+    <div class="abyss" aria-hidden="true"></div>
+    <div class="core">
+      <p class="brand">Whale Isle<small>鲸屿 · DESKTOP</small></p>
+      <p class="status" data-role="status" role="status"><span data-role="status-text">启动中</span><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></p>
+      <p class="hint" data-role="hint" hidden></p>
+      <p class="failure" data-role="failure" hidden></p>
+      <p class="recovery" data-role="recovery" hidden></p>
+      <div class="actions" data-role="actions" hidden>
+        <button type="button" class="primary">重试</button>
+        <button type="button">回启动器排查</button>
+        <button type="button">下载日志</button>
+      </div>
+    </div>
+    <div class="ticker" aria-live="polite">
+      <div class="ticker-inner" role="button" tabindex="0" title="查看全部日志">
+        <span class="ticker-dot" aria-hidden="true"></span>
+        <span class="ticker-line" data-role="ticker">[09:41:06] plugin ready · desktop-dsh-im</span>
+        <span class="ticker-count" data-role="tickcount">L 06</span>
+        <span class="ticker-open">全部日志</span>
+      </div>
+    </div>
+    <div class="logdrawer" data-role="logdrawer" hidden>
+      <div class="logdrawer-panel" role="dialog" aria-label="启动日志">
+        <div class="logdrawer-head">
+          <span class="logdrawer-title">启动日志</span>
+          <span class="logdrawer-count" data-role="logcount"></span>
+          <button type="button" class="logdrawer-close" data-role="logclose" aria-label="关闭">×</button>
+        </div>
+        <ol class="logdrawer-lines" data-role="loglines"></ol>
+      </div>
+    </div>
+  </main>
+</div>
+
+<section class="proto-notes">
+  <h2>定稿 · 海平线 + 底缘 ticker（深化版）</h2>
+  <p><b>构图：</b>62% 交接线分开两个世界——线上是天空，线下是深海。深色天=深空：星云三团 + 银河斜带 + 双层星场（星尘层 + 6 颗带晕亮星 5.5s 呼吸）；浅色天=冷白高空云气（同一星云层染色，银河带不给——浅色下读成抹痕）。交接线就是一条干净的 1px 线，无辉光无装饰。「Whale Isle」英文名带一道亮带 6s 周期扫掠（中文副标不闪）。</p>
+  <p><b>水下：</b>罩层渐变调暗；表层透光（天光入水第一截）向深处软衰减；5 颗悬浮微粒缓沉；底部 22% 海底暗角收束。无光束无条纹。</p>
+  <p><b>加载信息：</b>底缘单行 ticker——脉冲点 + 最新日志行 + 行数 + 「全部日志」入口；点击（或 Enter/Space）从底部升起毛玻璃日志抽屉（带行号完整日志，ESC / 点遮罩 / × 关闭）。日志不再堆成多行块。</p>
+  <p><b>契约件：</b>Whale Isle 衬线闪光字标 / 「启动中」动效省略号（就绪、异常态收掉）/ 状态+说明+诊断+恢复文案 / 四动作（异常态）/ 底缘 ticker → 全部日志抽屉 / 短窗压缩 / 明暗自适应 / reduced-motion 冻结全部动效 / 无虚构进度。角标 meta（DSH-DESKTOP / BOOT 戳）已删。</p>
+  <p><b>落地改动面：</b><code>boot.html</code>（scene 层 + underwater 含 snow 子节点 + abyss + ticker 换掉 log-dock + logdrawer 抽屉）、<code>boot.css</code>（重写场景层 + brand 衬线闪光 + 抽屉样式）、<code>boot-tokens.css</code>（--boot-* 表换海平线配色+星云/透光/微粒/闪光/面板 token）、<code>boot.js</code>（日志渲染改单行 ticker + 行数 + 抽屉开合）。feature 卡 <code>boot-page.md</code> 日志条款同步改表述。</p>
+</section>
+
+<script>
+const FACES = {
+  starting: { status: '启动中', hint: '' },
+  ready:    { status: '就绪', hint: '' },
+  error:    { status: '桌面端启动失败', hint: '运行时未能完成启动。' },
+};
+const SAMPLE = [
+  '[09:41:02] dsh runtime spawn · profile web',
+  '[09:41:03] apply overlay · desktop-install.patch.yml',
+  '[09:41:03] apply overlay · desktop-usage-panel.patch.yml',
+  '[09:41:04] plugin ready · dsh-session-search',
+  '[09:41:05] plugin ready · ui-settings-market',
+  '[09:41:06] plugin ready · desktop-dsh-im',
+  '[09:41:07] web ui serving · 127.0.0.1:4130',
+];
+const SAMPLE_ERR = [
+  'ERR_DSH_PLUGIN_TREE · whale-im 在装载阶段抛出异常',
+  'Cannot find package \'@corp/left-pad\' imported from whale-im/index.js',
+  '[09:41:09] apply overlay · desktop-install.patch.yml',
+  '[09:41:10] plugin ready · dsh-session-search',
+  '[09:41:11] failure recorded · phase startup',
+];
+const LOGS = [];
+let idx = 0;
+function appendLog(text, important) {
+  LOGS.push({ text, important: Boolean(important) });
+  const tk = document.querySelector('[data-role="ticker"]');
+  tk.textContent = text;
+  tk.classList.toggle('important', Boolean(important));
+  document.querySelector('[data-role="tickcount"]').textContent = 'L ' + String(LOGS.length).padStart(2, '0');
+  const li = document.createElement('li');
+  li.textContent = text;
+  if (important) li.className = 'important';
+  document.querySelector('[data-role="loglines"]').appendChild(li);
+  document.querySelector('[data-role="logcount"]').textContent = LOGS.length + ' 行';
+}
+setInterval(() => {
+  if (document.body.dataset.state !== 'starting') return;
+  appendLog(SAMPLE[idx++ % SAMPLE.length]);
+}, 1100);
+SAMPLE.slice(0, 5).forEach((l) => appendLog(l));
+idx = 5;
+
+const drawer = document.querySelector('[data-role="logdrawer"]');
+function openDrawer() {
+  drawer.hidden = false;
+  const list = document.querySelector('[data-role="loglines"]');
+  list.scrollTop = list.scrollHeight;
+}
+document.querySelector('.ticker-inner').addEventListener('click', openDrawer);
+document.querySelector('.ticker-inner').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(); }
+});
+drawer.addEventListener('click', (e) => { if (e.target === drawer) drawer.hidden = true; });
+document.querySelector('[data-role="logclose"]').addEventListener('click', () => { drawer.hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') drawer.hidden = true; });
+
+function applyState(s) {
+  document.body.dataset.state = s;
+  const f = FACES[s];
+  document.querySelector('[data-role="status-text"]').textContent = f.status;
+  const st = document.querySelector('[data-role="status"]');
+  st.className = 'status' + (s === 'ready' ? ' ready' : s === 'error' ? ' error' : '');
+  const hintEl = document.querySelector('[data-role="hint"]');
+  hintEl.textContent = f.hint;
+  hintEl.hidden = !f.hint;
+  const fl = document.querySelector('[data-role="failure"]');
+  fl.hidden = s !== 'error';
+  fl.textContent = s === 'error' ? 'ERR_DSH_PLUGIN_TREE：whale-im 在装载阶段抛出异常（详见日志）' : '';
+  document.querySelector('[data-role="actions"]').hidden = s !== 'error';
+  if (s === 'error') {
+    SAMPLE_ERR.forEach((l) => appendLog(l, /^ERR|^Cannot/.test(l)));
+  }
+  idx = 0;
+}
+document.querySelectorAll('[data-ps]').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-ps]').forEach((x) => x.classList.toggle('is-on', x === b));
+  applyState(b.dataset.ps);
+}));
+document.getElementById('proto-theme').addEventListener('click', () => {
+  document.documentElement.toggleAttribute('data-ds-dark-theme');
+});
+document.getElementById('proto-height').addEventListener('click', (e) => {
+  const w = document.getElementById('win');
+  w.classList.toggle('short');
+  e.target.textContent = w.classList.contains('short') ? '高窗 920' : '短窗 640';
+});
+</script>
+</body>
+</html>

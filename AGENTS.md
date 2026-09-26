@@ -4,7 +4,7 @@ Electron desktop shell around the official DeepSeek Harness Web UI (`vendor/deep
 
 ## Design language (mandatory)
 
-Any UI, layout, or frontend change must follow the DSHD design language defined in [docs/design-language.md](docs/design-language.md) — the sole visual authority, with its baseline pinned to the vendored harness Web UI (`vendor/deepseek-harness`; pin recorded in `vendor/harness-upstream.json`). Change the document first, then the code. Do not invent a second skin for the desktop chrome or new panels. The boot page is the documented instrument-canvas exception in [docs/design-language.md](docs/design-language.md#桌面启动页); do not spread that sheet.
+Any UI, layout, or frontend change must follow the DSHD design language defined in [docs/design-language.md](docs/design-language.md) — the sole visual authority, with its baseline pinned to the vendored harness Web UI (`vendor/deepseek-harness`; pin recorded in `vendor/harness-upstream.json`). Change the document first, then the code. Do not invent a second skin for the desktop chrome or new panels. The boot page is the documented sea-horizon canvas exception in [docs/design-language.md](docs/design-language.md#桌面启动页); do not spread that sheet.
 
 - Product spec: [docs/design-language.md](docs/design-language.md)
 - Motion recipes and inventory: [docs/motion.md](docs/motion.md)

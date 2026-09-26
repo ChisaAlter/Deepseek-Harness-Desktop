@@ -57,29 +57,30 @@ test('boot log filter keeps plugin-tree lines', () => {
   assert.equal(isImportantBootLog('listening on 127.0.0.1'), false);
 });
 
-test('boot.html keeps the scene clean and moves diagnostics into the details page', () => {
+test('boot.html keeps the scene clean and moves the full log into a drawer', () => {
   const html = fs.readFileSync(path.join(__dirname, 'boot.html'), 'utf8');
-  assert.match(html, /id="detail-handle"/);
-  assert.match(html, /id="page-details"/);
-  assert.match(html, /id="details-back"/);
-  const details = html.indexOf('id="page-details"');
-  // Diagnostics and the transient actions live inside the details overlay.
-  for (const id of ['id="failure"', 'id="recovery"', 'id="actions"', 'id="log"']) {
-    assert.ok(html.indexOf(id) > details, `${id} inside page-details`);
-  }
-  // The scene keeps brand + status + hint only — logs never paint the scene.
-  const core = html.slice(html.indexOf('class="core"'), details);
+  // Bottom ticker: latest line + counter + the open affordance.
+  assert.match(html, /id="ticker-inner"/);
+  assert.match(html, /id="ticker-line"/);
+  assert.match(html, /id="ticker-count"/);
+  const drawer = html.indexOf('id="logdrawer"');
+  assert.ok(drawer > 0, 'logdrawer exists');
+  // The full log list lives inside the drawer only.
+  assert.ok(html.indexOf('id="log"') > drawer, 'id="log" inside logdrawer');
+  assert.ok(html.indexOf('id="log-close"') > drawer, 'id="log-close" inside logdrawer');
+  // The core keeps brand + status + failure/recovery/actions; no log list.
+  const core = html.slice(html.indexOf('class="core"'), drawer);
   assert.match(core, /id="status"/);
-  assert.match(core, /id="hint"/);
-  assert.doesNotMatch(core, /id="log"|id="actions"/);
+  assert.match(core, /id="failure"/);
+  assert.match(core, /id="actions"/);
+  assert.doesNotMatch(core, /id="log"|id="ticker"/);
 });
 
-test('boot.js wires the details page toggle and auto-open', () => {
+test('boot.js wires the log drawer toggle', () => {
   const js = fs.readFileSync(path.join(__dirname, 'boot.js'), 'utf8');
-  for (const id of ['page-details', 'detail-handle', 'details-back']) {
+  for (const id of ['logdrawer', 'ticker-inner', 'ticker-line', 'ticker-count', 'log-count', 'log-close']) {
     assert.match(js, new RegExp(`getElementById\\('${id}'\\)`), id);
   }
-  assert.match(js, /canAct[\s\S]{0,400}setDetailsOpen\(true\)/);
   assert.match(js, /Escape/);
 });
 

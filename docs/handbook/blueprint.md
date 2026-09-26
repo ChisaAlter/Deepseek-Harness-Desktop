@@ -24,7 +24,7 @@ flowchart TB
 | --- | --- |
 | Electron main | 生命周期、窗口、IPC、子进程、托盘、更新、远程服务 |
 | Launcher renderer | 壳控制面：更新询问、导入、版本、插件问诊；官方 `--dsw-alias-*` |
-| Boot renderer | 仅主窗启动页（仪器画布）；日志、插件进度、失败恢复 UI |
+| Boot renderer | 仅主窗启动页（海平线画布）；底缘日志 ticker + 抽屉、插件进度、失败恢复 UI |
 | `dsh web` 子进程 | 官方 Harness HTTP（loopback）；对话 / 设置 / 客户端插件 |
 | Harness BrowserView | 加载 loopback 官方页；注入标题栏等桌面 chrome；暴露 harness 角色的 `window.shell` |
 
