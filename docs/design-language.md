@@ -175,9 +175,9 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 启动页是整窗一张仪器画布，不是中间再套卡片，也不是把日志关进带边框的盒子。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
 
-构图分顶部状态区、中央启动区、底部日志区三段，按窗口可用高度分配，不重叠、不套卡片。顶部保留 `DSH-DESKTOP` 技术码、状态戳与四角 L 形瞄准轨（技术码与状态戳在标题栏和原生窗控下方）；状态戳随 `body[data-state]` 切换 IDLE/BOOT/READY/HALT/ERROR。中央依次是鲸鱼旋转加载动画（[`assets/whale-spin.svg`](../assets/whale-spin.svg)，2 秒循环、112px，`.mark` 在扫描线遮罩之上；`prefers-reduced-motion` 换 [`assets/whale-head.png`](../assets/whale-head.png) 静态头像）、`Whale Isle` 品牌名、当前状态与说明；字号层级品牌 16/24、状态 14/22、次要说明与诊断 12/18。故障详情与既有恢复动作可折行，不新增面板或控制。
+场景页构图分顶部状态区与中央启动区两段，按窗口可用高度分配，不重叠、不套卡片。顶部保留 `DSH-DESKTOP` 技术码、状态戳与四角 L 形瞄准轨（技术码与状态戳在标题栏和原生窗控下方）；状态戳随 `body[data-state]` 切换 IDLE/BOOT/READY/HALT/ERROR。中央依次是鲸鱼旋转加载动画（[`assets/whale-spin.svg`](../assets/whale-spin.svg)，2 秒循环、112px，`.mark` 在扫描线遮罩之上；`prefers-reduced-motion` 换 [`assets/whale-head.png`](../assets/whale-head.png) 静态头像）、`Whale Isle` 品牌名、当前状态与说明；字号层级品牌 16/24、状态 14/22、次要说明 12/18。
 
-底部日志直接铺画布：无边框、无底色、等宽 14/22，贴底上堆，让开角轨（`--boot-log-inset`）并在顶部裁去旧行，最新行始终完整可见。响应式行高适配最小窗 960×640；短窗口压缩留白与日志高度，诊断区仍可滚到完整错误与动作。进度只展示 controller 或插件事件实际提供的状态，不估算百分比、不加虚构步骤；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
+日志与诊断收进详情页：场景页底缘中央一枚等宽把手「详细 · 日志 NN」记行数；详情页整页覆盖同一画布，栏头下左对齐排故障详情、恢复动作与日志列，`回到场景` 或 Escape 返回。`error` 或自动重启排程/进行中时自动翻开，手动关闭后同轮不再自动弹。日志等宽 14/22、无边框无底色，让开角轨（`--boot-log-inset`）。进度只展示 controller 或插件事件实际提供的状态，不估算百分比、不加虚构步骤；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
 
 色与主题：[`boot-tokens.css`](../src/renderer/boot-tokens.css) 是唯一色表。浅色是纸面近黑，深色是 CRT 近白；`--boot-accent` 与正文同色，失败用 `--boot-alert`。`html[data-boot-theme]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把用户主题的 `bg` / `accent` 写进启动页。[`boot.css`](../src/renderer/boot.css) 只引用 `--boot-*` 与基线字体、动效 token，不写 `[data-ds-dark-theme]` 分支，也不写颜色字面量。
 

@@ -34,17 +34,28 @@
       <p class="brand">Whale Isle</p>
       <p class="status" id="status" role="status">正在启动运行时</p>
       <p class="hint" id="hint">桌面端正在启动。关闭应用时服务一并退出。</p>
-      <p class="failure" id="failure" hidden></p>
-      <p class="recovery" id="recovery" aria-live="polite" hidden></p>
-      <div class="actions" id="actions" hidden>
-        <button type="button" class="primary" id="retry">重试</button>
-        <button type="button" class="ghost" id="cancel-restart" hidden>取消自动重启</button>
-        <button type="button" class="ghost" id="open-launcher" hidden>回启动器排查</button>
-        <button type="button" class="ghost" id="save-log">下载日志</button>
-      </div>
     </div>
-    <div class="log-dock">
-      <ol class="log" id="log" aria-label="最近日志" aria-live="polite"></ol>
+    <button type="button" class="detail-handle" id="detail-handle">详细 · 日志 00</button>
+    <div class="page-details" id="page-details">
+      <div class="details-head">
+        <span class="mark details-mark" aria-hidden="true">
+          <img class="mark-img mark-anim" src="../../assets/whale-spin.svg" alt="" />
+          <img class="mark-img mark-still" src="../../assets/whale-head.png" alt="" />
+        </span>
+        <span class="details-title">Whale Isle · BOOT LOG</span>
+      </div>
+      <div class="details-col">
+        <p class="failure" id="failure" hidden></p>
+        <p class="recovery" id="recovery" aria-live="polite" hidden></p>
+        <div class="actions" id="actions" hidden>
+          <button type="button" class="primary" id="retry">重试</button>
+          <button type="button" class="ghost" id="cancel-restart" hidden>取消自动重启</button>
+          <button type="button" class="ghost" id="open-launcher" hidden>回启动器排查</button>
+          <button type="button" class="ghost" id="save-log">下载日志</button>
+        </div>
+        <ol class="log" id="log" aria-label="最近日志" aria-live="polite"></ol>
+      </div>
+      <button type="button" class="details-back" id="details-back">回到场景</button>
     </div>
   </main>
   <script src="theme.js"></script>

@@ -94,10 +94,10 @@ body[data-harness-covered] {
   min-height: 0;
   border-radius: 20px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas: "meta" "core" "logs";
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "meta" "core";
   row-gap: 12px;
-  padding: calc(var(--caption-h) + 20px) 0 var(--boot-log-inset);
+  padding: calc(var(--caption-h) + 20px) 0 64px;
   background-color: var(--boot-bg);
   background-image:
     linear-gradient(var(--boot-grid) 1px, transparent 1px),
@@ -105,9 +105,10 @@ body[data-harness-covered] {
   background-size: 24px 24px;
 }
 
+/* Corner rails are window furniture: they stay above the details overlay. */
 .rail {
   position: fixed;
-  z-index: 2;
+  z-index: 4;
   width: var(--boot-rail-size);
   height: var(--boot-rail-size);
   pointer-events: none;
@@ -374,17 +375,133 @@ body[data-state="error"] .status {
   outline-offset: 2px;
 }
 
-.log-dock {
-  grid-area: logs;
-  position: relative;
-  z-index: 2;
-  min-height: 0;
-  height: var(--boot-log-max);
-  margin-inline: var(--boot-log-inset);
-  overflow: hidden;
+/* Bottom-edge handle opening the details page. */
+.detail-handle {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 3;
+  transform: translateX(-50%);
+  appearance: none;
+  padding: 4px 16px;
+  border: 1px solid var(--boot-accent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--boot-muted);
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+  line-height: 18px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.detail-handle:hover {
+  color: var(--boot-ink);
+  border-color: var(--boot-ink);
+}
+
+.detail-handle:focus-visible {
+  outline: 2px solid var(--boot-accent);
+  outline-offset: 2px;
+}
+
+/* Details page: same instrument canvas, full-page overlay for diagnostics
+   and the recovery actions. */
+.page-details {
+  position: absolute;
+  inset: 0;
+  top: var(--caption-h);
+  z-index: 3;
+  display: none;
+  border-radius: 0 0 20px 20px;
+  background-color: var(--boot-bg);
+  background-image:
+    linear-gradient(var(--boot-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--boot-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  text-align: left;
+  -webkit-app-region: no-drag;
+}
+
+.page-details.open {
+  display: block;
+}
+
+.details-head {
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin: 20px var(--boot-log-inset) 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--boot-accent);
+}
+
+.details-mark {
+  position: static;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  animation: none;
+}
+
+.details-title {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--boot-muted);
+}
+
+.details-col {
+  position: absolute;
+  inset: 0;
+  top: 74px;
+  bottom: 60px;
+  margin: 0 var(--boot-log-inset);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-app-region: no-drag;
+}
+
+.details-col .failure,
+.details-col .recovery {
+  width: min(100%, 56rem);
+}
+
+.details-col .actions {
+  justify-content: flex-start;
+}
+
+.details-back {
+  position: absolute;
+  left: var(--boot-log-inset);
+  bottom: 20px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--boot-muted);
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+  line-height: 18px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.details-back::before {
+  content: "← ";
+}
+
+.details-back:hover {
+  color: var(--boot-ink);
+}
+
+.details-back:focus-visible {
+  outline: 2px solid var(--boot-accent);
+  outline-offset: 2px;
 }
 
 @media (max-height: 700px) {
@@ -410,6 +527,15 @@ body[data-state="error"] .status {
     margin-top: 12px;
   }
 
+  .details-head {
+    margin-top: 10px;
+  }
+
+  .details-col {
+    top: 60px;
+    bottom: 48px;
+  }
+
   .actions {
     margin-top: 16px;
   }
@@ -432,7 +558,8 @@ body[data-state="error"] .status {
   animation: fade var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
-body[data-state="error"] .stage {
+body[data-state="error"] .stage,
+body[data-state="error"] .page-details {
   background-image:
     repeating-linear-gradient(
       -45deg,

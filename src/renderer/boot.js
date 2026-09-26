@@ -10,6 +10,9 @@ const openLauncherEl = document.getElementById('open-launcher');
 const saveLogEl = document.getElementById('save-log');
 const stampEl = document.getElementById('stamp');
 const stampCodeEl = document.getElementById('stamp-code');
+const detailsEl = document.getElementById('page-details');
+const detailHandleEl = document.getElementById('detail-handle');
+const detailsBackEl = document.getElementById('details-back');
 
 const HINTS = {
   idle: '等待启动。',
@@ -39,6 +42,35 @@ let latestSnapshot = null;
 let countdownTimer = null;
 let pluginBoot = null;
 let actionNotice = '';
+let logTotal = 0;
+// Once the user dismisses the details page it stays closed until the action
+// surface clears — a fresh error or recovery cycle may reopen it.
+let detailsDismissed = false;
+
+function setDetailsOpen(open) {
+  detailsEl.classList.toggle('open', open);
+}
+
+function updateDetailHandle() {
+  detailHandleEl.textContent = `详细 · 日志 ${String(logTotal).padStart(2, '0')}`;
+}
+
+detailHandleEl.addEventListener('click', () => {
+  detailsDismissed = false;
+  setDetailsOpen(true);
+});
+
+function dismissDetails() {
+  detailsDismissed = true;
+  setDetailsOpen(false);
+}
+
+detailsBackEl.addEventListener('click', dismissDetails);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && detailsEl.classList.contains('open')) {
+    dismissDetails();
+  }
+});
 
 function invoke(method, ...args) {
   try {
@@ -212,8 +244,15 @@ function renderState(snapshot) {
   failureEl.hidden = !failureEl.textContent;
 
   const canAct = state === 'error' || recoveryScheduled || recoveryBusy;
-  if (!canAct) {
+  // The action surface lives on the details page: auto-open it while it can
+  // matter, but honor a manual dismissal for the rest of this episode.
+  if (canAct) {
+    if (!detailsDismissed) {
+      setDetailsOpen(true);
+    }
+  } else {
     actionNotice = '';
+    detailsDismissed = false;
   }
   refreshCountdown();
   manageCountdown(snapshot);
@@ -240,7 +279,10 @@ function renderState(snapshot) {
 
   if (Array.isArray(snapshot?.logs)) {
     logEl.replaceChildren();
-    visibleLogs(snapshot.logs, state).forEach(appendLog);
+    // Reseed replays only the visible slice; the handle counts the real buffer.
+    logTotal = snapshot.logs.length;
+    visibleLogs(snapshot.logs, state).forEach((line) => appendLog(line, false));
+    updateDetailHandle();
   }
 
   if (state === 'ready' && pluginBoot && !pluginBoot.settled && !pluginBoot.failed) {
@@ -269,13 +311,17 @@ function visibleLogs(logs, state) {
   return merged.slice(-16);
 }
 
-function appendLog(line) {
+function appendLog(line, count = true) {
   const item = document.createElement('li');
   item.textContent = typeof line === 'string' ? line : String(line ?? '');
   logEl.appendChild(item);
   const limit = document.body.dataset.state === 'error' ? 16 : 8;
   while (logEl.children.length > limit) {
     logEl.removeChild(logEl.firstChild);
+  }
+  if (count) {
+    logTotal += 1;
+    updateDetailHandle();
   }
 }
 
