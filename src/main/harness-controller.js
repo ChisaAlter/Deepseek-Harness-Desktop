@@ -48,6 +48,8 @@ class HarnessController extends EventEmitter {
     this.ensureDesktopInstallPlugin = options.ensureDesktopInstallPlugin || (() => {});
     this.ensureTaskControlPlugin = options.ensureTaskControlPlugin
       || (async () => ({ ok: true, added: false }));
+    this.ensureDesktopPlatformSession = options.ensureDesktopPlatformSession
+      || (async () => ({ ok: true, added: false }));
     this.removeDshMarketPreset = options.removeDshMarketPreset
       || (async () => ({ ok: true, changed: false }));
     this.ensureUsagePanelPlugin = options.ensureUsagePanelPlugin
@@ -148,6 +150,9 @@ class HarnessController extends EventEmitter {
     const policy = this.policy();
     return {
       ...dshSnapshot,
+      // The dsh snapshot only carries the 80-line tail for its own
+      // consumers; the boot drawer owns the full capped ring buffer.
+      logs: this.dsh.logs.slice(),
       pluginRecovery: { ...this.pluginRecovery },
       recovery: {
         ...this.recovery,
@@ -158,6 +163,10 @@ class HarnessController extends EventEmitter {
   }
 
   sendState(dshSnapshot) {
+    // Deliver pending log lines before the state push: the snapshot below
+    // already contains them, so an unflushed batch would re-send the same
+    // tail lines after the replay and duplicate them in the boot drawer.
+    this.flushLogBatch();
     const snapshot = this.snapshot(dshSnapshot);
     this.sendToBoot('shell:state', snapshot);
     this.emit('state', snapshot);
@@ -520,6 +529,25 @@ class HarnessController extends EventEmitter {
       }
       if (taskControl && taskControl.ok) {
         this.dsh.log(taskControl.added ? '已接入桌面任务保护' : '桌面任务保护已就绪', 'app');
+      }
+      // Platform session publisher rides --patch on every start too: embedded
+      // usage/top-up documents need the account row's desktopPlatform identity
+      // and the loopback session route. Log-only on failure — account embed
+      // degrades to a closed surface, never blocks boot.
+      try {
+        const platformSession = typeof this.ensureDesktopPlatformSession === 'function'
+          ? await this.ensureDesktopPlatformSession()
+          : null;
+        this.assertOperationCurrent(generation);
+        if (platformSession?.overlayFile) {
+          patchFiles.push(platformSession.overlayFile);
+        }
+        if (platformSession && platformSession.ok === false) {
+          this.dsh.log(`平台文档会话路由未接入：${platformSession.error || 'unknown'}`, 'app');
+        }
+      } catch (error) {
+        if (isCancellation(error)) throw error;
+        this.dsh.log(`平台文档会话路由未接入：${errorMessage(error)}`, 'app');
       }
     } catch (error) {
       if (isCancellation(error)) throw error;

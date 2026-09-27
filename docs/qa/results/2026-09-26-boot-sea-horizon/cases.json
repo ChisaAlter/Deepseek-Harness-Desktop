@@ -1,0 +1,447 @@
+[
+  {
+    "id": "TC-01",
+    "name": "初始 getState=starting",
+    "expect": "data-state=starting；状态「启动中」；省略号可见",
+    "actual": [
+      "starting",
+      "启动中",
+      "inline-flex"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-02",
+    "name": "idle 态",
+    "expect": "status「待机」，省略号收起，无 hint/actions",
+    "actual": [
+      "待机",
+      "none",
+      true,
+      true
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-03",
+    "name": "ready 态",
+    "expect": "status「就绪」+ hint「正在打开 Web UI。」",
+    "actual": [
+      "就绪",
+      "正在打开 Web UI。"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-04",
+    "name": "stopping 态",
+    "expect": "status「正在停止」+ hint「正在停止运行时。」",
+    "actual": [
+      "正在停止",
+      "正在停止运行时。"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-05",
+    "name": "error(startup) 态",
+    "expect": "「桌面端启动失败」+ ENOENT 诊断文案；actions 展开：重试可用/回启动器排查可见/下载日志可见/取消重启隐藏",
+    "actual": [
+      "桌面端启动失败",
+      "桌面运行时文件缺失，请重新安装桌面端。（详情见下方日志）",
+      false,
+      false,
+      false,
+      false,
+      true
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-06",
+    "name": "error+恢复已排程",
+    "expect": "取消自动重启可见；回启动器排查隐藏；恢复文案含「秒后进行」",
+    "actual": [
+      false,
+      true,
+      "60 秒后进行第 1/3 次自动重启。"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-07",
+    "name": "error+恢复重启中",
+    "expect": "重试禁用；取消重启禁用；回启动器隐藏",
+    "actual": [
+      true,
+      true,
+      true
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-08",
+    "name": "runtime 阶段失败",
+    "expect": "「桌面端意外退出」+ 恢复页 hint + 重试文案「立即重启」",
+    "actual": [
+      "桌面端意外退出",
+      "桌面端已返回恢复页面，失效的 Web UI 和手机 Remote 已停止使用旧进程。",
+      "立即重启"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-09",
+    "name": "恢复耗尽",
+    "expect": "文案「已完成 3 次自动重启，仍未稳定运行。自动恢复已停止。」",
+    "actual": "已完成 3 次自动重启，仍未稳定运行。自动恢复已停止。",
+    "pass": true
+  },
+  {
+    "id": "TC-10",
+    "name": "恢复已取消",
+    "expect": "文案「本轮自动恢复已取消。」",
+    "actual": "本轮自动恢复已取消。",
+    "pass": true
+  },
+  {
+    "id": "TC-11",
+    "name": "skipUserPlugins 恢复文案",
+    "expect": "status=BootRecovery.skipStartingCopy().status；class=status ready",
+    "actual": [
+      "正在以官方组合启动",
+      "status ready",
+      "正在以官方组合启动"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-12",
+    "name": "插件装载进度",
+    "expect": "「正在加载插件 2/5」",
+    "actual": "正在加载插件 2/5",
+    "pass": true
+  },
+  {
+    "id": "TC-13",
+    "name": "插件装载失败",
+    "expect": "「插件加载失败」+ data-state=error + hint=错误",
+    "actual": [
+      "插件加载失败",
+      "error",
+      "插件装载炸了"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-14",
+    "name": "未知 state 回退",
+    "expect": "status 回退「启动中」",
+    "actual": "启动中",
+    "pass": true
+  },
+  {
+    "id": "TC-15",
+    "name": "日志进账",
+    "expect": "ticker=最新行；L 03；抽屉计数 3 行",
+    "actual": [
+      "[t] line-three",
+      "L 03",
+      "3 行"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-16",
+    "name": "点击 ticker 开抽屉",
+    "expect": "logdrawer hidden=false",
+    "actual": false,
+    "pass": true
+  },
+  {
+    "id": "TC-17",
+    "name": "Enter 开抽屉",
+    "expect": "hidden=false",
+    "actual": false,
+    "pass": true
+  },
+  {
+    "id": "TC-18",
+    "name": "Space 开抽屉",
+    "expect": "hidden=false",
+    "actual": false,
+    "pass": true
+  },
+  {
+    "id": "TC-19",
+    "name": "× 关抽屉",
+    "expect": "hidden=true",
+    "actual": true,
+    "pass": true
+  },
+  {
+    "id": "TC-20",
+    "name": "点遮罩关抽屉",
+    "expect": "hidden=true",
+    "actual": true,
+    "pass": true
+  },
+  {
+    "id": "TC-21",
+    "name": "Escape 关抽屉",
+    "expect": "hidden=true",
+    "actual": true,
+    "pass": true
+  },
+  {
+    "id": "TC-22",
+    "name": "抽屉已关再按 ESC",
+    "expect": "保持 hidden=true",
+    "actual": true,
+    "pass": true
+  },
+  {
+    "id": "TC-23",
+    "name": "抽屉开着时新行实时追加",
+    "expect": "li 数 +1 且抽屉仍开",
+    "actual": [
+      4,
+      false
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-24",
+    "name": "重要行标红",
+    "expect": "末行 li.important + ticker.important",
+    "actual": [
+      "important",
+      "ticker-line important"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-25",
+    "name": "日志上限 400",
+    "expect": "泛洪 500 行后 li 数=400，计数 L 400",
+    "actual": [
+      400,
+      "L 400"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-26",
+    "name": "非字符串日志行",
+    "expect": "String() 兜底渲染不崩",
+    "actual": "[object Object]",
+    "pass": true
+  },
+  {
+    "id": "TC-27",
+    "name": "日志 XSS 注入",
+    "expect": "onerror img 作为纯文本渲染（子元素 0）",
+    "actual": 0,
+    "pass": true
+  },
+  {
+    "id": "TC-28",
+    "name": "重试动作",
+    "expect": "调用 shell.restart；先切 starting",
+    "actual": [
+      [
+        "restart"
+      ],
+      "starting"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-29",
+    "name": "重试失败路径",
+    "expect": "shell.restart 拒绝 → error + failure 文案",
+    "actual": [
+      "error",
+      "启动失败，请下载日志后回启动器排查。"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-30",
+    "name": "取消自动重启失败路径",
+    "expect": "调用 cancelRestart；拒绝 → 「取消失败：」恢复文案 + 按钮恢复可用",
+    "actual": [
+      [
+        "cancelRestart"
+      ],
+      "60 秒后进行第 1/3 次自动重启。 取消失败：cx-fail",
+      false
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-31",
+    "name": "回启动器排查失败路径",
+    "expect": "调用 openLauncher；拒绝 → 「打开启动器失败：」+ 按钮恢复",
+    "actual": [
+      [
+        "openLauncher"
+      ],
+      "打开启动器失败：ol-fail",
+      false
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-32",
+    "name": "下载日志成功",
+    "expect": "「日志已保存：C:/x/boot.log」",
+    "actual": "日志已保存：C:/x/boot.log",
+    "pass": true
+  },
+  {
+    "id": "TC-33",
+    "name": "下载日志失败",
+    "expect": "「保存日志失败：io fail」",
+    "actual": "保存日志失败：io fail",
+    "pass": true
+  },
+  {
+    "id": "TC-34",
+    "name": "下载日志被取消",
+    "expect": "取消不清空上一条 actionNotice（保留 io fail 提示，属既定契约）",
+    "actual": "保存日志失败：io fail",
+    "pass": true
+  },
+  {
+    "id": "TC-35",
+    "name": "离开 error 清 actionNotice",
+    "expect": "recovery 区归空 hidden",
+    "actual": [
+      true,
+      ""
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-36",
+    "name": "主题明暗切换",
+    "expect": "dark 置位 data-ds-dark-theme；light 移除",
+    "actual": [
+      true,
+      false
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-37",
+    "name": "boot 主题不吃壁纸 seed",
+    "expect": "applyTheme(bg) 后 --dsw-alias-bg-base 被清除",
+    "actual": "",
+    "pass": true
+  },
+  {
+    "id": "TC-38",
+    "name": "harness 遮盖契约",
+    "expect": "data-harness-covered 时 .scene visibility:hidden",
+    "actual": "hidden",
+    "pass": true
+  },
+  {
+    "id": "TC-39",
+    "name": "最大化去圆角",
+    "expect": "maximized 时 scene border-radius=0px",
+    "actual": "0px",
+    "pass": true
+  },
+  {
+    "id": "TC-40",
+    "name": "窗控最小化",
+    "expect": "调用 windowAction(\"minimize\")",
+    "actual": [
+      "windowAction"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-43",
+    "name": "快照不得截断流式缓冲（P1 回归）",
+    "expect": "500 行流 → 快照尾行一致 → DOM 仍 400 行（上限）",
+    "actual": [
+      400,
+      "L 400"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-44",
+    "name": "快照分叉时重建",
+    "expect": "末行不一致 → DOM 重建为快照 [snap-a, snap-b]",
+    "actual": [
+      "snap-a",
+      "snap-b"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-45",
+    "name": "空日志快照",
+    "expect": "DOM 清空且计数刷新 L 00",
+    "actual": [
+      0,
+      "L 00"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-46",
+    "name": "抽屉不吞窗控（P3 回归）",
+    "expect": "抽屉开着时右上窗控命中 data-act",
+    "actual": [
+      "4",
+      "5",
+      "close"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-47",
+    "name": "真指针点击最小化（caption 死区回归）",
+    "expect": "elementFromPoint 命中 minimize 且 windowAction 被调用",
+    "actual": [
+      "minimize",
+      [
+        "windowAction:minimize"
+      ]
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-48",
+    "name": "批先到+快照同尾不重复（B2 回归）",
+    "expect": "DOM=3 行不重放",
+    "actual": 3,
+    "pass": true
+  },
+  {
+    "id": "TC-41",
+    "name": "shell API 整体缺失",
+    "expect": "页面不崩；渲染 error 态 + failure 文案",
+    "actual": [
+      "error",
+      "桌面端启动失败"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-42",
+    "name": "reduced-motion 冻结",
+    "expect": "dots/brand-sheen/ticker 脉冲 animation-name=none",
+    "actual": {
+      "dots": "none",
+      "brand": "none",
+      "dot": "none"
+    },
+    "pass": true
+  }
+]

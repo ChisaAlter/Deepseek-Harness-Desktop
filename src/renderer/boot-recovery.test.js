@@ -21,8 +21,8 @@ test('skip starting copy matches the spec', () => {
   });
 });
 
-test('recovery-fail label is 启动失败 and retry stays 重试', () => {
-  assert.equal(startupErrorLabel(), '启动失败');
+test('recovery-fail label is 桌面端启动失败 and retry stays 重试', () => {
+  assert.equal(startupErrorLabel(), '桌面端启动失败');
   assert.equal(retryActionLabel(false), '重试');
   assert.equal(retryActionLabel(true), '立即重启');
   assert.equal(downloadLogLabel(), '下载日志');
@@ -36,6 +36,14 @@ test('launcher bridge shows only on a settled startup failure', () => {
   for (const state of ['idle', 'starting', 'ready', 'stopping']) {
     assert.equal(showLauncherBridge(state), false, state);
   }
+  // An error is not settled while auto-recovery is in flight; once the
+  // restart has run its course (monitoring / exhausted / cancelled) the
+  // bridge comes back.
+  assert.equal(showLauncherBridge('error', 'scheduled'), false);
+  assert.equal(showLauncherBridge('error', 'restarting'), false);
+  assert.equal(showLauncherBridge('error', 'monitoring'), true);
+  assert.equal(showLauncherBridge('error', 'exhausted'), true);
+  assert.equal(showLauncherBridge('error', 'cancelled'), true);
 });
 
 test('boot page error actions are transient-only plus the launcher bridge', () => {

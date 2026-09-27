@@ -99,7 +99,8 @@ function recoveryText(snapshot) {
   const attempt = Number(recovery.attempt) || 0;
   const maxAttempts = Number(recovery.maxAttempts) || 0;
   if (recovery.status === 'scheduled') {
-    const remaining = Math.max(0, Number(recovery.nextRetryAt) - Date.now());
+    const at = Number(recovery.nextRetryAt);
+    const remaining = Number.isFinite(at) ? Math.max(0, at - Date.now()) : 0;
     const seconds = Math.max(1, Math.ceil(remaining / 1000));
     return `${seconds} 秒后进行第 ${attempt}/${maxAttempts} 次自动重启。`;
   }
@@ -150,6 +151,8 @@ function applyPluginBootCopy(payload) {
     statusTextEl.textContent = '插件加载失败';
     statusEl.className = 'status error';
     setHint(payload.error || '运行时已就绪，但客户端插件未能完成装载。');
+    failureEl.textContent = payload.error || '';
+    failureEl.hidden = !failureEl.textContent;
     document.body.dataset.state = 'error';
     return;
   }
@@ -188,7 +191,7 @@ const FAILURE_TEXT_PATTERNS = [
   [/spawn\s+\S+\s+ENOENT|ENOENT/i, '桌面运行时文件缺失，请重新安装桌面端。'],
   [/EADDRINUSE|address already in use/i, '启动所需端口被其他程序占用，请关闭占用程序后重试。'],
   [/EACCES|permission denied|EPERM/i, '没有权限访问所需资源，请检查安全软件拦截或重新安装。'],
-  [/dsh 进程结束|exited? (with|code)/i, '桌面运行时进程已退出，可重试或回启动器排查。'],
+  [/dsh 进程结束|exit(?:ed)?\s+(?:with|code)/i, '桌面运行时进程已退出，可重试或回启动器排查。'],
 ];
 
 function failureText(failure, snapshot) {
@@ -223,7 +226,9 @@ function renderState(snapshot) {
 
   if (!usingOfficialRecovery) {
     statusTextEl.textContent = state === 'error'
-      ? (runtimeFailure ? '桌面端意外退出' : '桌面端启动失败')
+      ? (runtimeFailure
+        ? '桌面端意外退出'
+        : (globalThis.BootRecovery?.startupErrorLabel?.() || '桌面端启动失败'))
       : LABELS[state] || LABELS.starting;
     statusEl.className = `status ${state}`;
     setHint(runtimeFailure
@@ -262,8 +267,24 @@ function renderState(snapshot) {
   cancelRestartEl.disabled = recoveryBusy;
 
   if (Array.isArray(snapshot?.logs)) {
-    logEl.replaceChildren();
-    snapshot.logs.forEach((line) => appendLog(line));
+    // Merge streamed DOM with the snapshot instead of replacing it: the
+    // streamed buffer may hold more history than the snapshot tail, and
+    // post-snapshot stream lines stay appended. Whichever side has the
+    // longer head wins the shared prefix; a missing tail means divergence
+    // (fresh attempt) and the snapshot replaces the buffer.
+    const snap = snapshot.logs.map((line) => String(line ?? ''));
+    const dom = [...logEl.children].map((li) => li.textContent);
+    const idx = snap.length ? dom.lastIndexOf(snap[snap.length - 1]) : -1;
+    if (idx === -1) {
+      logEl.replaceChildren();
+      snap.forEach((line) => appendLog(line));
+    } else if (idx + 1 < dom.length || idx < snap.length - 1) {
+      const merged = (idx < snap.length - 1 ? snap : dom.slice(0, idx + 1))
+        .concat(dom.slice(idx + 1));
+      logEl.replaceChildren();
+      merged.forEach((line) => appendLog(line));
+    }
+    updateLogCount();
   }
 
   if (state === 'ready' && pluginBoot && !pluginBoot.settled && !pluginBoot.failed) {
@@ -274,7 +295,7 @@ function renderState(snapshot) {
 function isImportantLog(line) {
   return globalThis.BootRecovery?.isImportantBootLog
     ? globalThis.BootRecovery.isImportantBootLog(line)
-    : /ERR_[A-Z0-9_]+|Cannot find (?:package|module)|Error \[/.test(line);
+    : /ERR_[A-Z0-9_]+|Cannot find (?:package|module)|Error \[|plugin tree failed to load|cannot get property|cannot resolve profile bundle/.test(line);
 }
 
 function updateLogCount() {
@@ -330,8 +351,8 @@ cancelRestartEl.addEventListener('click', () => {
   invoke('cancelRestart')
     .then(renderState)
     .catch((error) => {
-      recoveryEl.textContent = `取消失败：${error.message || String(error)}`;
-      recoveryEl.hidden = false;
+      actionNotice = `取消失败：${error.message || String(error)}`;
+      refreshCountdown();
       cancelRestartEl.disabled = false;
     });
 });
@@ -339,8 +360,12 @@ cancelRestartEl.addEventListener('click', () => {
 openLauncherEl.addEventListener('click', () => {
   openLauncherEl.disabled = true;
   invoke('openLauncher')
-    .then(() => {
+    .then((result) => {
       openLauncherEl.disabled = false;
+      if (result && result.ok === false) {
+        actionNotice = `打开启动器失败：${result.error || result.reason || '未知错误'}`;
+        refreshCountdown();
+      }
     })
     .catch((error) => {
       openLauncherEl.disabled = false;

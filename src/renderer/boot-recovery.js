@@ -10,7 +10,7 @@ function skipStartingCopy() {
 }
 
 function startupErrorLabel() {
-  return '启动失败';
+  return '桌面端启动失败';
 }
 
 function retryActionLabel(runtimeFailure) {

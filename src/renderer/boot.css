@@ -1,5 +1,3 @@
-@import '../shared/dsh-webui-tokens.css';
-
 :root {
   --caption-h: 48px;
 }
@@ -42,9 +40,9 @@ body {
   position: fixed;
   top: 0;
   left: 0;
+  right: 120px;
   z-index: 9;
   height: var(--caption-h);
-  width: 100%;
   -webkit-app-region: drag;
 }
 
@@ -205,7 +203,7 @@ body[data-state="error"] .horizon {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: brand-sheen 6s ease-in-out infinite;
+  animation: brand-sheen 6s var(--ds-ease-in-out) infinite;
 }
 
 .brand small {
@@ -441,12 +439,12 @@ body[data-state="error"] .ticker-dot {
 .logdrawer {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  z-index: 4;
   background: var(--boot-scrim);
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  animation: drawer-fade 0.18s ease-out;
+  animation: drawer-fade 0.18s var(--ds-ease-in-out);
   -webkit-app-region: no-drag;
 }
 
