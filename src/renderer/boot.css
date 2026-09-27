@@ -32,7 +32,7 @@ html {
 }
 
 body {
-  border-radius: 20px;
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -72,9 +72,17 @@ body[data-harness-covered] {
   position: relative;
   height: 100%;
   min-height: 0;
-  border-radius: 20px;
+  border-radius: 10px;
   overflow: hidden;
   background: var(--boot-scene);
+  opacity: 1;
+  transition: opacity 0.42s var(--ds-ease-in-out);
+}
+
+/* The harness view fades in on top while the scene fades out beneath it;
+   once the crossfade lands the covered attribute hides the document. */
+body[data-harness-fade] .scene {
+  opacity: 0;
 }
 
 /* 天空层：星云三团 + 银河斜带（浅色读作云气，银河带仅深色可见） */
@@ -195,6 +203,7 @@ body[data-state="error"] .horizon {
   line-height: 54px;
   font-weight: 400;
   letter-spacing: 0.08em;
+  text-indent: 0.08em;
   /* 闪光：一道窄亮带 6s 周期扫过英文名 */
   background: linear-gradient(105deg,
     var(--boot-brand-base) 45.5%, var(--boot-shine) 50%, var(--boot-brand-base) 54.5%);
@@ -208,15 +217,41 @@ body[data-state="error"] .horizon {
 
 .brand small {
   display: block;
-  margin-top: 9px;
+  margin-top: 11px;
   font-family: var(--ds-font-family-code);
-  font-size: 11.5px;
-  letter-spacing: 0.5em;
-  text-indent: 0.25em;
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 1.5;
+  color: var(--boot-ink);
+  -webkit-text-fill-color: var(--boot-ink);
+}
+
+/* 品牌副标：鲸屿 徽块独占一行；下一行 BASED ON DEEPSEEK HARNESS */
+.brand-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-indent: 0;
+}
+
+.tag-mark {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-indent: 0;
+  padding: 1.5px 6px;
+  border: 1px solid var(--boot-hairline);
+  border-radius: 4px;
+}
+
+.brand-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 8px;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
   color: var(--boot-muted);
   -webkit-text-fill-color: var(--boot-muted);
-  text-transform: uppercase;
-  font-weight: 400;
 }
 
 .status {
@@ -259,30 +294,18 @@ body[data-state="starting"] .status .dots {
 .status .dots i:nth-child(2) { animation-delay: 0.2s; }
 .status .dots i:nth-child(3) { animation-delay: 0.4s; }
 
-.hint,
-.failure,
-.recovery {
+.failure {
   margin: 6px 0 0;
   max-width: 38rem;
   min-width: 0;
   font-size: 12px;
   line-height: 18px;
-  color: var(--boot-muted);
+  font-family: var(--ds-font-family-code);
+  color: var(--boot-alert);
   overflow-wrap: anywhere;
 }
 
-.failure {
-  font-family: var(--ds-font-family-code);
-  color: var(--boot-alert);
-}
-
-.recovery {
-  color: var(--boot-accent);
-}
-
-.hint[hidden],
-.failure[hidden],
-.recovery[hidden] {
+.failure[hidden] {
   display: none;
 }
 
@@ -587,6 +610,16 @@ body[data-state="error"] .ticker-dot {
   .logdrawer,
   .logdrawer-panel {
     animation: none !important;
+  }
+
+  .scene {
+    transition: none !important;
+  }
+
+  /* Reduced motion: the scene stays until the covered attribute hides it —
+     fading to a blank window would be worse than a clean cut. */
+  body[data-harness-fade] .scene {
+    opacity: 1;
   }
 }
 

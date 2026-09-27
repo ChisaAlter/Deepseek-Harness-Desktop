@@ -60,7 +60,7 @@ Harness 0.1.7-alpha.2 同步保留本页既有视觉合同。新增上游组件�
 4. **主色不是电光蓝。** 默认主按钮是近黑（浅色）/ 近白（深色）：`--dsw-alias-button-primary-fill`（浅色即 `rgb(15, 17, 21)`）。品牌蓝是 `--dsw-static-deepseek-500`（`rgb(65, 118, 230)`）及其 alias（`--dsw-alias-button-info-fill`、`--dsw-alias-state-business-primary`），用于信息强调、用户气泡、选中态。禁止 `#2b5cff`、`#6ea8ff`、`#3964fe` 这类平行色板。
 5. **描边用透明度，不用实心灰。** 浅色 `rgba(0,0,0,.04/.10/.12)`，深色 `rgba(255,255,255,.06/.12/.16)`，对应 `--dsw-alias-border-l1`～`l3`。栏与栏之间是 1px 发丝线，不是投影卡片墙。
 6. **Hover / Active 用交互 token。** 浅色 `rgba(38, 49, 72, .06 / .10)`，深色 `rgba(255,255,255,.08 / .14)`：`--dsw-alias-interactive-bg-hover` / `active`。不要新造一层实心灰底。
-7. **圆角按角色。** 主按钮胶囊 18（高 36）/ 小按钮 14（高 28）；输入 8；菜单 12；对话框 24；Tooltip 8；图标点击区 8。不要 6px 方钮；999px 只给胶囊按钮和开关。桌面壳最外框（`.frame` 外缘与 Windows 标题栏内容角 `--dsh-windows-content-radius`）20；启动器窗口外框 20。两窗均为 `transparent` 窗口：启动器轮廓由 `.shell` 卡片自绘；桌面端剪影由页面自绘——boot 页 `.scene` 圆角卡、harness 页由注入层给 `body`（`position:relative`）圆角裁切并以 `#dshd-frame-canvas` 补底色（最大化归零）：absolute/fixed 全屏层逃逸 body 的圆角裁切，因此 `#dsh-wallpaper`、`#dshd-frame-canvas` 等层各自携带同径圆角。内部控件沿用各自角色值。
+7. **圆角按角色。** 主按钮胶囊 18（高 36）/ 小按钮 14（高 28）；输入 8；菜单 12；对话框 24；Tooltip 8；图标点击区 8。不要 6px 方钮；999px 只给胶囊按钮和开关。桌面壳最外框（`.frame` 外缘与 Windows 标题栏内容角 `--dsh-windows-content-radius`）10；启动器窗口外框 10。两窗均为 `transparent` 窗口：启动器轮廓由 `.shell` 卡片自绘；桌面端剪影由页面自绘——boot 页 `.scene` 圆角卡、harness 页由注入层给 `body`（`position:relative`）圆角裁切并以 `#dshd-frame-canvas` 补底色（最大化归零）：absolute/fixed 全屏层逃逸 body 的圆角裁切，因此 `#dsh-wallpaper`、`#dshd-frame-canvas` 等层各自携带同径圆角（round 角形）。内部控件沿用各自角色值。
 8. **字号必须配行高。** 标题 16/24，正文 14/22，紧凑 12/18，Tooltip 13/20。字重 400 / 500 / 600 / 700；Figma 510 渲染为 500。禁止 `font-weight: 650`。
 9. **间距是 4 的倍数。** 控件内边距、gap、栏间距用 4 / 8 / 12 / 14 / 16 / 20 / 24。
 10. **图标 16px、`currentColor`。** 用 `ui-primitives` 的 `ic_ds_*`。密集标题栏可用 14px。不要引入另一套图标库或彩色填充图标。
@@ -175,9 +175,9 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 启动页是整窗一张海平线画布，不是中间再套卡片。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
 
-62% 高度的交接线分上下两半：线上天空（深色=深空，星云、银河带、星尘与亮星闪烁；浅色=高空，积云与天光），线下深海（调暗、表层透光、悬浮微粒、暗角）。交接线是干净的 1px 细线，不加辉光或反光带；水下无光束、无涟漪。中央依次是 `Whale Isle` 衬线字标（Didot/Bodoni 系，窄亮带 6s 周期扫掠 `background-clip: text`，中文副标不闪）、状态与说明；启动态只呈现「启动中」与三点呼吸省略号，就绪/异常态收起。`error` 或恢复排程/进行中时瞬时动作面回到场景中央（重试 / 取消自动重启 / 下载日志 / 回启动器排查，按 recovery 态逐项 gating）。
+62% 高度的交接线分上下两半：线上天空（深色=深空，星云、银河带、星尘与亮星闪烁；浅色=高空，积云与天光），线下深海（调暗、表层透光、悬浮微粒、暗角）。交接线是 1px 细线，不加辉光；水下无光束、无涟漪。中央依次是 `Whale Isle` 衬线字标（Didot/Bodoni 系，窄亮带 6s 扫掠）与状态；副标两行：鲸屿 徽块 / BASED ON DEEPSEEK HARNESS（不闪）。启动态只呈现「启动中」与三点呼吸省略号，其余态收起。异常或恢复时动作面回中央（重试 / 取消自动重启 / 下载日志 / 回启动器排查，按 recovery gating）。
 
-日志收进底缘：单行 ticker（脉冲点 + 最新行 + `L NN` 行数 +「全部日志」入口），点击、Enter 或 Space 升起毛玻璃抽屉，承载带行号的完整日志（上限 400 行），Escape / 遮罩 / 关闭按钮收回；抽屉不自动弹，重要行经 `isImportantBootLog` 标红。进度只展示 controller 或插件事件实际提供的状态，不估算百分比、不加虚构步骤；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
+日志收进底缘：单行 ticker（脉冲点 + 最新行 + `L NN` 行数 +「全部日志」入口；行按优先级复用——恢复/动作回执 > 状态提示 > 最新日志），点击、Enter 或 Space 升起毛玻璃抽屉承载带行号的完整日志（上限 400 行），Escape / 遮罩 / × 收回；不自动弹，重要行经 `isImportantBootLog` 标红。进度只展示 controller 或插件事件的实际状态，不虚构；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI，揭示为交叉淡化（harness 0→1 叠 `.scene` 淡出）。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
 
 色与主题：[`boot-tokens.css`](../src/renderer/boot-tokens.css) 是唯一色表（天空/海面、星场与水下各层、交接线、告警、字标扫光、抽屉面板全部进 token）。`html[data-boot-theme]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 明暗半，不写用户主题 `bg` / `accent`。[`boot.css`](../src/renderer/boot.css) 只引用 `--boot-*` 与基线字体、动效 token，不写明暗分支与颜色字面量。`prefers-reduced-motion` 冻结扫光、星闪、微粒、省略号与抽屉动效。
 

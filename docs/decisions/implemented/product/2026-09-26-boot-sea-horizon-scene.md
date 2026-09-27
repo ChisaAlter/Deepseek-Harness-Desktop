@@ -30,3 +30,10 @@ Status: implemented
 ## Consequences
 
 `boot.html` 结构重写（meta/scan/rail/mark/details 移除，scene 层 + ticker + drawer 进入），`boot.css` 整篇重写，`boot-tokens.css` 换海平线色表（星场整层也进 token，boot.css 保持零颜色字面量零明暗分支），`boot.js` 去掉状态戳与详情页逻辑、改单行 ticker + 抽屉开合。鲸鱼资产在启动页退役（`whale-spin.svg`/`whale-head.png` 仍供其他面使用）。契约测试改钉新结构：ticker/抽屉/水线断言替代 log-dock/角轨断言。本记录取代 [2026-09-25 仪器画布](../../archived/product/2026-09-25-boot-page-responsive-instrument-canvas.md) 与 [2026-09-26 日志双页制](../../archived/product/2026-09-26-boot-log-details-page.md)；恢复语义、IPC 边界、`--boot-*` 作用域约束不变。
+
+## Amendment — 2026-09-26（提示行收编 + 揭示交叉淡化）
+
+用户验收反馈两处：中央「启动中」下方的提示/恢复文案不应独立成行；boot → Web UI 的揭示是瞬时切换、不平滑。修订：
+
+- `.core` 只留品牌、状态（+省略号）、诊断与动作；`#hint`/`#recovery` 移除，提示、恢复倒计时与动作回执三路按优先级复用 ticker 单行——恢复/动作回执 > 状态提示 > 最新日志行。
+- `revealHarnessView` 改交叉淡化：harness 页先 `insertCSS` 持 0 透明度挂入（View 背景本即透明，boot 透出），双 rAF 后 `data-dshd-harness-fade="in"` 淡入，`.scene` 同步淡出，560ms 后 `data-harness-covered` 收尾；注入失败回退瞬时遮盖。减弱动效下两侧均不播过渡，boot 端保持到 covered 直切。

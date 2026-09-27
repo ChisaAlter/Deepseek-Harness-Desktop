@@ -1,8 +1,6 @@
 const statusEl = document.getElementById('status');
 const statusTextEl = document.getElementById('status-text');
-const hintEl = document.getElementById('hint');
 const failureEl = document.getElementById('failure');
-const recoveryEl = document.getElementById('recovery');
 const actionsEl = document.getElementById('actions');
 const logEl = document.getElementById('log');
 const tickerInnerEl = document.getElementById('ticker-inner');
@@ -36,6 +34,17 @@ let latestSnapshot = null;
 let countdownTimer = null;
 let pluginBoot = null;
 let actionNotice = '';
+let hintText = '';
+let auxText = '';
+let latestLogLine = '';
+let latestLogImportant = false;
+
+// The ticker line multiplexes three sources with clear precedence:
+// recovery/action feedback > state hint > latest log line.
+function refreshTickerLine() {
+  tickerLineEl.textContent = auxText || hintText || latestLogLine;
+  tickerLineEl.classList.toggle('important', !auxText && !hintText && latestLogImportant);
+}
 
 // The bottom ticker opens a drawer with the full log; closing paths are the
 // backdrop, the × button, and Escape.
@@ -126,9 +135,8 @@ function refreshCountdown() {
     return;
   }
   const recovery = latestSnapshot ? recoveryText(latestSnapshot) : '';
-  const text = [recovery, actionNotice].filter(Boolean).join(' ');
-  recoveryEl.textContent = text;
-  recoveryEl.hidden = !text;
+  auxText = [recovery, actionNotice].filter(Boolean).join(' ');
+  refreshTickerLine();
 }
 
 function manageCountdown(snapshot) {
@@ -142,8 +150,8 @@ function manageCountdown(snapshot) {
 }
 
 function setHint(text) {
-  hintEl.textContent = text || '';
-  hintEl.hidden = !text;
+  hintText = text || '';
+  refreshTickerLine();
 }
 
 function applyPluginBootCopy(payload) {
@@ -318,8 +326,9 @@ function appendLog(line) {
   while (logEl.children.length > 400) {
     logEl.removeChild(logEl.firstChild);
   }
-  tickerLineEl.textContent = text;
-  tickerLineEl.classList.toggle('important', important);
+  latestLogLine = text;
+  latestLogImportant = important;
+  refreshTickerLine();
   updateLogCount();
 }
 

@@ -272,6 +272,7 @@ body[data-state="error"] .horizon { background: color-mix(in srgb, var(--b-alert
   margin: 0;
   font-family: 'Didot', 'Bodoni MT', 'Playfair Display', Georgia, 'Times New Roman', serif;
   font-size: 44px; line-height: 54px; font-weight: 400; letter-spacing: 0.08em;
+  text-indent: 0.08em;
   /* 闪光：一道窄亮带 6s 周期扫过英文名 */
   background: linear-gradient(105deg,
     var(--b-brand-base) 45.5%, var(--b-shine) 50%, var(--b-brand-base) 54.5%);
@@ -281,11 +282,25 @@ body[data-state="error"] .horizon { background: color-mix(in srgb, var(--b-alert
   animation: brand-sheen 6s ease-in-out infinite;
 }
 .brand small {
-  display: block; margin-top: 9px;
+  display: block; margin-top: 11px;
   font-family: var(--ds-font-family-code);
-  font-size: 11.5px; letter-spacing: 0.5em; text-indent: 0.25em;
-  color: var(--b-mut); -webkit-text-fill-color: var(--b-mut);
   text-transform: uppercase; font-weight: 400;
+  line-height: 1.5;
+  color: var(--b-ink); -webkit-text-fill-color: var(--b-ink);
+}
+/* 品牌副标：鲸屿 徽块独占一行；下一行 BASED ON DEEPSEEK HARNESS */
+.brand-tag {
+  display: flex; align-items: center; justify-content: center;
+  text-indent: 0;
+}
+.tag-mark {
+  font-style: normal; font-size: 10.5px; letter-spacing: 0.12em; text-indent: 0;
+  padding: 1.5px 6px; border: 1px solid var(--b-hairline); border-radius: 4px;
+}
+.brand-sub {
+  display: block; margin-top: 6px; font-size: 8px;
+  letter-spacing: 0.32em; text-indent: 0.32em;
+  color: var(--b-mut); -webkit-text-fill-color: var(--b-mut);
 }
 .status { margin: 26px 0 0; max-width: 36rem; font-size: 14px; line-height: 22px; color: var(--b-mut); }
 .status.ready { color: var(--b-ink); }
@@ -301,12 +316,11 @@ body[data-state="starting"] .status .dots {
 }
 .status .dots i:nth-child(2) { animation-delay: 0.2s; }
 .status .dots i:nth-child(3) { animation-delay: 0.4s; }
-.hint, .failure, .recovery {
-  margin: 6px 0 0; max-width: 38rem; font-size: 12px; line-height: 18px; color: var(--b-mut); overflow-wrap: anywhere;
+.failure {
+  margin: 6px 0 0; max-width: 38rem; font-size: 12px; line-height: 18px;
+  font-family: var(--ds-font-family-code); color: var(--b-alert); overflow-wrap: anywhere;
 }
-.failure { font-family: var(--ds-font-family-code); color: var(--b-alert); }
-.recovery { color: var(--b-acc); }
-.failure[hidden], .recovery[hidden] { display: none; }
+.failure[hidden] { display: none; }
 .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 26px; pointer-events: auto; }
 .actions[hidden] { display: none !important; }
 .actions button {
@@ -441,11 +455,9 @@ body[data-state="error"] .ticker-dot { background: var(--b-under-alert); }
     </div>
     <div class="abyss" aria-hidden="true"></div>
     <div class="core">
-      <p class="brand">Whale Isle<small>鲸屿 · DESKTOP</small></p>
+      <p class="brand">Whale Isle<small><span class="brand-tag"><i class="tag-mark">鲸屿</i></span><span class="brand-sub">BASED ON DEEPSEEK HARNESS</span></small></p>
       <p class="status" data-role="status" role="status"><span data-role="status-text">启动中</span><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></p>
-      <p class="hint" data-role="hint" hidden></p>
       <p class="failure" data-role="failure" hidden></p>
-      <p class="recovery" data-role="recovery" hidden></p>
       <div class="actions" data-role="actions" hidden>
         <button type="button" class="primary">重试</button>
         <button type="button">回启动器排查</button>
@@ -478,7 +490,7 @@ body[data-state="error"] .ticker-dot { background: var(--b-under-alert); }
   <p><b>构图：</b>62% 交接线分开两个世界——线上是天空，线下是深海。深色天=深空：星云三团 + 银河斜带 + 双层星场（星尘层 + 6 颗带晕亮星 5.5s 呼吸）；浅色天=冷白高空云气（同一星云层染色，银河带不给——浅色下读成抹痕）。交接线就是一条干净的 1px 线，无辉光无装饰。「Whale Isle」英文名带一道亮带 6s 周期扫掠（中文副标不闪）。</p>
   <p><b>水下：</b>罩层渐变调暗；表层透光（天光入水第一截）向深处软衰减；5 颗悬浮微粒缓沉；底部 22% 海底暗角收束。无光束无条纹。</p>
   <p><b>加载信息：</b>底缘单行 ticker——脉冲点 + 最新日志行 + 行数 + 「全部日志」入口；点击（或 Enter/Space）从底部升起毛玻璃日志抽屉（带行号完整日志，ESC / 点遮罩 / × 关闭）。日志不再堆成多行块。</p>
-  <p><b>契约件：</b>Whale Isle 衬线闪光字标 / 「启动中」动效省略号（就绪、异常态收掉）/ 状态+说明+诊断+恢复文案 / 四动作（异常态）/ 底缘 ticker → 全部日志抽屉 / 短窗压缩 / 明暗自适应 / reduced-motion 冻结全部动效 / 无虚构进度。角标 meta（DSH-DESKTOP / BOOT 戳）已删。</p>
+  <p><b>契约件：</b>Whale Isle 衬线闪光字标 / 「启动中」动效省略号（就绪、异常态收掉）/ 状态+诊断文案 / 四动作（异常态）/ 底缘 ticker → 全部日志抽屉——ticker 单行按优先级复用：恢复/动作回执 &gt; 状态提示 &gt; 最新日志，中央不再堆提示行 / 短窗压缩 / 明暗自适应 / reduced-motion 冻结全部动效 / 无虚构进度。角标 meta（DSH-DESKTOP / BOOT 戳）已删。</p>
   <p><b>落地改动面：</b><code>boot.html</code>（scene 层 + underwater 含 snow 子节点 + abyss + ticker 换掉 log-dock + logdrawer 抽屉）、<code>boot.css</code>（重写场景层 + brand 衬线闪光 + 抽屉样式）、<code>boot-tokens.css</code>（--boot-* 表换海平线配色+星云/透光/微粒/闪光/面板 token）、<code>boot.js</code>（日志渲染改单行 ticker + 行数 + 抽屉开合）。feature 卡 <code>boot-page.md</code> 日志条款同步改表述。</p>
 </section>
 
@@ -506,11 +518,18 @@ const SAMPLE_ERR = [
 ];
 const LOGS = [];
 let idx = 0;
+let hintText = '';
+let latestLog = '';
+function paintTicker() {
+  const tk = document.querySelector('[data-role="ticker"]');
+  tk.textContent = hintText || latestLog;
+}
 function appendLog(text, important) {
   LOGS.push({ text, important: Boolean(important) });
+  latestLog = text;
+  paintTicker();
   const tk = document.querySelector('[data-role="ticker"]');
-  tk.textContent = text;
-  tk.classList.toggle('important', Boolean(important));
+  tk.classList.toggle('important', Boolean(important) && !hintText);
   document.querySelector('[data-role="tickcount"]').textContent = 'L ' + String(LOGS.length).padStart(2, '0');
   const li = document.createElement('li');
   li.textContent = text;
@@ -545,9 +564,8 @@ function applyState(s) {
   document.querySelector('[data-role="status-text"]').textContent = f.status;
   const st = document.querySelector('[data-role="status"]');
   st.className = 'status' + (s === 'ready' ? ' ready' : s === 'error' ? ' error' : '');
-  const hintEl = document.querySelector('[data-role="hint"]');
-  hintEl.textContent = f.hint;
-  hintEl.hidden = !f.hint;
+  hintText = f.hint;
+  paintTicker();
   const fl = document.querySelector('[data-role="failure"]');
   fl.hidden = s !== 'error';
   fl.textContent = s === 'error' ? 'ERR_DSH_PLUGIN_TREE：whale-im 在装载阶段抛出异常（详见日志）' : '';

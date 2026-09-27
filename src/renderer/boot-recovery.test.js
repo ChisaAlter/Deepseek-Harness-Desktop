@@ -76,7 +76,8 @@ test('boot.html keeps the scene clean and moves the full log into a drawer', () 
   // The full log list lives inside the drawer only.
   assert.ok(html.indexOf('id="log"') > drawer, 'id="log" inside logdrawer');
   assert.ok(html.indexOf('id="log-close"') > drawer, 'id="log-close" inside logdrawer');
-  // The core keeps brand + status + failure/recovery/actions; no log list.
+  // The core keeps brand + status + failure/actions; no log list — hints and
+  // recovery copy ride the bottom ticker line instead of centre rows.
   const core = html.slice(html.indexOf('class="core"'), drawer);
   assert.match(core, /id="status"/);
   assert.match(core, /id="failure"/);

@@ -1,4 +1,5 @@
 const { BrowserView, BrowserWindow, shell, nativeImage, screen } = require('electron');
+const { attachRendererConsoleTail, RendererConsoleTail, writeCrashReport, desktopErrorState } = require('./crash-report');
 const { rendererFile, assetFile, preloadFile } = require('./paths');
 const { REMOTE_FEATURE_ENABLED } = require('./config');
 const { windowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, markWindowTransparent, paintBackground } = require('./chrome');
@@ -22,11 +23,51 @@ const PLUGIN_BOOT_TIMEOUT_MS = 90_000;
 // leave an invisible click-swallowing surface with no recovery path. Offer
 // reload-or-quit so a crash never strands the user. The dialog is anchored
 // to no window so it stays visible even when the surface is hidden in tray.
+// Renderer error-level console lines retained across windows for crash files.
+const rendererConsoleTail = new RendererConsoleTail();
+
+/** app.getPath('logs') resolves only after ready; reports defer without it. */
+function crashLogDir() {
+  try {
+    const { app } = require('electron');
+    return require('node:path').join(app.getPath('logs'), 'crash');
+  } catch {
+    return null;
+  }
+}
+
+/** Persist the diagnostic, then keep only its last lines in the dialog. */
+async function writeRendererReport(why, contents) {
+  const dir = crashLogDir();
+  if (!dir) return undefined;
+  const { app } = require('electron');
+  return writeCrashReport(dir, {
+    source: 'renderer',
+    phase: 'running',
+    error: desktopErrorState(new Error(why)),
+    rendererConsole: rendererConsoleTail.snapshot(),
+    app: {
+      name: 'Whale Isle',
+      version: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      electron: process.versions.electron || '',
+      node: process.versions.node || '',
+      locale: app.getLocale(),
+    },
+    time: new Date(),
+  });
+}
+
+const RECOVERY_DETAIL_TAIL_LINES = 8;
+const RECOVERY_DETAIL_BUDGET = 1200;
+
 function attachRendererRecovery(contents, label) {
   if (!contents || contents.__dshdRecoveryAttached) {
     return;
   }
   contents.__dshdRecoveryAttached = true;
+  attachRendererConsoleTail(contents, rendererConsoleTail);
   let recovering = false;
   const recover = async (why) => {
     if (recovering || contents.isDestroyed()) {
@@ -35,11 +76,16 @@ function attachRendererRecovery(contents, label) {
     recovering = true;
     try {
       const { dialog, app } = require('electron');
+      const reportPath = await writeRendererReport(why, contents);
+      const reportLine = reportPath ? `\n诊断已写入 ${reportPath}` : '';
+      const tail = String(why).split(/\r\n|[\n\r\u2028\u2029]/u).slice(-RECOVERY_DETAIL_TAIL_LINES).join('\n');
+      const budget = RECOVERY_DETAIL_BUDGET - reportLine.length;
+      const shortened = tail.slice(-budget).replace(/^[\uDC00-\uDFFF]/u, '');
       const choice = await dialog.showMessageBox({
         type: 'error',
         title: '界面异常',
-        message: `${label}界面发生异常（${why}）`,
-        detail: '可重新加载界面；若反复出现请退出后从启动器重新启动。',
+        message: `${label}界面发生异常`,
+        detail: `${shortened === why ? String(why) : `（已截断）\n${shortened}`}${reportLine}\n\n可重新加载界面；若反复出现请退出后从启动器重新启动。`,
         buttons: ['重新加载', '退出应用'],
         defaultId: 0,
         cancelId: 0,
@@ -267,8 +313,10 @@ function setBootHarnessCovered(win, covered) {
     return;
   }
   const flag = covered ? 'true' : 'false';
+  // Clear the fade marker too: uncovering (runtime death → back to boot)
+  // must not inherit the scene's faded-out opacity mid-transition.
   void win.webContents.executeJavaScript(
-    `document.body && document.body.toggleAttribute('data-harness-covered', ${flag})`,
+    `document.body && (document.body.toggleAttribute('data-harness-covered', ${flag}), document.body.removeAttribute('data-harness-fade'))`,
   ).catch(() => {
     // boot document may already be gone
   });
@@ -306,22 +354,71 @@ function layoutHarnessView(win) {
   desktopPet()?.layout(win);
 }
 
+// Boot → harness crossfade: the view's transparent background lets the boot
+// scene show through while the harness page is held at opacity 0; the reveal
+// fades harness in as `.scene` fades out, then the covered attribute hides
+// the boot document for real.
+const HARNESS_FADE_MS = 560;
+const HARNESS_FADE_CSS = [
+  'html[data-dshd-harness-fade] { opacity: 0 !important; transition: opacity 0.42s ease-out !important; }',
+  'html[data-dshd-harness-fade="in"] { opacity: 1 !important; }',
+  '@media (prefers-reduced-motion: reduce) { html[data-dshd-harness-fade] { transition: none !important; } }',
+].join('\n');
+
 function revealHarnessView(win) {
   if (!harnessView || !win || win.isDestroyed()) {
     return;
   }
   harnessRevealed = true;
-  if (!win.getBrowserViews().includes(harnessView)) {
-    win.addBrowserView(harnessView);
-  }
-  layoutHarnessView(win);
-  if (typeof win.setTopBrowserView === 'function') {
-    win.setTopBrowserView(harnessView);
-  }
-  desktopPet()?.show(win);
-  setBootHarnessCovered(win, true);
+  const view = harnessView;
+  const cover = () => setBootHarnessCovered(win, true);
+  const finish = () => {
+    if (!harnessView || harnessView !== view || win.isDestroyed()) {
+      return;
+    }
+    setBootHarnessCovered(win, true);
+    void view.webContents.executeJavaScript(
+      `document.documentElement && document.documentElement.removeAttribute('data-dshd-harness-fade')`,
+    ).catch(() => {});
+  };
+  const begin = () => {
+    if (!harnessView || harnessView !== view || win.isDestroyed()) {
+      return;
+    }
+    if (!win.getBrowserViews().includes(view)) {
+      win.addBrowserView(view);
+    }
+    layoutHarnessView(win);
+    if (typeof win.setTopBrowserView === 'function') {
+      win.setTopBrowserView(view);
+    }
+    desktopPet()?.show(win);
+    void win.webContents.executeJavaScript(
+      `document.body && document.body.setAttribute('data-harness-fade','')`,
+    ).catch(() => {});
+    // A painted frame between the two attribute writes is required, else the
+    // engine coalesces 0→in and the transition never runs.
+    void view.webContents.executeJavaScript(`(function () {
+      var root = document.documentElement;
+      if (!root) { return; }
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          root.setAttribute('data-dshd-harness-fade', 'in');
+        });
+      });
+    })()`).catch(() => {});
+    setTimeout(finish, HARNESS_FADE_MS);
+  };
+  // Hold the page transparent before the first full-size paint; on failure
+  // (mid-navigation, crashed contents) fall back to the instant cover.
+  view.webContents.insertCSS(HARNESS_FADE_CSS)
+    .then(() => view.webContents.executeJavaScript(
+      `document.documentElement && document.documentElement.setAttribute('data-dshd-harness-fade','')`,
+    ))
+    .then(begin)
+    .catch(cover);
   prepareHarnessChrome(win);
-  syncHarnessChrome(win, harnessView.webContents);
+  syncHarnessChrome(win, view.webContents);
   consumePendingMarketplaceJump(win);
 }
 
@@ -476,13 +573,29 @@ function ensureHarnessView(win) {
     win.on('focus', reassertChrome);
     win.on('show', reassertChrome);
     const relayoutOnMetricsChange = () => {
-      if (!win.isDestroyed()) relayout();
+      if (!win.isDestroyed()) {
+        relayout();
+        // A display/session reconfiguration can leave a transparent
+        // window's layered surface compositing opaque-black; invalidate
+        // forces a repaint so an alive renderer's content returns.
+        try { win.webContents.invalidate(); } catch {}
+        try { harnessView?.webContents.invalidate(); } catch {}
+      }
     };
     if (screen && typeof screen.on === 'function') {
       screen.on('display-metrics-changed', relayoutOnMetricsChange);
       win.once('closed', () => {
         screen.removeListener('display-metrics-changed', relayoutOnMetricsChange);
       });
+    }
+    const { powerMonitor } = require('electron');
+    if (powerMonitor && typeof powerMonitor.on === 'function') {
+      for (const eventName of ['resume', 'unlock-screen']) {
+        powerMonitor.on(eventName, relayoutOnMetricsChange);
+        win.once('closed', () => {
+          powerMonitor.removeListener(eventName, relayoutOnMetricsChange);
+        });
+      }
     }
   }
   return harnessView;

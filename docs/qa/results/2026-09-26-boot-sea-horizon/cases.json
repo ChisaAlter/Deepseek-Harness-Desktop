@@ -13,11 +13,11 @@
   {
     "id": "TC-02",
     "name": "idle 态",
-    "expect": "status「待机」，省略号收起，无 hint/actions",
+    "expect": "status「待机」，省略号收起，ticker 空，actions 收起",
     "actual": [
       "待机",
       "none",
-      true,
+      "",
       true
     ],
     "pass": true
@@ -25,7 +25,7 @@
   {
     "id": "TC-03",
     "name": "ready 态",
-    "expect": "status「就绪」+ hint「正在打开 Web UI。」",
+    "expect": "status「就绪」+ ticker hint「正在打开 Web UI。」",
     "actual": [
       "就绪",
       "正在打开 Web UI。"
@@ -35,7 +35,7 @@
   {
     "id": "TC-04",
     "name": "stopping 态",
-    "expect": "status「正在停止」+ hint「正在停止运行时。」",
+    "expect": "status「正在停止」+ ticker hint「正在停止运行时。」",
     "actual": [
       "正在停止",
       "正在停止运行时。"
@@ -60,7 +60,7 @@
   {
     "id": "TC-06",
     "name": "error+恢复已排程",
-    "expect": "取消自动重启可见；回启动器排查隐藏；恢复文案含「秒后进行」",
+    "expect": "取消自动重启可见；回启动器排查隐藏；ticker 恢复文案含「秒后进行」",
     "actual": [
       false,
       true,
@@ -82,7 +82,7 @@
   {
     "id": "TC-08",
     "name": "runtime 阶段失败",
-    "expect": "「桌面端意外退出」+ 恢复页 hint + 重试文案「立即重启」",
+    "expect": "「桌面端意外退出」+ ticker 恢复页 hint + 重试文案「立即重启」",
     "actual": [
       "桌面端意外退出",
       "桌面端已返回恢复页面，失效的 Web UI 和手机 Remote 已停止使用旧进程。",
@@ -93,14 +93,14 @@
   {
     "id": "TC-09",
     "name": "恢复耗尽",
-    "expect": "文案「已完成 3 次自动重启，仍未稳定运行。自动恢复已停止。」",
+    "expect": "ticker「已完成 3 次自动重启，仍未稳定运行。自动恢复已停止。」",
     "actual": "已完成 3 次自动重启，仍未稳定运行。自动恢复已停止。",
     "pass": true
   },
   {
     "id": "TC-10",
     "name": "恢复已取消",
-    "expect": "文案「本轮自动恢复已取消。」",
+    "expect": "ticker「本轮自动恢复已取消。」",
     "actual": "本轮自动恢复已取消。",
     "pass": true
   },
@@ -125,7 +125,7 @@
   {
     "id": "TC-13",
     "name": "插件装载失败",
-    "expect": "「插件加载失败」+ data-state=error + hint=错误",
+    "expect": "「插件加载失败」+ data-state=error + ticker=错误",
     "actual": [
       "插件加载失败",
       "error",
@@ -269,7 +269,7 @@
   {
     "id": "TC-30",
     "name": "取消自动重启失败路径",
-    "expect": "调用 cancelRestart；拒绝 → 「取消失败：」恢复文案 + 按钮恢复可用",
+    "expect": "调用 cancelRestart；拒绝 → ticker「取消失败：」+ 按钮恢复可用",
     "actual": [
       [
         "cancelRestart"
@@ -282,7 +282,7 @@
   {
     "id": "TC-31",
     "name": "回启动器排查失败路径",
-    "expect": "调用 openLauncher；拒绝 → 「打开启动器失败：」+ 按钮恢复",
+    "expect": "调用 openLauncher；拒绝 → ticker「打开启动器失败：」+ 按钮恢复",
     "actual": [
       [
         "openLauncher"
@@ -295,32 +295,29 @@
   {
     "id": "TC-32",
     "name": "下载日志成功",
-    "expect": "「日志已保存：C:/x/boot.log」",
+    "expect": "ticker「日志已保存：C:/x/boot.log」",
     "actual": "日志已保存：C:/x/boot.log",
     "pass": true
   },
   {
     "id": "TC-33",
     "name": "下载日志失败",
-    "expect": "「保存日志失败：io fail」",
+    "expect": "ticker「保存日志失败：io fail」",
     "actual": "保存日志失败：io fail",
     "pass": true
   },
   {
     "id": "TC-34",
     "name": "下载日志被取消",
-    "expect": "取消不清空上一条 actionNotice（保留 io fail 提示，属既定契约）",
+    "expect": "取消不清空上一条 actionNotice（ticker 保留 io fail 提示，属既定契约）",
     "actual": "保存日志失败：io fail",
     "pass": true
   },
   {
     "id": "TC-35",
     "name": "离开 error 清 actionNotice",
-    "expect": "recovery 区归空 hidden",
-    "actual": [
-      true,
-      ""
-    ],
+    "expect": "ticker 回退到最新日志行，不再显示回执文案",
+    "actual": "<img src=x onerror=alert(1)>",
     "pass": true
   },
   {
@@ -424,6 +421,23 @@
     "pass": true
   },
   {
+    "id": "TC-49",
+    "name": "harness 交叉淡化契约",
+    "expect": "data-harness-fade 置位 → .scene 过渡至 opacity 0",
+    "actual": [
+      0.624234,
+      "0"
+    ],
+    "pass": true
+  },
+  {
+    "id": "TC-50",
+    "name": "ticker 优先级：提示压住日志",
+    "expect": "ready hint 在时新日志不上 ticker",
+    "actual": "正在打开 Web UI。",
+    "pass": true
+  },
+  {
     "id": "TC-41",
     "name": "shell API 整体缺失",
     "expect": "页面不崩；渲染 error 态 + failure 文案",
@@ -436,12 +450,16 @@
   {
     "id": "TC-42",
     "name": "reduced-motion 冻结",
-    "expect": "dots/brand-sheen/ticker 脉冲 animation-name=none",
-    "actual": {
-      "dots": "none",
-      "brand": "none",
-      "dot": "none"
-    },
+    "expect": "dots/brand-sheen/ticker 脉冲 animation-name=none；scene 无过渡且 fade 态不隐",
+    "actual": [
+      {
+        "dots": "none",
+        "brand": "none",
+        "dot": "none",
+        "sceneDur": "0s"
+      },
+      "1"
+    ],
     "pass": true
   }
 ]

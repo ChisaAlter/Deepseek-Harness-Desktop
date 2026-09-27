@@ -17,6 +17,23 @@ test('covered boot document blanks out so minimize/restore gaps show the window 
   assert.match(css, /body\[data-harness-covered\][\s\S]*?visibility:\s*hidden/);
 });
 
+test('boot to harness reveal crossfades instead of cutting', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '../renderer/boot.css'), 'utf8');
+  // The harness page is held at opacity 0 before the view expands, then
+  // fades in while the boot scene fades out beneath the transparent view.
+  assert.match(src, /HARNESS_FADE_CSS/);
+  assert.match(src, /insertCSS\(HARNESS_FADE_CSS\)/);
+  assert.match(src, /data-dshd-harness-fade/);
+  assert.match(src, /data-harness-fade/);
+  // The covered flag lands only after the fade window, not synchronously.
+  assert.match(src, /setTimeout\(finish, HARNESS_FADE_MS\)/);
+  assert.match(css, /body\[data-harness-fade\] \.scene[\s\S]*?opacity:\s*0/);
+  assert.match(css, /\.scene\s*\{[\s\S]*?transition:\s*opacity/);
+  // Reduced motion: no fade — the covered attribute still lands the cut.
+  assert.match(css, /prefers-reduced-motion[\s\S]*?body\[data-harness-fade\] \.scene[\s\S]*?opacity:\s*1/);
+});
+
 test('harness view keeps painting while the window is hidden so restore does not flash a blank surface', () => {
   const src = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
   assert.match(src, /backgroundThrottling:\s*false/);
@@ -174,6 +191,7 @@ test('showBoot cancels a plugin boot watch before its first probe', { timeout: 1
     getURL() { return this.url; }
     setWindowOpenHandler(handler) { this.windowOpenHandler = handler; }
     send() {}
+    insertCSS() { return Promise.resolve('fade-css-key'); }
     close() { this.destroyed = true; }
 
     loadURL(url) {

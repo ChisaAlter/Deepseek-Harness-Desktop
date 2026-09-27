@@ -30,3 +30,10 @@ The boot page becomes a sea-horizon canvas, replacing both the instrument canvas
 ## Consequences
 
 `boot.html` is restructured (meta/scan/rails/mark/details removed; scene layers + ticker + drawer added), `boot.css` is rewritten, `boot-tokens.css` carries the sea-horizon palette (entire starfield layers included as tokens, keeping boot.css free of color literals and scheme branches), and `boot.js` drops the stamp and details-page logic for a one-line ticker plus drawer toggle. Whale assets retire from the boot page (`whale-spin.svg`/`whale-head.png` remain for other surfaces). Contract tests re-pin the new structure: ticker/drawer/waterline assertions replace the log-dock/rail assertions. This record supersedes [2026-09-25 instrument canvas](../../archived/product/2026-09-25-boot-page-responsive-instrument-canvas.en.md) and [2026-09-26 two-page log zoning](../../archived/product/2026-09-26-boot-log-details-page.en.md); recovery semantics, IPC boundaries, and the `--boot-*` scope rule are unchanged.
+
+## Amendment — 2026-09-26 (hint consolidation + crossfade reveal)
+
+User acceptance flagged two issues: hint/recovery copy must not stack as separate rows under 「启动中」, and the boot → Web UI reveal was an instant cut. Revisions:
+
+- `.core` keeps only brand, status (+dots), diagnostic, and actions; `#hint`/`#recovery` are removed, and hints, recovery countdown, and action feedback share the single ticker line by precedence — recovery/action feedback > state hint > latest log line.
+- `revealHarnessView` now crossfades: the harness page mounts held at opacity 0 via `insertCSS` (the view background is already transparent, so boot shows through), flips to `data-dshd-harness-fade="in"` after a double rAF, `.scene` fades out in sync, and `data-harness-covered` lands ~560ms later; a failed injection falls back to the instant cover. Under reduced motion neither side transitions — boot stays until the covered cut.
