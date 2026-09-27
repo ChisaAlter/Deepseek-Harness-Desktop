@@ -1,74 +1,69 @@
 const statusEl = document.getElementById('status');
+const statusTextEl = document.getElementById('status-text');
 const hintEl = document.getElementById('hint');
 const failureEl = document.getElementById('failure');
 const recoveryEl = document.getElementById('recovery');
 const actionsEl = document.getElementById('actions');
 const logEl = document.getElementById('log');
+const tickerInnerEl = document.getElementById('ticker-inner');
+const tickerLineEl = document.getElementById('ticker-line');
+const tickerCountEl = document.getElementById('ticker-count');
+const drawerEl = document.getElementById('logdrawer');
+const logCountEl = document.getElementById('log-count');
+const logCloseEl = document.getElementById('log-close');
 const retryEl = document.getElementById('retry');
 const cancelRestartEl = document.getElementById('cancel-restart');
 const openLauncherEl = document.getElementById('open-launcher');
 const saveLogEl = document.getElementById('save-log');
-const stampEl = document.getElementById('stamp');
-const stampCodeEl = document.getElementById('stamp-code');
-const detailsEl = document.getElementById('page-details');
-const detailHandleEl = document.getElementById('detail-handle');
-const detailsBackEl = document.getElementById('details-back');
 
 const HINTS = {
-  idle: '等待启动。',
-  starting: '桌面端正在启动。关闭应用时服务一并退出。',
+  idle: '',
+  starting: '',
   ready: '正在打开 Web UI。',
   stopping: '正在停止运行时。',
   error: '可立即重启，或根据日志调整配置。',
 };
 
 const LABELS = {
-  idle: '未运行',
-  starting: '正在启动运行时',
-  ready: '运行时已就绪',
+  idle: '待机',
+  starting: '启动中',
+  ready: '就绪',
   stopping: '正在停止',
   error: '启动失败',
-};
-
-const STAMPS = {
-  idle: { stamp: '待机', code: 'IDLE' },
-  starting: { stamp: '启动中', code: 'BOOT' },
-  ready: { stamp: '就绪', code: 'READY' },
-  stopping: { stamp: '停止中', code: 'HALT' },
-  error: { stamp: '异常', code: 'ERROR' },
 };
 
 let latestSnapshot = null;
 let countdownTimer = null;
 let pluginBoot = null;
 let actionNotice = '';
-let logTotal = 0;
-// Once the user dismisses the details page it stays closed until the action
-// surface clears — a fresh error or recovery cycle may reopen it.
-let detailsDismissed = false;
 
-function setDetailsOpen(open) {
-  detailsEl.classList.toggle('open', open);
+// The bottom ticker opens a drawer with the full log; closing paths are the
+// backdrop, the × button, and Escape.
+function openDrawer() {
+  drawerEl.hidden = false;
+  logEl.scrollTop = logEl.scrollHeight;
 }
 
-function updateDetailHandle() {
-  detailHandleEl.textContent = `详细 · 日志 ${String(logTotal).padStart(2, '0')}`;
+function closeDrawer() {
+  drawerEl.hidden = true;
 }
 
-detailHandleEl.addEventListener('click', () => {
-  detailsDismissed = false;
-  setDetailsOpen(true);
+tickerInnerEl.addEventListener('click', openDrawer);
+tickerInnerEl.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    openDrawer();
+  }
 });
-
-function dismissDetails() {
-  detailsDismissed = true;
-  setDetailsOpen(false);
-}
-
-detailsBackEl.addEventListener('click', dismissDetails);
+logCloseEl.addEventListener('click', closeDrawer);
+drawerEl.addEventListener('click', (event) => {
+  if (event.target === drawerEl) {
+    closeDrawer();
+  }
+});
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && detailsEl.classList.contains('open')) {
-    dismissDetails();
+  if (event.key === 'Escape' && !drawerEl.hidden) {
+    closeDrawer();
   }
 });
 
@@ -145,37 +140,34 @@ function manageCountdown(snapshot) {
   }
 }
 
-function renderStamp(state) {
-  const face = STAMPS[state] || STAMPS.starting;
-  stampEl.textContent = face.stamp;
-  stampCodeEl.textContent = face.code;
+function setHint(text) {
+  hintEl.textContent = text || '';
+  hintEl.hidden = !text;
 }
 
 function applyPluginBootCopy(payload) {
   if (payload.failed) {
-    statusEl.textContent = '插件加载失败';
+    statusTextEl.textContent = '插件加载失败';
     statusEl.className = 'status error';
-    hintEl.textContent = payload.error || '运行时已就绪，但客户端插件未能完成装载。';
+    setHint(payload.error || '运行时已就绪，但客户端插件未能完成装载。');
     document.body.dataset.state = 'error';
-    renderStamp('error');
     return;
   }
-  statusEl.textContent = payload.total > 0
+  statusTextEl.textContent = payload.total > 0
     ? `正在加载插件 ${payload.ready}/${payload.total}`
     : '正在加载插件';
   statusEl.className = 'status ready';
-  hintEl.textContent = '运行时已就绪，正在装载客户端插件。';
+  setHint('运行时已就绪，正在装载客户端插件。');
 }
 
 function applyPluginRecoveryCopy(snapshot) {
   if (snapshot?.pluginRecovery?.skipUserPlugins !== true) return false;
   const copy = globalThis.BootRecovery?.skipStartingCopy?.();
   if (!copy) return false;
-  statusEl.textContent = copy.status;
+  statusTextEl.textContent = copy.status;
   statusEl.className = 'status ready';
-  hintEl.textContent = copy.hint;
+  setHint(copy.hint);
   document.body.dataset.state = 'starting';
-  renderStamp('starting');
   return true;
 }
 
@@ -226,33 +218,25 @@ function renderState(snapshot) {
   const recoveryBusy = recovery?.status === 'restarting';
   const recoveryScheduled = recovery?.status === 'scheduled';
   document.body.dataset.state = state;
-  renderStamp(state);
 
   const usingOfficialRecovery = state === 'starting' && applyPluginRecoveryCopy(snapshot);
 
   if (!usingOfficialRecovery) {
-    statusEl.textContent = state === 'error'
+    statusTextEl.textContent = state === 'error'
       ? (runtimeFailure ? '桌面端意外退出' : '桌面端启动失败')
       : LABELS[state] || LABELS.starting;
     statusEl.className = `status ${state}`;
-    hintEl.textContent = runtimeFailure
+    setHint(runtimeFailure
       ? '桌面端已返回恢复页面，失效的 Web UI 和手机 Remote 已停止使用旧进程。'
-      : (HINTS[state] || HINTS.starting);
+      : (HINTS[state] ?? HINTS.starting));
   }
 
   failureEl.textContent = state === 'error' ? failureText(failure, snapshot) : '';
   failureEl.hidden = !failureEl.textContent;
 
   const canAct = state === 'error' || recoveryScheduled || recoveryBusy;
-  // The action surface lives on the details page: auto-open it while it can
-  // matter, but honor a manual dismissal for the rest of this episode.
-  if (canAct) {
-    if (!detailsDismissed) {
-      setDetailsOpen(true);
-    }
-  } else {
+  if (!canAct) {
     actionNotice = '';
-    detailsDismissed = false;
   }
   refreshCountdown();
   manageCountdown(snapshot);
@@ -279,10 +263,7 @@ function renderState(snapshot) {
 
   if (Array.isArray(snapshot?.logs)) {
     logEl.replaceChildren();
-    // Reseed replays only the visible slice; the handle counts the real buffer.
-    logTotal = snapshot.logs.length;
-    visibleLogs(snapshot.logs, state).forEach((line) => appendLog(line, false));
-    updateDetailHandle();
+    snapshot.logs.forEach((line) => appendLog(line));
   }
 
   if (state === 'ready' && pluginBoot && !pluginBoot.settled && !pluginBoot.failed) {
@@ -290,39 +271,35 @@ function renderState(snapshot) {
   }
 }
 
-function visibleLogs(logs, state) {
-  const lines = Array.isArray(logs) ? logs.map((line) => String(line ?? '')) : [];
-  const tail = lines.slice(-8);
-  if (state !== 'error') {
-    return tail;
-  }
-  const important = lines.filter((line) => (
-    globalThis.BootRecovery?.isImportantBootLog
-      ? globalThis.BootRecovery.isImportantBootLog(line)
-      : /ERR_[A-Z0-9_]+|Cannot find (?:package|module)|Error \[/.test(line)
-  ));
-  const merged = [];
-  const seen = new Set();
-  for (const line of [...important, ...tail]) {
-    if (seen.has(line)) continue;
-    seen.add(line);
-    merged.push(line);
-  }
-  return merged.slice(-16);
+function isImportantLog(line) {
+  return globalThis.BootRecovery?.isImportantBootLog
+    ? globalThis.BootRecovery.isImportantBootLog(line)
+    : /ERR_[A-Z0-9_]+|Cannot find (?:package|module)|Error \[/.test(line);
 }
 
-function appendLog(line, count = true) {
+function updateLogCount() {
+  const total = logEl.children.length;
+  tickerCountEl.textContent = `L ${String(total).padStart(2, '0')}`;
+  logCountEl.textContent = `${total} 行`;
+}
+
+// The ticker only ever paints the latest line; the drawer keeps the full
+// buffer (capped) with important lines marked.
+function appendLog(line) {
+  const text = typeof line === 'string' ? line : String(line ?? '');
+  const important = isImportantLog(text);
   const item = document.createElement('li');
-  item.textContent = typeof line === 'string' ? line : String(line ?? '');
+  item.textContent = text;
+  if (important) {
+    item.className = 'important';
+  }
   logEl.appendChild(item);
-  const limit = document.body.dataset.state === 'error' ? 16 : 8;
-  while (logEl.children.length > limit) {
+  while (logEl.children.length > 400) {
     logEl.removeChild(logEl.firstChild);
   }
-  if (count) {
-    logTotal += 1;
-    updateDetailHandle();
-  }
+  tickerLineEl.textContent = text;
+  tickerLineEl.classList.toggle('important', important);
+  updateLogCount();
 }
 
 retryEl.addEventListener('click', () => {

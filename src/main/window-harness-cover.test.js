@@ -31,31 +31,30 @@ test('boot failure actions include a download-log ghost button', () => {
   assert.doesNotMatch(boot, /saveLogEl\.disabled/);
 });
 
-test('boot log docks above the corner rails and clips older lines from the top', () => {
+test('boot keeps the sea-horizon scene with a bottom ticker and a log drawer', () => {
   const css = fs.readFileSync(path.join(__dirname, '../renderer/boot.css'), 'utf8');
   const html = fs.readFileSync(path.join(__dirname, '../renderer/boot.html'), 'utf8');
-  assert.match(html, /<div class="log-dock">\s*<ol class="log" id="log"/);
-  assert.match(css, /--boot-log-inset:\s*64px/);
-  assert.match(css, /--boot-rail-inset:\s*16px/);
-  assert.match(css, /--boot-rail-size:\s*28px/);
-  assert.match(css, /\.stage\s*\{[\s\S]*?grid-template-rows:\s*auto minmax\(0,\s*1fr\) auto/);
-  assert.match(css, /\.stage\s*\{[\s\S]*?grid-template-areas:\s*"meta" "core" "logs"/);
-  assert.match(css, /\.core\s*\{[\s\S]*?overflow-y:\s*auto/);
-  assert.match(css, /\.log-dock\s*\{[\s\S]*?grid-area:\s*logs/);
-  assert.match(css, /\.log-dock\s*\{[\s\S]*?height:\s*var\(--boot-log-max\)/);
-  assert.match(css, /\.log-dock[\s\S]*?justify-content:\s*flex-end/);
-  assert.match(css, /\.log-dock[\s\S]*?overflow:\s*hidden/);
-  assert.match(css, /@media\s*\(max-height:\s*700px\)[\s\S]*?--boot-log-max:\s*clamp\(64px,\s*15vh,\s*96px\)/);
-  assert.doesNotMatch(css, /\.log li\s*\{[^}]*opacity:\s*0/);
+  const tokens = fs.readFileSync(path.join(__dirname, '../renderer/boot-tokens.css'), 'utf8');
+  // Sea-horizon canvas: scene layer, clean 62% waterline, underwater tint.
+  assert.match(html, /<main class="scene">/);
+  assert.match(css, /\.scene\s*\{[\s\S]*?background:\s*var\(--boot-scene\)/);
+  assert.match(css, /\.horizon\s*\{[\s\S]*?top:\s*62%/);
+  assert.match(css, /\.underwater\s*\{[\s\S]*?top:\s*62%/);
+  assert.match(tokens, /--boot-scene:\s*linear-gradient/);
+  // Logs ride a one-line bottom ticker; the full buffer sits in a drawer.
+  assert.match(html, /<div class="ticker"/);
+  assert.match(html, /id="ticker-line"/);
+  assert.match(html, /id="logdrawer"/);
+  assert.match(css, /\.ticker\s*\{[\s\S]*?bottom:\s*0/);
+  assert.match(css, /\.logdrawer\s*\{[\s\S]*?align-items:\s*flex-end/);
+  // The instrument-canvas furniture is gone.
+  assert.doesNotMatch(html, /log-dock|page-details|detail-handle|class="rail|class="scan"|class="meta"/);
 });
 
-test('boot corner rails are fixed to the viewport and enclose the caption strip', () => {
+test('boot page chrome stays minimal: caption drag strip and covered-blanking only', () => {
   const css = fs.readFileSync(path.join(__dirname, '../renderer/boot.css'), 'utf8');
-  assert.match(css, /\.rail\s*\{[\s\S]*?position:\s*fixed/);
-  assert.match(css, /\.rail-tl\s*\{[^}]*top:\s*var\(--boot-rail-inset\)/);
-  assert.match(css, /\.rail-tr\s*\{[^}]*top:\s*var\(--boot-rail-inset\)/);
-  assert.doesNotMatch(css, /\.rail-tl\s*\{[^}]*--caption-h/);
-  assert.doesNotMatch(css, /\.rail-tr\s*\{[^}]*--caption-h/);
+  assert.match(css, /\.caption\s*\{[\s\S]*?-webkit-app-region:\s*drag/);
+  assert.doesNotMatch(css, /\.rail|\.scan\s*\{|\.meta\s*\{|--boot-rail|--boot-log-inset/);
 });
 
 test('window-control buttons are a no-drag hit target and ignore SVG pointer events', () => {

@@ -1,0 +1,68 @@
+{
+  "shots": [
+    {
+      "name": "01-dark-starting",
+      "state": "starting",
+      "covered": null,
+      "drawerOpen": false,
+      "ticker": "[09:41:07] web ui serving · 127.0.0.1:4130",
+      "count": "7 行",
+      "status": "启动中"
+    },
+    {
+      "name": "02-dark-error",
+      "state": "error",
+      "covered": null,
+      "drawerOpen": false,
+      "ticker": "[09:41:11] failure recorded · phase startup",
+      "count": "10 行",
+      "status": "桌面端启动失败"
+    },
+    {
+      "name": "03-light-starting",
+      "state": "starting",
+      "covered": null,
+      "drawerOpen": false,
+      "ticker": "[09:41:07] web ui serving · 127.0.0.1:4130",
+      "count": "7 行",
+      "status": "启动中"
+    },
+    {
+      "name": "04-light-error",
+      "state": "error",
+      "covered": null,
+      "drawerOpen": false,
+      "ticker": "[09:41:11] failure recorded · phase startup",
+      "count": "10 行",
+      "status": "桌面端启动失败"
+    },
+    {
+      "name": "05-dark-short-640",
+      "state": "starting",
+      "covered": null,
+      "drawerOpen": false,
+      "ticker": "[09:41:07] web ui serving · 127.0.0.1:4130",
+      "count": "7 行",
+      "status": "启动中"
+    },
+    {
+      "name": "06-dark-drawer",
+      "state": "starting",
+      "covered": null,
+      "drawerOpen": true,
+      "ticker": "[09:41:07] web ui serving · 127.0.0.1:4130",
+      "count": "7 行",
+      "status": "启动中"
+    },
+    {
+      "name": "07-light-drawer",
+      "state": "starting",
+      "covered": null,
+      "drawerOpen": true,
+      "ticker": "[09:41:07] web ui serving · 127.0.0.1:4130",
+      "count": "7 行",
+      "status": "启动中"
+    }
+  ],
+  "consoleErrors": []
+}

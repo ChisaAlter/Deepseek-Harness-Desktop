@@ -1,30 +1,129 @@
 /* Boot-page theme table. Light/dark only — feature CSS must not branch on scheme. */
+/* 海平线场景：浅色 = 天空 / 深海；深色 = 深空 / 深海。62% 交接线分界。 */
 
 :root {
-  --boot-bg: rgb(247, 246, 243);
-  --boot-ink: rgb(15, 17, 21);
-  --boot-muted: rgb(97, 102, 107);
-  --boot-accent: rgb(15, 17, 21);
-  --boot-alert: rgb(196, 24, 24);
-  --boot-grid: rgba(15, 17, 21, 0.06);
-  --boot-line: rgba(15, 17, 21, 0.16);
-  --boot-scan: transparent;
-  --boot-hazard: rgb(225, 229, 238);
-  --boot-panel: rgb(240, 239, 236);
-  --boot-fill: rgb(15, 17, 21);
+  --boot-ink: rgb(24, 42, 54);
+  --boot-muted: rgb(96, 116, 128);
+  --boot-accent: rgb(24, 42, 54);
+  --boot-alert: rgb(198, 46, 36);
+  --boot-btn-ink: rgb(244, 249, 251);
+  --boot-hairline: rgba(30, 60, 76, 0.38);
+  --boot-under: rgb(230, 244, 249);
+  --boot-under-bg: rgba(96, 150, 176, 0.3);
+  --boot-under-alert: rgb(140, 30, 22);
+  --boot-panel: rgba(248, 251, 253, 0.92);
+  --boot-scene: linear-gradient(180deg,
+    rgb(241, 246, 248) 0%,
+    rgb(229, 239, 243) 55%,
+    rgb(204, 227, 235) 62%,
+    rgb(160, 192, 210) 70%,
+    rgb(118, 160, 182) 85%,
+    rgb(84, 128, 152) 100%);
+  /* 天空层：浅色下星云层读作高空云气；银河斜带只属夜空 */
+  --boot-nebula-a: rgba(255, 240, 214, 0.7);
+  --boot-nebula-b: rgba(182, 212, 228, 0.62);
+  --boot-nebula-c: rgba(208, 228, 238, 0.6);
+  --boot-band-edge: transparent;
+  --boot-band: transparent;
+  /* 水下介质：表层透光 / 悬浮微粒 / 海底暗角 */
+  --boot-falloff: rgba(255, 255, 255, 0.5);
+  --boot-snow: rgba(60, 110, 135, 0.28);
+  --boot-abyss: rgba(40, 80, 105, 0.18);
+  /* 字标闪光：基底略沉，扫掠亮带才看得清 */
+  --boot-brand-base: rgb(24, 42, 54);
+  --boot-shine: rgb(255, 255, 255);
+  /* 抽屉遮罩 / 告警按钮字色 / 星场层（浅色不给星场） */
+  --boot-scrim: rgba(0, 0, 0, 0.32);
+  --boot-alert-ink: rgb(255, 255, 255);
+  --boot-star-dust: none;
+  --boot-star-bright: none;
 }
 
 html[data-ds-dark-theme],
 body[data-ds-dark-theme] {
-  --boot-bg: rgb(8, 8, 8);
-  --boot-ink: rgb(249, 250, 251);
-  --boot-muted: rgb(173, 178, 184);
-  --boot-accent: rgb(249, 250, 251);
-  --boot-alert: rgb(255, 48, 48);
-  --boot-grid: rgba(249, 250, 251, 0.08);
-  --boot-line: rgba(249, 250, 251, 0.28);
-  --boot-scan: rgba(0, 0, 0, 0.28);
-  --boot-hazard: rgb(40, 8, 8);
-  --boot-panel: rgb(12, 12, 12);
-  --boot-fill: rgb(249, 250, 251);
+  --boot-ink: rgb(234, 240, 244);
+  --boot-muted: rgb(118, 132, 144);
+  --boot-accent: rgb(234, 240, 244);
+  --boot-alert: rgb(255, 92, 80);
+  --boot-btn-ink: rgb(6, 14, 22);
+  --boot-hairline: rgba(190, 224, 240, 0.4);
+  --boot-under: rgb(132, 194, 214);
+  --boot-under-bg: rgba(14, 44, 66, 0.52);
+  --boot-under-alert: rgb(255, 140, 128);
+  --boot-panel: rgba(8, 16, 26, 0.88);
+  --boot-scene: linear-gradient(180deg,
+    rgb(2, 4, 9) 0%,
+    rgb(4, 9, 17) 40%,
+    rgb(8, 18, 30) 55%,
+    rgb(12, 34, 48) 62%,
+    rgb(8, 24, 38) 78%,
+    rgb(4, 13, 23) 100%);
+  --boot-nebula-a: rgba(72, 112, 168, 0.22);
+  --boot-nebula-b: rgba(116, 88, 154, 0.17);
+  --boot-nebula-c: rgba(60, 120, 150, 0.16);
+  --boot-band-edge: rgba(150, 190, 220, 0.07);
+  --boot-band: rgba(160, 200, 228, 0.12);
+  --boot-falloff: rgba(96, 170, 200, 0.16);
+  --boot-snow: rgba(175, 212, 230, 0.5);
+  --boot-abyss: rgba(1, 6, 12, 0.55);
+  --boot-brand-base: rgba(214, 226, 236, 0.68);
+  --boot-shine: rgb(255, 255, 255);
+  --boot-scrim: rgba(0, 0, 0, 0.32);
+  --boot-alert-ink: rgb(255, 255, 255);
+  /* 星尘层：两距双密度细小星点；亮星层：6 颗带晕亮星 */
+  --boot-star-dust:
+    radial-gradient(1.4px 1.4px at 15% 42%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 22% 30%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 33% 46%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 40% 22%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 47% 38%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 52% 8%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 66% 30%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 74% 44%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 88% 22%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.4px 1.4px at 5% 48%, rgba(214, 232, 246, 0.9) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 8% 26%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 36% 14%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 61% 12%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 79% 36%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1.3px 1.3px at 96% 14%, rgba(214, 232, 246, 0.85) 50%, transparent 60%),
+    radial-gradient(1px 1px at 13% 60%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 31% 66%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 44% 56%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 60% 62%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 77% 58%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 95% 54%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 19% 74%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 37% 80%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 55% 72%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 70% 78%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 85% 68%, rgba(200, 222, 240, 0.65) 50%, transparent 58%),
+    radial-gradient(1px 1px at 3% 30%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 97% 46%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 11% 38%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 25% 52%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 42% 68%, rgba(200, 222, 240, 0.6) 50%, transparent 58%),
+    radial-gradient(1px 1px at 49% 24%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 57% 48%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 64% 70%, rgba(200, 222, 240, 0.6) 50%, transparent 58%),
+    radial-gradient(1px 1px at 72% 16%, rgba(200, 222, 240, 0.75) 50%, transparent 58%),
+    radial-gradient(1px 1px at 83% 76%, rgba(200, 222, 240, 0.55) 50%, transparent 58%),
+    radial-gradient(1px 1px at 91% 62%, rgba(200, 222, 240, 0.6) 50%, transparent 58%),
+    radial-gradient(1px 1px at 17% 16%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 29% 6%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 45% 4%, rgba(200, 222, 240, 0.7) 50%, transparent 58%),
+    radial-gradient(1px 1px at 69% 4%, rgba(200, 222, 240, 0.7) 50%, transparent 58%);
+  --boot-star-bright:
+    radial-gradient(3.2px 3.2px at 9% 20%, rgba(222, 238, 250, 0.5) 30%, transparent 70%),
+    radial-gradient(1.4px 1.4px at 9% 20%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3.4px 3.4px at 26% 10%, rgba(222, 238, 250, 0.5) 30%, transparent 70%),
+    radial-gradient(1.4px 1.4px at 26% 10%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3px 3px at 58% 16%, rgba(222, 238, 250, 0.45) 30%, transparent 70%),
+    radial-gradient(1.3px 1.3px at 58% 16%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3.6px 3.6px at 82% 12%, rgba(222, 238, 250, 0.55) 30%, transparent 70%),
+    radial-gradient(1.5px 1.5px at 82% 12%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(3px 3px at 93% 34%, rgba(222, 238, 250, 0.4) 30%, transparent 70%),
+    radial-gradient(1.3px 1.3px at 93% 34%, rgb(240, 248, 254) 55%, transparent 64%),
+    radial-gradient(2.8px 2.8px at 44% 8%, rgba(255, 232, 200, 0.4) 30%, transparent 70%),
+    radial-gradient(1.2px 1.2px at 44% 8%, rgb(255, 240, 220) 55%, transparent 64%);
 }

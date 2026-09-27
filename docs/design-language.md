@@ -10,7 +10,7 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 2. **同一套原语。** 控件复用 [`ui-primitives`](../vendor/deepseek-harness/packages/client/ui-primitives/)：`Button` / `Input` / `Menu` / `Modal` / `Tooltip` / `Switch` / `HoverCard` / `DisclosureRow` / `FlipText` / `usePresence` / `Toast` / `ic_ds_*` 图标（`icons/`）。
 3. **同一组数值。** 描边与 hover 透明度、圆角、字号行高、间距、阴影层级以本文档固定值为准（见[强制规则](#强制规则)、[视觉锚点](#视觉锚点)）；这些数值就是从钉版基线蒸馏出的合同。
 
-责任方向是单向的：**先改本文档，再改代码。** `sync:harness` 换钉版只更新代码基线，不自动改设计语言；新基线带来的视觉差异必须先写进本文档裁决，再落到实现。启动页的仪器风只活在 [`src/renderer/boot.html`](../src/renderer/boot.html)，见 [桌面启动页](#桌面启动页)，不得扩散。
+责任方向是单向的：**先改本文档，再改代码。** `sync:harness` 换钉版只更新代码基线，不自动改设计语言；新基线带来的视觉差异必须先写进本文档裁决，再落到实现。启动页的海平线画布只活在 [`src/renderer/boot.html`](../src/renderer/boot.html)，见 [桌面启动页](#桌面启动页)，不得扩散。
 
 改 UI / 布局 / 前端之前先读本文。工程落地细则（CSS Modules、token 分层、动效 recipe）以钉版 vendor 树内的文档为准，本文不重复那份清单：
 
@@ -165,7 +165,7 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 - **xterm / diff / 代码**：等宽、ANSI、字符网格，不套胶囊按钮。
 - **原生窗口控件**：最小化 / 最大化 / 关闭保持系统命中区；颜色仍跟随当前主题 token。
 - **无法 import 主题包的壳层**（远程登录页、手机 Web SPA、Android Compose）：复用同一套语义色和几何。手机 SPA 把 `--dsw-alias-*` 抄进 `mobile/web/tokens.css`；Android 抄进 `mobile/android` 的 Compose `DshTokens` / `Color` 表。都不挂官方 CSS Modules，也不把启动页 `--boot-*` 带过去。禁止再开 `--bg` / `--accent` 平行色板，禁止 Material 默认紫或动态取色覆盖语义表。Git 胶囊上的 Commit / Push / Pull 等 action 标签保持英文。
-- **桌面启动页**：整页仪器画布与独立 `--boot-*` 表，详见 [桌面启动页](#桌面启动页)。
+- **桌面启动页**：整页海平线画布与独立 `--boot-*` 表，详见 [桌面启动页](#桌面启动页)。
 
 ## 手机远程交互
 
@@ -173,13 +173,13 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 ## 桌面启动页
 
-启动页是整窗一张仪器画布，不是中间再套卡片，也不是把日志关进带边框的盒子。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
+启动页是整窗一张海平线画布，不是中间再套卡片。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
 
-场景页构图分顶部状态区与中央启动区两段，按窗口可用高度分配，不重叠、不套卡片。顶部保留 `DSH-DESKTOP` 技术码、状态戳与四角 L 形瞄准轨（技术码与状态戳在标题栏和原生窗控下方）；状态戳随 `body[data-state]` 切换 IDLE/BOOT/READY/HALT/ERROR。中央依次是鲸鱼旋转加载动画（[`assets/whale-spin.svg`](../assets/whale-spin.svg)，2 秒循环、112px，`.mark` 在扫描线遮罩之上；`prefers-reduced-motion` 换 [`assets/whale-head.png`](../assets/whale-head.png) 静态头像）、`Whale Isle` 品牌名、当前状态与说明；字号层级品牌 16/24、状态 14/22、次要说明 12/18。
+62% 高度的交接线分上下两半：线上天空（深色=深空，星云、银河带、星尘与亮星闪烁；浅色=高空，积云与天光），线下深海（调暗、表层透光、悬浮微粒、暗角）。交接线是干净的 1px 细线，不加辉光或反光带；水下无光束、无涟漪。中央依次是 `Whale Isle` 衬线字标（Didot/Bodoni 系，窄亮带 6s 周期扫掠 `background-clip: text`，中文副标不闪）、状态与说明；启动态只呈现「启动中」与三点呼吸省略号，就绪/异常态收起。`error` 或恢复排程/进行中的四件瞬时动作（重试 / 取消自动重启 / 回启动器排查 / 下载日志）直接出现在场景中央。
 
-日志与诊断收进详情页：场景页底缘中央一枚等宽把手「详细 · 日志 NN」记行数；详情页整页覆盖同一画布，栏头下左对齐排故障详情、恢复动作与日志列，`回到场景` 或 Escape 返回。`error` 或自动重启排程/进行中时自动翻开，手动关闭后同轮不再自动弹。日志等宽 14/22、无边框无底色，让开角轨（`--boot-log-inset`）。进度只展示 controller 或插件事件实际提供的状态，不估算百分比、不加虚构步骤；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
+日志收进底缘：单行 ticker（脉冲点 + 最新行 + `L NN` 行数 +「全部日志」入口），点击、Enter 或 Space 升起毛玻璃抽屉，承载带行号的完整日志（上限 400 行），Escape / 遮罩 / 关闭按钮收回；抽屉不自动弹，重要行经 `isImportantBootLog` 标红。进度只展示 controller 或插件事件实际提供的状态，不估算百分比、不加虚构步骤；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
 
-色与主题：[`boot-tokens.css`](../src/renderer/boot-tokens.css) 是唯一色表。浅色是纸面近黑，深色是 CRT 近白；`--boot-accent` 与正文同色，失败用 `--boot-alert`。`html[data-boot-theme]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把用户主题的 `bg` / `accent` 写进启动页。[`boot.css`](../src/renderer/boot.css) 只引用 `--boot-*` 与基线字体、动效 token，不写 `[data-ds-dark-theme]` 分支，也不写颜色字面量。
+色与主题：[`boot-tokens.css`](../src/renderer/boot-tokens.css) 是唯一色表（天空/海面、星场与水下各层、交接线、告警、字标扫光、抽屉面板全部进 token）。`html[data-boot-theme]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 明暗半，不写用户主题 `bg` / `accent`。[`boot.css`](../src/renderer/boot.css) 只引用 `--boot-*` 与基线字体、动效 token，不写明暗分支与颜色字面量。`prefers-reduced-motion` 冻结扫光、星闪、微粒、省略号与抽屉动效。
 
 窗口控件仍走 [`window-controls.css`](../src/renderer/window-controls.css)。禁止 NERV / MAGI / SEELE / EVA 商标或官方标志。禁止把 `--boot-*` 用到设置页、关闭遮罩、标题栏或 Web UI。
 
@@ -216,11 +216,11 @@ Live2D 桌宠以整窗透明 Canvas 绘制，独立于主窗内的小矩形 Code
 
 Recovery Board 在既有归因文本位区分会话投影缓存格式错误与用户插件失败；缓存错误提示优先于跳过插件模式状态，不新增面板或操作控件，不建议清空原始会话。
 
-启动器是冷启动闸门窗，不是仪器画布。源文件是 [`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。色表是 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 的基线浅色 `:root` 与深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把 Appearance 壁纸种子写进 `--dsw-alias-*`。禁止 `--boot-*`、`data-boot-theme`，也禁止在 `launcher.css` 里写第二套 `[data-theme]` / `prefers-color-scheme` 色板。
+启动器是冷启动闸门窗，不是海平线画布。源文件是 [`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。色表是 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 的基线浅色 `:root` 与深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把 Appearance 壁纸种子写进 `--dsw-alias-*`。禁止 `--boot-*`、`data-boot-theme`，也禁止在 `launcher.css` 里写第二套 `[data-theme]` / `prefers-color-scheme` 色板。
 
 ## 现有偏差（不要再扩散）
 
-产品页使用本语言的 token 与 `ui-primitives`。手机远程 Web（`mobile/web`）是文档化例外：抄 `--dsw-alias-*`，不嵌入基线插件树，不用启动页仪器画布。设置里的插件市场是桌面自有包 `ui-settings-market` 的 `settings.section`（id `market`），必须跟设置页基线同一套 token / primitives。用量统计是预置改版 `dsh-usage-panel`（id `usage-stats`），必须跟设置页基线同一套 token / primitives，不沿用上游插件色板。不要再开 `--bg` / `--accent` 平行色板。桌面启动页是文档化的仪器画布例外，见 [桌面启动页](#桌面启动页)，不得扩散。冷启动启动器走基线 token，见 [桌面启动器](#桌面启动器)，不是第二套例外。
+产品页使用本语言的 token 与 `ui-primitives`。手机远程 Web（`mobile/web`）是文档化例外：抄 `--dsw-alias-*`，不嵌入基线插件树，不用启动页海平线画布。设置里的插件市场是桌面自有包 `ui-settings-market` 的 `settings.section`（id `market`），必须跟设置页基线同一套 token / primitives。用量统计是预置改版 `dsh-usage-panel`（id `usage-stats`），必须跟设置页基线同一套 token / primitives，不沿用上游插件色板。不要再开 `--bg` / `--accent` 平行色板。桌面启动页是文档化的海平线画布例外，见 [桌面启动页](#桌面启动页)，不得扩散。冷启动启动器走基线 token，见 [桌面启动器](#桌面启动器)，不是第二套例外。
 
 用量统计的活跃热力图采用紧凑月历：星期为列、每周为行，单元格固定小尺寸，避免随设置面板宽度膨胀为大色块。标题下方独立放月份选择和 UTC 起止日期筛选；所选范围以清晰的边界和汇总反馈呈现，未选日期降权但保留月历位置。窄面板里控件换行，月历不横向溢出；颜色、边框、按钮和表单沿用设置页 token 与原语。
 

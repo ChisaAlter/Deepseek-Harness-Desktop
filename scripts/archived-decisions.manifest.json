@@ -1,5 +1,8 @@
 {
   "files": {
+    "docs/decisions/archived/architecture/2026-09-25-local-first-shortcut-bridge.en.md": "413b92512d58b33ec1ca8ddc23c58f87b822feec6187945231cf9621340b0613",
+    "docs/decisions/archived/architecture/2026-09-25-local-first-shortcut-bridge.i18n.yaml": "999d38d21ba518ec675120d725487bda3ad726672fc2b601fbe9f22db86d3f69",
+    "docs/decisions/archived/architecture/2026-09-25-local-first-shortcut-bridge.md": "7b14591196442b8d807818df2302e86cb3d3158d221297f6a7d91df3b0685a71",
     "docs/decisions/archived/product/2026-09-20-pet-live-head-states.en.md": "f9350c708b4f623a3f65b3a137fd1ab9d35d8cce7703cb6d072ed665e0dad1f7",
     "docs/decisions/archived/product/2026-09-20-pet-live-head-states.i18n.yaml": "e60f8526150d2d656b5b09d52f058b06fdf01e2db57cb6402af7512ce1a0ea4d",
     "docs/decisions/archived/product/2026-09-20-pet-live-head-states.md": "29b425e7d4b0e7dde6443d740273756eedd9759268554f11628464d2f386d795",
@@ -8,6 +11,12 @@
     "docs/decisions/archived/product/2026-09-20-pet-part-rig.md": "4c35f5cfcebe6b6fb4a6c3969560045c70adf81d3badb5a210923885e4ab1104",
     "docs/decisions/archived/product/2026-09-24-whale-chat-model-picker.en.md": "b16587a463e9a4823323ecaae09c65fcd378e380bb8e692b4aae330f321e2238",
     "docs/decisions/archived/product/2026-09-24-whale-chat-model-picker.i18n.yaml": "df4bf0a53660a418f3337fcb1790a94aecf8f6c8d75d73896733cd265e1e1c37",
-    "docs/decisions/archived/product/2026-09-24-whale-chat-model-picker.md": "892afe205c9ea199a7fc7e6842e53744b18c98f1c86ba511015263a63a2ebac3"
+    "docs/decisions/archived/product/2026-09-24-whale-chat-model-picker.md": "892afe205c9ea199a7fc7e6842e53744b18c98f1c86ba511015263a63a2ebac3",
+    "docs/decisions/archived/product/2026-09-25-boot-page-responsive-instrument-canvas.en.md": "01fde87c067efe5465570d0bb1bb0f907601dcc61ec7147e68825e6ef10d5784",
+    "docs/decisions/archived/product/2026-09-25-boot-page-responsive-instrument-canvas.i18n.yaml": "fec2bf4a007573cf254d125321d19b7f15d5a1dfbb621cc2a3d202d3c5b095f8",
+    "docs/decisions/archived/product/2026-09-25-boot-page-responsive-instrument-canvas.md": "37ff01ccb7959f26929b134633856dac84b65638d160dd47efc81542a4c26d16",
+    "docs/decisions/archived/product/2026-09-26-boot-log-details-page.en.md": "85909b68386f31661a7b2ac171e6573c0636a67ba960b165359299adb57eec73",
+    "docs/decisions/archived/product/2026-09-26-boot-log-details-page.i18n.yaml": "822db786dd3e46fa6e5bf0c5d3c2a0c5df80317fc61516ce39e6b530b9aa18f5",
+    "docs/decisions/archived/product/2026-09-26-boot-log-details-page.md": "a9f9b3b03a66f58e90ed626ef0a5df138d47e59aff7f64978beeb79c20bbb857"
   }
 }

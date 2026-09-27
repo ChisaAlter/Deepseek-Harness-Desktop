@@ -1,0 +1,14 @@
+[
+  {
+    "shot": "08-real-starting",
+    "state": "starting",
+    "covered": null,
+    "count": "L 00"
+  },
+  {
+    "shot": "09-real-covered",
+    "state": "ready",
+    "covered": "",
+    "count": "L 20"
+  }
+]

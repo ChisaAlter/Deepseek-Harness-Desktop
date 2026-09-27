@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-26
+
 中文 | [English](2026-09-25-boot-page-responsive-instrument-canvas.en.md)
 
 ## Problem

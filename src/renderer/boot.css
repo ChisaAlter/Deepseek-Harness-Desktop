@@ -2,10 +2,6 @@
 
 :root {
   --caption-h: 48px;
-  --boot-rail-inset: 16px;
-  --boot-rail-size: 28px;
-  --boot-log-inset: 64px;
-  --boot-log-max: min(12rem, 20vh);
 }
 
 * {
@@ -23,7 +19,7 @@ body {
 }
 
 /* The main window is transparent: the silhouette is drawn by the rounded
-   .stage canvas, so html/body paint no background of their own (a body
+   .scene canvas, so html/body paint no background of their own (a body
    background would propagate to the canvas and fill the corners square). */
 html,
 body {
@@ -32,7 +28,7 @@ body {
 
 /* Without an html overflow, body's overflow:hidden propagates to the
    viewport and body itself computes to visible — the rounded clip would
-   never apply and .stage would paint a square under the harness view. */
+   never apply and .scene would paint a square under the harness view. */
 html {
   overflow: hidden;
 }
@@ -46,7 +42,7 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 2;
+  z-index: 9;
   height: var(--caption-h);
   width: 100%;
   -webkit-app-region: drag;
@@ -73,196 +69,166 @@ body[data-harness-covered] {
   visibility: hidden;
 }
 
-.scan {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  border-radius: 20px;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 2px,
-    var(--boot-scan) 2px,
-    var(--boot-scan) 3px
-  );
-}
-
-.stage {
+/* ===== 海平线场景：62% 交接线，线上天空（深色=深空），线下深海 ===== */
+.scene {
   position: relative;
   height: 100%;
   min-height: 0;
   border-radius: 20px;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  grid-template-areas: "meta" "core";
-  row-gap: 12px;
-  padding: calc(var(--caption-h) + 20px) 0 64px;
-  background-color: var(--boot-bg);
-  background-image:
-    linear-gradient(var(--boot-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--boot-grid) 1px, transparent 1px);
-  background-size: 24px 24px;
+  overflow: hidden;
+  background: var(--boot-scene);
 }
 
-/* Corner rails are window furniture: they stay above the details overlay. */
-.rail {
-  position: fixed;
-  z-index: 4;
-  width: var(--boot-rail-size);
-  height: var(--boot-rail-size);
+/* 天空层：星云三团 + 银河斜带（浅色读作云气，银河带仅深色可见） */
+.stars {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 38%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 48% 34% at 26% 26%, var(--boot-nebula-a), transparent 72%),
+    radial-gradient(ellipse 40% 30% at 70% 14%, var(--boot-nebula-b), transparent 72%),
+    radial-gradient(ellipse 34% 22% at 52% 46%, var(--boot-nebula-c), transparent 72%),
+    linear-gradient(115deg,
+      transparent 32%, var(--boot-band-edge) 45%,
+      var(--boot-band) 50%, var(--boot-band-edge) 55%, transparent 68%);
+}
+
+/* 星尘层 / 亮星层：内容走 --boot-star-* 色表，浅色侧为 none 天然空层 */
+.stars::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--boot-star-dust);
+}
+
+.stars::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--boot-star-bright);
+  animation: twinkle 5.5s var(--ds-ease-in-out) infinite alternate;
+}
+
+/* 交接线：一条干净的 1px 分界，无辉光无装饰 */
+.horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  height: 1px;
+  background: var(--boot-hairline);
   pointer-events: none;
 }
 
-.rail-tl {
-  top: var(--boot-rail-inset);
-  left: var(--boot-rail-inset);
-  border-top: 2px solid var(--boot-accent);
-  border-left: 2px solid var(--boot-accent);
+body[data-state="error"] .horizon {
+  background: color-mix(in srgb, var(--boot-alert) 45%, transparent);
 }
 
-.rail-tr {
-  top: var(--boot-rail-inset);
-  right: var(--boot-rail-inset);
-  border-top: 2px solid var(--boot-accent);
-  border-right: 2px solid var(--boot-accent);
-}
-
-.rail-bl {
-  bottom: var(--boot-rail-inset);
-  left: var(--boot-rail-inset);
-  border-bottom: 2px solid var(--boot-accent);
-  border-left: 2px solid var(--boot-accent);
-}
-
-.rail-br {
-  bottom: var(--boot-rail-inset);
-  right: var(--boot-rail-inset);
-  border-bottom: 2px solid var(--boot-accent);
-  border-right: 2px solid var(--boot-accent);
-}
-
-.meta {
-  grid-area: meta;
-  position: relative;
-  z-index: 2;
-  min-width: 0;
-  margin-inline: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+/* 水下罩层：整体调暗 + 表层透光；无光束无条纹 */
+.underwater {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  bottom: 0;
+  background: linear-gradient(180deg, var(--boot-under-bg), transparent 62%);
   pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
 }
 
-.code,
-.stamp-code {
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--boot-muted);
+/* 表层透光：天光入水第一截，向深处软衰减 */
+.underwater::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 120% 58% at 50% 0%, var(--boot-falloff), transparent 72%);
 }
 
-.stamp-block {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+/* 海底暗角：让深处真的沉下去 */
+.abyss {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+  background: linear-gradient(0deg, var(--boot-abyss), transparent);
+  pointer-events: none;
+  z-index: 1;
 }
 
-.stamp {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 7.5rem;
-  padding: 4px 12px;
-  border: 2px solid var(--boot-accent);
-  color: var(--boot-accent);
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 700;
-  letter-spacing: 0.28em;
+/* 悬浮微粒（marine snow）缓沉 */
+.snow {
+  position: absolute;
+  top: 8%;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--boot-snow);
+  animation: snow-fall 16s linear infinite;
 }
 
-body[data-state="idle"] .stamp,
-body[data-state="starting"] .stamp,
-body[data-state="stopping"] .stamp {
-  animation: pulse 1.2s var(--ds-ease-in-out) infinite;
-}
-
-body[data-state="error"] .stamp,
-body[data-state="error"] .stamp-code {
-  color: var(--boot-alert);
-  border-color: var(--boot-alert);
-}
+.snow:nth-child(1) { left: 32%; animation-duration: 14s; }
+.snow:nth-child(2) { left: 41%; animation-duration: 19s; animation-delay: -6s; width: 1.5px; height: 1.5px; }
+.snow:nth-child(3) { left: 53%; animation-duration: 16s; animation-delay: -3s; }
+.snow:nth-child(4) { left: 62%; animation-duration: 21s; animation-delay: -11s; width: 1.5px; height: 1.5px; }
+.snow:nth-child(5) { left: 71%; animation-duration: 17s; animation-delay: -8s; }
 
 .core {
-  grid-area: core;
-  justify-self: center;
-  position: relative;
-  z-index: 2;
-  width: min(100%, 44rem);
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 8px 16px;
-}
-
-.core::before,
-.core::after {
-  content: "";
-  flex: 1 0 16px;
-}
-
-.mark {
-  position: relative;
-  z-index: 2;
-  width: 112px;
-  height: 112px;
-  flex: 0 0 112px;
-  color: var(--boot-ink);
-  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) both;
-}
-
-.mark svg,
-.mark-img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: contain;
-}
-
-.mark-still {
-  display: none;
-}
-
-body[data-state="error"] .mark,
-body[data-state="error"] .status {
-  color: var(--boot-alert);
+  padding: 0 24px 26vh;
+  pointer-events: none;
 }
 
 .brand {
-  margin: 24px 0 0;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) 80ms both;
+  margin: 0;
+  font-family: 'Didot', 'Bodoni MT', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-size: 44px;
+  line-height: 54px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  /* 闪光：一道窄亮带 6s 周期扫过英文名 */
+  background: linear-gradient(105deg,
+    var(--boot-brand-base) 45.5%, var(--boot-shine) 50%, var(--boot-brand-base) 54.5%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: brand-sheen 6s ease-in-out infinite;
+}
+
+.brand small {
+  display: block;
+  margin-top: 9px;
+  font-family: var(--ds-font-family-code);
+  font-size: 11.5px;
+  letter-spacing: 0.5em;
+  text-indent: 0.25em;
+  color: var(--boot-muted);
+  -webkit-text-fill-color: var(--boot-muted);
+  text-transform: uppercase;
+  font-weight: 400;
 }
 
 .status {
-  margin: 8px 0 0;
-  width: min(100%, 36rem);
+  margin: 26px 0 0;
+  max-width: 36rem;
+  min-width: 0;
   font-size: 14px;
   line-height: 22px;
   color: var(--boot-muted);
-  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) 120ms both;
+  overflow-wrap: anywhere;
 }
 
 .status.ready {
@@ -273,32 +239,42 @@ body[data-state="error"] .status {
   color: var(--boot-alert);
 }
 
-.hint {
-  margin: 8px 0 0;
-  width: min(100%, 36rem);
-  color: var(--boot-muted);
-  font-size: 12px;
-  line-height: 18px;
-  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) 160ms both;
+/* 「启动中」动效省略号：三点依次呼吸 */
+.status .dots {
+  display: none;
 }
 
-.failure,
-.recovery {
-  margin: 8px 0 0;
-  width: min(100%, 42rem);
-  font-size: 12px;
-  line-height: 18px;
+body[data-state="starting"] .status .dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 7px;
 }
 
-.status,
+.status .dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot-blink 1.3s infinite;
+}
+
+.status .dots i:nth-child(2) { animation-delay: 0.2s; }
+.status .dots i:nth-child(3) { animation-delay: 0.4s; }
+
 .hint,
 .failure,
 .recovery {
+  margin: 6px 0 0;
+  max-width: 38rem;
   min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--boot-muted);
   overflow-wrap: anywhere;
 }
 
 .failure {
+  font-family: var(--ds-font-family-code);
   color: var(--boot-alert);
 }
 
@@ -306,6 +282,7 @@ body[data-state="error"] .status {
   color: var(--boot-accent);
 }
 
+.hint[hidden],
 .failure[hidden],
 .recovery[hidden] {
   display: none;
@@ -316,8 +293,9 @@ body[data-state="error"] .status {
   flex-wrap: wrap;
   justify-content: center;
   max-width: 100%;
-  gap: 8px;
-  margin-top: 24px;
+  gap: 10px;
+  margin-top: 26px;
+  pointer-events: auto;
   -webkit-app-region: no-drag;
 }
 
@@ -330,20 +308,19 @@ body[data-state="error"] .status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
+  min-height: 34px;
   max-width: 100%;
-  padding: 6px 14px;
-  border: 1px solid var(--boot-accent);
-  border-radius: 0;
+  padding: 5px 18px;
+  border: 1px solid var(--boot-hairline);
+  border-radius: 999px;
   background: transparent;
-  color: var(--boot-accent);
+  color: var(--boot-ink);
   font-family: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 12px;
+  line-height: 20px;
   white-space: normal;
   text-align: center;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
@@ -353,16 +330,17 @@ body[data-state="error"] .status {
 }
 
 .actions .primary {
-  background: var(--boot-accent);
-  color: var(--boot-bg);
+  background: var(--boot-ink);
+  border-color: var(--boot-ink);
+  color: var(--boot-btn-ink);
 }
 
 .actions .primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--boot-accent) 88%, var(--boot-ink));
+  opacity: 0.85;
 }
 
 .actions .ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--boot-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--boot-ink) 8%, transparent);
 }
 
 .actions button:disabled {
@@ -375,248 +353,247 @@ body[data-state="error"] .status {
   outline-offset: 2px;
 }
 
-/* Bottom-edge handle opening the details page. */
-.detail-handle {
+body[data-state="error"] .actions .primary {
+  background: var(--boot-alert);
+  border-color: var(--boot-alert);
+  color: var(--boot-alert-ink);
+}
+
+/* ===== 底缘 ticker：加载信息只占一行，点开升起全部日志 ===== */
+.ticker {
   position: absolute;
-  left: 50%;
-  bottom: 22px;
-  z-index: 3;
-  transform: translateX(-50%);
-  appearance: none;
-  padding: 4px 16px;
-  border: 1px solid var(--boot-accent);
-  border-radius: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: 0 56px 24px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ticker-inner {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--ds-font-family-code);
+  font-size: 11.5px;
+  line-height: 18px;
+  color: var(--boot-under);
+  max-width: 72ch;
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 4px 14px;
+  border-radius: 999px;
+  -webkit-app-region: no-drag;
+}
+
+.ticker-inner:hover {
+  background: color-mix(in srgb, var(--boot-under) 10%, transparent);
+}
+
+.ticker-inner:focus-visible {
+  outline: 2px solid var(--boot-under);
+  outline-offset: 2px;
+}
+
+.ticker-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--boot-under);
+  flex: 0 0 5px;
+  align-self: center;
+  animation: pulse 1.6s infinite;
+}
+
+body[data-state="error"] .ticker-dot {
+  background: var(--boot-under-alert);
+}
+
+.ticker-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ticker-line.important {
+  color: var(--boot-under-alert);
+}
+
+.ticker-count {
+  color: var(--boot-under);
+  opacity: 0.6;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.ticker-open {
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+.ticker-inner:hover .ticker-open {
+  opacity: 1;
+}
+
+/* ===== 日志抽屉：点 ticker 弹出全部日志 ===== */
+.logdrawer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: var(--boot-scrim);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: drawer-fade 0.18s ease-out;
+  -webkit-app-region: no-drag;
+}
+
+.logdrawer[hidden] {
+  display: none;
+}
+
+.logdrawer-panel {
+  width: min(760px, calc(100% - 96px));
+  max-height: 46%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--boot-hairline);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  background: var(--boot-panel);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  animation: drawer-rise 0.24s var(--ds-ease-in-out);
+}
+
+.logdrawer-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--boot-hairline);
+}
+
+.logdrawer-title {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--boot-ink);
+}
+
+.logdrawer-count {
+  font-family: var(--ds-font-family-code);
+  font-size: 10.5px;
+  color: var(--boot-muted);
+}
+
+.logdrawer-close {
+  margin-left: auto;
+  border: 0;
   background: transparent;
   color: var(--boot-muted);
-  font-family: var(--ds-font-family-code);
-  font-size: 11px;
-  line-height: 18px;
-  letter-spacing: 0.12em;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
 
-.detail-handle:hover {
+.logdrawer-close:hover {
   color: var(--boot-ink);
-  border-color: var(--boot-ink);
 }
 
-.detail-handle:focus-visible {
-  outline: 2px solid var(--boot-accent);
-  outline-offset: 2px;
-}
-
-/* Details page: same instrument canvas, full-page overlay for diagnostics
-   and the recovery actions. */
-.page-details {
-  position: absolute;
-  inset: 0;
-  top: var(--caption-h);
-  z-index: 3;
-  display: none;
-  border-radius: 0 0 20px 20px;
-  background-color: var(--boot-bg);
-  background-image:
-    linear-gradient(var(--boot-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--boot-grid) 1px, transparent 1px);
-  background-size: 24px 24px;
-  text-align: left;
-  -webkit-app-region: no-drag;
-}
-
-.page-details.open {
-  display: block;
-}
-
-.details-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 20px var(--boot-log-inset) 0;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--boot-accent);
-}
-
-.details-mark {
-  position: static;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  animation: none;
-}
-
-.details-title {
+.logdrawer-lines {
+  margin: 0;
+  padding: 10px 18px 16px 36px;
+  list-style: decimal outside;
   font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  font-size: 11.5px;
+  line-height: 19px;
   color: var(--boot-muted);
-}
-
-.details-col {
-  position: absolute;
-  inset: 0;
-  top: 74px;
-  bottom: 60px;
-  margin: 0 var(--boot-log-inset);
-  overflow-x: hidden;
   overflow-y: auto;
   -webkit-app-region: no-drag;
 }
 
-.details-col .failure,
-.details-col .recovery {
-  width: min(100%, 56rem);
-}
-
-.details-col .actions {
-  justify-content: flex-start;
-}
-
-.details-back {
-  position: absolute;
-  left: var(--boot-log-inset);
-  bottom: 20px;
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
+.logdrawer-lines li::marker {
   color: var(--boot-muted);
-  font-family: var(--ds-font-family-code);
-  font-size: 11px;
-  line-height: 18px;
-  letter-spacing: 0.14em;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
+  font-size: 10px;
 }
 
-.details-back::before {
-  content: "← ";
+.logdrawer-lines li.important {
+  color: var(--boot-alert);
 }
 
-.details-back:hover {
-  color: var(--boot-ink);
-}
-
-.details-back:focus-visible {
-  outline: 2px solid var(--boot-accent);
-  outline-offset: 2px;
-}
-
+/* 短窗压缩 */
 @media (max-height: 700px) {
-  :root {
-    --boot-log-inset: 48px;
-    --boot-log-max: clamp(64px, 15vh, 96px);
-  }
-
-  .stage {
-    row-gap: 8px;
-    padding-top: calc(var(--caption-h) + 8px);
-  }
-
-  .meta {
-    margin-inline: 32px;
+  .brand {
+    font-size: 34px;
+    line-height: 42px;
   }
 
   .core {
-    padding-block: 4px;
-  }
-
-  .brand {
-    margin-top: 12px;
-  }
-
-  .details-head {
-    margin-top: 10px;
-  }
-
-  .details-col {
-    top: 60px;
-    bottom: 48px;
+    padding-bottom: 20vh;
   }
 
   .actions {
     margin-top: 16px;
   }
-}
 
-.log {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  text-align: left;
-  font-family: var(--ds-font-family-code);
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--boot-muted);
-}
-
-.log li {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  animation: fade var(--ds-transition-duration) var(--ds-ease-in-out);
-}
-
-body[data-state="error"] .stage,
-body[data-state="error"] .page-details {
-  background-image:
-    repeating-linear-gradient(
-      -45deg,
-      transparent 0 18px,
-      color-mix(in srgb, var(--boot-alert) 10%, transparent) 18px 20px
-    ),
-    linear-gradient(var(--boot-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--boot-grid) 1px, transparent 1px);
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes fade {
-  from {
-    opacity: 0;
+  .ticker {
+    padding-bottom: 16px;
   }
 }
 
 @keyframes pulse {
-  50% {
-    opacity: 0.55;
-  }
+  50% { opacity: 0.35; }
+}
+
+@keyframes twinkle {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+@keyframes dot-blink {
+  0%, 70%, 100% { opacity: 0.22; }
+  30% { opacity: 1; }
+}
+
+/* 光泽从右肩扫到左肩：2s 扫掠 + 4s 停驻 */
+@keyframes brand-sheen {
+  0%, 22% { background-position: 135% 0; }
+  55%, 100% { background-position: -35% 0; }
+}
+
+@keyframes snow-fall {
+  from { transform: translateY(-4vh); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 0.8; }
+  to { transform: translateY(30vh); opacity: 0; }
+}
+
+@keyframes drawer-fade {
+  from { opacity: 0; }
+}
+
+@keyframes drawer-rise {
+  from { transform: translateY(14px); opacity: 0.4; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mark,
+  .ticker-dot,
+  .stars::after,
   .brand,
-  .status,
-  .hint,
-  .stamp,
-  .log li {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-
-  /* Hide the external animated image and show the static brand head. */
-  .mark-anim {
-    display: none;
-  }
-  .mark-still {
-    display: block;
+  .snow,
+  .status .dots i,
+  .logdrawer,
+  .logdrawer-panel {
+    animation: none !important;
   }
 }
 
 /* Maximized windows lose the rounded silhouette (native corners square). */
 html[data-window-maximized] body,
-html[data-window-maximized] .scan,
-html[data-window-maximized] .stage {
+html[data-window-maximized] .scene {
   border-radius: 0;
 }
