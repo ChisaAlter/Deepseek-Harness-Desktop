@@ -1,10 +1,35 @@
 # 0.3.3 发布准备与打包门禁审查
 
-日期：2026-09-28。状态：**全面修复及本地验证通过，CI 候选与正式生产验收尚未完成，未发布**。用户要求推进发布准备，并在发布前停下；未创建 tag、Release，也未运行 `publish.yml`。
+日期：2026-09-28。状态：**修复、本地回归、同 SHA CI 与候选资产校验通过；完整生产验收未完成，未发布**。用户要求推进发布准备，并在发布前停下；未创建 tag、Release，也未运行 `publish.yml`。
+
+## 固定候选与当前发布边界
+
+| 项目 | 已核实事实 |
+| --- | --- |
+| 候选源码 | `b061501e5b45e09e529e5bd31ccd6647b0af0299`，版本 `0.3.3` |
+| 同 SHA 测试 | [Desktop tests 36460670559](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36460670559)，全部 job 成功 |
+| Windows 桌面矩阵 | 2768 通过，6 跳过，0 失败/取消 |
+| macOS 桌面矩阵 | 2763 通过，11 跳过，0 失败/取消 |
+| GUI / 核心 | GUI 745 文件、11049 通过、1 跳过；核心 215 文件、5009 通过、5 跳过 |
+| 其他 CI 门禁 | built silhouette、skip compose、畸形工具只读回放、目录 freshness、第三方声明全部通过 |
+| 同 SHA 候选构建 | [Build installers 36460702057](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36460702057)，Windows 成功；macOS 安装包未选择构建 |
+| Artifact | `Whale-Isle-windows-x64`，ID `10988865141`；本地 `.tmp/ci-candidate-36460702057/` |
+| Setup | `Whale-Isle-Setup-0.3.3.exe`，`593069770` 字节 |
+| Setup SHA256 | `1ddf17d4cb7d5fbcec3c6443ad386d72d27d17e14305e445746b77900d5d71ed` |
+| 资产校验 | `check-release-assets.mjs` 通过：Setup 哈希、大小、版本、latest.yml SHA512 与同名 blockmap 存在性 |
+| 安装树冒烟 | 首次尝试通过；frame、标题栏点击、隔离 preload、PTY 回显，pageErrors 为空 |
+| 本地源码 | Node 22.22.2：2772 通过、2 跳过；最新源码已重启，Whale Isle Launcher 正常响应 |
+| 发布状态 | 最新公开版本仍为 `v0.3.2`，未执行任何晋级 |
+
+CI 运行时实例图为 742 包、3543 链接，完整身份/文件/依赖边检查通过；本地演练的 747/3602 不用来替代 CI 的实际平台依赖闭包。桌面矩阵的既有跳过包括缺失 remote dist 的专用测试和平台限定场景，未新增跳过；remote runtime 的构建探针在候选打包中执行。日志存在 runner 缺少可选注册表项的诊断，不冒充“零日志告警”。
+
+**仍禁止发布：** 该 Setup 尚未在本轮安装后走完[生产验收全表](../../production-acceptance-test-cases.md)。安装/升级/卸载、真实模型多轮、用户数据保全及造障类 P0 等未测项均不得标 Pass，没有签字或豁免。本报告记录的是发布前准备完成，不是完整生产验收批准。后续文档提交不改变上述候选 SHA，也不能把新提交当成已经构建的包。
+
+最终本地证据：`.omc/release-final-{windows,macos,vendor}.log`、`.omc/release-final-candidate-ci.log`、`.omc/release-final-{test,build}-run.json`。下方是修复过程，前两轮红灯 SHA 均不晋级。
 
 ## 全面修复最终结果
 
-第二轮提交 `01b8acacaf8370e143b342fba9d79b80176563d7`：Desktop tests `36458450417` 仍有 Windows 7 项、macOS 1 项失败，不晋级候选 `36458463741`。Windows 暴露预览入口的旧 realpath 与编辑器夹具短名差异；macOS 暴露原生登记事件漏报。已补两条确定性反例（先红后绿），统一预览原生路径，并为登记文件增加 2 秒元数据核对与事件去重。相关 200 项通过，最终同 SHA CI 仍待重验。
+第二轮提交 `01b8acacaf8370e143b342fba9d79b80176563d7`：Desktop tests `36458450417` 仍有 Windows 7 项、macOS 1 项失败，不晋级虽构建成功的候选 `36458463741`。Windows 暴露预览入口的旧 realpath 与编辑器夹具短名差异；macOS 暴露原生登记事件漏报。已补两条确定性反例（先红后绿），统一预览原生路径，并为登记文件增加 2 秒元数据核对与事件去重。相关 200 项通过，最终第三轮同 SHA CI 已通过（见上表）。
 
 远端首轮候选提交为 `89850d10de026f508a28f3ae64c0c2275e9bb957`。Desktop tests `36454451908` 的 vendor-gui 全部通过，但桌面矩阵暴露干净构建依赖缺失和平台路径差异；Windows-only 候选构建 `36454591440` 与 packaged smoke 成功，因同 SHA 桌面测试失败，未晋级。对应修复见[干净 CI 可移植性决定](../../../decisions/implemented/bug-fix/2026-09-28-clean-ci-portability.md)：声明桥接库构建前提，统一物理路径，修复 drain timer，并保留导入与工作区安全边界。定向 162 项、Node 22 路径/任务相关 127 项及 Node 22 桌面全量 2770 项通过（2 跳过，0 失败）；新的远端轮次尚待记录，不能把首轮红项记为已通过。
 
@@ -28,7 +53,7 @@
 
 构建归档从约 2245MB 降为约 1119MB，不声称 GPU/CPU 性能收益。自动审批拒绝清理旧诊断产物后，保留文件并对旧 tar 作 NTFS 无损压缩；压缩前后 SHA256 均为 `A7A640B7E9515965A5AD162970BF39ECE3DA8D4F92A76EA7E4EFD23AE86F8E86`。旧 `rc-v033-preflight` / `rc-v033-gatefix` 不得发布。
 
-剩余发布边界：取得固定提交的绿色 Desktop tests 和 Windows-only `release.yml` 原始 artifact，绑定 run ID / candidate SHA / Setup SHA256 后完成生产验收表；未测项不得填 Pass。继续停在 `publish.yml` 之前。
+剩余发布边界：固定提交的绿色 Desktop tests 和 Windows-only 原始 artifact 已取得并绑定身份，仍须完成该 Setup 的生产验收表；未测项不得填 Pass。继续停在 `publish.yml` 之前。
 
 本轮决定：[运行时实例布局](../../../decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md)、[GUI 与核心契约对齐](../../../decisions/implemented/bug-fix/2026-09-28-release-gui-contract-reconciliation.md)。下文保留先前诊断与窄范围修复证据，不代表当前仍有相同阻断。
 
@@ -53,7 +78,7 @@
 
 新安装树只完成到失败的 afterPack 中间阶段，不对其运行或宣称正式 packaged smoke。ws 缺失已通过锁记录与实际 asar 文件确认修复，完整安装包启动尚待依赖布局修复后重新验证。上轮 19 项 GUI 红项仍未处理，本轮未重复执行未改动的 GUI 全量检查。源码最初的合并停止/启动命令被自动审批拒绝；随后确认没有旧 Electron 进程，用不含停止操作的普通启动成功完成验证。
 
-## 候选身份
+## 首次预检候选身份（历史）
 
 - 已发布版本：GitHub 最新仍为 `v0.3.2`。
 - 拟发布版本：`package.json` 与中英发布说明均为 `0.3.3`；`check-release-version v0.3.3` 通过。
