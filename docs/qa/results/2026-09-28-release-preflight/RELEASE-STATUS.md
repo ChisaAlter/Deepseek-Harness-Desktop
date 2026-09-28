@@ -4,13 +4,15 @@
 
 ## 全面修复最终结果
 
+第二轮提交 `01b8acacaf8370e143b342fba9d79b80176563d7`：Desktop tests `36458450417` 仍有 Windows 7 项、macOS 1 项失败，不晋级候选 `36458463741`。Windows 暴露预览入口的旧 realpath 与编辑器夹具短名差异；macOS 暴露原生登记事件漏报。已补两条确定性反例（先红后绿），统一预览原生路径，并为登记文件增加 2 秒元数据核对与事件去重。相关 200 项通过，最终同 SHA CI 仍待重验。
+
 远端首轮候选提交为 `89850d10de026f508a28f3ae64c0c2275e9bb957`。Desktop tests `36454451908` 的 vendor-gui 全部通过，但桌面矩阵暴露干净构建依赖缺失和平台路径差异；Windows-only 候选构建 `36454591440` 与 packaged smoke 成功，因同 SHA 桌面测试失败，未晋级。对应修复见[干净 CI 可移植性决定](../../../decisions/implemented/bug-fix/2026-09-28-clean-ci-portability.md)：声明桥接库构建前提，统一物理路径，修复 drain timer，并保留导入与工作区安全边界。定向 162 项、Node 22 路径/任务相关 127 项及 Node 22 桌面全量 2770 项通过（2 跳过，0 失败）；新的远端轮次尚待记录，不能把首轮红项记为已通过。
 
 用户随后授权“进行全面修复”。实例布局现在按源 realpath 建立唯一目录及依赖链接，真实 747 个包、3602 条边验证通过，原 send 合并问题已解决；tar 搬迁、循环、共享与隔离回归通过。新增相对清单在提取后恢复 junction/symlink，不以豁免放行错误布局。
 
 | 检查 | 结果 | 证据 |
 | --- | --- | --- |
-| 桌面全量（可移植性修复后，Node 22.22.2） | 2770 通过，2 跳过，0 失败 | `.omc/release-complete-desktop22.log` |
+| 桌面全量（预览与监听修复后，Node 22.22.2） | 2772 通过，2 跳过，0 失败 | `.omc/release-complete-desktop22.log` |
 | GUI 全量 | 745 文件，11049 通过，1 跳过 | `.omc/release-complete-gui.log` |
 | 核心集合 | 215 文件，5009 通过，5 跳过 | `.omc/release-complete-core.log` |
 | 目录生成器 | 23/23，LF/CRLF 回归及 freshness 通过 | `.omc/release-catalog-tests.log`、`.omc/release-client-catalog-final.log` |

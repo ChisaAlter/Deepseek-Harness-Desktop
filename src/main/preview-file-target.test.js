@@ -9,12 +9,34 @@ const { createWorkspaceAuthority } = require('./workspace-authority');
 const { normalizePreviewFileTarget } = require('./preview-file-target');
 
 function makeTempDir(prefix) {
-  return fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), prefix));
+  return fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), prefix));
 }
 
 function authorityFor(workspace, extraWorkspaces = []) {
   return createWorkspaceAuthority({ workspace, extraWorkspaces });
 }
+
+test('absolute preview agrees with native authority when legacy realpath retains an alias', (t) => {
+  const root = makeTempDir('dsh-preview-native-');
+  const native = fs.realpathSync.native;
+  const realRoot = native(root);
+  fs.writeFileSync(path.join(root, 'note.txt'), 'inside');
+  const retainedAlias = (file) => {
+    const real = native(file);
+    return real.startsWith(realRoot) ? real.replace(realRoot, `${realRoot}-alias`) : real;
+  };
+  retainedAlias.native = native;
+  try {
+    t.mock.method(fs, 'realpathSync', retainedAlias);
+    assert.deepEqual(
+      normalizePreviewFileTarget({ absolutePath: path.join(root, 'note.txt') }, authorityFor(root)),
+      { ok: true, cwd: realRoot, relativePath: 'note.txt' },
+    );
+  } finally {
+    t.mock.restoreAll();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('normalizePreviewFileTarget preserves cwd/relativePath and validates containment', () => {
   const root = makeTempDir('dsh-preview-target-');
@@ -48,7 +70,7 @@ test('normalizePreviewFileTarget resolves an absolute path against the most spec
     const authority = authorityFor(root, [nested]);
     assert.deepEqual(
       normalizePreviewFileTarget({ absolutePath: path.join(nested, 'readme.md') }, authority),
-      { ok: true, cwd: fs.realpathSync(nested), relativePath: 'readme.md' },
+      { ok: true, cwd: fs.realpathSync.native(nested), relativePath: 'readme.md' },
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -63,7 +85,7 @@ test('normalizePreviewFileTarget accepts a scratch root only when the authority 
     const optedIn = authorityFor(root, [scratch]);
     assert.deepEqual(
       normalizePreviewFileTarget({ absolutePath: path.join(scratch, 'note.txt') }, optedIn),
-      { ok: true, cwd: fs.realpathSync(scratch), relativePath: 'note.txt' },
+      { ok: true, cwd: fs.realpathSync.native(scratch), relativePath: 'note.txt' },
     );
     assert.equal(
       normalizePreviewFileTarget({ absolutePath: path.join(scratch, 'note.txt') }, authorityFor(root)).ok,
@@ -91,7 +113,7 @@ test('normalizePreviewFileTarget canonicalizes absolute paths through symlinked 
     const authority = authorityFor(linkedRoot);
     assert.deepEqual(
       normalizePreviewFileTarget({ absolutePath: path.join(linkedRoot, 'readme.md') }, authority),
-      { ok: true, cwd: fs.realpathSync(root), relativePath: 'readme.md' },
+      { ok: true, cwd: fs.realpathSync.native(root), relativePath: 'readme.md' },
     );
   } finally {
     fs.rmSync(linkParent, { recursive: true, force: true });

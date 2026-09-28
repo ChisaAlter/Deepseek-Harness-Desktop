@@ -31,6 +31,38 @@ function delay(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
+test('recovers missed native events and deduplicates polling against native notification', async (t) => {
+  const dir = makeStoragesDir();
+  let nativeNotify;
+  t.mock.method(fs, 'watch', (_dir, callback) => {
+    nativeNotify = callback;
+    return { on() {}, close() {} };
+  });
+  let fired = 0;
+  const stop = watchWorkspaceRegistrations(() => { fired += 1; }, {
+    storagesDir: dir, retryMs: 30, debounceMs: 10,
+  });
+  try {
+    const registry = path.join(dir, WORKSPACE_REGISTRY_FILE);
+    fs.writeFileSync(registry, '{"a":1}');
+    await waitFor(() => fired === 1);
+    nativeNotify('rename', WORKSPACE_REGISTRY_FILE);
+    await delay(100);
+    assert.equal(fired, 1);
+    fs.writeFileSync(registry, '{"a":22}');
+    await waitFor(() => fired === 2);
+    fs.unlinkSync(registry);
+    await waitFor(() => fired === 3);
+    stop();
+    fs.writeFileSync(registry, '{"a":333}');
+    await delay(100);
+    assert.equal(fired, 3);
+  } finally {
+    stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('fires once (debounced) when workspace.json is created', async () => {
   const dir = makeStoragesDir();
   let fired = 0;

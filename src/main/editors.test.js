@@ -19,9 +19,9 @@ function makeTempDir() {
   return dir;
 }
 
-/** Production authority returns realpath, so macOS `/var` fixtures must compare against `/private/var`. */
+/** Match native authority spelling, including macOS aliases and Windows DOS short names. */
 function canonical(p) {
-  return fs.realpathSync(path.resolve(p));
+  return fs.realpathSync.native(path.resolve(p));
 }
 
 function fakeExecFile(available) {

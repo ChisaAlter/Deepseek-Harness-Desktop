@@ -18,12 +18,14 @@ Record audit: the [instance layout](../architecture/2026-09-28-runtime-instance-
 - Import and workspace fixtures use real temporary roots. Malicious child-link cases and production parent-link rejection remain strict. Media tests supply OS authorization facts and await asynchronous callbacks.
 - Component entries reject Windows absolute and drive-relative paths on every host, normalize separators and then verify containment.
 - Awaited drain timeouts retain a timer reference and clear it in finally, preserving the outcome without keeping an already drained operation alive. A standalone Node regression checks that the timer alone delivers the timeout result.
+- The second CI round exposed absolute preview targets still using legacy realpath; preview normalization and editor/preview fixtures now use native spelling. Registry watching reconciles metadata every 2 seconds to recover missed native events, sharing debounce and the last delivered inode/size/nanosecond timestamps to avoid duplicate notifications. Stop clears polling. Deterministic missed-event and path-alias regressions fail before the fix and pass after it, without hiding defects behind longer waits.
 
 ## Alternatives considered
 
 - Skip macOS or tests needing lib: this preserves clean-environment and platform defects; rejected.
 - Allow every import parent link: this weakens data protection. Normalize fixture roots while retaining the production guard instead.
 - Only increase the drain test timeout: this cannot help after the event loop has exited. Correct the timer lifetime.
+- Only rerun watcher failures: this cannot guarantee native events on the next startup. Retain the low-latency native path and accept one stat every 2 seconds for single-file reconciliation.
 
 ## Consequences
 

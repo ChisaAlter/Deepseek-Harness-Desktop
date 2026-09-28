@@ -43,13 +43,28 @@ function watchWorkspaceRegistrations(onChange, options = {}) {
   let watcher = null;
   let retryTimer = null;
   let debounceTimer = null;
+  let pollTimer = null;
   let closed = false;
+  let deliveredStamp = null;
+
+  const registryStamp = () => {
+    try {
+      const stat = fs.statSync(path.join(storagesDir, WORKSPACE_REGISTRY_FILE), { bigint: true });
+      return stat.isFile() ? `${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}` : null;
+    } catch {
+      return null;
+    }
+  };
 
   const fire = () => {
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
-      if (!closed) onChange();
+      if (closed) return;
+      const stamp = registryStamp();
+      if (stamp === deliveredStamp) return;
+      deliveredStamp = stamp;
+      onChange();
     }, debounceMs);
     if (typeof debounceTimer.unref === 'function') debounceTimer.unref();
   };
@@ -100,9 +115,21 @@ function watchWorkspaceRegistrations(onChange, options = {}) {
   }
 
   arm();
+  if (storagesDir !== null) {
+    // Native watchers can miss writes during FSEvents startup or directory replacement.
+    // Reconcile one file's metadata; share the debounce/stamp with native events.
+    pollTimer = setInterval(() => {
+      if (!closed && debounceTimer === null && registryStamp() !== deliveredStamp) fire();
+    }, retryMs);
+    pollTimer.unref();
+  }
 
   return () => {
     closed = true;
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
     if (watcher !== null) {
       try {
         watcher.close();
