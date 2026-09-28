@@ -116,19 +116,35 @@ function createLauncherService(deps) {
   }
 
   // Releases without SHA512SUMS.txt must never install silently: the user
-  // explicitly accepts the unverified download or nothing is fetched.
+  // explicitly accepts the unverified download or nothing is fetched. The
+  // prompt renders inside the launcher window (app-confirm card) whenever the
+  // confirm bridge is wired; the native box is only the dead-window fallback.
   async function confirmUnverifiedInstall(info) {
-    const win = getLauncherWindow() || getMainWindow() || undefined;
     const en = configLocale() === 'en';
+    const title = en ? 'Unverified installer' : '安装包无法校验';
+    const message = en
+      ? `Release ${info?.tag || info?.latest || ''} has no SHA512SUMS.txt manifest, so the installer cannot be verified. Install anyway?`
+      : `版本 ${info?.tag || info?.latest || ''} 未提供 SHA512SUMS.txt 校验清单，无法验证安装包完整性。仍要下载并安装吗？`;
+    if (typeof deps.askLauncherConfirm === 'function') {
+      const bridged = await deps.askLauncherConfirm({
+        title,
+        body: message,
+        confirmText: en ? 'Install anyway' : '仍要安装',
+        cancelText: en ? 'Cancel' : '取消',
+        danger: true,
+      });
+      if (bridged !== null && bridged !== undefined) {
+        return bridged;
+      }
+    }
+    const win = getLauncherWindow() || getMainWindow() || undefined;
     const result = await dialog.showMessageBox(win, {
       type: 'warning',
       buttons: en ? ['Install anyway', 'Cancel'] : ['仍要安装', '取消'],
       defaultId: 1,
       cancelId: 1,
-      title: en ? 'Unverified installer' : '安装包无法校验',
-      message: en
-        ? `Release ${info?.tag || info?.latest || ''} has no SHA512SUMS.txt manifest, so the installer cannot be verified. Install anyway?`
-        : `版本 ${info?.tag || info?.latest || ''} 未提供 SHA512SUMS.txt 校验清单，无法验证安装包完整性。仍要下载并安装吗？`,
+      title,
+      message,
       noLink: true,
     });
     return result.response === 0;
@@ -140,41 +156,72 @@ function createLauncherService(deps) {
     if (importAbort) {
       return { ok: false, error: 'import-in-progress' };
     }
+    const hasSelection = [
+      'selectedRels', 'selectedSkillIds', 'selectedPluginNames',
+      'selectedMcpIds', 'selectedSettingIds', 'selectedPresetIds',
+    ].some((key) => Array.isArray(options[key]) && options[key].length > 0)
+      || options.importAttachments === true;
+    if (!hasSelection) {
+      return { ok: true, empty: true, sessions: [], skills: [], plugins: [], mcp: [], settings: [], credentials: [], presets: [], attachments: 'absent' };
+    }
+    // Slim cannot establish cross-process quiescence: the desktop runtime is
+    // a separate process this launcher cannot drain. Fail closed before any
+    // destination or journal write; scanning stays available.
+    if (isLauncherPackage()) {
+      return { ok: false, error: 'slim-import-unsupported', capability: 'import' };
+    }
+    const pendingRecovery = dataImport.readImportJournal(desktopStateDir(app));
+    if (pendingRecovery && pendingRecovery.phase === 'blocked') {
+      return { ok: false, error: 'import-recovery-blocked', pendingTxns: pendingRecovery.pendingTxns || [] };
+    }
     const controller = new AbortController();
     importAbort = controller;
     try {
-      const kernelStopped = await stopKernelIfRunning();
-      const sourceHome = typeof options.sourceHome === 'string' ? options.sourceHome : undefined;
-      const extraSkillDirs = Array.isArray(options.extraSkillDirs)
-        ? options.extraSkillDirs.filter((row) => typeof row === 'string')
-        : [];
-      const overwrite = options.overwrite === true;
-      const userDataDir = desktopStateDir(app);
-      const result = await dataImport.runImport({
-        sourceHome,
-        extraSkillDirs,
-        overwrite,
-        userDataDir,
-        selectedRels: Array.isArray(options.selectedRels) ? options.selectedRels : [],
-        selectedSkillIds: Array.isArray(options.selectedSkillIds) ? options.selectedSkillIds : [],
-        selectedPluginNames: Array.isArray(options.selectedPluginNames) ? options.selectedPluginNames : [],
-        selectedMcpIds: Array.isArray(options.selectedMcpIds) ? options.selectedMcpIds : [],
-        selectedSettingIds: Array.isArray(options.selectedSettingIds) ? options.selectedSettingIds : [],
-        selectedPresetIds: Array.isArray(options.selectedPresetIds) ? options.selectedPresetIds : [],
-        importAttachments: options.importAttachments === true,
-        signal: controller.signal,
-        onProgress,
-        installPlugin: (spec) => (isLauncherPackage()
-          // Slim has no vendored `dsh plugin` CLI; the renderer greys the
-          // plugins category, and a stale caller gets an explicit per-name
-          // failure instead of a spawn ENOENT deep inside the import.
-          ? { ok: false, error: 'desktop-only', name: spec }
-          : marketInstall.installImportPlugin(spec, { token: loadConfig().githubToken })),
+      // Run the whole stop-and-import sequence inside a nonterminal
+      // coordinated commit so the task-protection coordinator holds the
+      // exclusion boundary for the duration of the import.
+      let kernelStopped = false;
+      let result = null;
+      const coordinated = await protection.coordinate('stop', {
+        preConfirmed: true,
+        commit: async () => {
+          kernelStopped = await stopKernelIfRunning();
+          const sourceHome = typeof options.sourceHome === 'string' ? options.sourceHome : undefined;
+          const extraSkillDirs = Array.isArray(options.extraSkillDirs)
+            ? options.extraSkillDirs.filter((row) => typeof row === 'string')
+            : [];
+          const overwrite = options.overwrite === true;
+          const userDataDir = desktopStateDir(app);
+          result = await dataImport.runImport({
+            sourceHome,
+            extraSkillDirs,
+            overwrite,
+            userDataDir,
+            selectedRels: Array.isArray(options.selectedRels) ? options.selectedRels : [],
+            selectedSkillIds: Array.isArray(options.selectedSkillIds) ? options.selectedSkillIds : [],
+            selectedPluginNames: Array.isArray(options.selectedPluginNames) ? options.selectedPluginNames : [],
+            selectedMcpIds: Array.isArray(options.selectedMcpIds) ? options.selectedMcpIds : [],
+            selectedSettingIds: Array.isArray(options.selectedSettingIds) ? options.selectedSettingIds : [],
+            selectedPresetIds: Array.isArray(options.selectedPresetIds) ? options.selectedPresetIds : [],
+            importAttachments: options.importAttachments === true,
+            signal: controller.signal,
+            onProgress,
+            installPlugin: (spec) => (isLauncherPackage()
+              ? { ok: false, error: 'desktop-only', name: spec }
+              : marketInstall.installImportPlugin(spec, { token: loadConfig().githubToken })),
+          });
+        },
       });
+      if (!coordinated.proceeded) {
+        return { ok: false, error: coordinated.code || 'protection-busy' };
+      }
       return {
         ...result,
         kernelStopped,
-        hold: dataImport.probeImportHold({ sourceHome, extraSkillDirs }).hold,
+        hold: dataImport.probeImportHold({
+          sourceHome: typeof options.sourceHome === 'string' ? options.sourceHome : undefined,
+          extraSkillDirs: Array.isArray(options.extraSkillDirs) ? options.extraSkillDirs.filter((row) => typeof row === 'string') : [],
+        }).hold,
       };
     } finally {
       if (importAbort === controller) {
@@ -293,6 +340,9 @@ function createLauncherService(deps) {
     }
     const wasRunning = kernelIsRunning(dsh);
     const result = await protection.coordinate('stop', {
+      // The stop button is explicit consent — inspect/acquire/drain still run,
+      // but no second confirmation may stand between the click and the stop.
+      preConfirmed: true,
       commit: async () => {
         if (typeof stopDesktopCleanup === 'function') {
           stopDesktopCleanup();
@@ -495,7 +545,7 @@ function createLauncherService(deps) {
 
     retryFullPlugins() {
       if (isLauncherPackage()) {
-        return runtimeInstall.startExternalDesktop();
+        return retryFullPluginsSlim();
       }
       if (harness && typeof harness.clearPluginRecovery === 'function') {
         harness.clearPluginRecovery();
@@ -503,6 +553,59 @@ function createLauncherService(deps) {
       return startDesktop({ recoveryLaunch: true, forceRestart: true });
     },
   };
+
+  /**
+   * Slim "restore full plugins": the sticky skip flag lives in the
+   * DESKTOP's config.json (not this launcher's). Stop the managed desktop,
+   * clear only `pluginRecovery` in that file (preserving `disabledPlugins`
+   * and unrelated keys), persist atomically, then launch once. A failure at
+   * any step must leave the config untouched and not spawn.
+   */
+  async function retryFullPluginsSlim() {
+    const fs = require('fs');
+    const path = require('path');
+    const configFile = desktopConfigFile();
+    const stopped = await runtimeInstall.stopExternalDesktop();
+    if (stopped && stopped.ok === false) {
+      return { ok: false, error: stopped.error || 'stop-failed' };
+    }
+    let config;
+    try {
+      const raw = fs.readFileSync(configFile, 'utf8');
+      config = JSON.parse(raw);
+      if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+        return { ok: false, error: 'config-unreadable' };
+      }
+    } catch (error) {
+      if (error && error.code === 'ENOENT') {
+        config = {};
+      } else {
+        return { ok: false, error: 'config-unreadable' };
+      }
+    }
+    const next = {
+      ...config,
+      pluginRecovery: { skipUserPlugins: false, reason: '', at: '', appVersion: '' },
+    };
+    try {
+      fs.mkdirSync(path.dirname(configFile), { recursive: true });
+      const tmp = `${configFile}.tmp`;
+      fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+      fs.renameSync(tmp, configFile);
+    } catch (error) {
+      return { ok: false, error: error.message || 'config-write-failed' };
+    }
+    // Verify the persisted state before launching.
+    try {
+      const verify = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+      if (verify.pluginRecovery && verify.pluginRecovery.skipUserPlugins === true) {
+        return { ok: false, error: 'verify-failed' };
+      }
+    } catch {
+      return { ok: false, error: 'verify-failed' };
+    }
+    return runtimeInstall.startExternalDesktop();
+  }
 }
 
 module.exports = { createLauncherService };

@@ -201,7 +201,7 @@ async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}
     // terminal side effect, so a denied coordination must not reach it.
     const protection = deps.taskProtection;
     if (protection && typeof protection.coordinate === 'function') {
-      const coordination = await protection.coordinate('update', { terminal: true });
+      const coordination = await protection.coordinate('update', { terminal: true, preConfirmed: true });
       if (!coordination.proceeded) {
         return { ok: false, reason: 'cancelled' };
       }

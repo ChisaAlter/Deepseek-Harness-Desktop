@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { app, shell } = require('electron');
 const { installLatestViaUpdater } = require('./update-updater');
+const { UpdateJournal } = require('./update-journal');
 const installDetect = require('../launcher/install-detect');
 const { currentVersion, getInstalledAppInfo } = installDetect;
 
@@ -256,11 +257,42 @@ async function runUpdateCheck() {
   }
 }
 
+/** Optional presentation sink (in-app status indicator); unset in tests. */
+let stateSink;
+function setUpdateStateSink(sink) { stateSink = typeof sink === 'function' ? sink : undefined; }
+function publishState(state) {
+  try { stateSink?.(state); } catch { /* presentation only */ }
+}
+
+/** Opt-out-free evidence journal; failures never block the update flow. */
+let updateJournal;
+function journal() {
+  if (updateJournal === undefined) {
+    try {
+      updateJournal = new UpdateJournal(
+        path.join(app.getPath('userData'), 'update-journal'),
+        currentVersion(),
+      );
+    } catch (error) {
+      console.warn('dshd update: evidence journal unavailable', error);
+      updateJournal = null;
+    }
+  }
+  return updateJournal;
+}
+
 async function checkUpdate() {
   if (checkUpdateInFlight) {
     return checkUpdateInFlight;
   }
-  const pending = runUpdateCheck();
+  try { journal()?.action('check-requested'); } catch { /* evidence only */ }
+  publishState({ phase: 'checking' });
+  const pending = runUpdateCheck().then((info) => {
+    if (info.status === 'available') publishState({ phase: 'available', version: info.latest });
+    else if (info.status === 'error') publishState({ phase: 'error', failedOperation: 'check', message: info.message });
+    else publishState({ phase: 'idle' });
+    return info;
+  });
   checkUpdateInFlight = pending;
   try {
     return await pending;
@@ -509,15 +541,29 @@ async function installFromAsset(info, onProgress, options = {}) {
   if (typeof onProgress === 'function') {
     onProgress({ phase: 'download', percent: 0 });
   }
+  try { journal()?.action('download-requested'); } catch { /* evidence only */ }
   const dir = path.join(options.userDataDir || app.getPath('userData'), 'updates');
   fs.mkdirSync(dir, { recursive: true });
   const safeName = path.basename(info.assetName || 'Whale-Isle-Setup.exe').replace(/[^\w.\-]+/g, '_');
   const dest = path.join(dir, safeName);
-  await downloadFile(info.assetUrl, dest, onProgress, { signal: options.signal });
+  const journalProgress = (progress) => {
+    try {
+      if (progress && progress.phase === 'download') {
+        journal()?.state({ phase: 'downloading', version: info.version, percent: progress.percent ?? 0 });
+        publishState({ phase: 'downloading', version: info.version, percent: progress.percent ?? 0 });
+      } else if (progress && progress.phase === 'verify') {
+        journal()?.state({ phase: 'verifying', version: info.version });
+        publishState({ phase: 'verifying', version: info.version });
+      } else if (progress && progress.phase === 'install') {
+        journal()?.state({ phase: 'ready', version: info.version });
+        publishState({ phase: 'ready', version: info.version });
+      }
+    } catch { /* evidence only */ }
+    if (typeof onProgress === 'function') onProgress(progress);
+  };
+  await downloadFile(info.assetUrl, dest, journalProgress, { signal: options.signal });
   if (info.checksumUrl) {
-    if (typeof onProgress === 'function') {
-      onProgress({ phase: 'verify' });
-    }
+    journalProgress({ phase: 'verify' });
     try {
       await verifyAssetChecksum(dest, info.assetName, info.checksumUrl);
     } catch (error) {
@@ -529,9 +575,7 @@ async function installFromAsset(info, onProgress, options = {}) {
     cleanupPartial(dest);
     throw cancelledError();
   }
-  if (typeof onProgress === 'function') {
-    onProgress({ phase: 'install', percent: 100 });
-  }
+  journalProgress({ phase: 'install', percent: 100 });
   // Caller-side gate (launcher runtime installs stop the managed desktop
   // first) and the task-protection check both run AFTER download + verify —
   // the download itself is not a destructive side effect.
@@ -552,11 +596,16 @@ async function installFromAsset(info, onProgress, options = {}) {
     const willQuit = options.quitAfterInstall !== undefined
       ? Boolean(options.quitAfterInstall)
       : app.isPackaged;
-    const result = await protection.coordinate('update', { terminal: willQuit });
+    // Every entry into this lane is already an explicit user action (update
+    // ask, version-install card, 「在线安装」 button), so the inspect/
+    // acquire/drain sequencing stays but the confirm gate is skipped —
+    // asking again would double-prompt one click.
+    const result = await protection.coordinate('update', { terminal: willQuit, preConfirmed: true });
     if (!result.proceeded) {
       return { ...info, launched: false, cancelled: true, code: result.code || 'cancelled' };
     }
   }
+  try { journal()?.action('install-confirmed'); } catch { /* evidence only */ }
   const child = launchInstaller(dest);
   // The child handle lets a surviving caller (runtime install) observe the
   // installer's exit; it is consumed in-process and never crosses IPC.
@@ -639,6 +688,7 @@ module.exports = {
   CHECKSUM_ASSET_NAME,
   checkUpdate,
   installUpdate,
+  setUpdateStateSink,
   summarizeRelease,
   listReleases,
   installRelease,

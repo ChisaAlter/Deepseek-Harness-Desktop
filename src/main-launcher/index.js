@@ -60,9 +60,15 @@ const {
   presentUpdateAsk,
 } = require('../main/launcher-gate');
 const { registerSlimIpc } = require('./ipc');
+const { createLauncherConfirm } = require('../launcher/launcher-confirm');
 
 let quitting = false;
 let tray = null;
+
+// Launcher-owned confirmations (update ask, unverified installer) render as
+// the renderer's app-confirm card via this bridge; a null answer falls back
+// to the native messagebox so a dead window can never silently authorize.
+const launcherConfirm = createLauncherConfirm({ getWindow: getLauncherWindow });
 
 function quitApp() {
   quitting = true;
@@ -107,13 +113,24 @@ function bindLauncherClose(win) {
 }
 
 async function confirmUnverified(info) {
+  const message = `版本 ${info?.tag || info?.latest || ''} 未提供 SHA512SUMS.txt 校验清单，无法验证安装包完整性。仍要下载并安装吗？`;
+  const bridged = await launcherConfirm.ask({
+    title: '安装包无法校验',
+    body: message,
+    confirmText: '仍要安装',
+    cancelText: '取消',
+    danger: true,
+  });
+  if (bridged !== null) {
+    return bridged;
+  }
   const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
     type: 'warning',
     buttons: ['仍要安装', '取消'],
     defaultId: 1,
     cancelId: 1,
     title: '安装包无法校验',
-    message: `版本 ${info?.tag || info?.latest || ''} 未提供 SHA512SUMS.txt 校验清单，无法验证安装包完整性。仍要下载并安装吗？`,
+    message,
     noLink: true,
   });
   return result.response === 0;
@@ -121,6 +138,17 @@ async function confirmUnverified(info) {
 
 async function confirmUpdateAsk(check) {
   const notes = typeof check?.notes === 'string' ? check.notes.trim() : '';
+  const body = `是否更新到 ${check.latest || check.version || ''}？`
+    + (notes ? `\n\n${notes.length > 600 ? `${notes.slice(0, 600)}…` : notes}` : '');
+  const bridged = await launcherConfirm.ask({
+    title: '发现新版本',
+    body,
+    confirmText: '更新',
+    cancelText: '稍后',
+  });
+  if (bridged !== null) {
+    return bridged;
+  }
   const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
     type: 'question',
     buttons: ['更新', '稍后'],
@@ -212,7 +240,7 @@ if (!gotLock) {
 
     // Window chrome IPC binds inside attachIntegratedChrome on window create.
     watchSystemTheme({});
-    registerSlimIpc();
+    registerSlimIpc({ launcherConfirm });
     trace('ipc-registered');
 
     const win = await prepareLauncher();
