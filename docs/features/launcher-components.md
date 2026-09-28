@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `launcher-components` |
 | **status** | `proposed` |
-| **last verified** | 2026-09-25 — 组件平台已落地：`src/launcher/components/`（catalog 扫描 + 安装/启停/更新/回滚/卸载 + pid 存活探测 + orphan 接管 + `before-quit` 回收），`main/ipc-components.js` 经共享表注册，`launcher-components.js` 渲染行。持久化在 `userData/components/registry.json` 原子写；样例 catalog 源为 `<root>/components/samples/`（目录不存在时列表为空）。**不随包附带演示组件**——E2E 夹具移到 `tests/fixtures/components/launcher-notes/`（真 payload 全生命周期测试 v1→v2→回滚仍在跑），`components/samples/**/*` 从两个 `files` 列表剔除。31/31 定向绿。 |
+| **last verified** | 2026-09-28 — 跨平台拒绝 Windows 绝对/驱动器相对入口，registry 定向回归通过；2026-09-25 — 组件平台已落地：`src/launcher/components/`（catalog 扫描 + 安装/启停/更新/回滚/卸载 + pid 存活探测 + orphan 接管 + `before-quit` 回收），`main/ipc-components.js` 经共享表注册，`launcher-components.js` 渲染行。持久化在 `userData/components/registry.json` 原子写；样例 catalog 源为 `<root>/components/samples/`（目录不存在时列表为空）。**不随包附带演示组件**——E2E 夹具移到 `tests/fixtures/components/launcher-notes/`（真 payload 全生命周期测试 v1→v2→回滚仍在跑），`components/samples/**/*` 从两个 `files` 列表剔除。31/31 定向绿。 |
 
 ## User paths
 
@@ -14,6 +14,7 @@
 
 ## Invariants
 
+- 清单入口在任何宿主上都拒绝 Windows 绝对与驱动器相对路径，并在归一分隔符后验证根内边界。
 - 组件是独立进程，不注入 Launcher renderer，不写 DSHD profile 或 `dsh-home`；第一版只接受项目审核并签名的包。
 - 组件 id、版本、平台、兼容范围、入口、包大小/哈希、发布者与用途由签名清单绑定；下载遵循用户选择的线路。
 - 二进制置于 Launcher 自有版本目录，数据置于独立数据目录；暂存验证成功后才切换 active，保留上一健康版本供回滚。
@@ -41,5 +42,6 @@
 
 ## Sources
 
+- Decision: [跨平台入口与 CI 修复](../decisions/implemented/bug-fix/2026-09-28-clean-ci-portability.md)
 - Decision: [启动器独立分发架构](../decisions/proposed/architecture/2026-09-24-launcher-standalone-distribution.md)
 - Plan: [启动器重构计划](../superpowers/plans/2026-09-24-launcher-refactor.md)

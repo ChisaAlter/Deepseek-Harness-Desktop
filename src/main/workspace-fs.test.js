@@ -17,6 +17,40 @@ function makeTempDir() {
   return dir;
 }
 
+test('native path normalization agrees with the authorized root when legacy realpath retains an alias', async () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-fs-alias-'));
+  const root = path.join(parent, 'long-name');
+  const alias = path.join(parent, 'short-name');
+  const outside = path.join(parent, 'outside');
+  fs.mkdirSync(root); fs.mkdirSync(outside);
+  fs.symlinkSync(root, alias, 'junction');
+  fs.symlinkSync(outside, path.join(root, 'escape'), 'junction');
+  fs.writeFileSync(path.join(root, 'note.txt'), 'inside');
+  fs.writeFileSync(path.join(outside, 'secret.txt'), 'outside');
+  const legacy = fs.realpathSync;
+  const native = fs.realpathSync.native;
+  const realRoot = native(root);
+  const spelling = native(parent) + path.sep + 'short-name';
+  const retainedAlias = (file, ...args) => {
+    const real = native(file, ...args);
+    return real === realRoot || real.startsWith(realRoot + path.sep)
+      ? spelling + real.slice(realRoot.length) : real;
+  };
+  retainedAlias.native = native;
+  fs.realpathSync = retainedAlias;
+  try {
+    setWorkspaceAuthority(createWorkspaceAuthority({ workspace: alias }));
+    const result = await readFile(alias, 'note.txt');
+    assert.equal(result.ok, true);
+    assert.equal(result.text, 'inside');
+    assert.equal((await readFile(alias, 'escape/secret.txt')).ok, false);
+  } finally {
+    fs.realpathSync = legacy;
+    setWorkspaceAuthority(null);
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+});
+
 test('listDir returns directories first and rejects path traversal', async () => {
   const cwd = makeTempDir();
   try {

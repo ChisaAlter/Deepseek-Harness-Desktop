@@ -46,11 +46,11 @@ function compareVersions(a, b) {
 }
 
 function safeEntryPath(dir, entry) {
-  if (typeof entry !== 'string' || !entry || path.isAbsolute(entry)) {
+  if (typeof entry !== 'string' || !entry || path.isAbsolute(entry) || path.win32.isAbsolute(entry) || /^[a-z]:/i.test(entry)) {
     return '';
   }
   const base = path.resolve(dir);
-  const resolved = path.resolve(base, entry);
+  const resolved = path.resolve(base, entry.replaceAll('\\', '/'));
   if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) {
     return '';
   }

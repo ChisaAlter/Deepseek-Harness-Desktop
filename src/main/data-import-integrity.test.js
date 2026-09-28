@@ -20,7 +20,7 @@ const configs = [
 ];
 
 function fixture(t, config) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-config-integrity-'));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-config-integrity-')));
   const sourceHome = path.join(root, 'source');
   const destHome = path.join(root, 'dest');
   const userDataDir = path.join(root, 'user-data');
@@ -39,7 +39,7 @@ function fixture(t, config) {
     t.mock.restoreAll();
     clearDesktopDshHome();
     // The only recursively removed path is the absolute mkdtemp-owned root.
-    assert.equal(path.dirname(root), path.resolve(os.tmpdir()));
+    assert.equal(path.dirname(root), fs.realpathSync(os.tmpdir()));
     assert.ok(path.basename(root).startsWith('dsh-config-integrity-'));
     fs.rmSync(root, { recursive: true, force: true });
   });

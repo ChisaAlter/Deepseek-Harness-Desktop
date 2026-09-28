@@ -77,13 +77,17 @@ async function waitForDrain(state, timeoutMs) {
     await settled;
     return { drained: true, count: pending.length };
   }
-  const timeout = new Promise((resolve) => {
-    const t = setTimeout(() => resolve('timeout'), timeoutMs);
-    if (typeof t.unref === 'function') t.unref();
-  });
-  const winner = await Promise.race([settled.then(() => 'drained'), timeout]);
-  const remaining = [...state.pending].map((entry) => entry.label);
-  return { drained: winner === 'drained', count: pending.length, labels: remaining };
+  let timer;
+  try {
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), timeoutMs);
+    });
+    const winner = await Promise.race([settled.then(() => 'drained'), timeout]);
+    const remaining = [...state.pending].map((entry) => entry.label);
+    return { drained: winner === 'drained', count: pending.length, labels: remaining };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

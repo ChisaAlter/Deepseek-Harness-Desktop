@@ -45,7 +45,7 @@ function runChild(script, args) {
 }
 
 function makeHome() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-crash-'));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-crash-')));
   const source = path.join(root, 'official');
   const dest = path.join(root, 'desktop');
   const userData = path.join(root, 'userData');

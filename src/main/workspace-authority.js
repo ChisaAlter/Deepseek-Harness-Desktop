@@ -64,10 +64,11 @@ function createWorkspaceAuthority({
       return null;
     }
     const resolved = path.resolve(candidate);
+    // Use the same native canonical spelling as async file operations (DOS 8.3 on Windows).
     let real;
     try {
       if (!fs.statSync(resolved).isDirectory()) return null;
-      real = fs.realpathSync(resolved);
+      real = fs.realpathSync.native(resolved);
     } catch {
       return null;
     }
@@ -155,7 +156,7 @@ function collectRoots(candidates) {
     // (/private/var/...), so every accepted root is canonicalized here.
     let real;
     try {
-      real = fs.realpathSync(resolved);
+      real = fs.realpathSync.native(resolved);
     } catch {
       continue;
     }
@@ -179,7 +180,7 @@ function identityKey(resolved) {
  */
 function realPathOrNull(target) {
   try {
-    return fs.realpathSync(target);
+    return fs.realpathSync.native(target);
   } catch {
     return null;
   }
@@ -376,7 +377,7 @@ function filterRegisteredWorkspaceRoots(listed) {
   return rows.filter((raw) => {
     if (typeof raw !== 'string' || raw.trim() === '') return false;
     try {
-      const real = fs.realpathSync(path.resolve(raw));
+      const real = fs.realpathSync.native(path.resolve(raw));
       return !isFilesystemRoot(real) && !isHighRiskWorkspaceRoot(real, anchors);
     } catch {
       return false;

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -25,7 +25,7 @@ import {
 const gitAvailable = spawnSync('git', ['--version'], { encoding: 'utf8', windowsHide: true }).status === 0
 
 function makeTempRoot(t) {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'dshd-smoke-workspace-test-'))
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'dshd-smoke-workspace-test-')))
   t.after(() => {
     try {
       rmSync(root, { recursive: true, force: true, maxRetries: 3 })

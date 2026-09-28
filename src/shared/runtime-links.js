@@ -56,7 +56,7 @@ function materializeRuntimeLinks(root) {
       fs.unlinkSync(from);
     }
     fs.mkdirSync(path.dirname(from), { recursive: true });
-    fs.symlinkSync(process.platform === 'win32' ? targetReal : path.relative(path.dirname(from), targetReal),
+    fs.symlinkSync(process.platform === 'win32' ? targetReal : path.relative(fs.realpathSync(path.dirname(from)), targetReal),
       from, process.platform === 'win32' ? 'junction' : 'dir');
   }
   return links.length;

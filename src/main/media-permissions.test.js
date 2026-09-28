@@ -11,7 +11,10 @@ function fixture(primaryContents = {}) {
     setPermissionCheckHandler(fn) { checkHandler = fn; },
     setPermissionRequestHandler(fn) { requestHandler = fn; },
   };
-  installMediaPermissions(ses, () => primaryContents, null);
+  installMediaPermissions(ses, () => primaryContents, {
+    getMediaAccessStatus: () => 'granted',
+    askForMediaAccess: async () => true,
+  });
   return { checkHandler, requestHandler };
 }
 
@@ -23,7 +26,7 @@ test('isHarnessOrigin accepts loopback http(s) only', () => {
   assert.equal(isHarnessOrigin('not a url'), false);
 });
 
-test('media audio from the primary main frame is allowed; other media denied', () => {
+test('media audio from the primary main frame is allowed; other media denied', async () => {
   const primary = { tag: 'primary' };
   const { checkHandler, requestHandler } = fixture(primary);
 
@@ -34,12 +37,10 @@ test('media audio from the primary main frame is allowed; other media denied', (
   assert.equal(checkHandler(primary, 'media', 'https://evil.example', { isMainFrame: true, mediaType: 'audio' }), false);
   assert.equal(checkHandler(primary, 'clipboard-read', 'https://anything', { isMainFrame: true }), true);
 
-  let grant;
-  requestHandler(primary, 'media', (g) => { grant = g; },
-    { isMainFrame: true, requestingUrl: 'http://127.0.0.1:3080', mediaTypes: ['audio'] });
+  let grant = await new Promise(resolve => requestHandler(primary, 'media', resolve,
+    { isMainFrame: true, requestingUrl: 'http://127.0.0.1:3080', mediaTypes: ['audio'] }));
   assert.equal(grant, true);
-  grant = undefined;
-  requestHandler(primary, 'media', (g) => { grant = g; },
-    { isMainFrame: true, requestingUrl: 'http://127.0.0.1:3080', mediaTypes: ['audio', 'video'] });
+  grant = await new Promise(resolve => requestHandler(primary, 'media', resolve,
+    { isMainFrame: true, requestingUrl: 'http://127.0.0.1:3080', mediaTypes: ['audio', 'video'] }));
   assert.equal(grant, false);
 });

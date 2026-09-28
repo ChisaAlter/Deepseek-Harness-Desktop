@@ -90,3 +90,25 @@ test('removing a redundant copy counts as progress and preserves shared state', 
   assert.equal(b.count, 99);
   assert.equal(await repairFlattenedVersionIsolation(source, dest, workspace.sources), 0);
 });
+
+test('identity checks treat a directory alias as the same physical destination', async (t) => {
+  const { source, dest } = fixture(t);
+  const shared = path.join(source, 'instances', 'r');
+  writePackage(shared, 'r', 'module.exports = { count: 0 };');
+  writePackage(path.join(dest, 'node_modules', 'r'), 'r', 'module.exports = { count: 0 };');
+  for (const name of ['a', 'b']) {
+    const owner = path.join(source, 'packages', 'boot', name);
+    writePackage(owner, name, "module.exports = require('r');", { r: '*' }, true);
+    writePackage(path.join(dest, 'node_modules', name), name, '', {}, true);
+    linkDependency(owner, 'r', shared);
+  }
+  const alias = path.join(path.dirname(dest), 'alias');
+  fs.symlinkSync(dest, alias, 'junction');
+  const workspace = await overlayWorkspaceRuntimePackages(source, alias);
+  const redundant = path.join(dest, 'node_modules', 'a', 'node_modules', 'r');
+  writePackage(redundant, 'r', 'module.exports = { count: 0 };');
+  await repairFlattenedVersionIsolation(source, alias, workspace.sources);
+  assert.equal(fs.existsSync(redundant), false);
+  const [a, b] = ['a', 'b'].map(name => require(path.join(dest, 'node_modules', name, 'lib/index.js')));
+  assert.strictEqual(a, b);
+});

@@ -8,7 +8,7 @@ const test = require('node:test');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
 
 function makeTree() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-import-'));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-import-')));
   const source = path.join(root, 'official');
   const dest = path.join(root, 'desktop');
   const userData = path.join(root, 'userData');
@@ -399,8 +399,8 @@ test('scanImport lists skills and MCP without exposing secrets, and holds on ski
   assert.equal(secret.includes('Authorization'), false);
   assert.equal(scan.sourceHasData, true);
 
-  const emptyDest = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-empty-dest-'));
-  const skillsOnly = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-skills-only-'));
+  const emptyDest = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-empty-dest-')));
+  const skillsOnly = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-skills-only-')));
   writeSkill(path.join(skillsOnly, 'skills'), 'solo');
   const skillsScan = scanImport({
     sourceHome: skillsOnly,
@@ -702,7 +702,7 @@ test('probeImportHold matches shouldHoldForImport(scanImport()) without reading 
   assert.equal(nonEmpty.hold, false);
   fs.rmSync(tree.root, { recursive: true, force: true });
 
-  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-probe-bare-'));
+  const bare = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-probe-bare-')));
   const emptySource = path.join(bare, 'official');
   const emptyDest = path.join(bare, 'desktop');
   fs.mkdirSync(emptySource, { recursive: true });
@@ -719,7 +719,7 @@ test('probeImportHold matches shouldHoldForImport(scanImport()) without reading 
 });
 
 test('probeImportHold ignores preset fixture sessions and legacy-db-only sources', () => {
-  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-probe-preset-'));
+  const bare = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-probe-preset-')));
   const source = path.join(bare, 'official');
   const dest = path.join(bare, 'desktop');
   fs.mkdirSync(path.join(source, 'sessions', '_no-cwd', 'preset-demo'), { recursive: true });

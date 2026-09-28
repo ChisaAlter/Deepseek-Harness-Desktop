@@ -20,7 +20,7 @@ function makeRoot() {
 
 /** Production authority returns realpath, so macOS `/var` fixtures must compare against `/private/var`. */
 function canonical(p) {
-  return fs.realpathSync(path.resolve(p));
+  return fs.realpathSync.native(path.resolve(p));
 }
 
 test('resolveAuthorizedCwd accepts the root and its subdirectories', () => {
@@ -321,10 +321,10 @@ test('resolveAuthorizedCwd accepts a workspace configured through a directory li
       return;
     }
     const authority = createWorkspaceAuthority({ workspace: link });
-    assert.equal(authority.resolveAuthorizedCwd(link), fs.realpathSync(root));
+    assert.equal(authority.resolveAuthorizedCwd(link), fs.realpathSync.native(root));
     assert.equal(
       authority.resolveAuthorizedCwd(path.join(root, 'sub')),
-      fs.realpathSync(path.join(root, 'sub')),
+      fs.realpathSync.native(path.join(root, 'sub')),
     );
   } finally {
     fs.rmSync(link, { force: true });
@@ -513,10 +513,10 @@ test('isHighRiskWorkspaceRoot rejects anchors and their ancestors, keeps ordinar
     const project = path.join(anchorParent, 'Documents', 'proj');
     fs.mkdirSync(anchor, { recursive: true });
     fs.mkdirSync(project, { recursive: true });
-    const anchors = [fs.realpathSync(anchor)];
-    assert.equal(isHighRiskWorkspaceRoot(fs.realpathSync(anchor), anchors), true);
-    assert.equal(isHighRiskWorkspaceRoot(fs.realpathSync(anchorParent), anchors), true);
-    assert.equal(isHighRiskWorkspaceRoot(fs.realpathSync(project), anchors), false);
+    const anchors = [fs.realpathSync.native(anchor)];
+    assert.equal(isHighRiskWorkspaceRoot(fs.realpathSync.native(anchor), anchors), true);
+    assert.equal(isHighRiskWorkspaceRoot(fs.realpathSync.native(anchorParent), anchors), true);
+    assert.equal(isHighRiskWorkspaceRoot(fs.realpathSync.native(project), anchors), false);
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
@@ -539,7 +539,7 @@ test('filterRegisteredWorkspaceRoots drops the user home and the desktop dsh-hom
       42,
     ]);
     assert.deepEqual(kept, [sibling]);
-    assert.ok(highRiskAnchorPaths().includes(fs.realpathSync(os.homedir())));
+    assert.ok(highRiskAnchorPaths().includes(fs.realpathSync.native(os.homedir())));
   } finally {
     clearDesktopDshHome();
     fs.rmSync(home, { recursive: true, force: true });

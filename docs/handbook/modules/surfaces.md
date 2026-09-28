@@ -30,6 +30,7 @@
 
 ## 不变量
 
+- 工作区授权使用原生物理路径，与异步文件读写一致；Windows 短名和 macOS 路径别名不扩大或缩小已授权边界，外链与 `.git` 仍被拒绝。
 - 工作环，不是空态卡片网格。  
 - 关闭控件在标题右侧。  
 - 工作区文件的主点击统一经过 `workspaces.openPath`；Chat 显式携带发起 Session，桌面接管层使用该 Session 的真实 cwd，在 DSHD 页签内打开文件与 Browser。缺 cwd 或无法接管的路径交给 Host。

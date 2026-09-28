@@ -8,7 +8,7 @@ const os = require('os');
 const { replaceDirJournaled, commitStagedDir, recoverImportTransactions, reconcileImportTransactionsSync, overlayDir } = require('./import-transaction');
 
 function makeRoot() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-txn-'));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-txn-')));
   return {
     root,
     src: path.join(root, 'src'),
@@ -143,7 +143,7 @@ test('commitStagedDir publishes a pre-built staging tree', async () => {
 
 test('reconcileImportTransactionsSync refuses a journal pointing outside the tree', () => {
   const t = makeRoot();
-  const foreign = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-foreign-'));
+  const foreign = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-foreign-')));
   fs.writeFileSync(path.join(foreign, 'sentinel.txt'), 'keep-me');
   const destDir = path.join(t.root, 'skills');
   fs.mkdirSync(destDir, { recursive: true });
@@ -378,7 +378,7 @@ test('replaceDirJournaled refuses to write through a junctioned destination pare
   // junction/symlink into another tree, the staged copy and renames would
   // escape the intended home — refuse before any write.
   const t = makeRoot();
-  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-out-'));
+  const outside = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-out-')));
   fs.mkdirSync(path.join(outside, 'real'), { recursive: true });
   // Place a junction at <root>/linkparent pointing to the outside tree.
   const linkParent = path.join(t.root, 'linkparent');

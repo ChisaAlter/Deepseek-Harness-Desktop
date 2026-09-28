@@ -7,9 +7,20 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { execFileSync } = require('node:child_process');
 
 const PLUGIN = path.join(__dirname, '..', '..', 'vendor', 'dsh-task-control', 'lib');
 const load = (file) => import(pathToFileURL(path.join(PLUGIN, file)).href);
+
+test('an awaited drain timeout keeps a standalone process alive until its result', () => {
+  const moduleUrl = pathToFileURL(path.join(PLUGIN, 'state.js')).href;
+  const script = `import { createControlState, admit, acquireLock } from ${JSON.stringify(moduleUrl)};
+    const state = createControlState(); admit(state);
+    const result = await acquireLock(state, { owner: 'probe', drainTimeoutMs: 20 });
+    process.stdout.write(result.code);`;
+  assert.equal(execFileSync(process.execPath, ['--input-type=module', '--eval', script],
+    { encoding: 'utf8', timeout: 15000, windowsHide: true }), 'dshd/drain-timeout');
+});
 
 test('admit accepts while unlocked and rejects while locked', async () => {
   const { createControlState, admit, acquireLock } = await load('state.js');

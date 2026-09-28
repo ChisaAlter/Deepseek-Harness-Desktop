@@ -857,6 +857,9 @@ async function repairFlattenedCommanderEsm(harnessSrc, harnessDest) {
 }
 
 async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspaceSources = []) {
+  harnessSrc = realOf(harnessSrc);
+  harnessDest = realOf(harnessDest);
+  workspaceSources = workspaceSources.map(item => ({ ...item, source: realOf(item.source), target: realOf(item.target) }));
   const storeDir = path.join(harnessSrc, 'node_modules', '.pnpm');
   const nmDest = path.join(harnessDest, 'node_modules');
   if (!fs.existsSync(nmDest)) {

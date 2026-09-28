@@ -13,6 +13,10 @@ async function assembleRuntimeInstances(sourceRoot, targetRoot, seeds, helpers) 
   targetRoot = path.resolve(targetRoot);
   if (targetRoot === sourceRoot || targetRoot.startsWith(sourceRoot + path.sep)
       || sourceRoot.startsWith(targetRoot + path.sep)) throw new Error('Runtime source and destination overlap');
+  fs.mkdirSync(targetRoot, { recursive: true });
+  targetRoot = fs.realpathSync(targetRoot);
+  if (targetRoot === sourceRoot || targetRoot.startsWith(sourceRoot + path.sep)
+      || sourceRoot.startsWith(targetRoot + path.sep)) throw new Error('Runtime source and destination overlap');
   const relative = file => path.relative(targetRoot, file).split(path.sep).join('/');
   const store = path.join(targetRoot, 'node_modules', '.dsh-instances');
   const workspace = new Map(seeds.map(seed => [fs.realpathSync(seed.source), seed]));
