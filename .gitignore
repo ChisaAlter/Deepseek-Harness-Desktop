@@ -104,6 +104,10 @@ logs/
 
 # Local test/QA artifacts (large binaries, logs)
 .artifacts/
+.tmp-qa/
+
+# Stray scratch HTML, not part of the app
+pelican-bike.html
 
 # Generated Office runtime payload + download cache (prepare:office-runtime)
 build/office-runtime/
