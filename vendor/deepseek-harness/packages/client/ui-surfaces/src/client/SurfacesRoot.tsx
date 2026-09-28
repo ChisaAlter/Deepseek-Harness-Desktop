@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { SidebarRightGuideBox } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { EmptyState } from './EmptyState.tsx'
 import { NS } from './locales.ts'
 import type { createSurfacesStore, OpenableKind, Surface } from './stores.ts'
@@ -26,6 +28,18 @@ export interface SurfacesRootInjected {
   gitStatus: (cwd: string) => Promise<unknown>
   /** Office binaries the file editor cannot read open in the native document preview instead. */
   openOfficeDocument: (relativePath: string) => boolean
+  /**
+   * The native dock's guide mirror: the registered entries its guide tab
+   * offers, plus the opener placing a picked kind as a dock page in this
+   * seat's Session — the dock's own expansion then collapses this column,
+   * keeping the two right tracks mutually exclusive. Undefined where the
+   * sidebar faces are not composed; the empty state then keeps its legacy
+   * card set.
+   */
+  guide?: {
+    readonly entries: ObservableSnapshot<readonly SidebarRightGuideBox[]>
+    readonly open: (kind: string) => void
+  } | undefined
 }
 
 export type SurfacesRootProps =
@@ -132,6 +146,10 @@ type SurfacesBodyProps = SurfacesRootProps & PropsStore<ReturnType<typeof create
   diffAvailable: boolean
 }
 
+const NO_GUIDE_ENTRIES: readonly SidebarRightGuideBox[] = []
+const subscribeNone = (): (() => void) => () => {}
+const readNoGuideEntries = (): readonly SidebarRightGuideBox[] => NO_GUIDE_ENTRIES
+
 function SurfacesBody({
   sessionId,
   useStore,
@@ -140,12 +158,17 @@ function SurfacesBody({
   openSurfaces,
   previewAvailable,
   openOfficeDocument,
+  guide,
   t,
   diffAvailable,
 }: SurfacesBodyProps): ReactNode {
   const key = sessionId ?? ''
   const keyRef = useRef(key)
   keyRef.current = key
+  const guideEntries = useSyncExternalStore(
+    guide?.entries.subscribe ?? subscribeNone,
+    guide?.entries.getSnapshot ?? readNoGuideEntries,
+  )
   const bucket = useStore(state => sessionSurfaces(state, key))
   const bucketRef = useRef(bucket)
   bucketRef.current = bucket
@@ -196,9 +219,11 @@ function SurfacesBody({
       if (kind !== 'preview' && kind !== 'terminal' && kind !== 'files' && kind !== 'diff' && kind !== 'agents') {
         return
       }
-      const targetSessionId = detail?.sessionId ?? key
-      actions.open(targetSessionId, kind)
-      if (targetSessionId === key && detail?.presentation !== 'mini') openSurfaces()
+      // The seat only renders its own bucket: an event naming another Session
+      // would write a tab this host never shows and persist drops.
+      if (detail?.sessionId !== undefined && detail.sessionId !== key) return
+      actions.open(key, kind)
+      if (detail?.presentation !== 'mini') openSurfaces()
     }
     window.addEventListener(OPEN_SURFACE_EVENT, onOpen)
     return () => { window.removeEventListener(OPEN_SURFACE_EVENT, onOpen) }
@@ -371,6 +396,7 @@ function SurfacesBody({
       {bucket.surfaces.length === 0 ? (
         <EmptyState
           onOpen={open}
+          guide={guide === undefined ? undefined : { entries: guideEntries, open: guide.open }}
           t={t}
           browserAvailable={previewAvailable}
           diffAvailable={diffAvailable}

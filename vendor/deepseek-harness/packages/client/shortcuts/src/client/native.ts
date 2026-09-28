@@ -1,5 +1,5 @@
 /** Desktop gestures use live focus, modal state, and verified embedding ownership. */
-import { modalSelector } from '@deepseek-ai/dsh-client-ui-primitives'
+import { foregroundModalSurfaces } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DesktopKeyboardApi, ShortcutConfigSnapshot } from '../protocol.ts'
 import type { ShortcutRegistry } from './registry.ts'
 
@@ -21,7 +21,7 @@ export function installNativeKeyboard(window: Window, keyboard: DesktopKeyboardA
     while (target?.shadowRoot?.activeElement != null && !target.matches('webview[data-sidebar-browser-frame]')) {
       target = target.shadowRoot.activeElement
     }
-    const top = [...window.document.querySelectorAll<HTMLElement>(modalSelector)].at(-1)
+    const top = foregroundModalSurfaces(window.document).at(-1)
     const region = target?.closest('.xterm') ? 'terminal' as const
       : target?.matches('input, textarea, select, [contenteditable="true"], [contenteditable=""]') ? 'editable' as const : 'page' as const
     const context = { target, region, modal: top?.dataset.shortcutModal ?? (top === undefined ? null : 'other') }

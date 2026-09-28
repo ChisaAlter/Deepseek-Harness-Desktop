@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PRESENCE_EXIT_MS, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 
 let bubbleSize: ResizeObserverSize
 let automaticResize: boolean
@@ -38,7 +38,103 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+function stubReducedMotion(matches: boolean): void {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-reduced-motion') && matches,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }))
+}
+
 describe('Tooltip', () => {
+  it('keeps a fade node through the exit hold and then unmounts it', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <Tooltip label="Fade out">
+          <button type="button">anchor</button>
+        </Tooltip>,
+      )
+      const anchor = screen.getByText('anchor')
+      fireEvent.focus(anchor)
+      const bubble = screen.getByRole('tooltip')
+      expect(bubble.getAttribute('data-dsh-motion')).toBe('fade')
+      expect(bubble.getAttribute('data-state')).toBe('closed')
+      act(() => { vi.advanceTimersToNextFrame() })
+      act(() => { vi.advanceTimersToNextFrame() })
+      expect(bubble.getAttribute('data-state')).toBe('open')
+
+      fireEvent.blur(anchor)
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      const retained = document.querySelector<HTMLElement>('[role="tooltip"]')
+      expect(retained).toBe(bubble)
+      expect(retained?.getAttribute('data-state')).toBe('closed')
+      expect(retained?.getAttribute('aria-hidden')).toBe('true')
+      expect(retained?.inert).toBe(true)
+      expect(retained?.textContent).toBe('Fade out')
+
+      act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS - 1) })
+      expect(document.querySelector('[role="tooltip"]')).toBe(bubble)
+      act(() => { vi.advanceTimersByTime(1) })
+      expect(document.querySelector('[role="tooltip"]')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('skips the exit hold when reduced motion is requested', () => {
+    vi.useFakeTimers()
+    stubReducedMotion(true)
+    try {
+      render(
+        <Tooltip label="Reduced">
+          <button type="button">anchor</button>
+        </Tooltip>,
+      )
+      const anchor = screen.getByText('anchor')
+      fireEvent.focus(anchor)
+      expect(screen.getByRole('tooltip')).toBeTruthy()
+      fireEvent.blur(anchor)
+      expect(document.querySelector('[role="tooltip"]')).toBeNull()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not retain a suppressed enclosing bubble in the DOM', () => {
+    render(
+      <Tooltip label="Outer">
+        <button type="button">
+          anchor
+          <Tooltip label="Inner"><span data-testid="badge" /></Tooltip>
+        </button>
+      </Tooltip>,
+    )
+    const anchor = screen.getByText('anchor')
+    fireEvent.mouseEnter(anchor)
+    expect(document.querySelectorAll('[role="tooltip"]')).toHaveLength(1)
+    fireEvent.mouseEnter(screen.getByTestId('badge'))
+    expect(Array.from(document.querySelectorAll('[role="tooltip"]'), node => node.textContent)).toEqual(['Inner'])
+  })
+
+  it('does not retain a bubble when disabled closes an open tooltip', () => {
+    const view = render(
+      <Tooltip label="Rail">
+        <button type="button">anchor</button>
+      </Tooltip>,
+    )
+    fireEvent.mouseEnter(screen.getByText('anchor'))
+    expect(document.querySelector('[role="tooltip"]')).not.toBeNull()
+    view.rerender(
+      <Tooltip label="Rail" disabled>
+        <button type="button">anchor</button>
+      </Tooltip>,
+    )
+    expect(document.querySelector('[role="tooltip"]')).toBeNull()
+  })
+
   it('updates independent keycaps and the accessible combination while visible', () => {
     const view = render(<Tooltip label="Reload" shortcutKeys={['⌘', 'R']}><button>anchor</button></Tooltip>)
     fireEvent.focus(screen.getByText('anchor'))

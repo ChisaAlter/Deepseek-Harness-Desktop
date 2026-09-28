@@ -231,7 +231,13 @@ export function apply(ctx: Context): void {
           openExternalLink: (url) => {
             const desktopShell = (window as Window & { shell?: { previewOpen?: unknown } }).shell
             if (linkOpening.getSnapshot() === 'sidebar' && typeof desktopShell?.previewOpen === 'function') {
-              try { sessionStorage.setItem('dshd-pending-preview-url', url) } catch { /* Browser also receives the event. */ }
+              // Desktop: the surfaces listener opens the Browser occupant; the
+              // pending key launches the URL on mount and the event a live one.
+              try {
+                sessionStorage.setItem('dshd-pending-preview-url', url)
+                sessionStorage.removeItem('dshd-pending-preview-presentation')
+                sessionStorage.setItem('dshd-pending-preview-session', sessionId)
+              } catch { /* Browser also receives the event. */ }
               window.dispatchEvent(new CustomEvent('dshd-open-surface', { detail: { kind: 'preview', url, sessionId } }))
               return
             }

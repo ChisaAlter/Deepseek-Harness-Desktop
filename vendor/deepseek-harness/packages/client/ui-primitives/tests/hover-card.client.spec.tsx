@@ -610,6 +610,45 @@ describe('HoverCard', () => {
     act(() => { vi.advanceTimersByTime(1000) })
     expect(screen.queryByText('card body')).toBeNull()
   })
+
+  it('deactivates the retained closing card: no tab stop, role, or copy activation', async () => {
+    // The compact card keeps its DOM through the exit hold. A keyboard left on
+    // it (or arriving there) must not reach the retired content: the surface is
+    // inert and its button role, tab stop, and activation handlers are gone.
+    const writeText = vi.fn(async () => {})
+    const restoreClipboard = installClipboard(writeText)
+    try {
+      const { wrapper } = mount({ copyText: 'value', copiedLabel: 'Copied' })
+      fireEvent.pointerEnter(wrapper)
+      act(() => { vi.advanceTimersByTime(500) })
+      const card = screen.getByRole('button', { name: 'Copy: value' })
+      card.focus()
+      expect(document.activeElement).toBe(card)
+      expect(card.getAttribute('tabindex')).toBe('0')
+
+      fireEvent.pointerLeave(wrapper)
+      act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS) })
+      // Retained for the exit recipe, but logically closed already.
+      expect(card.isConnected).toBe(true)
+      expect(card.getAttribute('data-dsh-motion')).toBe('popover')
+      expect(card.getAttribute('data-state')).toBe('closed')
+      expect(card.hasAttribute('inert')).toBe(true)
+      expect(card.getAttribute('aria-hidden')).toBe('true')
+      expect(card.getAttribute('tabindex')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Copy: value' })).toBeNull()
+
+      // Enter, Space, and click all funnel through the dropped handlers.
+      fireEvent.keyDown(card, { key: 'Enter' })
+      fireEvent.keyDown(card, { key: ' ' })
+      fireEvent.click(card)
+      expect(writeText).not.toHaveBeenCalled()
+
+      act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
+      expect(screen.queryByText('card body')).toBeNull()
+    } finally {
+      restoreClipboard()
+    }
+  })
 })
 
 it('opens inline previews only for keyboard focus and closes when focus leaves the anchor', () => {

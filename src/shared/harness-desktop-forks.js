@@ -98,6 +98,18 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-goal/src/client/GoalBar.module.css', includes: ['dsh-composer-resized-width'] },
   { file: 'packages/client/ui-theme/src/wallpaper.ts', includes: ['TRANSPARENT_ATTR', 'data-dsh-transparent'] },
   { file: 'packages/client/ui-theme/src/styles/wallpaper.css', includes: ['html[data-dsh-transparent]'] },
+  // Motion call sites the alpha.2/rc.2 merges resolved toward upstream,
+  // deleting the theme recipes docs/motion.md requires: FlipText on the
+  // model/reasoning and transcript triggers, and the presence markers on
+  // menus, disclosure bodies, the compact hover card, and the tooltip.
+  { file: 'packages/client/ui-model-selection/src/client/ModelSelect.tsx', includes: ['<FlipText className={css.triggerLabel} text={modelLabel} />', '<FlipText className={css.triggerEffort} text={effortLabel} />'] },
+  { file: 'packages/client/ui-model-selection/src/client/ModelSelect.module.css', includes: ["/* FlipText's recipe root is inline-grid;", ".triggerLabel[data-dsh-motion='flip'],", ".triggerEffort[data-dsh-motion='flip'] {", 'display: var(--dsh-composer-model-text-display, inline-grid);'] },
+  { file: 'packages/client/ui-chat/src/client/settings/PreferenceRow.tsx', includes: ['<FlipText className={css.selectorLabel} text={selectedLabel} />'] },
+  { file: 'packages/client/ui-primitives/src/Menu.tsx', includes: ['const { mounted, state } = usePresence(open)', 'data-dsh-motion="popover"', 'data-state={state}'] },
+  { file: 'packages/client/ui-primitives/src/DisclosureRow.tsx', includes: ['const { mounted, state } = usePresence(open)', 'data-dsh-motion="fade"', 'data-state={state}'] },
+  { file: 'packages/client/ui-input-trigger/src/client/MenuView.tsx', includes: ['const lastOpen = useRef(state)', 'if (state.open) lastOpen.current = state', 'const view = state.open ? state : lastOpen.current', 'const { mounted, state: motionState } = usePresence(state.open)', 'data-dsh-motion="popover"', 'data-state={motionState}'] },
+  { file: 'packages/client/ui-primitives/src/HoverCard.tsx', includes: ["const compactMotion = variant === 'compact' && !inline", 'usePresence(compactMotion && open)', "data-dsh-motion={compactMotion ? 'popover' : undefined}", "data-state={compactMotion ? cardState : closing ? 'closed' : 'open'}"] },
+  { file: 'packages/client/ui-primitives/src/Tooltip.module.css', includes: ['animation: tooltip-in var(--ds-motion-duration-swap)'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])', '.heroWorkspaceRow', 'max-width: var(--dsh-composer-resized-width', 'align-self: center'] },
   { file: 'packages/client/ui-conversation/src/client/ComposerBeam.tsx', includes: ['data-composer-beam', '--dsh-composer-beam-period', '--dsh-composer-beam-bloom-opacity', '--dsh-composer-beam-track-width', 'data-beam-breathing'] },
   { file: 'packages/client/ui-conversation/src/client/ComposerBeam.module.css', includes: ['.beamBloom::before', 'inset: -4px', 'blur(var(--dsh-composer-beam-glow-blur', '.beamStroke {', 'padding: var(--dsh-composer-beam-track-width', 'transparent 30%', '-webkit-mask-composite: source-in, xor', 'mask-composite: intersect, exclude', 'mask-composite: add', 'corner-shape: round'] },
@@ -110,7 +122,10 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/api/workspace-controller/src/index.ts', includes: ['scratchWorkspaceCwd', "'no-workspace'"] },
   { file: 'packages/api/workspace-controller/src/client/model.ts', includes: ['scratchCwd'] },
   { file: 'packages/workspace/workspace/src/index.ts', includes: ['readoptableSessionIds'] },
-  { file: 'packages/client/ui-workspace/src/client/navigation.ts', includes: ['connectNoDirectory', 'deleteWorkspace', 'scratchCwd'] },
+  // The no-directory pick may be made while the Workspace list still shows its
+  // loading status: connectScratchCwd waits for the baseline instead of
+  // rejecting, so the chip does not silently fall back.
+  { file: 'packages/client/ui-workspace/src/client/navigation.ts', includes: ['connectNoDirectory', 'connectScratchCwd', 'deleteWorkspace', 'scratchCwd'] },
   { file: 'packages/client/ui-workspace/src/client/tree.ts', includes: ['isNoDirectorySession', 'currentGroupKey'] },
   { file: 'packages/client/ui-workspace/src/client/WorkspacePicker.tsx', includes: ['NO_DIRECTORY', 'onPickNoDirectory'] },
   { file: 'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx', includes: ['TasksSectionHeader', 'connectNoDirectory', 'GroupSessionRun'] },
@@ -134,16 +149,23 @@ const FORK_FILE_MARKERS = [
   // Desktop fork: the shipped web-app composition carries the browse rows, so
   // the scaffold's upstream -auto disable+insert pair must stay removed (it
   // duplicates the shipped client browse row and fails every boot sweep).
-  // The original DSHD surfaces track owns the desktop right panel; the native
-  // Sidebar remains available only through an exclusive compatibility handoff.
+  // The right column is the classic surfaces track: SurfacesRoot hosts the
+  // declared `surfaces` seat tree (tab strip + EmptyState picker + occupants)
+  // and every open path expands it via ctx.layout.openSurfaces(). The native
+  // sidebar dock stays only for upstream-exclusive kinds — expanding either
+  // column collapses the other, so exactly one right column is visible.
   { file: 'packages/client/ui-layout/src/client/index.ts', includes: ['surfaces: number'] },
   { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['surfaces: layoutInfo.surfaces'] },
-  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ["name: 'surfaces'", 'openClassicSurfaces', 'if (cwd === undefined) return false'], excludes: ['openInRightSidebar'] },
-  { file: 'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx', includes: ['SurfaceTabs', 'EmptyState'] },
+  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ["name: 'surfaces'", 'SurfacesRoot', 'openClassicSurfaces', 'collapseRightPanel', 'ctx.layout.openSurfaces()', 'sidebarRightTabs'], excludes: ['SurfacesGone', 'expandRightPanel'] },
+  { file: 'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx', includes: ['SurfaceTabs', 'EmptyState', 'useSyncExternalStore'] },
+  // The empty-state grid mirrors the sidebarRightTabs guide registry one-for-one
+  // and opens picks through sidebarRight.openTabIn — no second card list.
+  { file: 'packages/client/ui-surfaces/src/client/EmptyState.tsx', includes: ['SidebarRightGuideBox', 'EmptyStateGuide'] },
+  { file: 'packages/client/ui-surfaces/tests/empty-state.client.spec.tsx', includes: ['guide('] },
   { file: 'packages/client/ui-sidebar-right/src/client/index.ts', includes: ['layout.closeSurfaces()'] },
   { file: 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx', includes: ['restoreClassic'] },
   { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['layout.toggleSurfaces()'] },
-  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['surfaces > 0'] },
+  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['isSurfacesShortcut'], excludes: ['rightbarShown'] },
   // Keyboard-shortcut adoption (keyboard-shortcuts card): explicit local-first
   // input policy, panel chords owned by the registry, terminal region marker.
   { file: 'packages/client/shortcuts/src/protocol.ts', includes: ["./policy.ts'"] },
@@ -243,7 +265,30 @@ const FORK_FILE_MARKERS = [
   // (--dshd-wco-caption, published by harness-chrome-inject) instead of
   // stacking under the window close button; the fallback keeps plain-browser
   // placement unchanged.
-  { file: 'packages/client/ui-attachment/src/ImageLightbox.module.css', includes: ['--dshd-wco-caption'] },
+  { file: 'packages/client/ui-primitives/src/ImageLightbox.module.css', includes: ['--dshd-wco-caption'] },
+  // The guide tab (开始) draws the same capsule grid the surfaces empty state
+  // uses — one picker language across both right-side docks — instead of the
+  // upstream row-capsule list. Locale keys give the heading copy.
+  { file: 'packages/client/ui-sidebar-right/src/client/tabs/guide/GuideBody.tsx', includes: ['ShippedGuide', 'css.grid'] },
+  { file: 'packages/client/ui-sidebar-right/src/client/tabs/guide/GuideBody.module.css', includes: ['.grid {', 'aspect-ratio: 1 / 1'] },
+  { file: 'packages/client/ui-sidebar-right/src/client/locales.ts', includes: ["'tab.guide.heading'"] },
+  { file: 'packages/client/ui-sidebar-right/src/client/index.ts', includes: ['locale: NS'] },
+  // ui-preview reads sidebarRightTabs via ctx.get at apply time; upstream's
+  // inject list omits it because the web profile disables the Browser type
+  // anyway. On our web+desktop profile the entry must register, so the
+  // service is a declared injection and the get always resolves.
+  { file: 'packages/client/ui-preview/src/client/apply.ts', includes: ["'sidebarRightTabs'"] },
+  // The app frame's bg-base carries alpha (transparent-window product); a
+  // docked rightbar pane painting it again double-darkens the column, and
+  // every occupant root repeating it adds a third. The panel scopes the token
+  // to transparent inside docked hosts so the frame's single ground shows
+  // through; floats keep their own ground.
+  { file: 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.module.css', includes: ['--dsw-alias-bg-base: transparent'] },
+  // The sidebar terminal screen feeds its computed background into the xterm
+  // theme; inside the merged dock bg-base resolves transparent, so the well
+  // follows the dedicated terminal-pane token instead — the Appearance
+  // terminal-opacity slider keeps it readable over the wallpaper.
+  { file: 'packages/client/ui-sidebar-terminal/src/client/terminal.module.css', includes: ['--dsw-alias-terminal-pane'] },
 ];
 
 function readRel(vendorRoot, rel) {

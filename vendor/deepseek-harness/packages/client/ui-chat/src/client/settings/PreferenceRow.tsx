@@ -1,6 +1,6 @@
 /** Localized two-column selector shared by Chat preference rows. */
 import { useRef, useState } from 'react'
-import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { FlipText, IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './PreferenceRow.module.css'
 
 /**
@@ -33,7 +33,7 @@ export function PreferenceRow({ title, description, value, selectedLabel, option
       aria-expanded={open}
       onClick={() => { setOpen(value => !value) }}
     >
-      {selectedLabel}
+      <FlipText className={css.selectorLabel} text={selectedLabel} />
       <IconChevronDownOutlineRegular className={css.chevron} />
     </button>
   )

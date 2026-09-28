@@ -6,12 +6,13 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '../src/client/index.ts'
 import type { TerminalShellInjected } from '../src/client/shell.ts'
-import { en } from '../src/client/locales.ts'
 import { TerminalDrawer } from '../src/client/TerminalDrawer.tsx'
 import { TerminalSurface } from '../src/client/TerminalSurface.tsx'
 import { bindPtyListeners } from '../src/client/pty-bridge.ts'
 
 const SID = 'session-term'
+const OPEN_SURFACE_EVENT = 'dshd-open-surface'
+const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
 
 function declare(slots: SlotRegistry): () => void {
   return slots.register({
@@ -91,58 +92,108 @@ describe('ui-user-terminal apply', () => {
     await b.fiber.dispose()
   })
 
-  it('opens a loopback URL as a Browser tab in the originating Session', async () => {
+  it('opens a loopback URL through the surfaces preview event and opens the column', async () => {
     const b = await bench()
-    const openTabIn = vi.fn(() => true)
-    b.ctx.provide('sidebarRight', { openTabIn })
-    const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
-      (sessionId: string) => TerminalShellInjected)(SID)
-    injected.openLocalUrl('http://127.0.0.1:5173')
-    expect(openTabIn).toHaveBeenCalledWith(SID, 'browser', { params: { url: 'http://127.0.0.1:5173' } })
-    // The retired surfaces shell's layout handoff is gone.
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
-    await b.fiber.dispose()
+    const events: CustomEvent[] = []
+    const onOpen = (event: Event): void => { events.push(event as CustomEvent) }
+    window.addEventListener(OPEN_SURFACE_EVENT, onOpen)
+    try {
+      const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
+        (sessionId: string) => TerminalShellInjected)(SID)
+      injected.openLocalUrl('http://127.0.0.1:5173')
+      expect(sessionStorage.getItem(PENDING_PREVIEW_URL_KEY)).toBe('http://127.0.0.1:5173')
+      expect(sessionStorage.getItem('dshd-pending-preview-session')).toBe(SID)
+      expect(sessionStorage.getItem('dshd-pending-preview-presentation')).toBeNull()
+      expect(events).toHaveLength(1)
+      expect(events[0]?.detail).toEqual({ kind: 'preview', url: 'http://127.0.0.1:5173', sessionId: SID })
+      expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+    } finally {
+      window.removeEventListener(OPEN_SURFACE_EVENT, onOpen)
+      sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
+      sessionStorage.removeItem('dshd-pending-preview-session')
+      await b.fiber.dispose()
+    }
   })
 
-  it('reports a refused Browser open without dispatching the legacy event', async () => {
+  it('suppresses the column raise for a foreign-session delivery', async () => {
     const b = await bench()
-    const openTabIn = vi.fn(() => false)
-    b.ctx.provide('sidebarRight', { openTabIn })
-    const notify = vi.fn()
-    b.ctx.provide('conversation', { input: { for: () => ({ notify }) } })
-    b.ctx.provide('sessions', { scope: () => ({}) })
+    b.ctx.provide('sessions', {
+      list: {
+        getSnapshot: () => ({
+          byId: {
+            'session-main': { id: 'session-main', retainedBy: { mainView: 1 } },
+          },
+        }),
+      },
+    })
     const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
-      (sessionId: string) => TerminalShellInjected)(SID)
-    injected.openLocalUrl('http://127.0.0.1:5173')
-    expect(openTabIn).toHaveBeenCalledWith(SID, 'browser', { params: { url: 'http://127.0.0.1:5173' } })
-    expect(notify).toHaveBeenCalledWith('error', en['error.openLink'])
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
-    await b.fiber.dispose()
+      (sessionId: string) => TerminalShellInjected)('session-background')
+    try {
+      injected.openLocalUrl('http://127.0.0.1:5173')
+      expect(sessionStorage.getItem('dshd-pending-preview-session')).toBe('session-background')
+      expect(b.layout.openSurfaces).not.toHaveBeenCalled()
+    } finally {
+      sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
+      sessionStorage.removeItem('dshd-pending-preview-session')
+      await b.fiber.dispose()
+    }
   })
 
-  it('keeps the drawer usable when the Sidebar plugin is absent', async () => {
+  it('raises the column when the delivery targets the main-view session', async () => {
     const b = await bench()
-    const notify = vi.fn()
-    b.ctx.provide('conversation', { input: { for: () => ({ notify }) } })
-    b.ctx.provide('sessions', { scope: () => ({}) })
+    b.ctx.provide('sessions', {
+      list: {
+        getSnapshot: () => ({
+          byId: {
+            'session-main': { id: 'session-main', retainedBy: { mainView: 1 } },
+          },
+        }),
+      },
+    })
+    const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
+      (sessionId: string) => TerminalShellInjected)('session-main')
+    try {
+      injected.openLocalUrl('http://127.0.0.1:5173')
+      expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+    } finally {
+      sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
+      sessionStorage.removeItem('dshd-pending-preview-session')
+      await b.fiber.dispose()
+    }
+  })
+
+  it('opens surfaces for a loopback URL with no sidebar service at all', async () => {
+    const b = await bench()
     const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
       (sessionId: string) => TerminalShellInjected)(SID)
     expect(() => { injected.openLocalUrl('http://127.0.0.1:5173') }).not.toThrow()
-    expect(notify).toHaveBeenCalledWith('error', en['error.openLink'])
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem(PENDING_PREVIEW_URL_KEY)).toBe('http://127.0.0.1:5173')
+    expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+    sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
+    sessionStorage.removeItem('dshd-pending-preview-session')
     await b.fiber.dispose()
   })
 
-  it('does not route a URL when the drawer has no Session', async () => {
+  it('still opens surfaces when the drawer has no Session, with no sessionId in the detail', async () => {
     const b = await bench()
-    const openTabIn = vi.fn(() => true)
-    b.ctx.provide('sidebarRight', { openTabIn })
-    const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
-      (sessionId: undefined) => TerminalShellInjected)(undefined)
-    injected.openLocalUrl('http://127.0.0.1:5173')
-    expect(openTabIn).not.toHaveBeenCalled()
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
-    await b.fiber.dispose()
+    const events: CustomEvent[] = []
+    const onOpen = (event: Event): void => { events.push(event as CustomEvent) }
+    window.addEventListener(OPEN_SURFACE_EVENT, onOpen)
+    try {
+      const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
+        (sessionId: undefined) => TerminalShellInjected)(undefined)
+      sessionStorage.setItem('dshd-pending-preview-session', 'session-stale')
+      injected.openLocalUrl('http://127.0.0.1:5173')
+      expect(events).toHaveLength(1)
+      expect((events[0]?.detail as { sessionId?: unknown }).sessionId).toBeUndefined()
+      expect(sessionStorage.getItem('dshd-pending-preview-session')).toBeNull()
+      expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+    } finally {
+      window.removeEventListener(OPEN_SURFACE_EVENT, onOpen)
+      sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
+      sessionStorage.removeItem('dshd-pending-preview-session')
+      await b.fiber.dispose()
+    }
   })
 })
 

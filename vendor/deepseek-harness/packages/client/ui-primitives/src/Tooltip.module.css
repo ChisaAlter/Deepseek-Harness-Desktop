@@ -50,13 +50,3 @@
 .bubble[data-side='top'][data-align='end'] {
   transform: translate(-100%, -100%);
 }
-
-@keyframes tooltip-in {
-  from { opacity: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bubble {
-    animation: none;
-  }
-}

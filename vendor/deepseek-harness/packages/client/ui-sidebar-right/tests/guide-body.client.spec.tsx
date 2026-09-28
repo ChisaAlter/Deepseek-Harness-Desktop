@@ -71,6 +71,7 @@ function mountGuide(entries: readonly SidebarRightGuideBox[], custom?: (key: str
         actions: { bindCommands: vi.fn(() => vi.fn()), openResource: vi.fn(), openTab, close: vi.fn() } } }),
     useGuideEntries: bindSnapshotSelector(guideEntries),
     renderSlotChain: renderSlot,
+    t: (key: string) => key,
     renderSlot: vi.fn((_slot: string, _owner: unknown, options?: RenderOpts) =>
       (options?.entryKey === undefined ? undefined : custom?.(options.entryKey)) ?? options?.fallback),
   }
@@ -87,7 +88,7 @@ describe('GuideBody', () => {
         binding: null, keys, aria: keys.length ? 'Control+P' : undefined, modified: true, conflicts: [], issue: null }
       const { view } = mountGuide([{ ...box('files', 10), commandId: entry.id }], undefined, [entry])
       expect(view.getByRole('button').getAttribute('aria-keyshortcuts')).toBe(entry.aria ?? null)
-      expect(view.getByRole('button').textContent).toBe(`files title${keys.join('')}`)
+      expect(view.getByRole('button').textContent).toBe('files title')
       cleanup()
     }
   })
@@ -96,18 +97,17 @@ describe('GuideBody', () => {
     expect(renderSlot).toHaveBeenCalledWith('sidebar.right.tab.guide', {}, {
       hookContext: useTabInfo, fallback: expect.anything() as ReactNode,
     })
-    // The guide draws no words of its own; every word is a capsule's.
     const guide = view.container.querySelector('[data-sidebar-right-guide]')
-    expect(guide?.textContent).toBe('files titleterminal title')
+    expect(guide?.textContent).toBe('tab.guide.headingtab.guide.subtitlefiles titleterminal title')
     // One capsule per entry, in the registry's order, each with its own title; only the first brought a glyph.
     expect(boxes()).toEqual(['files', 'terminal'])
     const [files, terminal] = [...view.container.querySelectorAll('[data-sidebar-right-guide-entry]')]
     expect(files?.textContent).toBe('files title')
-    expect(files?.querySelector('[data-guide-glyph]')?.getAttribute('data-guide-glyph')).toBe('22')
+    expect(files?.querySelector('[data-guide-glyph]')?.getAttribute('data-guide-glyph')).toBe('20')
     expect(terminal?.querySelector('[data-guide-glyph]')).toBeNull()
     // The entry without a glyph falls back to the shipped cube, at the same size, on the quieter ink.
     const placeholder = terminal?.querySelector('svg')
-    expect(placeholder?.getAttribute('width')).toBe('22')
+    expect(placeholder?.getAttribute('width')).toBe('20')
     expect(placeholder?.getAttribute('class')).toBe(css.placeholderInk)
     expect(files?.querySelector('svg')).toBeNull()
     cleanup()
@@ -132,21 +132,18 @@ describe('GuideBody', () => {
     cleanup()
   })
 
-  it('shows an entry\'s description while at most four entries are listed, and drops every description past that', () => {
+  it('shows every entry description at a fixed glyph size regardless of entry count', () => {
     const four = [box('a', 10, Glyph, 'a desc'), box('b', 20), box('c', 30, undefined, 'c desc'), box('d', 40)]
     const { view, guideEntries } = mountGuide(four)
     const capsule = (kind: string) => view.container.querySelector(`[data-sidebar-right-guide-entry="${kind}"]`)
-    // At four: a capsule with a description carries it under the title at the larger glyph; one without stays title-only.
     expect(capsule('a')?.textContent).toBe('a titlea desc')
-    expect(capsule('a')?.querySelector('[data-guide-glyph]')?.getAttribute('data-guide-glyph')).toBe('26')
     expect(capsule('b')?.textContent).toBe('b title')
-    // The placeholder follows the described size exactly as a registered glyph does.
-    expect(capsule('c')?.querySelector('svg')?.getAttribute('width')).toBe('26')
-    // A fifth entry tips the whole guide back to titles alone, at the title-only glyph size.
+    expect(capsule('c')?.textContent).toBe('c titlec desc')
+    // Descriptions keep rendering past four entries — the capsule grid clamps
+    // them to two lines instead of dropping the text.
     act(() => { guideEntries.set([...four, box('e', 50)]) })
-    expect(capsule('a')?.textContent).toBe('a title')
-    expect(capsule('a')?.querySelector('[data-guide-glyph]')?.getAttribute('data-guide-glyph')).toBe('22')
-    expect(capsule('c')?.textContent).toBe('c title')
+    expect(capsule('a')?.textContent).toBe('a titlea desc')
+    expect(capsule('c')?.textContent).toBe('c titlec desc')
     cleanup()
   })
 

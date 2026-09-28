@@ -234,7 +234,15 @@ class UiWorkspaceService extends Service implements UiWorkspace {
 
   async openNoDirectory(beforeOpen?: (sessionId: SessionId) => void): Promise<void> {
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
-    const sessionId = await this.connectNoDirectory()
+    let sessionId: SessionId
+    try {
+      sessionId = await this.connectNoDirectory()
+    } catch (error: unknown) {
+      // Symmetric with openWorkspace: a refused no-directory Session is shown,
+      // not silently dropped while the hero chip falls back to its placeholder.
+      if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
+      throw error
+    }
     if (navigation.aborted) return
     this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
@@ -289,15 +297,11 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   private async resolveNoDirectory(): Promise<SessionId> {
-    const scratch = (): string => {
-      const cwd = this.workspaces.list.getSnapshot().scratchCwd
-      if (cwd === undefined) throw new Error('uiWorkspace.connectNoDirectory: the Workspace baseline has not arrived yet')
-      return cwd
-    }
+    const cwd = await this.connectScratchCwd()
     const eligible = (id: SessionId): boolean => {
       const workspace = this.workspaces.list.getSnapshot()
       const summary = this.sessions.list.getSnapshot().byId[id]
-      return isOrdinaryBlank(summary) && summary.cwd === scratch()
+      return isOrdinaryBlank(summary) && summary.cwd === cwd
         && !workspace.items.some(item => item.sessionIds.includes(id))
         && !workspace.archivedSessionIds.includes(id)
     }
@@ -308,7 +312,49 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       if (eligible(id) && reusable) return id
     }
     this.lifetime.signal.throwIfAborted()
-    return this.sessions.create({ cwd: scratch() })
+    return this.sessions.create({ cwd })
+  }
+
+  /**
+   * Resolve the Host scratch cwd, waiting for the first Workspace baseline.
+   * The hero menu is usable while the list is still loading, so a pick made in
+   * that window must queue behind the baseline instead of rejecting and
+   * reverting the chip with no visible result.
+   * @returns the Host-owned no-directory cwd.
+   */
+  private connectScratchCwd(): Promise<string> {
+    const pending = Promise.withResolvers<string>()
+    const signal = this.lifetime.signal
+    let settled = false
+    let stop = (): void => {}
+    const finish = (): boolean => {
+      if (settled) return false
+      settled = true
+      stop()
+      signal.removeEventListener('abort', onAbort)
+      return true
+    }
+    const onAbort = (): void => {
+      if (finish()) pending.reject(signal.reason)
+    }
+    const check = (): void => {
+      if (settled) return
+      const current = this.workspaces.list.getSnapshot()
+      if (current.scratchCwd !== undefined) {
+        if (finish()) pending.resolve(current.scratchCwd)
+      } else if (current.phase === 'ready' || current.state === 'error') {
+        if (finish()) {
+          pending.reject(new Error('uiWorkspace.connectNoDirectory: the Workspace service did not report a scratch cwd'))
+        }
+      }
+    }
+    stop = this.workspaces.list.subscribe(check)
+    signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
+    // A baseline that landed between the snapshot read and the subscription
+    // would otherwise leave this promise pending forever.
+    check()
+    return pending.promise
   }
 
   async deleteWorkspace(workspaceId: WorkspaceId): Promise<void> {

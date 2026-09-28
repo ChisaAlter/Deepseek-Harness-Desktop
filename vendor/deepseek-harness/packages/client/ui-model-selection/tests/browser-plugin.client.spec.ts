@@ -469,6 +469,7 @@ describe('ui-model-selection dual entry', () => {
       })
       b.mint('new')
       const fresh = b.ctx.modelDirectories.directoryFor(sid('new'))
+      await fresh.load()
       expect(fresh.store.getSnapshot()).toMatchObject({ current: { provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'max' }, routable: false, retainedEffort: 'Max' })
     } finally {
       await b.ctx.fiber.dispose()
@@ -509,6 +510,7 @@ describe('ui-model-selection dual entry', () => {
     const face = b.seat().inject!(sid('s1'))
     const intended = { provider: 'deepseek-official', model: 'unlisted' }
     b.setProjected(sid('s1'), { lastUsed: intended, next: intended })
+    await b.ctx.modelDirectories.directoryFor(sid('s1')).load()
     await vi.waitFor(() => { expect(face.directory.getSnapshot().status).toBe('ready') })
     expect(face.directory.getSnapshot().current).toEqual(intended)
     expect(b.blockOf('s1')).toBeUndefined()

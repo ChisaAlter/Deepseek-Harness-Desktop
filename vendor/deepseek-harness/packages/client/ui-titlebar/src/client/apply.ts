@@ -32,10 +32,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Services required by the titlebar plugin. */
 export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'configForms', 'shortcuts']
 
-/** The DSHD panel button owns the classic surfaces track. */
-function toggleRightPanel(ctx: Context): void {
-  const sidebarRight = ctx.get('sidebarRight')
-  if (sidebarRight?.isExpanded()) sidebarRight.toggleExpanded()
+/**
+ * The DSHD panel button toggles the classic surfaces column. The merged
+ * right Sidebar dock is mutually exclusive with it: collapse an expanded
+ * dock first so the two right columns never compete.
+ */
+function toggleSurfaces(ctx: Context): void {
+  const sidebar = ctx.get('sidebarRight')
+  if (sidebar !== undefined && sidebar.isExpanded()) sidebar.toggleExpanded()
   ctx.layout.toggleSurfaces()
 }
 
@@ -60,7 +64,7 @@ export function apply(ctx: Context): void {
       'desktop:macos': panels, 'desktop:windows': panels, 'desktop:linux': panels,
     },
     regions: ['page'], modals: [],
-    resolve: () => ({ status: 'handled', run: () => { toggleRightPanel(ctx) } }),
+    resolve: () => ({ status: 'handled', run: () => { toggleSurfaces(ctx) } }),
   }), 'ui-titlebar: surfaces.toggle')
   ctx.effect(() => ctx.shortcuts.register({
     id: 'terminal.drawer.toggle' as ShortcutCommandId, label: () => t('terminal.toggle'),
@@ -89,7 +93,7 @@ export function apply(ctx: Context): void {
     order: 40,
     locale: NS,
     inject: (): PanelTogglesInjected => ({
-      toggleRightPanel: () => { toggleRightPanel(ctx) },
+      toggleSurfaces: () => { toggleSurfaces(ctx) },
       toggleTerminalDrawer: () => { ctx.layout.toggleTerminalDrawer() },
       hooks: {
         terminalToggle: terminalChrome.visible,

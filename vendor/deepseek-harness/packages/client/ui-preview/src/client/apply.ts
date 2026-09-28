@@ -23,7 +23,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Services required by the preview plugin. */
-export const inject = ['slots', 'locale']
+export const inject = ['slots', 'locale', 'sidebarRightTabs']
 
 export const PREVIEW_ID = '@deepseek-ai/dsh-client-ui-preview/browser'
 const BROWSER_KIND = 'browser'

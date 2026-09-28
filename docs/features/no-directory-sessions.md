@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `no-directory-sessions` |
 | **status** | `active` |
-| **last verified** | 2026-09-23 — 修复 #97：文档页通过 `shell:read-file` / `shell:list-dir` 读取 scratch 会话产物时同样获得 Host `no-workspace` 目录授权（`workspace-fs` 的生产 authority 与 preview 一致 `allowScratchCwd: true`）；新增回归验证 scratch 可读且其父目录仍被拒绝，`node --test src/main/workspace-fs.test.js` 10/10 通过。此前 2026-09-18 — no-directory and Workspace New Session share Host-authoritative reuse；25 boundary tests、272 workspace tests 与两条实浏览器首发送/重载流程通过。 |
+| **last verified** | 2026-09-27 — 修复「工作区加载中选无工作目录失效」：`connectScratchCwd` 在 Workspace baseline 未到时排队等待而非抛错，ready 但缺 cwd 时以可见 `createFailed` 失败，owner 销毁立即中止；`openNoDirectory` 与 `openWorkspace` 的提示语义对齐。真机复现另暴露宿主侧故障——残留的 `sessions\_no-cwd\preset-keep\session.v3.jsonl` 与 `zstd` 后端编码冲突使 `workspace` 插件整条不挂载、`workspace/follow` 返回 `gateway/service-unavailable`；该文件已隔离到 `quarantine/sessions/` 并确认 Host 恢复。新增 3 例回归（排队后成功 / ready 缺 cwd / 等待中销毁），定向 66 例与该卡四包门禁 1332 例通过。此前 2026-09-23 — 修复 #97：文档页通过 `shell:read-file` / `shell:list-dir` 读取 scratch 会话产物时同样获得 Host `no-workspace` 目录授权（`workspace-fs` 的生产 authority 与 preview 一致 `allowScratchCwd: true`）；新增回归验证 scratch 可读且其父目录仍被拒绝，`node --test src/main/workspace-fs.test.js` 10/10 通过。此前 2026-09-18 — no-directory and Workspace New Session share Host-authoritative reuse；25 boundary tests、272 workspace tests 与两条实浏览器首发送/重载流程通过。 |
 
 ## User paths
 
@@ -17,7 +17,7 @@
 
 ## Invariants
 
-- Host 通过 Workspace `follow` baseline 公布 `scratchCwd`（`$DSH_HOME/no-workspace`，`WorkspaceController` init 时 `mkdir -p`）。客户端 `WorkspaceSnapshot.scratchCwd` 在 baseline 到达前为 `undefined`，此时不会列出任何 scratch 会话。
+- Host 通过 Workspace `follow` baseline 公布 `scratchCwd`（`$DSH_HOME/no-workspace`，`WorkspaceController` init 时 `mkdir -p`）。客户端 `WorkspaceSnapshot.scratchCwd` 在 baseline 到达前为 `undefined`，此时不会列出任何 scratch 会话；但 Hero 的「无工作目录」入口在加载期仍可点——`connectNoDirectory()` 经 `connectScratchCwd()` 排队等待第一份 baseline 后继续，只有 baseline 已 ready/error 仍缺 `scratchCwd` 才失败（经 `createFailed` 提示）。宿主 `workspace` 插件挂载失败（如会话根编码冲突）时该提示即用户可见的失败面，不静默。
 - scratch 会话的产物在右栏文档页可读：`shell:read-file` / `shell:list-dir` 的生产 authority 与 preview 一致携带 `allowScratchCwd: true`，授权的边界仍是 Host 固定的 `$DSH_HOME/no-workspace`（父目录与外部绝对路径继续被拒绝），不扩大为任意路径。
 - 「无工作目录会话」= 不属于任何已登记工作区的 `sessionIds` **且** `cwd === scratchCwd`。只满足前者（被删工作区的会话、其他进程在别处建的会话）一律不列出。判断集中在 `tree.ts` 的 `isNoDirectorySession` / `currentGroupKey`，四个 derive 函数共用。
 - `connectNoDirectory()` 只在「空白 + scratch cwd + 非成员 + 未归档 + 非 subagent」的候选通过只读 Host `session.blankReuse({ sessionId })` 后复用，否则 `session.create({ cwd: scratchCwd })`；客户端在提交复用前重查当前成员关系、归档状态和摘要，并发调用把完整的检查加创建合并为一次；绝不调用 `workspace.create`。空白仍表示没有开始过 turn；已有 `session/title` pin 的会话不参与 New Session 复用，但用户显式打开时保留原 pin。
@@ -53,6 +53,7 @@
 
 - Decision: [blank Session reuse after presentation release](../decisions/implemented/bug-fix/2026-09-18-blank-session-reuse.md)
 - Decision: [Let the document tab read scratch-session files](../decisions/implemented/bug-fix/2026-09-23-scratch-cwd-document-tab-read.md)
+- Decision: [工作区列表加载中也可选择无工作目录](../decisions/implemented/bug-fix/2026-09-27-no-directory-pick-during-workspace-load.md)
 
 - Agent Note：[2026-08-15-no-directory-task-sessions.md](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-15-no-directory-task-sessions.md)
 - 合树背景：alpha.1/alpha.2 pin 时该 leftover 被上游覆盖（仅残留 `connectNoDirectory` 桩与 `menu.noDirectory` 文案），本卡在 alpha.4 上重建并加 marker 防再次丢失

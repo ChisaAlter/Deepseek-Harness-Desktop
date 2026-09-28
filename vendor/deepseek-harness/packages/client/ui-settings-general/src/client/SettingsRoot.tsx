@@ -81,7 +81,11 @@ function SettingsPanel({ rows, renderSlot, activeId, motionState, open, onSelect
   const titleId = useId()
 
   const panel = useRef<HTMLDivElement>(null)
-  useModalLayer(panel, true, onClose)
+  // Register on the LOGICAL flag, not on this component's mount: Presence keeps
+  // the panel mounted for the exit recipe, and a layer that stayed registered
+  // through that window would keep the rest of the UI yielding keyboard input
+  // (isBehindModal) after the shell was already logically closed.
+  useModalLayer(panel, open, onClose)
 
   // Portalled beside #root like the Modal primitive: a covering surface mounted
   // inside the root would precede the columns' chrome in document order, so a
@@ -170,10 +174,27 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     openOnboarding: (id: string) => { setExplicitOnboarding(id) },
   })
   const close = useCallback(() => { closeSettings() }, [closeSettings])
-  // Restore after the close commit, when the dialog can no longer own focus.
+  // The wide layout opens from the account launcher row, which is not the
+  // trigger button useModalLayer captured, so that case needs the shell's own
+  // return target. Without a launcher the hook's generic restore is already
+  // correct (it returns focus to whichever control actually opened the shell),
+  // and overriding it here would move focus away from that opener.
   useEffect(() => {
-    if (wasOpen.current && !open) {
-      (launcherRow.current?.querySelector('button') ?? triggerButton.current)?.focus()
+    if (!wasOpen.current || open) { wasOpen.current = open; return }
+    // Ownership guard, matching useModalLayer's policy: if the close commit
+    // left focus on a control that is not part of the retiring shell, another
+    // surface already owns the keyboard and this preference must not steal it.
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active.isConnected
+      && active.closest('[aria-hidden="true"], [inert]') === null
+      && active !== document.body
+      && active.closest('[data-shortcut-modal="settings"]') === null) {
+      wasOpen.current = open
+      return
+    }
+    const launcherEntry = launcherRow.current?.querySelector('button')
+    if (launcherEntry != null && launcherEntry.closest('[aria-hidden="true"], [inert]') === null) {
+      launcherEntry.focus()
     }
     wasOpen.current = open
   }, [open])

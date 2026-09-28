@@ -7,6 +7,7 @@
   height: 100%;
   overflow: hidden;
   border-radius: 20px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */

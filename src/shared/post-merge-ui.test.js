@@ -24,9 +24,13 @@ const UI_FEATURES = [
     includes: ['shell.titlebar.trailing'],
   },
   {
-    name: 'single visible right surfaces mode',
+    // Classic right column: SurfacesRoot hosts the seat tree and every open
+    // path expands the track via ctx.layout.openSurfaces(); the native dock
+    // survives only as the compat rail for upstream-exclusive kinds.
+    name: 'classic surfaces right column',
     file: 'packages/client/ui-surfaces/src/client/apply.ts',
-    includes: ['openClassicSurfaces', 'ctx.layout.closeRightbar()', 'ctx.layout.openSurfaces()'],
+    includes: ['SurfacesRoot', 'openClassicSurfaces', 'collapseRightPanel'],
+    excludes: ['SurfacesGone', 'expandRightPanel'],
   },
   {
     name: 'Files search work loop',
@@ -231,10 +235,13 @@ test('desktop ships dshbot as a built-in vendored plugin', () => {
 // ui-dockkit / ui-sidebar-right surfaces. The v0.1.6-alpha.1 merge refactored
 // JsonTree's copy affordance from a fixed .copyAnchor to an inline-absolute
 // .copySlot — nothing in that file overlays the caption band anymore, so it
-// left this list.
+// left this list. The dsh-v0.1.7-rc.2 merge likewise retired the
+// SidebarRight panel-wide app-region pulse in favor of dockkit's per-strip
+// `data-window-drag` model, and moved ImageLightbox to ui-primitives and
+// OnboardingSurface to ui-settings-account.
 const NO_DRAG_FILES = [
   'packages/client/ui-attachment/src/DropOverlay.module.css',
-  'packages/client/ui-attachment/src/ImageLightbox.module.css',
+  'packages/client/ui-primitives/src/ImageLightbox.module.css',
   'packages/client/ui-chat/src/client/chat/stat-dialog.module.css',
   'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css',
   'packages/client/ui-dockkit/src/components/dockkit.module.css',
@@ -246,14 +253,13 @@ const NO_DRAG_FILES = [
   'packages/client/ui-primitives/src/HoverCard.module.css',
   'packages/client/ui-primitives/src/Menu.module.css',
   'packages/client/ui-primitives/src/Modal.module.css',
-  'packages/client/ui-primitives/src/OnboardingSurface.module.css',
+  'packages/client/ui-settings-account/src/client/OnboardingSurface.module.css',
   'packages/client/ui-primitives/src/Toast.module.css',
   'packages/client/ui-primitives/src/Tooltip.module.css',
   'packages/client/ui-schedule/src/client/ScheduleCatalogAction.module.css',
   'packages/client/ui-settings-general/src/client/SettingsRoot.module.css',
   'packages/client/ui-settings-general/src/client/UpdateAction.module.css',
   'packages/client/ui-settings-remote/src/client/RemoteSection.module.css',
-  'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.module.css',
   'packages/client/ui-sidebar/src/client/SidebarRoot.module.css',
   'packages/client/ui-subagent/src/client/SubagentHeaderLineage.module.css',
   'packages/client/ui-titlebar/src/client/PanelToggles.module.css',

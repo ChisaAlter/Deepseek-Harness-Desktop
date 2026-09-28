@@ -125,12 +125,13 @@ describe('ui-sidebar-right apply', () => {
     expect(guide?.title('sidebar://guide')).toBe('tab.guide.title')
     // Five registrations: the root and panel seats, the header's corner seat,
     // and the guide body and chip title under the guide implementation's id.
-    // The guide draws no product copy of its own, so neither guide seat binds the dictionary.
+    // The guide body owns its heading copy, so its seat binds the dictionary;
+    // the chip title keeps no locale of its own.
     expect(registered.map(entry => [entry.name, entry.key, entry.locale, entry.component])).toEqual([
       ['rightbar', undefined, undefined, RightbarRoot],
       ['rightbar.session', undefined, 'sidebarRight', RightbarSeat],
       ['conversation.session.header.corner', undefined, 'sidebarRight', ExpandButton],
-      ['sidebar.right.pane.tab', GUIDE_ID, undefined, GuideBody],
+      ['sidebar.right.pane.tab', GUIDE_ID, 'sidebarRight', GuideBody],
       ['sidebar.right.pane.tab.title', GUIDE_ID, undefined, GuideTitle],
     ])
     // The panel declares the extension seats; the guide declares its chain child.

@@ -71,6 +71,19 @@
    ui-web base.css subtracts interactive elements and portalled overlays. A
    panel-wide no-drag would trade that drag affordance away. */
 
+/* DSHD: --dsw-alias-bg-base carries alpha on our transparent-window product —
+   the window frame paints it once as the shared ground under every column.
+   A docked host that paints it again stacks a second layer, and every panel
+   root that repeats it adds a third — the right bar read flat and detached
+   instead of sharing the app's backdrop. Re-declare the token transparent
+   inside docked hosts so the pane body and every occupant root (files, diff,
+   agents, preview, …) resolve to the frame's single ground. Floats are
+   excluded: a floating panel still needs its own opaque ground. */
+.panel :global([data-dockkit-host='dock']),
+.panel :global([data-dockkit-empty]) {
+  --dsw-alias-bg-base: transparent;
+}
+
 /* Windows keeps caption controls above fullscreen file and terminal panels. */
 :global([data-windows-titlebar]) .panel[data-sidebar-right-panel='fullscreen'] {
   max-width: calc(100vw - var(--dsh-windows-sidebar-width));

@@ -1,8 +1,4 @@
-/**
- * Registers the bottom-drawer Terminal shell. The right-panel Terminal is a
- * tab type owned by `ui-sidebar-terminal`, so this plugin no longer occupies
- * `surfaces.terminal`.
- */
+/** Registers the bottom-drawer and right-panel Terminal shells on separate stores. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -20,13 +16,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 
 export type { TerminalDrawerProps } from './TerminalDrawer.tsx'
+export type { TerminalSurfaceProps } from './TerminalSurface.tsx'
 export type { TerminalKey } from './locales.ts'
 export type { TerminalShellInjected } from './shell.ts'
 export { createTerminalSessionStore, MAX_TERMINALS_PER_GROUP } from './stores.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** User-terminal drawer copy. */
+    /** User-terminal drawer and surface copy. */
     terminal: TerminalKey
   }
 }
@@ -35,25 +32,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const inject = ['slots', 'layout', 'locale']
 const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
+const PENDING_PREVIEW_SESSION_KEY = 'dshd-pending-preview-session'
 
 interface WorkspacesFace {
   openPath?: (path: string, options?: { line?: number }) => Promise<void>
-}
-
-/** Right-Sidebar navigation face; provided only while that plugin is mounted. */
-interface SidebarRightFace {
-  /** @returns false when the Session has no adopted Sidebar store to accept the page. */
-  openTabIn: (sessionId: SessionId, kind: 'browser', options: { params: { url: string } }) => boolean
-}
-
-/** Composer notice channel, used to report a refused Browser open. */
-interface ConversationNoticeFace {
-  input: { for: (actx: unknown) => { notify: (level: 'info' | 'error', text: string) => void } }
-}
-
-/** Session list face used only to resolve the originating Session's scope. */
-interface SessionsScopeFace {
-  scope: (sessionId: string) => unknown
 }
 
 function layoutFace(ctx: Context): Pick<TerminalShellInjected, 'toggleTerminalDrawer' | 'setTerminalDrawer'> {
@@ -63,31 +45,9 @@ function layoutFace(ctx: Context): Pick<TerminalShellInjected, 'toggleTerminalDr
   }
 }
 
-/**
- * Report a refused Browser open on the originating Session's composer. With
- * no conversation or Session scope there is no surface to carry a notice, so
- * the refusal is only logged.
- * @param ctx - client root context.
- * @param sessionId - the Session that requested the open.
- * @param text - localized failure copy.
- */
-function noticeOpenLinkFailure(ctx: Context, sessionId: string, text: string): void {
-  const conversation = ctx.get('conversation') as ConversationNoticeFace | undefined
-  const scope = (ctx.get('sessions') as SessionsScopeFace | undefined)?.scope(sessionId)
-  if (conversation === undefined || scope === undefined) {
-    console.error(`ui-user-terminal: ${text} (${sessionId})`)
-    return
-  }
-  conversation.input.for(scope).notify('error', text)
-}
-
-function workflowFace(
-  ctx: Context,
-  t: (key: TerminalKey) => string,
-  sessionId: SessionId | undefined,
-): Pick<
+function workflowFace(ctx: Context): Pick<
   TerminalShellInjected,
-  'mentionTerminal' | 'writeClipboard' | 'openWorkspacePath' | 'openLocalUrl' | 'openExternal'
+  'mentionTerminal' | 'writeClipboard' | 'openWorkspacePath' | 'openExternal'
 > {
   return {
     mentionTerminal: (sessionId, text) => {
@@ -105,30 +65,6 @@ function workflowFace(
       if (options === undefined) void workspaces?.openPath?.(absolutePath)
       else void workspaces?.openPath?.(absolutePath, options)
     },
-    openLocalUrl: (url) => {
-      if (typeof (window as Window & { shell?: { listDir?: unknown } }).shell?.listDir === 'function') {
-        try { sessionStorage.setItem(PENDING_PREVIEW_URL_KEY, url) } catch { /* The event still reaches an open Browser. */ }
-        window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, { detail: { kind: 'preview', url, sessionId } }))
-        ctx.layout.openSurfaces()
-        return
-      }
-      // The Session showing when the link was activated owns the tab; never
-      // fall back to whichever Session the main view happens to be on.
-      if (sessionId === undefined) return
-      const sidebarRight = ctx.get('sidebarRight') as SidebarRightFace | undefined
-      if (sidebarRight === undefined) {
-        noticeOpenLinkFailure(ctx, sessionId, t('error.openLink'))
-        return
-      }
-      let opened = false
-      try {
-        opened = sidebarRight.openTabIn(sessionId, 'browser', { params: { url } })
-      } catch (error) {
-        // An unregistered `browser` kind is a wiring gap, not a crash.
-        console.error('ui-user-terminal: Browser tab open failed', error)
-      }
-      if (!opened) noticeOpenLinkFailure(ctx, sessionId, t('error.openLink'))
-    },
     openExternal: (url) => {
       const shell = (window as Window & { shell?: { openExternal?: (next: string) => Promise<unknown> } }).shell
       void shell?.openExternal?.(url)
@@ -144,7 +80,6 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-user-terminal: dictionaries')
   const drawerStore = createTerminalSessionStore()
   const surfaceStore = createTerminalSessionStore()
-  const t = ctx.locale.bind(NS)
   ctx.effect(
     () => bindPtyListeners([drawerStore, surfaceStore], readPtyShell()),
     'ui-user-terminal: pty bridge',
@@ -152,7 +87,29 @@ export function apply(ctx: Context): void {
   const injected = (sessionId: SessionId | undefined): TerminalShellInjected => ({
     ...readPtyShell(),
     ...layoutFace(ctx),
-    ...workflowFace(ctx, t, sessionId),
+    ...workflowFace(ctx),
+    // Loopback links open the surfaces Browser occupant of the Session that
+    // raised them: the pending key launches the URL when the panel mounts,
+    // the event reaches a live one, and the surfaces column opens.
+    openLocalUrl: (url) => {
+      try {
+        sessionStorage.setItem(PENDING_PREVIEW_URL_KEY, url)
+        sessionStorage.removeItem('dshd-pending-preview-presentation')
+        if (sessionId === undefined) sessionStorage.removeItem(PENDING_PREVIEW_SESSION_KEY)
+        else sessionStorage.setItem(PENDING_PREVIEW_SESSION_KEY, sessionId)
+      } catch {
+        // Quota / SecurityError: Preview still listens for the event when mounted.
+      }
+      window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, { detail: { kind: 'preview', url, sessionId } }))
+      // Raising the column only makes sense when the delivery lands in the
+      // visible seat; a foreign-session event queues into that seat's bucket.
+      const sessions = ctx.get('sessions') as {
+        list?: { getSnapshot(): { byId: Record<string, { id: string; retainedBy: { mainView?: number } }> } }
+      } | undefined
+      const mainView = sessions?.list === undefined ? sessionId : Object.values(sessions.list.getSnapshot().byId)
+        .find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
+      if (sessionId === undefined || sessionId === mainView) ctx.layout.openSurfaces()
+    },
   })
 
   ctx.slots.inject('shell.terminalDrawer', () => ctx.slots.register({

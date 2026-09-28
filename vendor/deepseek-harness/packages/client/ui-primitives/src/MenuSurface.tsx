@@ -1,5 +1,8 @@
 /** Shared menu material and the macOS backing that lets Chromium blur transparent windows. */
-import { forwardRef, useId, useLayoutEffect, useRef, type ComponentPropsWithoutRef, type CSSProperties } from 'react'
+import {
+  forwardRef, useId, useLayoutEffect, useRef,
+  type ComponentPropsWithoutRef, type CSSProperties,
+} from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import css from './MenuSurface.module.css'
@@ -22,6 +25,10 @@ export const MenuSurface = forwardRef<HTMLDivElement, MenuSurfaceProps>(function
 }, ref) {
   const id = useId()
   const backingRef = useRef<HTMLDivElement>(null)
+  // The surface's logical motion state arrives as a plain attribute, so read it
+  // here as well: the macOS backing paints an opaque rectangle that must follow
+  // the same exit recipe instead of outliving the visible menu.
+  const motionState = (props as { 'data-state'?: 'open' | 'closed' })['data-state']
   useLayoutEffect(() => {
     // Nested React portals can insert the backing before its anchor. CSS anchor
     // positioning requires the anchor to precede the positioned element.
@@ -39,6 +46,7 @@ export const MenuSurface = forwardRef<HTMLDivElement, MenuSurfaceProps>(function
     </div>
     {createPortal(
       <div ref={backingRef} aria-hidden="true" data-menu-backing="" className={clsx(css.backing, compact && css.compact)}
+        {...(motionState === undefined ? {} : { 'data-menu-state': motionState })}
         style={{ ...anchorStyle, visibility: style?.visibility }} />,
       document.body,
     )}

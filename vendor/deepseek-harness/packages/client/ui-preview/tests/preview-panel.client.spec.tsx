@@ -510,6 +510,20 @@ describe('PreviewPanel', () => {
     })
   })
 
+  it('hides the guest when a collapsed right panel closes the float', async () => {
+    const b = mount()
+    await openGuest(b)
+    act(() => { openMiniPlayer('pv-1') })
+    // The surfaces column is closed: the panel host has no box to present.
+    stubHostRect({ x: 0, y: 0, width: 0, height: 0 })
+    const hides = b.previewHide.mock.calls.length
+    act(() => { closeMiniPlayer() })
+    await waitFor(() => {
+      expect(b.previewHide.mock.calls.length).toBeGreaterThan(hides)
+      expect(b.previewHide).toHaveBeenLastCalledWith('pv-1')
+    })
+  })
+
   it('pushes a new origin through previewResize when the window resizes', async () => {
     const b = mount()
     await openGuest(b)
@@ -539,6 +553,46 @@ describe('PreviewPanel', () => {
     await waitFor(() => {
       expect(b.previewNavigate).toHaveBeenCalledWith('pv-1', 'http://127.0.0.1:3000/')
     })
+  })
+
+  it('ignores a dshd-open-surface event tagged for another session', async () => {
+    const b = mount()
+    window.dispatchEvent(new CustomEvent('dshd-open-surface', {
+      detail: { url: 'http://127.0.0.1:4000', sessionId: BACKGROUND_SID },
+    }))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(b.previewOpen).not.toHaveBeenCalled()
+    window.dispatchEvent(new CustomEvent('dshd-open-surface', {
+      detail: { url: 'http://127.0.0.1:4000', sessionId: SID },
+    }))
+    await waitFor(() => {
+      expect(b.previewOpen).toHaveBeenCalledWith(expect.objectContaining({
+        url: 'http://127.0.0.1:4000/',
+      }))
+    })
+  })
+
+  it('leaves a pending URL tagged for another session for that seat', async () => {
+    sessionStorage.setItem('dshd-pending-preview-url', 'http://127.0.0.1:4173')
+    sessionStorage.setItem('dshd-pending-preview-session', BACKGROUND_SID)
+    const b = mount()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(b.previewOpen).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('dshd-pending-preview-url')).toBe('http://127.0.0.1:4173')
+    expect(sessionStorage.getItem('dshd-pending-preview-session')).toBe(BACKGROUND_SID)
+  })
+
+  it('opens a pending URL tagged for this session and clears the session tag', async () => {
+    sessionStorage.setItem('dshd-pending-preview-url', 'http://127.0.0.1:4173')
+    sessionStorage.setItem('dshd-pending-preview-session', SID)
+    const b = mount()
+    stubHostRect({ x: 800, y: 40, width: 400, height: 600 })
+    await waitFor(() => {
+      expect(b.previewOpen).toHaveBeenCalledWith(expect.objectContaining({
+        url: 'http://127.0.0.1:4173/',
+      }))
+    })
+    expect(sessionStorage.getItem('dshd-pending-preview-session')).toBeNull()
   })
 
   it('opens a pending delivered document in the mini player before opening the right panel', async () => {

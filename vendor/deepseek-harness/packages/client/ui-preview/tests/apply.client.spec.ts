@@ -52,7 +52,9 @@ afterEach(() => {
 
 describe('ui-preview apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale'])
+    // DSHD: sidebarRightTabs is declared (not ctx.get at apply time) so the
+    // Browser type registration resolves the registry regardless of apply order.
+    expect(inject).toEqual(['slots', 'locale', 'sidebarRightTabs'])
   })
 
   it('registers nothing without the desktop preload capability', async () => {

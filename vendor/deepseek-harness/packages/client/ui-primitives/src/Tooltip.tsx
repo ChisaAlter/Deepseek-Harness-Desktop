@@ -1,6 +1,6 @@
 /** Anchor-preserving tooltips; an optional body portal escapes clipping containers and stacking contexts that cap the bubble's z-index. */
 
-import { cloneElement, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { cloneElement, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FocusEventHandler, MouseEventHandler, MutableRefObject, ReactElement, Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { ShortcutKeys } from './ShortcutKeys.tsx'
@@ -8,9 +8,20 @@ import css from './Tooltip.module.css'
 // Tooltips take the wide answer — any key returns to the keyboard. Focus rings read the
 // narrower `data-input-modality` attribute the same module publishes.
 import { pointerModality } from './input-modality.ts'
+import { usePresence } from './usePresence.ts'
 
 /** Bubble placement relative to the anchor. */
 export type TooltipSide = 'right' | 'left' | 'bottom' | 'top'
+
+/** Last-open content and geometry retained while the fade recipe withdraws a bubble. */
+interface TooltipSnapshot {
+  label: string
+  shortcutKeys: readonly string[] | undefined
+  side: TooltipSide
+  align: 'center' | 'end'
+  gap: number
+  maxWidth: number | undefined
+}
 
 /**
  * Suppression channel for enclosing tooltip and hover-card anchors: a visible
@@ -66,15 +77,37 @@ export function Tooltip({ label, shortcutKeys, side = 'right', align = 'center',
   // The anchor's edges rather than final coordinates: a vertical flip has to
   // re-derive the bubble's own top from the opposite edge.
   const [pos, setPos] = useState<{ x: number; top: number; bottom: number } | null>(null)
+  const [requestedVisible, setRequestedVisible] = useState(false)
+  const { mounted, state } = usePresence(requestedVisible && !disabled)
   const bubble = useRef<HTMLSpanElement | null>(null)
-  const resolvedLabel = pos === null
-    ? null
-    : typeof label === 'function' ? label() : label
+  const lastShown = useRef<TooltipSnapshot | null>(null)
+  const visible = requestedVisible && pos !== null && !disabled
+  const rendered = useMemo<TooltipSnapshot | null>(() => {
+    if (!visible) return null
+    return {
+      label: typeof label === 'function' ? label() : label,
+      shortcutKeys: shortcutKeys === undefined ? undefined : [...shortcutKeys],
+      side,
+      align,
+      gap,
+      maxWidth,
+    }
+  }, [align, gap, label, maxWidth, shortcutKeys, side, visible])
+  useLayoutEffect(() => {
+    if (rendered !== null) lastShown.current = rendered
+  }, [rendered])
+  const resolved = rendered ?? lastShown.current
+  const resolvedLabel = resolved?.label ?? null
+  const resolvedShortcutKeys = resolved?.shortcutKeys
+  const resolvedSide = resolved?.side ?? side
+  const resolvedAlign = resolved?.align ?? align
+  const resolvedGap = resolved?.gap ?? gap
+  const resolvedMaxWidth = resolved?.maxWidth
   const y = pos === null
     ? 0
-    : side === 'right' || side === 'left'
+    : resolvedSide === 'right' || resolvedSide === 'left'
       ? pos.top + (pos.bottom - pos.top) / 2
-      : side === 'top' ? pos.top - gap : pos.bottom + gap
+      : resolvedSide === 'top' ? pos.top - resolvedGap : pos.bottom + resolvedGap
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Hover and focus are independent triggers: the bubble hides only after
   // BOTH clear (hovering away from a focused anchor must not drop it).
@@ -88,7 +121,6 @@ export function Tooltip({ label, shortcutKeys, side = 'right', align = 'center',
   const suppressAncestors = useContext(TooltipSuppression)
   const [suppressed, setSuppressed] = useState(false)
   const announce = useCallback((active: boolean) => { suppressAncestors?.(active) }, [suppressAncestors])
-  const visible = pos !== null && !disabled
   // ResizeObserver supplies the laid-out border box; fitting never reads
   // geometry after a position write or needs a React commit to flip sides.
   useEffect(() => {
@@ -123,11 +155,18 @@ export function Tooltip({ label, shortcutKeys, side = 'right', align = 'center',
       observer.disconnect()
       window.removeEventListener('resize', fit)
     }
-  }, [align, gap, pos, side, suppressed, visible])
+  }, [align, gap, pos, resolvedAlign, resolvedGap, resolvedSide, suppressed, visible])
   useEffect(() => {
     announce(visible)
     return () => { announce(false) }
   }, [announce, visible])
+  useLayoutEffect(() => {
+    const el = bubble.current
+    if (el !== null) el.inert = !visible || suppressed
+  }, [suppressed, visible])
+  useEffect(() => {
+    if (!mounted) setPos(null)
+  }, [mounted])
 
   // Disabling mid-hover (e.g. clicking a rail control expands the sidebar)
   // must drop an already-visible bubble: no mouseleave fires.
@@ -140,6 +179,7 @@ export function Tooltip({ label, shortcutKeys, side = 'right', align = 'center',
     if (disabled) {
       cancelShow()
       triggers.current = { hover: false, focus: false }
+      setRequestedVisible(false)
       setPos(null)
     }
     return cancelShow
@@ -157,6 +197,7 @@ export function Tooltip({ label, shortcutKeys, side = 'right', align = 'center',
       bottom: r.bottom,
     })
     announce(true)
+    setRequestedVisible(true)
   }
   const showAfterHoverDelay = () => {
     cancelShow()
@@ -170,7 +211,7 @@ export function Tooltip({ label, shortcutKeys, side = 'right', align = 'center',
     }, delayMs)
   }
   const withdraw = () => {
-    setPos(null)
+    setRequestedVisible(false)
     announce(false)
   }
   const hide = () => {
@@ -178,20 +219,23 @@ export function Tooltip({ label, shortcutKeys, side = 'right', align = 'center',
     if (!triggers.current.hover && !triggers.current.focus) withdraw()
   }
 
-  const content = visible && !suppressed && (
+  const content = mounted && pos !== null && !suppressed && !disabled && (
     <span
       ref={bubble}
       className={css.bubble}
-      data-side={side}
+      data-dsh-motion="fade"
+      data-state={state}
+      data-side={resolvedSide}
       data-portal={portal || undefined}
-      data-align={align}
-      data-has-shortcut={shortcutKeys?.length ? true : undefined}
-      style={{ left: pos.x, top: y, visibility: 'hidden', ...maxWidth === undefined ? {} : { maxWidth } }}
+      data-align={resolvedAlign}
+      data-has-shortcut={resolvedShortcutKeys?.length ? true : undefined}
+      style={{ left: pos.x, top: y, visibility: 'hidden', ...resolvedMaxWidth === undefined ? {} : { maxWidth: resolvedMaxWidth } }}
       role="tooltip"
-      aria-label={shortcutKeys?.length ? [resolvedLabel, shortcutKeys.join(' ')].filter(Boolean).join(' ') : undefined}
+      aria-hidden={visible ? undefined : true}
+      aria-label={resolvedShortcutKeys?.length ? [resolvedLabel, resolvedShortcutKeys.join(' ')].filter(Boolean).join(' ') : undefined}
     >
       {resolvedLabel && <span className={css.label}>{resolvedLabel}</span>}
-      {shortcutKeys !== undefined && shortcutKeys.length > 0 && <ShortcutKeys keys={shortcutKeys} variant="tooltip" />}
+      {resolvedShortcutKeys !== undefined && resolvedShortcutKeys.length > 0 && <ShortcutKeys keys={resolvedShortcutKeys} variant="tooltip" />}
     </span>
   )
 

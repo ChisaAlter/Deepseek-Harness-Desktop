@@ -15,7 +15,9 @@
 import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import clsx from 'clsx'
-import { IconChevronRightOutlineRegular, ReferenceIconRegular, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconChevronRightOutlineRegular, ReferenceIconRegular, useAnchoredMaxHeight, usePresence,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './MenuView.module.css'
 import type { MenuViewInjected } from './slots.ts'
@@ -40,6 +42,17 @@ function optionId(source: string, index: number): string {
 }
 
 /**
+ * `inert` fully deactivates a retained exit frame: it leaves the a11y tree and
+ * blocks focus and keyboard activation on every descendant. Gate it on the
+ * LOGICAL open flag, never `data-state` — the enter recipe's first frame is
+ * already `closed`. React 18's DOM typings predate the attribute, so it rides
+ * an attribute spread.
+ */
+function inertWhen(inactive: boolean): Record<string, string> {
+  return inactive ? { inert: '' } : {}
+}
+
+/**
  * Render the candidate menu overlay entry.
  * @param props - injected face (the menu store and the pick route); `t` rides the standard locale seat.
  * @returns the dropdown while open; null while closed.
@@ -53,13 +66,26 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
     fn => headers.subscribe(fn),
     () => headers.getSnapshot(),
   )
+  // Presence keeps the list mounted through its exit recipe; the store drops
+  // the groups AND the controller clears the headers on close, so the exit
+  // frame must keep both halves of the last open snapshot together — reading
+  // live crumbs there would drop a drilled menu's breadcrumb mid-exit.
+  const lastOpen = useRef(state)
+  const lastOpenCrumbs = useRef(crumbs)
+  if (state.open) {
+    lastOpen.current = state
+    lastOpenCrumbs.current = crumbs
+  }
+  const view = state.open ? state : lastOpen.current
+  const viewCrumbs = state.open ? crumbs : lastOpenCrumbs.current
   const listRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [hasOverflowBelow, setHasOverflowBelow] = useState(false)
   // The list is bottom-anchored above the composer; clamp the design cap to
   // the space above it, re-measured on every store update (the anchor moves
   // when the composer grows).
-  const maxHeight = useAnchoredMaxHeight(listRef, MAX_HEIGHT, state, TOP_MARGIN)
+  const { mounted, state: motionState } = usePresence(state.open)
+  const maxHeight = useAnchoredMaxHeight(listRef, MAX_HEIGHT, mounted ? state : null, TOP_MARGIN)
   const updateOverflowHint = useCallback(() => {
     const viewport = viewportRef.current
     setHasOverflowBelow(viewport !== null
@@ -90,7 +116,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => { document.removeEventListener('pointerdown', onPointerDown, true) }
   }, [state.open, onDismiss])
-  if (!state.open) return null
+  if (!mounted) return null
   return (
     // The listbox role sits on the scrolling viewport, not this shell: a
     // breadcrumb header is not an option, and a listbox may not carry one.
@@ -100,9 +126,13 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
       style={{ maxHeight }}
       data-trigger-menu=""
       data-overflow-below={hasOverflowBelow || undefined}
+      data-dsh-motion="popover"
+      data-state={motionState}
+      aria-hidden={state.open ? undefined : true}
+      {...inertWhen(!state.open)}
     >
-      {state.groups.map((group) => {
-        const trail = crumbs.get(group.source)
+      {view.groups.map((group) => {
+        const trail = viewCrumbs.get(group.source)
         return trail === undefined ? null : (
           <nav key={group.source} className={css.crumbs} aria-label={t('crumbs.aria')}>
             {trail.map((crumb, index) => (
@@ -114,7 +144,9 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                   aria-current={crumb.current === true ? 'location' : undefined}
                   disabled={crumb.current === true}
                   // mousedown, not click: the composer keeps focus, same as a row.
-                  onMouseDown={(ev) => {
+                  // The exit frame is retained for its transition; dropping the
+                  // handler on the logical close keeps a retired crumb inert.
+                  onMouseDown={!state.open ? undefined : (ev) => {
                     ev.preventDefault()
                     onCrumb(group.source, index)
                   }}
@@ -134,7 +166,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
         aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
         onScroll={updateOverflowHint}
       >
-        {state.groups.map(group => (group.status === 'ready' && group.items.length === 0)
+        {view.groups.map(group => (group.status === 'ready' && group.items.length === 0)
           ? null
           : (
             <Fragment key={group.source}>
@@ -167,14 +199,14 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                         // mousedown, not click: the textarea keeps focus (combobox
                         // pattern) — preventing default stops the focus steal, and the
                         // pick runs before any blur-driven teardown.
-                        onMouseDown={(ev) => {
+                        onMouseDown={!state.open ? undefined : (ev) => {
                           ev.preventDefault()
                           onPick(group.source, index)
                         }}
                         // mousemove, not mouseenter: real pointer motion moves the
                         // shared highlight; keyboard scrolling rows under a resting
                         // pointer must not steal it back.
-                        onMouseMove={active ? undefined : () => { onHover(group.source, index) }}
+                        onMouseMove={!state.open || active ? undefined : () => { onHover(group.source, index) }}
                       >
                         {item.icon !== undefined && (
                           <span className={css.itemIcon} aria-hidden>
@@ -200,7 +232,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
                               className={css.drill}
                               // mousedown so the composer keeps focus, same as the row;
                               // stopPropagation keeps the row's settling pick out of it.
-                              onMouseDown={(ev) => {
+                              onMouseDown={!state.open ? undefined : (ev) => {
                                 ev.preventDefault()
                                 ev.stopPropagation()
                                 onPick(group.source, index, 'drill')

@@ -36,6 +36,7 @@ const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 /** Must match ui-user-terminal; client packages cannot share a value export. */
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
 const PENDING_PREVIEW_PRESENTATION_KEY = 'dshd-pending-preview-presentation'
+const PENDING_PREVIEW_SESSION_KEY = 'dshd-pending-preview-session'
 const DISCOVER_INTERVAL_MS = 3_000
 
 export type PreviewPanelProps =
@@ -43,6 +44,8 @@ export type PreviewPanelProps =
     active: boolean
     occluded?: boolean
     useSessions: UseSessions
+    /** Seat session id injected by the slot runtime (session-maybe scopes). */
+    sessionId?: string | undefined
   }
   & PropsLocale<typeof NS>
   & InjectFace<PreviewShellInjected>
@@ -195,12 +198,16 @@ export function PreviewPanel({
   previewShow,
   previewClose,
   useSessions,
+  sessionId: seatSessionId,
   t,
 }: PreviewPanelProps): ReactNode {
   const hostRef = useRef<HTMLDivElement>(null)
   const cwd = currentCwd(useSessions)
-  const sessionId = useSessions(s => Object.values(s.byId)
+  const mainViewSessionId = useSessions(s => Object.values(s.byId)
     .find(row => (row.retainedBy.mainView ?? 0) > 0)?.id)
+  // The seat's own session owns this panel's events; a detached (non-seat)
+  // mount falls back to the main view it visually belongs to.
+  const sessionId = seatSessionId ?? mainViewSessionId
   const [url, setUrl] = useState('')
   const [draft, setDraft] = useState('')
   const [previewId, setPreviewId] = useState<string | null>(null)
@@ -222,6 +229,13 @@ export function PreviewPanel({
   const [presetMenuOpen, setPresetMenuOpen] = useState(false)
   const miniPlayer = useMiniPlayer()
   const overlayOpen = moreOpen || presetMenuOpen
+  /**
+   * Whether the chat float owned the native guest. Dropping the float's React
+   * node does not unpaint the `BrowserView`, so when the float closes and this
+   * panel has no usable host (collapsed column) the guest must be hidden
+   * explicitly or it stays painted over the chat at the float's bounds.
+   */
+  const floatOwnedGuestRef = useRef(false)
   const focusedRef = useRef(false)
   const deviceToolbarRef = useRef(deviceToolbar)
   deviceToolbarRef.current = deviceToolbar
@@ -261,17 +275,29 @@ export function PreviewPanel({
 
   useEffect(() => {
     if (previewId === null) return
-    if (miniPlayer.open) return
+    if (miniPlayer.open) {
+      // The float paints this guest at its own bounds. Remember it so the next
+      // run — the float closing — can reclaim or release the same view.
+      if (miniPlayer.previewId === previewId) floatOwnedGuestRef.current = true
+      return
+    }
     if (!active || occluded || overlayOpen || pipOpen) {
+      floatOwnedGuestRef.current = false
       void previewHide(previewId).catch(ignoreOverlayIpcFailure)
       return
     }
+    // A float that just closed leaves the native view painted at its last
+    // bounds; this panel is now its only owner. Claim it once so the sync
+    // below either re-shows it here or hides it when no host can present it.
     let visible = false
+    let reclaimFloatGuest = floatOwnedGuestRef.current
+    floatOwnedGuestRef.current = false
     const sync = (): void => {
       const occupant = visibleBounds(readBounds(hostRef.current))
       if (occupant === undefined) {
-        if (visible) {
+        if (visible || reclaimFloatGuest) {
           visible = false
+          reclaimFloatGuest = false
           void previewHide(previewId).catch(ignoreOverlayIpcFailure)
         }
         return
@@ -282,8 +308,9 @@ export function PreviewPanel({
         deviceToolbarRef.current ? viewportSettingRef.current : { _tag: 'fill' },
         zoomFactorRef.current,
       )
-      if (!visible) {
+      if (!visible || reclaimFloatGuest) {
         visible = true
+        reclaimFloatGuest = false
         void previewShow(previewId, bounds).catch(ignoreOverlayIpcFailure)
         return
       }
@@ -303,6 +330,7 @@ export function PreviewPanel({
       window.removeEventListener('resize', sync)
       const current = readMiniPlayer()
       if (!current.open || current.previewId !== previewId) {
+        floatOwnedGuestRef.current = false
         void previewHide(previewId).catch(ignoreOverlayIpcFailure)
       }
     }
@@ -414,23 +442,31 @@ export function PreviewPanel({
 
   useEffect(() => {
     try {
-      const pending = sessionStorage.getItem(PENDING_PREVIEW_URL_KEY)
+      const pendingSession = sessionStorage.getItem(PENDING_PREVIEW_SESSION_KEY)
+      // A pending preview tagged for another session belongs to that seat.
+      const pending = pendingSession !== null && pendingSession !== sessionId
+        ? null
+        : sessionStorage.getItem(PENDING_PREVIEW_URL_KEY)
       if (pending !== null && pending.length > 0) {
         const presentation = sessionStorage.getItem(PENDING_PREVIEW_PRESENTATION_KEY) === 'mini' ? 'mini' : undefined
         sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
         sessionStorage.removeItem(PENDING_PREVIEW_PRESENTATION_KEY)
+        sessionStorage.removeItem(PENDING_PREVIEW_SESSION_KEY)
         launch(pending, presentation)
       }
     } catch {
       // sessionStorage can throw in a locked browser profile.
     }
     const onOpen = (event: Event): void => {
-      const detail = (event as CustomEvent<{ url?: string; presentation?: 'mini' } | undefined>).detail
+      const detail = (event as CustomEvent<{ url?: string; presentation?: 'mini'; sessionId?: string } | undefined>).detail
+      // A preview tagged for another session is for that seat's surfaces.
+      if (detail?.sessionId !== undefined && detail.sessionId !== sessionId) return
       const next = detail?.url
       if (typeof next !== 'string' || next.length === 0) return
       try {
         sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
         sessionStorage.removeItem(PENDING_PREVIEW_PRESENTATION_KEY)
+        sessionStorage.removeItem(PENDING_PREVIEW_SESSION_KEY)
       } catch {
         // sessionStorage can throw in a locked browser profile.
       }
@@ -438,7 +474,7 @@ export function PreviewPanel({
     }
     window.addEventListener(OPEN_SURFACE_EVENT, onOpen)
     return () => { window.removeEventListener(OPEN_SURFACE_EVENT, onOpen) }
-  }, [previewOpen, previewNavigate, cwd, t])
+  }, [previewOpen, previewNavigate, cwd, sessionId, t])
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()

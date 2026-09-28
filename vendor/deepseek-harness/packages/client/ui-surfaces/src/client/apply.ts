@@ -5,15 +5,17 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { en, NS, zh, type SurfacesKey } from './locales.ts'
-import { ensureBaseOpenPath, wrapOpenPath, type OpenPathService } from './openpath-intercept.ts'
+import { ensureBaseOpenPath, wrapOpenPath, type OpenPathOptions, type OpenPathService } from './openpath-intercept.ts'
 import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { relativeTo } from './paths.ts'
-import { createSurfacesStore } from './stores.ts'
+import { createSurfacesStore, type OpenableKind } from './stores.ts'
 import type { SurfacesRootInjected } from './SurfacesRoot.tsx'
 import { SurfacesRoot } from './SurfacesRoot.tsx'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 
 export type { SurfacesRootInjected, SurfacesRootProps } from './SurfacesRoot.tsx'
@@ -90,6 +92,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
 const PENDING_PREVIEW_PRESENTATION_KEY = 'dshd-pending-preview-presentation'
+const PENDING_PREVIEW_SESSION_KEY = 'dshd-pending-preview-session'
 const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.pdf'])
 /** Office binaries the classic file editor cannot read; the native document
  * preview (Office→PDF, XLSX→Spreadsheet) renders them through the rightbar
@@ -108,8 +111,22 @@ interface DesktopShell {
 }
 
 interface SurfacesStoreActions {
-  open: (sessionId: string, kind: 'files') => void
+  open: (sessionId: string, kind: OpenableKind) => void
   openFile: (sessionId: string, relativePath: string, options?: { revealLine?: number }) => void
+}
+
+/**
+ * Store writers captured per seat binding. `entry.inject` runs once per
+ * binding object and never re-runs on revisit, so a single live slot would
+ * pin whichever seat injected last; the map keeps each seat's writer under
+ * its own session key. Entries outlive seat collapse — writes to a retained
+ * store are harmless, and a re-mounted seat overwrites its entry.
+ */
+interface LiveSurfaces {
+  /** Seat writers keyed by binding session id ('' for the sessionless seat). */
+  actionsBySeat: Map<string, SurfacesStoreActions>
+  /** Session retained by the main view — the mounted seat's binding key. */
+  currentSessionId: () => string | undefined
 }
 
 /**
@@ -133,12 +150,35 @@ function readDesktopShell(): Pick<SurfacesRootInjected, 'gitStatus' | 'previewAv
   }
 }
 
-/** Show the classic DSHD panel as the only visible right column. */
-function openClassicSurfaces(ctx: Context): void {
-  const native = ctx.get('sidebarRight')
-  if (native?.isExpanded()) native.toggleExpanded()
-  ctx.layout.closeRightbar()
-  ctx.layout.openSurfaces()
+/** Collapse the merged right column — an opening surfaces column wins the right side. */
+function collapseRightPanel(ctx: Context): void {
+  const sidebar = ctx.get('sidebarRight')
+  if (sidebar !== undefined && sidebar.isExpanded()) sidebar.toggleExpanded()
+}
+
+/**
+ * Mirror the native dock's guide into the empty-state grid: the entries are
+ * the `sidebarRightTabs` registry's own list, and the opener places the picked
+ * kind as a dock page in this seat's Session — the dock's expansion then
+ * collapses this column itself, so the two right tracks stay exclusive.
+ * @param ctx - client root context carrying the sidebar faces.
+ * @param sessionId - the binding's Session; the sessionless seat targets the mounted one.
+ * @returns the guide mirror, or undefined where the sidebar faces are absent.
+ */
+function sidebarGuide(ctx: Context, sessionId: SessionId | undefined): SurfacesRootInjected['guide'] {
+  const registry = ctx.get('sidebarRightTabs')
+  const sidebar = ctx.get('sidebarRight')
+  if (registry === undefined || sidebar === undefined) return undefined
+  return {
+    entries: {
+      subscribe: listener => registry.subscribe(listener),
+      getSnapshot: () => registry.guide(),
+    },
+    open: (kind) => {
+      const target = sessionId ?? sidebar.mounted.getSnapshot()
+      if (target !== undefined) sidebar.openTabIn(target, kind)
+    },
+  }
 }
 
 /**
@@ -157,7 +197,6 @@ function openOfficeDocument(ctx: Context, sessionId: SessionId, relative: string
   const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
   if (sidebar === undefined || typeof cwd !== 'string' || cwd === '') return false
   if (!sidebar.openResourceIn(sessionId, fileAddressFor(sessionId, cwd, relative))) return false
-  ctx.layout.closeSurfaces()
   return true
 }
 
@@ -174,14 +213,20 @@ function documentExtension(relative: string): string {
 }
 
 /**
- * Write the pending preview URL and open the Browser surface, matching terminal.
+ * Write the pending preview URL and fan the event out to any mounted Browser
+ * surface. The pending keys are read by the surface's mount effect; the
+ * event drives a live one.
  * @param url - loopback http(s) the guest should load.
+ * @param sessionId - originating Session, carried in the event detail.
+ * @param presentation - 'mini' marks the mini-player pending flag.
  */
 function openPreviewSurface(url: string, sessionId?: string, presentation?: 'mini'): void {
   try {
     sessionStorage.setItem(PENDING_PREVIEW_URL_KEY, url)
     if (presentation === 'mini') sessionStorage.setItem(PENDING_PREVIEW_PRESENTATION_KEY, 'mini')
     else sessionStorage.removeItem(PENDING_PREVIEW_PRESENTATION_KEY)
+    if (sessionId === undefined) sessionStorage.removeItem(PENDING_PREVIEW_SESSION_KEY)
+    else sessionStorage.setItem(PENDING_PREVIEW_SESSION_KEY, sessionId)
   } catch {
     // Quota / SecurityError: Preview still listens for the event when mounted.
   }
@@ -238,6 +283,80 @@ function subscribeOpenPreviewUrl(): () => void {
 }
 
 /**
+ * Route a desktop file open into the classic surfaces store: the workspace
+ * root opens the Files page, Office binaries go to the native document
+ * preview, mini-player browser documents open through the preview event,
+ * and everything else opens a file surface (html/htm/xhtml/pdf then also
+ * load into Browser). Writes for the main-view session expand the surfaces
+ * column and collapse the merged right sidebar dock; writes for another
+ * session queue the tab in that seat's bucket without raising the column.
+ * @param ctx - client root context carrying layout, sessions, and sidebar.
+ * @param live - per-seat store writers captured by the mounted surfaces host.
+ * @param path - absolute path the caller asked to open.
+ * @param sessionId - the Session whose workspace owns the path.
+ * @param options - optional jump-to-line and mini-player presentation.
+ * @returns false when the Session has no workspace cwd, the path sits
+ *   outside it, or the target seat was never mounted so the caller should
+ *   fall back to the previous openPath handler.
+ */
+async function openClassicSurfaces(
+  ctx: Context,
+  live: LiveSurfaces,
+  path: string,
+  sessionId: string,
+  options?: OpenPathOptions,
+): Promise<boolean> {
+  const summary = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]
+  const cwd = typeof summary?.cwd === 'string' && summary.cwd.length > 0 ? summary.cwd : undefined
+  if (cwd === undefined) return false
+  const relative = relativeTo(cwd, path)
+  if (relative === undefined) return false
+  // The mounted seat is the main-view session's binding. A request for that
+  // session writes and raises the column; a request for another session
+  // writes through that seat's own writer — the tab lands in its own bucket
+  // without raising the column — or declines when that seat was never
+  // mounted so the caller falls back to the previous openPath handler.
+  const own = () => live.currentSessionId() === sessionId
+  if (relative === '') {
+    const write = live.actionsBySeat.get(sessionId)?.open
+    if (write === undefined) {
+      if (own()) throw new Error('surfaces: Files page is unavailable')
+      return false
+    }
+    write(sessionId, 'files')
+    if (own()) {
+      collapseRightPanel(ctx)
+      ctx.layout.openSurfaces()
+    }
+    return true
+  }
+  if (openOfficeDocument(ctx, sessionId as SessionId, relative)) return true
+  if (own() && options?.presentation === 'mini' && BROWSER_DOCUMENTS.has(documentExtension(relative))) {
+    const url = await browserDocumentUrl(cwd, relative)
+    if (url !== undefined) {
+      openPreviewSurface(url, sessionId, 'mini')
+      return true
+    }
+  }
+  const write = live.actionsBySeat.get(sessionId)?.openFile
+  if (write === undefined) {
+    if (own()) throw new Error('surfaces: file preview is unavailable')
+    return false
+  }
+  write(
+    sessionId,
+    relative,
+    options?.line !== undefined ? { revealLine: options.line } : undefined,
+  )
+  if (own()) {
+    collapseRightPanel(ctx)
+    ctx.layout.openSurfaces()
+    await previewBrowserDocument(cwd, relative, sessionId)
+  }
+  return true
+}
+
+/**
  * True only in the desktop renderer where workspace listing IPC exists.
  * The web e2e lane must fall through to OS `openPath`.
  * @returns whether `window.shell.listDir` is a function.
@@ -252,34 +371,22 @@ export const inject = [
 ]
 
 /**
- * Register dictionaries, occupy the layout `surfaces` column, and intercept
- * `workspaces.openPath` into Files (and Browser for html/htm/xhtml/pdf)
- * on desktop.
+ * Register dictionaries, occupy the layout `surfaces` column with the
+ * classic surfaces host, and intercept `workspaces.openPath` into Files
+ * (and Browser for html/htm/xhtml/pdf) on desktop. Opening surfaces
+ * collapses the merged right sidebar dock so the two right columns stay
+ * mutually exclusive.
  * @param ctx - Client root context.
  */
 export function apply(ctx: Context): void {
-  ctx.layout.closeRightbar()
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-surfaces: dictionaries')
   ctx.effect(() => subscribeOpenPreviewUrl(), 'ui-surfaces: open-preview-url')
-  ctx.effect(() => {
-    if (desktopListingAvailable()) {
-      const key = 'dshd-classic-right-panel-v1'
-      try {
-        if (localStorage.getItem(key) === null) {
-          openClassicSurfaces(ctx)
-          localStorage.setItem(key, 'restored')
-        }
-      } catch {
-        // Storage denial still allows the user to open the classic panel manually.
-      }
-    }
-    return () => {}
-  }, 'ui-surfaces: restore desktop panel')
 
-  const live: {
-    open?: SurfacesStoreActions['open']
-    openFile?: SurfacesStoreActions['openFile']
-  } = {}
+  const live: LiveSurfaces = {
+    actionsBySeat: new Map(),
+    currentSessionId: () => Object.values(ctx.sessions.list.getSnapshot().byId)
+      .find(session => (session.retainedBy.mainView ?? 0) > 0)?.id,
+  }
 
   ctx.slots.inject('surfaces', () => ctx.slots.register({
     name: 'surfaces',
@@ -293,22 +400,43 @@ export function apply(ctx: Context): void {
       'surfaces.diff': { kind: 'single', scope: 'session-maybe' },
       'surfaces.agents': { kind: 'single', scope: 'session-maybe' },
     },
-    inject: (_sessionId, actions): SurfacesRootInjected => {
+    inject: (sessionId, actions): SurfacesRootInjected => {
       if (actions !== undefined) {
-        live.open = (sessionId, kind) => { actions.open(sessionId, kind) }
-        live.openFile = (sessionId, relativePath, options) => {
-          if (options === undefined) actions.openFile(sessionId, relativePath)
-          else actions.openFile(sessionId, relativePath, options)
-        }
+        live.actionsBySeat.set(sessionId === undefined ? '' : String(sessionId), {
+          open: (id, kind) => { actions.open(id, kind) },
+          openFile: (id, relativePath, options) => {
+            if (options === undefined) actions.openFile(id, relativePath)
+            else actions.openFile(id, relativePath, options)
+          },
+        })
       }
       return {
-        openSurfaces: () => { openClassicSurfaces(ctx) },
-        openOfficeDocument: (relativePath) =>
-          _sessionId === undefined ? false : openOfficeDocument(ctx, _sessionId, relativePath),
+        openSurfaces: () => { collapseRightPanel(ctx); ctx.layout.openSurfaces() },
+        openOfficeDocument: relativePath =>
+          sessionId === undefined ? false : openOfficeDocument(ctx, sessionId, relativePath),
+        guide: sidebarGuide(ctx, sessionId),
         ...readDesktopShell(),
       }
     },
   }, SurfacesRoot))
+
+  ctx.effect(() => {
+    const onOpen = (event: Event): void => {
+      const detail = (event as CustomEvent<{ kind?: string; sessionId?: string } | undefined>).detail
+      const sessionId = detail?.sessionId
+      // Every mounted seat ignores events naming another Session, so a
+      // foreign-tagged delivery would never queue a surface. Write the tab
+      // into the target seat's own bucket without raising the column — the
+      // same queue semantics as cross-session openPath.
+      if (sessionId === undefined || sessionId === live.currentSessionId()) return
+      const kind = detail?.kind
+      if (kind !== 'preview' && kind !== 'terminal' && kind !== 'files'
+        && kind !== 'diff' && kind !== 'agents') return
+      live.actionsBySeat.get(sessionId)?.open(sessionId, kind)
+    }
+    window.addEventListener(OPEN_SURFACE_EVENT, onOpen)
+    return () => { window.removeEventListener(OPEN_SURFACE_EVENT, onOpen) }
+  }, 'ui-surfaces: cross-session surface queue')
 
   ctx.effect(() => {
     const workspaces = ctx.workspaces as Partial<OpenPathService>
@@ -318,39 +446,9 @@ export function apply(ctx: Context): void {
     })
     const disposeIntercept = wrapOpenPath(workspaces, {
       takeoverEnabled: desktopListingAvailable,
-      currentSessionId: () => Object.values(ctx.sessions.list.getSnapshot().byId)
-        .find(session => (session.retainedBy.mainView ?? 0) > 0)?.id,
-      openInSurfaces: async (path, sessionId, options) => {
-        const summary = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]
-        const cwd = typeof summary?.cwd === 'string' && summary.cwd.length > 0 ? summary.cwd : undefined
-        if (cwd === undefined) return false
-        const relative = relativeTo(cwd, path)
-        if (relative === undefined) return false
-        if (relative === '') {
-          if (live.open === undefined) throw new Error('surfaces: Files page is unavailable')
-          live.open(sessionId, 'files')
-          openClassicSurfaces(ctx)
-          return true
-        }
-        if (openOfficeDocument(ctx, sessionId as SessionId, relative)) return true
-        if (options?.presentation === 'mini' && BROWSER_DOCUMENTS.has(documentExtension(relative))) {
-          const url = await browserDocumentUrl(cwd, relative)
-          if (url !== undefined) {
-            const native = ctx.get('sidebarRight')
-            if (native?.isExpanded()) native.toggleExpanded()
-            ctx.layout.closeRightbar()
-            ctx.layout.closeSurfaces()
-            openPreviewSurface(url, sessionId, 'mini')
-            return true
-          }
-        }
-        if (live.openFile === undefined) throw new Error('surfaces: file preview is unavailable')
-        if (options?.line !== undefined) live.openFile(sessionId, relative, { revealLine: options.line })
-        else live.openFile(sessionId, relative)
-        openClassicSurfaces(ctx)
-        await previewBrowserDocument(cwd, relative, sessionId)
-        return true
-      },
+      currentSessionId: live.currentSessionId,
+      openInSurfaces: (path, sessionId, options) =>
+        openClassicSurfaces(ctx, live, path, sessionId, options),
     })
     return () => {
       disposeIntercept()

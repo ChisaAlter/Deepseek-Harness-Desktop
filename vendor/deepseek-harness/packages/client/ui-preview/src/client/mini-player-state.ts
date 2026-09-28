@@ -59,6 +59,11 @@ export function setMiniPlayerLabel(previewId: string, label: string): void {
   publish({ ...snapshot, label })
 }
 
+/**
+ * Close the floating frame. The right panel becomes the presenter again; its
+ * own effect shows the guest at panel bounds or hides it when the panel has no
+ * usable host. Hiding here would race that handoff.
+ */
 export function closeMiniPlayer(): void {
   if (!snapshot.open) return
   publish({ ...snapshot, open: false })

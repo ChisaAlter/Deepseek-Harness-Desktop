@@ -47,4 +47,19 @@
   z-index: -1;
   background: var(--dsw-alias-bg-base);
   pointer-events: none;
+  /* The surface outlives logical closure for the exit recipe; this backing
+     must not keep covering the page after the menu has faded out. */
+  opacity: 1;
+  transition: opacity var(--ds-motion-duration-popover) var(--ds-ease-in-out);
+}
+
+:global(html[data-platform='darwin']) .backing[data-menu-state='closed'] {
+  opacity: 0;
+  transition-duration: var(--ds-motion-duration-overlay-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html[data-platform='darwin']) .backing {
+    transition: none;
+  }
 }

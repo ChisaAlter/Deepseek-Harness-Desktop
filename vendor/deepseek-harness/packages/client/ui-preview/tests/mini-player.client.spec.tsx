@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { DshdMiniPlayer } from '../src/client/DshdMiniPlayer.tsx'
 import { en } from '../src/client/locales.ts'
-import { clearMiniPlayer, openMiniPlayer, readMiniPlayer, setMiniPlayerRuntime } from '../src/client/mini-player-state.ts'
+import { clearMiniPlayer, closeMiniPlayer, openMiniPlayer, readMiniPlayer, setMiniPlayerRuntime } from '../src/client/mini-player-state.ts'
 
 const t = (key: keyof typeof en): string => en[key]
 
@@ -77,5 +77,18 @@ describe('dshd mini-player', () => {
         else Reflect.deleteProperty(HTMLElement.prototype, name)
       }
     }
+  })
+
+  it('closes the frame without hiding the guest so the panel can reclaim it', async () => {
+    const previewHide = vi.fn(async () => {})
+    setMiniPlayerRuntime('preview-1', {
+      previewShow: async () => {},
+      previewResize: async () => {},
+      previewHide,
+    })
+    openMiniPlayer('preview-1', 'pelican-bike.html')
+    closeMiniPlayer()
+    expect(readMiniPlayer().open).toBe(false)
+    expect(previewHide).not.toHaveBeenCalled()
   })
 })

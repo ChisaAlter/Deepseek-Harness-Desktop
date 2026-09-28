@@ -408,7 +408,10 @@ describe('sidebar keyboard commands', () => {
     const context = { target: null, region: 'editable' as const, modal: null }
     expect(registry.dispatch(gesture, context, consume).status).toBe('handled')
     expect(h.layout().expanded).toBe(false)
-    expect(registry.dispatch({ ...gesture, code: 'Backslash', alt: false }, context, consume).status).toBe('blocked')
+    // DSHD: pane split rides primary+shift+Backslash so plain primary+Backslash
+    // stays free for the surfaces toggle (ui-titlebar); a collapsed pane still
+    // blocks the shifted split, and the unshifted stroke now falls through.
+    expect(registry.dispatch({ ...gesture, code: 'Backslash', alt: false, shift: true }, context, consume).status).toBe('blocked')
     expect(registry.dispatch({ ...gesture, repeat: true }, context, consume).status).toBe('handled')
     expect(h.layout().expanded).toBe(false)
     registry.dispatch(gesture, context, consume)
@@ -483,8 +486,8 @@ describe('sidebar keyboard commands', () => {
   })
 
   it.each([
-    { platform: 'macos', keys: ['Shift+Meta+B', 'Meta+\\', 'Alt+Meta+Enter', 'Alt+Meta+W', undefined] },
-    { platform: 'windows', keys: ['Control+Shift+B', 'Control+\\', 'Control+Alt+Enter', 'Control+Alt+W', 'Control+Alt+R'] },
+    { platform: 'macos', keys: ['Shift+Meta+B', 'Shift+Meta+\\', 'Alt+Meta+Enter', 'Alt+Meta+W', undefined] },
+    { platform: 'windows', keys: ['Control+Shift+B', 'Control+Shift+\\', 'Control+Alt+Enter', 'Control+Alt+W', 'Control+Alt+R'] },
     { platform: 'linux', keys: [undefined, undefined, undefined, undefined, undefined] },
   ] as const)('publishes the Web defaults and unbound commands on $platform', ({ platform, keys }) => {
     const h = harness()

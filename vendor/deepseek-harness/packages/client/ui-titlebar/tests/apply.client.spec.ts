@@ -37,18 +37,20 @@ async function bench() {
   const declaration = declare(slots)
   const layout = { toggleTerminalDrawer: vi.fn(), toggleSurfaces: vi.fn() }
   const sidebarRight = { isExpanded: vi.fn(() => false), toggleExpanded: vi.fn() }
+  const shortcuts = { register: vi.fn(() => () => {}) }
   ctx.provide('layout', layout)
   ctx.provide('sidebarRight', sidebarRight as never)
+  ctx.provide('shortcuts', shortcuts as never)
   ctx.provide('locale', new LocaleRuntime(ctx))
   provideSettings(ctx)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber, layout, sidebarRight }
+  return { ctx, slots, declaration, fiber, layout, sidebarRight, shortcuts }
 }
 
 describe('ui-titlebar apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'layout', 'locale', 'connection', 'remote', 'configForms'])
+    expect(inject).toEqual(['slots', 'layout', 'locale', 'connection', 'remote', 'configForms', 'shortcuts'])
   })
 
   it('injects panel toggles into shell.titlebar.trailing at order 40', async () => {
@@ -58,7 +60,7 @@ describe('ui-titlebar apply', () => {
     expect(entry?.options).toMatchObject({ id: 'panel-toggles', order: 40 })
     const injected = (entry?.inject as unknown as () => PanelTogglesInjected)()
     injected.toggleTerminalDrawer()
-    injected.toggleRightPanel()
+    injected.toggleSurfaces()
     expect(b.layout.toggleTerminalDrawer).toHaveBeenCalledOnce()
     expect(b.layout.toggleSurfaces).toHaveBeenCalledOnce()
     expect(b.sidebarRight.toggleExpanded).not.toHaveBeenCalled()
@@ -78,14 +80,16 @@ describe('ui-titlebar apply', () => {
     expect(b.slots.entries('settings.interface.item')).toHaveLength(0)
   })
 
-  it('collapses an expanded native panel before toggling DSHD surfaces', async () => {
+  it('collapses an expanded right Sidebar dock before toggling surfaces', async () => {
     const b = await bench()
     b.sidebarRight.isExpanded.mockReturnValue(true)
     const entry = b.slots.entries('shell.titlebar.trailing')[0]
     const injected = (entry?.inject as unknown as () => PanelTogglesInjected)()
-    injected.toggleRightPanel()
+    injected.toggleSurfaces()
     expect(b.sidebarRight.toggleExpanded).toHaveBeenCalledOnce()
     expect(b.layout.toggleSurfaces).toHaveBeenCalledOnce()
+    expect(b.sidebarRight.toggleExpanded.mock.invocationCallOrder[0])
+      .toBeLessThan(b.layout.toggleSurfaces.mock.invocationCallOrder[0]!)
     await b.fiber.dispose()
   })
 

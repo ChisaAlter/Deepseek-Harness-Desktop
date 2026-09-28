@@ -227,6 +227,7 @@ export function apply(ctx: ClientContext): void {
     const disposeGuide = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
       name: 'sidebar.right.pane.tab',
       key: GUIDE_ID,
+      locale: NS,
       children: {
         'sidebar.right.tab.guide.entry': {
           kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: guideTabInfoFactory } },

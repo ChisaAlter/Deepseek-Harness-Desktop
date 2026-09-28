@@ -221,6 +221,36 @@ describe('Chat inject API', () => {
     await b.runtime.dispose()
   })
 
+  it('routes sidebar links through the surfaces preview event when the desktop shell exists', async () => {
+    const b = await bench()
+    const events: CustomEvent[] = []
+    const onOpen = (event: Event): void => { events.push(event as CustomEvent) }
+    Object.defineProperty(window, 'shell', {
+      configurable: true,
+      value: { previewOpen: vi.fn(async () => ({})) },
+    })
+    window.addEventListener('dshd-open-surface', onOpen)
+    try {
+      const { injected } = b.chatViewApi(b.rootReference)
+      injected.openExternalLink('http://127.0.0.1:3000/preview')
+      expect(sessionStorage.getItem('dshd-pending-preview-url')).toBe('http://127.0.0.1:3000/preview')
+      expect(sessionStorage.getItem('dshd-pending-preview-session')).toBe(ROOT)
+      expect(sessionStorage.getItem('dshd-pending-preview-presentation')).toBeNull()
+      expect(events).toHaveLength(1)
+      expect(events[0]?.detail).toMatchObject({
+        kind: 'preview', url: 'http://127.0.0.1:3000/preview', sessionId: ROOT,
+      })
+      // The surfaces listener owns the Browser occupant; no sidebar tab opens.
+      expect(b.sidebarRight.openTab).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('dshd-open-surface', onOpen)
+      sessionStorage.removeItem('dshd-pending-preview-url')
+      sessionStorage.removeItem('dshd-pending-preview-session')
+      Reflect.deleteProperty(window, 'shell')
+      await b.runtime.dispose()
+    }
+  })
+
   it('opens message HTTP(S) links in the system browser when no Sidebar Browser is registered', async () => {
     const b = await bench()
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)

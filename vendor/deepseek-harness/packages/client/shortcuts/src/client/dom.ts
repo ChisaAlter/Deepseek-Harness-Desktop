@@ -1,5 +1,5 @@
 /** Main-document keyboard adapter; local controls arbitrate before window bubbling. */
-import { modalSelector, observeComposition } from '@deepseek-ai/dsh-client-ui-primitives'
+import { foregroundModalSurfaces, modalSelector, observeComposition } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ShortcutContext, ShortcutFixedInput } from './types.ts'
 import type { ShortcutRegistry } from './registry.ts'
 import type { ShortcutPlatform, ShortcutRuntime } from '../protocol.ts'
@@ -39,18 +39,38 @@ export function installKeyboard(window: Window, shortcuts: Pick<ShortcutRegistry
   const blur = (): void => { deadKey = false; reset() }
   const containsModal = (node: Node): boolean => node instanceof Element
     && (node.matches(modalSelector) || node.querySelector(modalSelector) !== null)
+  /**
+   * Foreground ownership now also changes when a surface (or an ancestor that
+   * hides it) publishes an inactivity marker, with no node insertion or
+   * removal. Fixed sequences must reset on those transitions too, or a pending
+   * chord would be judged against an owner that is already retired.
+   */
+  const affectsForeground = (record: MutationRecord): boolean => {
+    const target = record.target
+    return target instanceof Element && containsModal(target)
+  }
   const changedModals = (records: MutationRecord[]): void => {
     if (records.some(record => record.type === 'attributes'
       ? record.oldValue === 'dialog' || record.oldValue === 'true' || containsModal(record.target)
       : [...record.addedNodes, ...record.removedNodes].some(containsModal))) reset()
   }
+  const changedForeground = (records: MutationRecord[]): void => {
+    if (records.some(affectsForeground)) reset()
+  }
   const observer = fixed === undefined ? undefined : new MutationObserver(changedModals)
   observer?.observe(document.documentElement, { childList: true, subtree: true,
     attributes: true, attributeFilter: ['role', 'aria-modal'], attributeOldValue: true })
+  const foregroundObserver = fixed === undefined ? undefined : new MutationObserver(changedForeground)
+  // Attributes only: node insertion/removal is already covered by the
+  // role/aria-modal observer above, and observing childList here would reset a
+  // second time for the same modal transition.
+  foregroundObserver?.observe(document.documentElement, { subtree: true,
+    attributes: true, attributeFilter: ['aria-hidden', 'inert'] })
   const capture = (): void => {
     if (pending) reset()
     window.clearTimeout(pendingTimer)
     if (observer !== undefined) changedModals(observer.takeRecords())
+    if (foregroundObserver !== undefined) changedForeground(foregroundObserver.takeRecords())
     pending = true
     // Native event listeners can yield a microtask checkpoint before bubbling.
     pendingTimer = window.setTimeout(() => {
@@ -67,8 +87,7 @@ export function installKeyboard(window: Window, shortcuts: Pick<ShortcutRegistry
     const element = target instanceof Element ? target : document.activeElement
     const region = element?.closest('.xterm') ? 'terminal'
       : element?.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]') ? 'editable' : 'page'
-    const dialogs = document.querySelectorAll<HTMLElement>(modalSelector)
-    const top = [...dialogs].at(-1)
+    const top = foregroundModalSurfaces(document).at(-1)
     const context: ShortcutContext = { region, modal: top === undefined ? null : top.dataset.shortcutModal ?? 'other', target: element }
     const guarded = composition.guards(event) || deadKey
       || event.getModifierState('AltGraph')
@@ -99,6 +118,7 @@ export function installKeyboard(window: Window, shortcuts: Pick<ShortcutRegistry
     pending = false
     window.clearTimeout(pendingTimer)
     observer?.disconnect()
+    foregroundObserver?.disconnect()
     composition.dispose()
     document.removeEventListener('compositionstart', reset, true)
     document.removeEventListener('compositionend', reset, true)

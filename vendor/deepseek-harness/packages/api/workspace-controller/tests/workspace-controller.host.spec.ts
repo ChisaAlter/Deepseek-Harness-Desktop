@@ -386,7 +386,12 @@ describe('WorkspaceController follow', () => {
     // created there are no-directory tasks, never Workspace members.
     await expect(nextFrame(iterator)).resolves.toEqual({
       type: 'baseline',
-      value: { items: [], archivedSessionIds: [], pinnedSessionIds: [] },
+      value: {
+        items: [],
+        archivedSessionIds: [],
+        pinnedSessionIds: [],
+        scratchCwd: join(root, 'dsh-home', 'no-workspace'),
+      },
     })
     expect(controller.scratchCwd).toBe(join(root, 'dsh-home', 'no-workspace'))
 

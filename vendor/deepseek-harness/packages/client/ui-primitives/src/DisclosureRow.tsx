@@ -1,8 +1,20 @@
-import { memo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { memo, useEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { IconChevronDownOutlineRegular, IconChevronUpOutlineRegular } from './icons/index.tsx'
 import { TextShimmer } from './TextShimmer.tsx'
+import { usePresence } from './usePresence.ts'
 import css from './DisclosureRow.module.css'
+
+/**
+ * `inert` fully deactivates a retained exit frame: it leaves the a11y tree and
+ * blocks focus and keyboard activation on every descendant. Gate it on the
+ * LOGICAL open flag, never `data-state` — the fade recipe's first frame is
+ * already `closed`, and the body must stay reachable then. React 18's DOM
+ * typings predate the attribute, so it rides an attribute spread.
+ */
+function inertWhen(inactive: boolean): Record<string, string> {
+  return inactive ? { inert: '' } : {}
+}
 
 /** Shared 24px disclosure chrome for compact flow rows. */
 export interface DisclosureRowProps {
@@ -52,6 +64,20 @@ export const DisclosureRow = memo(function DisclosureRow({
   chevronClassName,
   titleClassName,
 }: DisclosureRowProps) {
+  const { mounted, state } = usePresence(open)
+  /**
+   * Real callers drop their body on collapse (ReasoningRow's memo returns
+   * undefined when collapsed; ToolRow removes `expandedContent`), so the exit
+   * frame would render an empty box. Keep the last open body — the SAME React
+   * element, never a re-constructed expensive one — through the exit hold,
+   * refresh it while open, and drop it once the hold ends.
+   */
+  const retainedBody = useRef<ReactNode>(null)
+  if (open) retainedBody.current = children ?? null
+  useEffect(() => {
+    if (!mounted) retainedBody.current = null
+  }, [mounted])
+  const body = open ? children ?? null : retainedBody.current
   const rowExpands = expandable && expandOnRowClick
   const toggleFromLeading = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
@@ -103,7 +129,9 @@ export const DisclosureRow = memo(function DisclosureRow({
         <TextShimmer className={clsx(css.title, titleClassName)} active={running}>{title}</TextShimmer>
         {(keepContentWhenOpen || !open) && collapsedContent}
       </div>
-      {open && children}
+      {mounted && body != null && (
+        <div data-dsh-motion="fade" data-state={state} aria-hidden={open ? undefined : true} {...inertWhen(!open)}>{body}</div>
+      )}
     </div>
   )
 })

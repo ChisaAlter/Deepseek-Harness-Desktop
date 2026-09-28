@@ -11,6 +11,7 @@ import { observeComposition } from './keyboard-composition.ts'
 import { focusWithoutRing } from './focus.ts'
 import { ShortcutKeys } from './ShortcutKeys.tsx'
 import { MenuSurface } from './MenuSurface.tsx'
+import { usePresence } from './usePresence.ts'
 import css from './Menu.module.css'
 
 /** Selectable row (optionally with a nested submenu). */
@@ -123,6 +124,17 @@ function isLabel(entry: MenuEntry): entry is MenuLabel {
 
 /** Unplaced portal list: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real. */
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
+
+/**
+ * `inert` fully deactivates a retained exit frame: it leaves the a11y tree and
+ * blocks focus and keyboard activation on every descendant. Gate it on the
+ * LOGICAL open flag, never `data-state` — the enter recipe's first frame is
+ * already `closed`, and the rows must stay reachable then. React 18's DOM
+ * typings predate the attribute, so it rides an attribute spread.
+ */
+function inertWhen(inactive: boolean): Record<string, string> {
+  return inactive ? { inert: '' } : {}
+}
 
 /**
  * Render an anchored dropdown menu. While the list is open its keys mirror the
@@ -249,6 +261,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
   const [fixedPos, setFixedPos] = useState<CSSProperties | null>(null)
   const { arm: armClose, cancel: cancelClose } = usePointerGrace(onClose)
+  const { mounted, state } = usePresence(open)
 
   // Portal mode: fixed-position the list from the anchor rect before paint;
   // track the anchor while open (capture-phase scroll catches nested panes).
@@ -256,7 +269,7 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
   // runs before the parent's, so a wrapper the host positions in its own
   // effect measures stale here — the host callback owns the truth instead.
   useLayoutEffect(() => {
-    if (!open || !portal) { setFixedPos(null); return }
+    if (!open || !portal) return
     const place = () => {
       let r: DOMRect | null
       if (getAnchorRect !== undefined) {
@@ -311,6 +324,12 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
       window.removeEventListener('resize', place)
     }
   }, [open, portal, align, side, getAnchorRect, matchAnchorWidth])
+
+  // The exit recipe keeps the list mounted for one transition; its last
+  // placement stays frozen until the tree really drops.
+  useEffect(() => {
+    if (!mounted) setFixedPos(null)
+  }, [mounted])
 
   // Opening remembers where the keyboard was, so closing can hand it back to
   // that control — an anchor wrapping several (a split button) cannot be asked
@@ -471,14 +490,17 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
         aria-keyshortcuts={entry.shortcut?.aria}
         aria-haspopup={hasSub ? 'menu' : undefined}
         aria-expanded={hasSub ? subOpen : undefined}
-        onFocus={hasSub ? () => { setOpenSubmenuId(entry.id) } : undefined}
-        onClick={() => {
+        onFocus={hasSub && open ? () => { setOpenSubmenuId(entry.id) } : undefined}
+        // A retained exit frame is inert in the browser; dropping the handler
+        // too keeps keyboard activation from selecting a retired row anywhere
+        // the attribute is not honored.
+        onClick={open ? () => {
           if (hasSub) {
             setOpenSubmenuId(entry.id)
             return
           }
           onSelect?.(entry.id)
-        }}
+        } : undefined}
       >
         {entry.icon !== undefined && <span className={css.itemIcon}>{entry.icon}</span>}
         <span className={css.itemLabel}>{entry.label}</span>
@@ -537,12 +559,16 @@ export function Menu({ open, anchor, items = [], children, selectedId, selectedI
   // this pre-render in the same commit, so the first painted frame is
   // already at the final position (with getAnchorRect returning null the
   // list simply stays hidden).
-  const list = open && (
+  const list = mounted && (
     <MenuSurface compact={compact}
       ref={listRef}
       className={clsx(css.list, listClassName, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
       style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
       role="menu"
+      data-dsh-motion="popover"
+      data-state={state}
+      aria-hidden={open ? undefined : true}
+      {...inertWhen(!open)}
       // React portals bubble synthetic events through the REACT tree: without
       // this stop, an item click re-fires the anchor row's own onClick
       // (open/toggle) after onSelect. The same bubble is where every row's

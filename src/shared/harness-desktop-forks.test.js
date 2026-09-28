@@ -64,12 +64,14 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
   ].join('\n'));
   writeFile(root, 'packages/client/ui-surfaces/src/client/apply.ts', [
     "name: 'surfaces'",
+    'SurfacesRoot',
     'openClassicSurfaces',
-    'if (cwd === undefined) return false',
+    'collapseRightPanel',
+    'ctx.layout.openSurfaces()',
     '',
   ].join('\n'));
-  writeFile(root, 'packages/client/ui-titlebar/src/client/apply.ts', 'ctx.layout.toggleSurfaces()\n');
-  writeFile(root, 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', 'surfaces > 0\n');
+  writeFile(root, 'packages/client/ui-titlebar/src/client/apply.ts', "ctx.layout.toggleSurfaces()\n");
+  writeFile(root, 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', 'isSurfacesShortcut\n');
   writeFile(root, 'packages/client/ui-renderer/src/client/scoped-slots.tsx', [
     "  const scopedStoreBinding = scope === 'session-maybe' && scopeBinding?.key === undefined ? { key: '' } : scopeBinding",
     '',
@@ -124,6 +126,14 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-goal/src/client/GoalBar.module.css': '.bar { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
       'packages/client/ui-theme/src/wallpaper.ts': "export const TRANSPARENT_ATTR = 'data-dsh-transparent'\n",
       'packages/client/ui-theme/src/styles/wallpaper.css': 'html[data-dsh-transparent] #dsh-wallpaper::after { background: transparent }\n',
+      'packages/client/ui-model-selection/src/client/ModelSelect.tsx': "<FlipText className={css.triggerLabel} text={modelLabel} />\n<FlipText className={css.triggerEffort} text={effortLabel} />\n",
+      'packages/client/ui-model-selection/src/client/ModelSelect.module.css': "/* FlipText's recipe root is inline-grid;\n.triggerLabel[data-dsh-motion='flip'],\n.triggerEffort[data-dsh-motion='flip'] {\n  display: var(--dsh-composer-model-text-display, inline-grid);\n}\n",
+      'packages/client/ui-chat/src/client/settings/PreferenceRow.tsx': '<FlipText className={css.selectorLabel} text={selectedLabel} />\n',
+      'packages/client/ui-primitives/src/Menu.tsx': 'const { mounted, state } = usePresence(open)\ndata-dsh-motion="popover"\ndata-state={state}\n',
+      'packages/client/ui-primitives/src/DisclosureRow.tsx': 'const { mounted, state } = usePresence(open)\ndata-dsh-motion="fade"\ndata-state={state}\n',
+      'packages/client/ui-input-trigger/src/client/MenuView.tsx': "const lastOpen = useRef(state)\nif (state.open) lastOpen.current = state\nconst view = state.open ? state : lastOpen.current\nconst { mounted, state: motionState } = usePresence(state.open)\ndata-dsh-motion=\"popover\"\ndata-state={motionState}\n",
+      'packages/client/ui-primitives/src/HoverCard.tsx': "const compactMotion = variant === 'compact' && !inline\nconst { mounted: cardMounted, state: cardState } = usePresence(compactMotion && open)\ndata-dsh-motion={compactMotion ? 'popover' : undefined}\ndata-state={compactMotion ? cardState : closing ? 'closed' : 'open'}\n",
+      'packages/client/ui-primitives/src/Tooltip.module.css': 'animation: tooltip-in var(--ds-motion-duration-swap) var(--ds-ease-in-out);\n',
       'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n.heroWorkspaceRow { max-width: var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width)); align-self: center; }\n',
       'packages/client/ui-conversation/src/client/ComposerBeam.tsx': '<div data-composer-beam="" data-beam-breathing="off" style={{ "--dsh-composer-beam-period": "1.96s", "--dsh-composer-beam-bloom-opacity": 0.36, "--dsh-composer-beam-track-width": "2px" }} />\n',
       'packages/client/ui-conversation/src/client/ComposerBeam.module.css': '.beamLayer { inset: -4px; corner-shape: round; }\n.beamStroke { padding: var(--dsh-composer-beam-track-width, 2px); mask: conic-gradient(transparent 30%); -webkit-mask-composite: source-in, xor; mask-composite: intersect, exclude; }\n.beamInner { mask-composite: add; }\n.beamBloom { filter: blur(var(--dsh-composer-beam-glow-blur, 8px)); }\n.beamBloom::before {}\n',
@@ -132,7 +142,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/api/workspace-controller/src/index.ts': "export function scratchWorkspaceCwd() { return dshHomePath('no-workspace') }\n",
       'packages/api/workspace-controller/src/client/model.ts': 'export interface WorkspaceSnapshot { readonly scratchCwd?: string }\n',
       'packages/workspace/workspace/src/index.ts': 'private async readoptableSessionIds(canonical: string) {}\n',
-      'packages/client/ui-workspace/src/client/navigation.ts': 'connectNoDirectory() { return this.workspaces.list.getSnapshot().scratchCwd }\ndeleteWorkspace() {}\n',
+      'packages/client/ui-workspace/src/client/navigation.ts': 'connectNoDirectory() { return this.workspaces.list.getSnapshot().scratchCwd }\nconnectScratchCwd() { return this.workspaces.list.getSnapshot().scratchCwd }\ndeleteWorkspace() {}\n',
       'packages/client/ui-workspace/src/client/tree.ts': 'export function isNoDirectorySession() {}\nexport function currentGroupKey() {}\n',
       'packages/client/ui-workspace/src/client/WorkspacePicker.tsx': "const NO_DIRECTORY = '::no-directory'\nonPickNoDirectory?.()\n",
       'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx': '<TasksSectionHeader onCreate={() => { connectNoDirectory() }} /><GroupSessionRun open={group.expanded} />\n',
@@ -150,11 +160,17 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
       'packages/client/ui-layout/src/client/index.ts': "surfaces: number\nsurfaces: { kind: 'single', scope: 'session-maybe' }\nshell.titlebar.trailing\nshell.terminalDrawer\n",
       'packages/client/ui-layout/src/client/AppFrame.tsx': 'return <div className={css.mainPanel} data-main-panel>{panel}</div>\nsurfaces: layoutInfo.surfaces,\n',
-      'packages/client/ui-surfaces/src/client/apply.ts': `name: 'surfaces'\nopenClassicSurfaces\nif (cwd === undefined) return false\n`,
-      'packages/client/ui-titlebar/src/client/apply.ts': 'ctx.layout.toggleSurfaces()\n',
-      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'surfaces > 0\n',
+      'packages/client/ui-surfaces/src/client/apply.ts': `name: 'surfaces'\nSurfacesRoot\nopenClassicSurfaces\ncollapseRightPanel\nctx.layout.openSurfaces()\n`,
+      'packages/client/ui-titlebar/src/client/apply.ts': "ctx.layout.toggleSurfaces()\n",
+      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'isSurfacesShortcut\n',
       'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx': 'SurfaceTabs EmptyState\nopenOfficeDocument\n',
-      'packages/client/ui-sidebar-right/src/client/index.ts': 'layout.closeSurfaces()\n',
+      'packages/client/ui-sidebar-right/src/client/index.ts': 'layout.closeSurfaces()\nlocale: NS\n',
+      'packages/client/ui-sidebar-right/src/client/tabs/guide/GuideBody.tsx': 'ShippedGuide\ncss.grid\n',
+      'packages/client/ui-sidebar-right/src/client/tabs/guide/GuideBody.module.css': '.grid {\naspect-ratio: 1 / 1\n',
+      'packages/client/ui-sidebar-right/src/client/locales.ts': "'tab.guide.heading'\n",
+      'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.module.css': '--dsw-alias-bg-base: transparent\n',
+      'packages/client/ui-sidebar-terminal/src/client/terminal.module.css': 'background: var(--dsw-alias-terminal-pane, var(--dsw-alias-bg-base));\n',
+      'packages/client/ui-preview/src/client/apply.ts': "'sidebarRightTabs'\n",
       'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx': 'restoreClassic\n',
       'apps/web/tests/models-settings.e2e.ts': "await page.route('**/api/llm.discoverModels', async (route) => {\n",
       'apps/web/tests/composer-resize-dock.e2e.ts': "describe('desktop fork: input.dock panels follow the composer drag width', () => {\n",
@@ -183,12 +199,15 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/host/directory-picker-browse/tests/service.spec.ts': 'WINDOWS_VOLUME_ROOT\n',
       'packages/client/ui-layout/src/client/AppFrame.tsx': 'return <div className={css.mainPanel} data-main-panel>{panel}</div>\nsurfaces: layoutInfo.surfaces,\n',
       'packages/client/ui-layout/src/client/AppFrame.module.css': '.mainPanel { grid-row: 2; }\n',
-      'packages/client/ui-attachment/src/ImageLightbox.module.css': '.close { top: calc(20px + var(--dshd-wco-caption, 0px)); }\n',
+      'packages/client/ui-primitives/src/ImageLightbox.module.css': '.close { top: calc(20px + var(--dshd-wco-caption, 0px)); }\n',
       'packages/client/ui-layout/src/client/index.ts': "surfaces: number\n    'surfaces': { kind: 'single', scope: 'session-maybe' },\n    'shell.titlebar.trailing': { kind: 'list', scope: 'root' },\n    'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },\n    // every other key renders inside the content row only\n",
-      'packages/client/ui-surfaces/src/client/apply.ts': `name: 'surfaces'\nopenClassicSurfaces\nif (cwd === undefined) return false\nOFFICE_DOCUMENTS\nopenOfficeDocument\n`,
+      'packages/client/ui-surfaces/src/client/apply.ts': `name: 'surfaces'\nSurfacesRoot\nopenClassicSurfaces\ncollapseRightPanel\nctx.layout.openSurfaces()\nOFFICE_DOCUMENTS\nopenOfficeDocument\nsidebarRightTabs\n`,
+      'packages/client/ui-surfaces/src/client/EmptyState.tsx': 'SidebarRightGuideBox\nEmptyStateGuide\n',
+      'packages/client/ui-surfaces/tests/empty-state.client.spec.tsx': 'guide(\n',
+      'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx': 'SurfaceTabs\nEmptyState\nopenOfficeDocument\nuseSyncExternalStore\n',
       'packages/client/ui-files/src/client/desktop-files.ts': 'OFFICE_PREVIEW_EXTENSIONS\nisOfficePreviewPath\n',
       'packages/client/ui-titlebar/src/client/apply.ts': "ctx.layout.toggleSurfaces()\n'shortcuts'\nsurfaces.toggle\nterminal.drawer.toggle\n",
-      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'surfaces > 0\ndataset.platform\n',
+      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'isSurfacesShortcut\ndataset.platform\n',
       'packages/client/shortcuts/src/protocol.ts': "export * from './policy.ts'\n",
       'packages/client/shortcuts/src/policy.ts': 'localFirstProtected\nlocal-first\n',
       'packages/client/shortcuts/src/client/registry.ts': "localFirstProtected\n'native-priority'\n",
@@ -218,6 +237,70 @@ test('assertDesktopForks throws when a parked fork marker regresses', (t) => {
   const indexPath = path.join(root, ...'packages/client/ui-primitives/src/index.ts'.split('/'));
   fs.writeFileSync(indexPath, "export { Button } from './Button.tsx'\n");
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /SettingsSelect/);
+});
+
+test('assertDesktopForks throws when the ModelSelect model label stops using FlipText', (t) => {
+  const root = makeFixture(t);
+  const modelSelectPath = path.join(root, ...'packages/client/ui-model-selection/src/client/ModelSelect.tsx'.split('/'));
+  const text = fs.readFileSync(modelSelectPath, 'utf8');
+  const reverted = text.replace(
+    '<FlipText className={css.triggerLabel} text={modelLabel} />',
+    '<span className={css.triggerLabel}>{modelLabel}</span>',
+  );
+  assert.notStrictEqual(reverted, text);
+  fs.writeFileSync(modelSelectPath, reverted);
+  assert.throws(
+    () => assertDesktopForks(root, '0.1.0-rc.5'),
+    /ModelSelect\.tsx no longer contains .*triggerLabel} text=\{modelLabel\}/,
+  );
+});
+
+test('assertDesktopForks throws when the ModelSelect effort label stops using FlipText', (t) => {
+  const root = makeFixture(t);
+  const modelSelectPath = path.join(root, ...'packages/client/ui-model-selection/src/client/ModelSelect.tsx'.split('/'));
+  const text = fs.readFileSync(modelSelectPath, 'utf8');
+  const reverted = text.replace(
+    '<FlipText className={css.triggerEffort} text={effortLabel} />',
+    '<span className={css.triggerEffort}>{effortLabel}</span>',
+  );
+  assert.notStrictEqual(reverted, text);
+  fs.writeFileSync(modelSelectPath, reverted);
+  assert.throws(
+    () => assertDesktopForks(root, '0.1.0-rc.5'),
+    /ModelSelect\.tsx no longer contains .*triggerEffort} text=\{effortLabel\}/,
+  );
+});
+
+test('assertDesktopForks throws when the ModelSelect flip display selector is removed', (t) => {
+  const root = makeFixture(t);
+  const modelSelectCssPath = path.join(root, ...'packages/client/ui-model-selection/src/client/ModelSelect.module.css'.split('/'));
+  const text = fs.readFileSync(modelSelectCssPath, 'utf8');
+  const reverted = text.replace(
+    ".triggerLabel[data-dsh-motion='flip'],\n.triggerEffort[data-dsh-motion='flip'] {\n  display: var(--dsh-composer-model-text-display, inline-grid);\n}",
+    '',
+  );
+  assert.notStrictEqual(reverted, text);
+  fs.writeFileSync(modelSelectCssPath, reverted);
+  assert.throws(
+    () => assertDesktopForks(root, '0.1.0-rc.5'),
+    /ModelSelect\.module\.css no longer contains .*triggerLabel\[data-dsh-motion='flip'\]/,
+  );
+});
+
+test('assertDesktopForks throws when the ModelSelect flip display fallback regresses', (t) => {
+  const root = makeFixture(t);
+  const modelSelectCssPath = path.join(root, ...'packages/client/ui-model-selection/src/client/ModelSelect.module.css'.split('/'));
+  const text = fs.readFileSync(modelSelectCssPath, 'utf8');
+  const reverted = text.replace(
+    'display: var(--dsh-composer-model-text-display, inline-grid);',
+    'display: var(--dsh-composer-model-text-display, block);',
+  );
+  assert.notStrictEqual(reverted, text);
+  fs.writeFileSync(modelSelectCssPath, reverted);
+  assert.throws(
+    () => assertDesktopForks(root, '0.1.0-rc.5'),
+    /ModelSelect\.module\.css no longer contains .*inline-grid/,
+  );
 });
 
 test('assertDesktopForks throws when the header golden regains Session log', (t) => {

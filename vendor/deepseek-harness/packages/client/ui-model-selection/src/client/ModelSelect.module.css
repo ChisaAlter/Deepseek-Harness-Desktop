@@ -87,6 +87,14 @@
   display: var(--dsh-composer-model-text-display, block);
 }
 
+/* FlipText's recipe root is inline-grid; the composer measures and toggles the
+   label/effort display for the icon-only fallback, so the root must keep
+   honoring the published display variable. */
+.triggerLabel[data-dsh-motion='flip'],
+.triggerEffort[data-dsh-motion='flip'] {
+  display: var(--dsh-composer-model-text-display, inline-grid);
+}
+
 .chevron {
   flex: 0 0 auto;
   color: var(--dsw-alias-label-caption);

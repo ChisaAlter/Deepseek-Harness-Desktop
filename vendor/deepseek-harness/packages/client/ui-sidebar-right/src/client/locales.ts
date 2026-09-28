@@ -41,6 +41,8 @@ export const zh = {
   'dock.drop.top': '上分栏',
   'dock.drop.bottom': '下分栏',
   'tab.guide.title': '开始',
+  'tab.guide.heading': '打开一个面板',
+  'tab.guide.subtitle': '选择要在右侧栏显示的内容。',
   'tab.unavailable': '这类内容还没有可用的查看方式。',
 } satisfies Record<string, string>
 
@@ -82,5 +84,7 @@ export const en = {
   'dock.drop.top': 'Add top split',
   'dock.drop.bottom': 'Add bottom split',
   'tab.guide.title': 'Start',
+  'tab.guide.heading': 'Open a panel',
+  'tab.guide.subtitle': 'Pick what shows in the right sidebar.',
   'tab.unavailable': 'Nothing here can view this kind of content yet.',
 } satisfies Record<SidebarRightKey, string>

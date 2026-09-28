@@ -88,10 +88,11 @@ function workspaceState(
   items: WorkspaceSnapshot['items'] = [],
   archivedSessionIds: readonly SessionId[] = [],
   phase: WorkspaceSnapshot['phase'] = 'ready',
+  scratchCwd: string | null = '/dsh-home/no-workspace',
 ): WorkspaceSnapshot {
   return {
     items,
-    scratchCwd: '/dsh-home/no-workspace',
+    ...(scratchCwd === null ? {} : { scratchCwd }),
     archivedSessionIds,
     pinnedSessionIds: [],
     phase,
@@ -522,6 +523,41 @@ describe('UiWorkspaceService', () => {
       await opening
       expect(b.sessions.retain.mock.calls.map(args => args[0])).toEqual(panel ? [] : [sid('chosen')])
     }
+  })
+
+  it('waits for the Workspace baseline before opening a no-directory Session', async () => {
+    const b = bench({ workspaces: workspaceState([], [], 'pending', null) })
+    const opening = b.uiWorkspace.openNoDirectory()
+    expect(b.sessions.create).not.toHaveBeenCalled()
+
+    b.workspaces.list.set(workspaceState([]))
+
+    await expect(opening).resolves.toBeUndefined()
+    expect(b.sessions.create).toHaveBeenCalledExactlyOnceWith({ cwd: '/dsh-home/no-workspace' })
+    expect(b.sessions.retain).toHaveBeenCalledExactlyOnceWith(sid('created-none'), { source: 'mainView' })
+  })
+
+  it('reports a baseline that settles ready without a scratch cwd', async () => {
+    const b = bench({ workspaces: workspaceState([], [], 'pending', null) })
+    const opening = b.uiWorkspace.openNoDirectory()
+    b.workspaces.list.set(workspaceState([], [], 'ready', null))
+
+    await expect(opening).rejects.toThrow('did not report a scratch cwd')
+    expect(b.notify).toHaveBeenCalledExactlyOnceWith({
+      kind: 'createFailed',
+      message: 'uiWorkspace.connectNoDirectory: the Workspace service did not report a scratch cwd',
+    })
+    expect(b.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it('releases a no-directory wait when the owner is disposed', async () => {
+    const b = bench({ workspaces: workspaceState([], [], 'pending', null) })
+    const opening = b.uiWorkspace.openNoDirectory()
+    await b.ctx.fiber.dispose()
+
+    await expect(opening).rejects.toThrow()
+    expect(b.notify).not.toHaveBeenCalled()
+    expect(b.sessions.create).not.toHaveBeenCalled()
   })
 
   it('does not deliver pending Workspace and fork targets after disposal', async () => {

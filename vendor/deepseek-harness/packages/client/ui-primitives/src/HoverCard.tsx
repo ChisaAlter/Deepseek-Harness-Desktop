@@ -6,6 +6,7 @@ import { writeClipboard } from './clipboard.ts'
 import { usePointerGrace } from './pointer-grace.ts'
 import { overlayTopMargin } from './overlay-top-margin.ts'
 import { TooltipSuppression } from './Tooltip.tsx'
+import { usePresence } from './usePresence.ts'
 import css from './HoverCard.module.css'
 
 /** Preview opacity transition and retained lifetime during dismissal. */
@@ -15,6 +16,16 @@ const PREVIEW_INSET = 24
 const INLINE_PREVIEW_WIDTH = 300
 const ANCHOR_GAP = 8
 const VIEWPORT_MARGIN = 8
+
+/**
+ * `inert` marks a retained exit frame as fully deactivated. It must come from
+ * the LOGICAL open flag, never `data-state`: the enter recipe's first frame is
+ * already `closed`. React 18's DOM typings predate the attribute, so it rides
+ * an attribute spread instead of a typed prop.
+ */
+function inertWhen(inactive: boolean): Record<string, string> {
+  return inactive ? { inert: '' } : {}
+}
 
 /**
  * Render an anchor with a hover-triggered preview card, hidden while a tooltip within the anchor is visible.
@@ -61,6 +72,12 @@ export function HoverCard({
   const [phase, setPhase] = useState<'closed' | 'open' | 'closing'>('closed')
   const open = phase !== 'closed'
   const closing = phase === 'closing'
+  // Logical activity for accessibility and keyboard: true only while the card
+  // is really showing. The compact exit hold keeps `open` false, and the
+  // preview fade keeps `closing` true, so both retired frames deactivate.
+  const active = open && !closing
+  const compactMotion = variant === 'compact' && !inline
+  const { mounted: cardMounted, state: cardState } = usePresence(compactMotion && open)
   const [pos, setPos] = useState<{ left: number; top: number; width?: number; maxHeight?: number } | null>(null)
   const positioned = pos !== null
   const [copied, setCopied] = useState(false)
@@ -133,7 +150,7 @@ export function HoverCard({
   // Fixed-position from the anchor rect before paint; track the anchor while
   // open (capture-phase scroll catches nested panes), as in Menu portal mode.
   useLayoutEffect(() => {
-    if (!open) { setPos(null); return }
+    if (!(compactMotion ? cardMounted : open)) { setPos(null); return }
     const place = () => {
       const wrapper = rootRef.current
       /* v8 ignore next -- the ref is attached before the layout effect runs and the listeners die with it. */
@@ -187,7 +204,7 @@ export function HoverCard({
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
     }
-  }, [open, variant, widthAnchorRef, positioned, inline])
+  }, [open, cardMounted, compactMotion, variant, widthAnchorRef, positioned, inline])
 
   // The first placement ran before the card mounted (height read 0): once the
   // card's real height is measurable, correct the bottom-edge clamp. The
@@ -223,19 +240,23 @@ export function HoverCard({
     cancelClose()
     close()
   }
-  const card = open && pos !== null && !suppressed && (
+  const card = (compactMotion ? cardMounted : open) && pos !== null && !suppressed && (
     <div
       ref={cardRef}
       className={clsx(css.card, variant === 'preview' && css.preview, inline && css.media, copyable && css.copyable, copied && css.feedback)}
       data-closing={closing || undefined}
+      data-dsh-motion={compactMotion ? 'popover' : undefined}
+      data-state={compactMotion ? cardState : closing ? 'closed' : 'open'}
+      {...inertWhen(!active)}
       style={{
         ...pos, minHeight: copied && copyHeightRef.current !== null ? copyHeightRef.current : undefined,
         '--dsh-hover-preview-fade': `${PREVIEW_FADE_MS}ms`,
       } as CSSProperties}
-      role={copyable ? 'button' : undefined}
-      tabIndex={copyable ? 0 : undefined}
-      aria-label={copyable ? `${copyLabel}: ${copyText}` : undefined}
-      onClick={copyable
+      role={copyable && active ? 'button' : undefined}
+      tabIndex={copyable && active ? 0 : undefined}
+      aria-hidden={active ? undefined : true}
+      aria-label={copyable && active ? `${copyLabel}: ${copyText}` : undefined}
+      onClick={copyable && active
         ? (e) => {
           const selection = window.getSelection()
           if (selection !== null && !selection.isCollapsed) {
@@ -246,7 +267,7 @@ export function HoverCard({
           void copy(copyText)
         }
         : undefined}
-      onKeyDown={copyable
+      onKeyDown={copyable && active
         ? (e) => {
           if (e.key !== 'Enter' && e.key !== ' ') return
           e.preventDefault()

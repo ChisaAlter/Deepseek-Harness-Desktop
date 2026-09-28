@@ -6,13 +6,13 @@ import {
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import { isEditableKeyboardTarget, isRightPanelShortcut, isTerminalShortcut, isTextEntryTarget } from './keybindings.ts'
+import { isEditableKeyboardTarget, isSurfacesShortcut, isTerminalShortcut, isTextEntryTarget } from './keybindings.ts'
 import { NS } from './locales.ts'
 import css from './PanelToggles.module.css'
 
 /** Layout writes injected into the titlebar trailing contribution. */
 export interface PanelTogglesInjected {
-  toggleRightPanel: () => void
+  toggleSurfaces: () => void
   toggleTerminalDrawer: () => void
   hooks: {
     /** Persisted terminal-drawer button visibility bound as useTerminalToggle. */
@@ -38,12 +38,13 @@ export function PanelToggles({
   useWorkspaces,
   useTerminalToggle,
   useSurfacesToggle,
-  toggleRightPanel,
+  toggleSurfaces,
   toggleTerminalDrawer,
   t,
 }: PanelTogglesProps): ReactNode {
   const terminalAvailable = useWorkspaces(s => s.items.length > 0)
   const terminalOpen = terminalDrawer > 0
+  const surfacesOpen = surfaces > 0
   const showTerminal = useTerminalToggle(value => value)
   const showSurfaces = useSurfacesToggle(value => value)
 
@@ -53,10 +54,10 @@ export function PanelToggles({
     // listener would be a second track racing the same actions.
     if (document.documentElement.dataset.platform !== undefined) return
     const onKey = (event: KeyboardEvent) => {
-      if (isRightPanelShortcut(event)) {
+      if (isSurfacesShortcut(event)) {
         if (isEditableKeyboardTarget(event.target)) return
         event.preventDefault()
-        toggleRightPanel()
+        toggleSurfaces()
         return
       }
       if (isTerminalShortcut(event)) {
@@ -70,7 +71,7 @@ export function PanelToggles({
     }
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('keydown', onKey) }
-  }, [terminalAvailable, toggleRightPanel, toggleTerminalDrawer])
+  }, [terminalAvailable, toggleSurfaces, toggleTerminalDrawer])
 
   if (!showTerminal && !showSurfaces) return <></>
 
@@ -102,10 +103,10 @@ export function PanelToggles({
         >
           <button
             type="button"
-            className={clsx(css.toggle, surfaces > 0 && css.pressed)}
+            className={clsx(css.toggle, surfacesOpen && css.pressed)}
             aria-label={t('surfaces.toggle')}
-            aria-pressed={surfaces > 0}
-            onClick={() => { toggleRightPanel() }}
+            aria-pressed={surfacesOpen}
+            onClick={() => { toggleSurfaces() }}
           >
             <IconPanelRightOutline16 size={14} />
           </button>

@@ -180,3 +180,66 @@ it('gives a new modal Escape ahead of an older menu', () => {
   expect(menuClosed).toBe(false)
   expect(childClosed).toBe(true)
 })
+
+it('does not let a retiring modal steal focus from a modal opened in the same commit', () => {
+  const tree = (showA: boolean, showB: boolean) => <>
+    <Modal open={showB} title="B" closeLabel="Close B" onClose={() => {}}><input data-modal-autofocus aria-label="B input" /></Modal>
+    <Modal open={showA} title="A" closeLabel="Close A" onClose={() => {}}><input data-modal-autofocus aria-label="A input" /></Modal>
+  </>
+  const view = render(tree(true, false))
+  expect(screen.getByRole('dialog', { name: 'A' })).toBeTruthy()
+  // One commit closes A and opens B. B registers after A's cleanup, so A's
+  // deferred restore must not pull focus back out of B.
+  view.rerender(tree(false, true))
+  expect(document.activeElement).toBe(screen.getByLabelText('B input'))
+})
+
+it('keeps Tab traversal inside the dialog when focus sits in a retired menu', () => {
+  const view = render(<Modal open title="Settings" closeLabel="Close settings" onClose={() => {}}>
+    <button>First</button>
+    <Menu open anchor={<button>Menu</button>} items={[{ id: 'item', label: 'Item' }]}
+      onSelect={() => {}} onClose={() => {}} />
+  </Modal>)
+  const dialog = screen.getByRole('dialog', { name: 'Settings' })
+  // A logically closed menu is retained for its exit recipe; focus left inside
+  // it must not suppress this dialog's own traversal.
+  const row = document.querySelector<HTMLButtonElement>('[role="menu"] button')
+  expect(row).not.toBeNull()
+  row!.focus()
+  view.rerender(<Modal open title="Settings" closeLabel="Close settings" onClose={() => {}}>
+    <button>First</button>
+    <Menu open={false} anchor={<button>Menu</button>} items={[{ id: 'item', label: 'Item' }]}
+      onSelect={() => {}} onClose={() => {}} />
+  </Modal>)
+  const retiredMenu = document.querySelector('[role="menu"][aria-hidden="true"]')
+  expect(retiredMenu).not.toBeNull()
+  row!.focus()
+  expect(retiredMenu!.contains(document.activeElement)).toBe(true)
+  fireEvent.keyDown(row!, { key: 'Tab' })
+  // The key must be consumed AND focus must leave the retired subtree for an
+  // exact eligible control; "still inside the dialog" would also hold while
+  // focus stays on the retired row.
+  expect(retiredMenu!.contains(document.activeElement)).toBe(false)
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close settings' }))
+})
+
+it('falls back to the surviving modal when the recorded opener is inside a hidden parent', () => {
+  // Close the child while its opener is hidden inside a still-open parent: the
+  // parent is a valid destination, so focus must not be stranded in the
+  // child's retained exit frame.
+  const tree = (parentOpen: boolean, childOpen: boolean, openerHidden: boolean) => <>
+    <Modal open={parentOpen} title="Parent" closeLabel="Close parent" onClose={() => {}}>
+      <div hidden={openerHidden}><button>Child opener</button></div>
+    </Modal>
+    <Modal open={childOpen} title="Child" closeLabel="Close child" onClose={() => {}}>
+      <input data-modal-autofocus aria-label="Child input" />
+    </Modal>
+  </>
+  const view = render(tree(true, false, false))
+  screen.getByRole('button', { name: 'Child opener' }).focus()
+  view.rerender(tree(true, true, false))
+  // Hide the opener, then retire the child in one commit.
+  view.rerender(tree(true, false, true))
+  const parent = screen.getByRole('dialog', { name: 'Parent' })
+  expect(parent.contains(document.activeElement)).toBe(true)
+})
