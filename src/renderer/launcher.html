@@ -196,12 +196,12 @@
             <p class="import-source-line" id="import-scan-status"></p>
           </header>
           <div class="import-cats" role="tablist" aria-label="导入类别" aria-orientation="horizontal">
-            <button type="button" class="import-cat is-active" data-import-cat="sessions" role="tab" aria-selected="true" id="icat-sessions" aria-controls="import-sessions">会话 <span id="import-sessions-count">0</span></button>
-            <button type="button" class="import-cat" data-import-cat="skills" role="tab" aria-selected="false" id="icat-skills" aria-controls="import-skills" tabindex="-1">技能 <span id="import-skills-count">0</span></button>
-            <button type="button" class="import-cat" data-import-cat="plugins" role="tab" aria-selected="false" id="icat-plugins" aria-controls="import-plugins" tabindex="-1">插件 <span id="import-plugins-count">0</span></button>
-            <button type="button" class="import-cat" data-import-cat="mcp" role="tab" aria-selected="false" id="icat-mcp" aria-controls="import-mcp" tabindex="-1">MCP <span id="import-mcp-count">0</span></button>
-            <button type="button" class="import-cat" data-import-cat="settings" role="tab" aria-selected="false" id="icat-settings" aria-controls="import-settings" tabindex="-1">设置 <span id="import-settings-count">0</span></button>
-            <button type="button" class="import-cat" data-import-cat="presets" role="tab" aria-selected="false" id="icat-presets" aria-controls="import-presets" tabindex="-1">预设 <span id="import-presets-count">0</span></button>
+            <button type="button" class="import-cat is-active" data-import-cat="sessions" role="tab" aria-selected="true" id="icat-sessions" aria-controls="import-pane-sessions">会话 <span id="import-sessions-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="skills" role="tab" aria-selected="false" id="icat-skills" aria-controls="import-pane-skills" tabindex="-1">技能 <span id="import-skills-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="plugins" role="tab" aria-selected="false" id="icat-plugins" aria-controls="import-pane-plugins" tabindex="-1">插件 <span id="import-plugins-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="mcp" role="tab" aria-selected="false" id="icat-mcp" aria-controls="import-pane-mcp" tabindex="-1">MCP <span id="import-mcp-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="settings" role="tab" aria-selected="false" id="icat-settings" aria-controls="import-pane-settings" tabindex="-1">设置 <span id="import-settings-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="presets" role="tab" aria-selected="false" id="icat-presets" aria-controls="import-pane-presets" tabindex="-1">预设 <span id="import-presets-count">0</span></button>
           </div>
           <div class="import-board">
             <div class="import-board-bar">
@@ -212,12 +212,24 @@
               </div>
             </div>
             <div class="import-board-body" id="import-board-body">
-              <ul id="import-sessions" class="list import-list is-active" data-import-pane="sessions" role="tabpanel" aria-labelledby="icat-sessions"></ul>
-              <ul id="import-skills" class="list import-list" hidden data-import-pane="skills" role="tabpanel" aria-labelledby="icat-skills"></ul>
-              <ul id="import-plugins" class="list import-list" hidden data-import-pane="plugins" role="tabpanel" aria-labelledby="icat-plugins"></ul>
-              <ul id="import-mcp" class="list import-list" hidden data-import-pane="mcp" role="tabpanel" aria-labelledby="icat-mcp"></ul>
-              <ul id="import-settings" class="list import-list" hidden data-import-pane="settings" role="tabpanel" aria-labelledby="icat-settings"></ul>
-              <ul id="import-presets" class="list import-list" hidden data-import-pane="presets" role="tabpanel" aria-labelledby="icat-presets"></ul>
+              <div id="import-pane-sessions" class="import-sub-pane is-active" data-import-pane="sessions" role="tabpanel" aria-labelledby="icat-sessions" tabindex="0">
+                <ul id="import-sessions" class="list import-list is-active"></ul>
+              </div>
+              <div id="import-pane-skills" class="import-sub-pane" hidden data-import-pane="skills" role="tabpanel" aria-labelledby="icat-skills" tabindex="0">
+                <ul id="import-skills" class="list import-list"></ul>
+              </div>
+              <div id="import-pane-plugins" class="import-sub-pane" hidden data-import-pane="plugins" role="tabpanel" aria-labelledby="icat-plugins" tabindex="0">
+                <ul id="import-plugins" class="list import-list"></ul>
+              </div>
+              <div id="import-pane-mcp" class="import-sub-pane" hidden data-import-pane="mcp" role="tabpanel" aria-labelledby="icat-mcp" tabindex="0">
+                <ul id="import-mcp" class="list import-list"></ul>
+              </div>
+              <div id="import-pane-settings" class="import-sub-pane" hidden data-import-pane="settings" role="tabpanel" aria-labelledby="icat-settings" tabindex="0">
+                <ul id="import-settings" class="list import-list"></ul>
+              </div>
+              <div id="import-pane-presets" class="import-sub-pane" hidden data-import-pane="presets" role="tabpanel" aria-labelledby="icat-presets" tabindex="0">
+                <ul id="import-presets" class="list import-list"></ul>
+              </div>
             </div>
           </div>
           <footer class="import-foot">
@@ -242,6 +254,7 @@
               </label>
             </div>
             <div class="import-foot-run">
+              <span class="import-selection-line" id="import-selection-line">未选择</span>
               <p id="import-result" class="import-summary" role="status" aria-live="polite"></p>
               <button type="button" class="ghost" id="btn-import-cancel" hidden>取消</button>
               <button type="button" class="primary" id="btn-import">开始导入</button>

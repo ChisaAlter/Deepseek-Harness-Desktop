@@ -1,6 +1,7 @@
 const EventEmitter = require('events');
 const { isPluginTreeFailure } = require('./plugin-tree-failure');
 const { stickySkipActive } = require('./launcher-gate');
+const importGuard = require('./import-guard');
 
 const DEFAULT_STABLE_MS = 60_000;
 const MAX_RESTART_DELAY_MS = 30_000;
@@ -88,6 +89,7 @@ class HarnessController extends EventEmitter {
     this.stableTimer = null;
     this.recoveryTask = null;
     this.pluginRecoveryTask = null;
+    this.recoveryAdmissionCheck = () => null;
     this.recoveryGeneration = 0;
     this.shuttingDown = false;
     this.recovery = {
@@ -119,6 +121,7 @@ class HarnessController extends EventEmitter {
           ? this.beginPluginTreeRecovery()
           : this.beginRuntimeRecovery();
         task.catch((error) => {
+          if (isCancellation(error)) return;
           this.dsh.log(`恢复流程失败：${errorMessage(error)}`, 'error');
         });
       }
@@ -210,11 +213,14 @@ class HarnessController extends EventEmitter {
     }
   }
 
-  async ensureBootVisible() {
+  async ensureBootVisible(assertCurrent = () => {}) {
     if (!this.bootOperation) {
       // A stale recovery navigation must settle before a new restart reveals
       // Harness; otherwise it can cover the newly ready BrowserView afterward.
-      const task = Promise.resolve().then(() => this.showBoot()).finally(() => {
+      const task = Promise.resolve().then(() => {
+        assertCurrent();
+        return this.showBoot();
+      }).finally(() => {
         if (this.bootOperation === task) this.bootOperation = null;
       });
       this.bootOperation = task;
@@ -281,15 +287,41 @@ class HarnessController extends EventEmitter {
     return false;
   }
 
+  setRecoveryAdmissionCheck(check) {
+    this.recoveryAdmissionCheck = check;
+  }
+
   async beginPluginTreeRecovery() {
     if (this.pluginRecoveryTask) return this.pluginRecoveryTask;
+    const generation = ++this.recoveryGeneration;
+    let token = null;
+    const assertCurrent = () => {
+      if (this.shuttingDown || generation !== this.recoveryGeneration) throw operationCancelled();
+      const refusal = this.recoveryAdmissionCheck();
+      if (refusal) throw operationCancelled(refusal.error);
+      if (token ? !importGuard.holdsMaintenance(token) : importGuard.isMaintenanceHeld()) {
+        throw operationCancelled('maintenance-in-progress');
+      }
+    };
     const task = (async () => {
       const snapshot = this.dsh.snapshot();
+      assertCurrent();
+      this.clearTimers();
+      await this.ensureBootVisible(assertCurrent);
+      assertCurrent();
+      // Navigation may be pending while import stops the desktop. Only take
+      // ownership once it settles, before the first profile write, and retain
+      // it through all asynchronous repair/start work (including failures).
+      token = importGuard.acquireMaintenance('plugin-recovery');
+      if (!token) throw operationCancelled('maintenance-in-progress');
+      assertCurrent();
       this.writePluginSkip(snapshot.failure || snapshot.error);
-      await this.ensureBootVisible();
-      if (this.shuttingDown) throw operationCancelled();
-      return this.replaceOperation({ showBoot: false });
-    })().finally(() => {
+      return await this.replaceOperation({ showBoot: false, assertCurrent });
+    })().catch((error) => {
+      if (isCancellation(error) && !this.shuttingDown) return this.snapshot();
+      throw error;
+    }).finally(() => {
+      importGuard.releaseMaintenance(token);
       if (this.pluginRecoveryTask === task) this.pluginRecoveryTask = null;
     });
     this.pluginRecoveryTask = task;
@@ -408,16 +440,22 @@ class HarnessController extends EventEmitter {
     return this.runOperation((generation) => this.performStart({ showBoot: true, generation }));
   }
 
-  async replaceOperation({ showBoot }) {
+  async replaceOperation({ showBoot, assertCurrent = () => {} }) {
+    assertCurrent();
     const previousOperation = this.operation;
-    this.operationGeneration += 1;
+    const generation = ++this.operationGeneration;
+    const checkCurrent = () => {
+      this.assertOperationCurrent(generation);
+      assertCurrent();
+    };
+    checkCurrent();
     await this.dsh.stop();
-    await this.ensureBootVisible().catch(() => {});
+    checkCurrent();
+    await this.ensureBootVisible(checkCurrent).catch(() => {});
+    checkCurrent();
     await previousOperation?.catch(() => {});
-    if (this.shuttingDown) {
-      throw operationCancelled();
-    }
-    return this.runOperation((generation) => this.performStart({ showBoot, generation }));
+    checkCurrent();
+    return this.runOperation((generation) => this.performStart({ showBoot, generation, assertCurrent }));
   }
 
   restart() {
@@ -433,6 +471,7 @@ class HarnessController extends EventEmitter {
       }
       this.recoveryGeneration += 1;
       this.recoveryTask = null;
+      this.pluginRecoveryTask = null;
       this.clearTimers();
       this.recovery = { status: 'inactive', attempt: 0, nextRetryAt: null, reason: '' };
       return this.replaceOperation({ showBoot: true });
@@ -466,12 +505,17 @@ class HarnessController extends EventEmitter {
     }
   }
 
-  async performStartOnce({ showBoot, generation, skipUserPlugins }) {
+  async performStartOnce({ showBoot, generation, skipUserPlugins, assertCurrent = () => {} }) {
+    const checkCurrent = () => {
+      this.assertOperationCurrent(generation);
+      assertCurrent();
+    };
+    checkCurrent();
     const win = this.createMainWindow();
     if (showBoot) {
-      await this.ensureBootVisible();
+      await this.ensureBootVisible(checkCurrent);
     }
-    this.assertOperationCurrent(generation);
+    checkCurrent();
     this.dsh.setState('starting', { error: '', failure: null });
     // One config read for the whole start. Port, disabled list, and every
     // built-in toggle read the *same* snapshot, so a Settings save landing
@@ -482,17 +526,18 @@ class HarnessController extends EventEmitter {
     let startConfig = snapshot?.config || this.loadConfig();
     let target = await this.resolveLaunchTarget(snapshot);
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       const revision = snapshot?.revision;
       if (typeof revision !== 'number' || this.currentConfigRevision?.() === revision) break;
       snapshot = this.readConfigSnapshot();
       startConfig = snapshot?.config || this.loadConfig();
       target = await this.resolveLaunchTarget(snapshot);
     }
-    this.assertOperationCurrent(generation);
+    checkCurrent();
     try {
       this.stripDroppedPlugins();
     } catch (error) {
+      checkCurrent();
       this.dsh.log(`插件清理失败：${errorMessage(error)}`, 'app');
     }
     try {
@@ -501,6 +546,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(`已修复悬挂插件 bundle：${healed.removed.join(', ')}`, 'app');
       }
     } catch (error) {
+      checkCurrent();
       this.dsh.log(`插件 bundle 修复失败：${errorMessage(error)}`, 'app');
     }
     const desktopInstall = this.ensureDesktopInstallPlugin();
@@ -520,7 +566,7 @@ class HarnessController extends EventEmitter {
     // dsh-im, remote) register their routes during apply.
     try {
       const taskControl = await this.ensureTaskControlPlugin();
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (taskControl && taskControl.ok === false) {
         throw new Error(`桌面内置任务保护失败：${taskControl.error || 'unknown'}`);
       }
@@ -538,7 +584,7 @@ class HarnessController extends EventEmitter {
         const platformSession = typeof this.ensureDesktopPlatformSession === 'function'
           ? await this.ensureDesktopPlatformSession()
           : null;
-        this.assertOperationCurrent(generation);
+        checkCurrent();
         if (platformSession?.overlayFile) {
           patchFiles.push(platformSession.overlayFile);
         }
@@ -546,10 +592,12 @@ class HarnessController extends EventEmitter {
           this.dsh.log(`平台文档会话路由未接入：${platformSession.error || 'unknown'}`, 'app');
         }
       } catch (error) {
+        checkCurrent();
         if (isCancellation(error)) throw error;
         this.dsh.log(`平台文档会话路由未接入：${errorMessage(error)}`, 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置任务保护失败：')) {
         throw error;
@@ -566,7 +614,7 @@ class HarnessController extends EventEmitter {
     // skip cannot fix it.
     try {
       const office = await this.ensureDesktopOfficeRuntime();
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (office && office.ok === false) {
         throw new Error(`桌面内置 Office 运行时失败：${office.error || 'unknown'}`);
       }
@@ -581,6 +629,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(office.warning, 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置 Office 运行时失败：')) {
         throw error;
@@ -592,13 +641,14 @@ class HarnessController extends EventEmitter {
     // dshmarket preset residue, log-only on failure.
     try {
       const market = await this.removeDshMarketPreset();
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (market && market.ok === false) {
         this.dsh.log(`清理 dshmarket 预置残留失败：${market.error || 'unknown'}`, 'app');
       } else if (market && market.changed) {
         this.dsh.log('已清理 dshmarket 桌面预置残留（市场已内置到桌面设置）', 'app');
       }
     } catch (error) {
+      checkCurrent();
       this.dsh.log(`清理 dshmarket 预置残留失败：${errorMessage(error)}`, 'app');
     }
     // Usage stats is desktop built-in Settings → 用量统计 — not a user
@@ -607,7 +657,7 @@ class HarnessController extends EventEmitter {
     // vendor deps fail start (desktop runtime damage, skip cannot fix it).
     try {
       const usage = await this.ensureUsagePanelPlugin();
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (usage && usage.ok === false) {
         throw new Error(`桌面内置用量统计失败：${usage.error || 'unknown'}`);
       }
@@ -618,6 +668,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(usage.added ? '已接入桌面内置用量统计' : '桌面内置用量统计已就绪', 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置用量统计失败：')) {
         throw error;
@@ -627,13 +678,14 @@ class HarnessController extends EventEmitter {
     if (!skipUserPlugins) {
       try {
         const search = await this.ensureSessionSearchOverlay();
-        this.assertOperationCurrent(generation);
+        checkCurrent();
         if (search && search.ok === false) {
           this.dsh.log(`预置会话搜索失败：${search.error || 'unknown'}`, 'app');
         } else if (search?.overlayFile) {
           patchFiles.push(search.overlayFile);
         }
       } catch (error) {
+        checkCurrent();
         this.dsh.log(`预置会话搜索失败：${errorMessage(error)}`, 'app');
       }
     } else {
@@ -645,7 +697,7 @@ class HarnessController extends EventEmitter {
     // vendor deps fail start (desktop runtime damage, skip cannot fix it).
     try {
       const im = await this.ensureDshImPlugin();
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (im && im.ok === false) {
         throw new Error(`桌面内置 dsh-im 失败：${im.error || 'unknown'}`);
       }
@@ -656,6 +708,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(im.added ? '已接入桌面内置 dsh-im（消息渠道）' : '桌面内置 dsh-im 已就绪', 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置 dsh-im 失败：')) {
         throw error;
@@ -671,7 +724,7 @@ class HarnessController extends EventEmitter {
     // the package directory to exist yet.
     try {
       const market = await this.ensureDesktopMarket();
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (market && market.ok === false) {
         throw new Error(`桌面内置市场失败：${market.error || 'unknown'}`);
       }
@@ -682,6 +735,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(market.added ? '已接入桌面内置市场（设置分区）' : '桌面内置市场已就绪', 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置市场失败：')) {
         throw error;
@@ -690,13 +744,14 @@ class HarnessController extends EventEmitter {
     }
     try {
       const removed = await this.removeLegacyDshbotPreset();
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (removed && removed.ok === false) {
         this.dsh.log(`清理 dshbot 预置残留失败：${removed.error || 'unknown'}`, 'app');
       } else if (removed && removed.changed) {
         this.dsh.log('已清理 dshbot 旧版预置残留', 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       this.dsh.log(`清理 dshbot 预置残留失败：${errorMessage(error)}`, 'app');
     }
@@ -709,7 +764,7 @@ class HarnessController extends EventEmitter {
       const bots = await this.ensureDshbotPlugin({
         enabled: startConfig.dshbotEnabled === true,
       });
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (bots && bots.ok === false) {
         throw new Error(`桌面内置 dshbot 失败：${bots.error || 'unknown'}`);
       }
@@ -722,6 +777,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(bots.added ? '已接入桌面内置 dshbot（Bots）' : '桌面内置 dshbot 已就绪', 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置 dshbot 失败：')) {
         throw error;
@@ -736,7 +792,7 @@ class HarnessController extends EventEmitter {
       const whale = await this.ensureDshWhalePlugin({
         enabled: startConfig.whaleAssistantEnabled === true,
       });
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (whale && whale.ok === false) {
         throw new Error(`桌面内置 dsh-whale 失败：${whale.error || 'unknown'}`);
       }
@@ -749,6 +805,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(whale.added ? '已接入桌面内置 dsh-whale（鲸鱼娘助理）' : '桌面内置 dsh-whale 已就绪', 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置 dsh-whale 失败：')) {
         throw error;
@@ -764,7 +821,7 @@ class HarnessController extends EventEmitter {
       const remotePlugin = await this.ensureDshRemotePlugin({
         enabled: startConfig.remoteWorkspaceEnabled !== false,
       });
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (remotePlugin && remotePlugin.ok === false) {
         throw new Error(`桌面内置 dsh-remote 失败：${remotePlugin.error || 'unknown'}`);
       }
@@ -777,6 +834,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(remotePlugin.added ? '已接入桌面内置 dsh-remote（远程工作区）' : '桌面内置 dsh-remote 已就绪', 'app');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error)) throw error;
       if (error instanceof Error && error.message.startsWith('桌面内置 dsh-remote 失败：')) {
         throw error;
@@ -791,6 +849,7 @@ class HarnessController extends EventEmitter {
         this.dsh.log(`应用插件禁用名单跳过：${disabled.reason}`, 'app');
       }
     } catch (error) {
+      checkCurrent();
       this.dsh.log(`应用插件禁用名单失败：${errorMessage(error)}`, 'app');
     }
     const startOptions = {
@@ -799,39 +858,46 @@ class HarnessController extends EventEmitter {
       skipUserPlugins,
       patchFiles,
     };
+    checkCurrent();
     const url = await this.dsh.start(startOptions);
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (this.dsh.state !== 'ready') {
         throw operationCancelled('Harness 在打开界面前已停止');
       }
       const { workspace } = this.loadConfig();
       try {
         await this.ensureWorkspace(url, workspace);
+        checkCurrent();
         this.dsh.log(`已注册工作区 ${workspace}`);
       } catch (error) {
+        checkCurrent();
         this.dsh.log(`工作区自动注册跳过：${errorMessage(error)}`, 'app');
       }
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (this.dsh.state !== 'ready') {
         throw operationCancelled('Harness 在打开界面前已停止');
       }
     try {
       await this.showHarness(url);
-      this.assertOperationCurrent(generation);
+      checkCurrent();
       if (this.dsh.state !== 'ready') {
         throw operationCancelled('Harness 在界面加载期间已停止');
       }
     } catch (error) {
+      checkCurrent();
       if (isCancellation(error) || this.dsh.failure?.phase === 'runtime') {
-        await this.ensureBootVisible().catch(() => {});
+        await this.ensureBootVisible(checkCurrent).catch(() => {});
         throw isCancellation(error)
           ? error
           : operationCancelled('Harness 在界面加载期间已停止');
       }
       await this.dsh.stop();
+      checkCurrent();
       throw new Error(`Web UI 加载失败：${errorMessage(error)}`);
     }
+    checkCurrent();
     await this.syncRemoteLogged();
+    checkCurrent();
     if (this.loadConfig().openDevTools) {
       const harnessWc = this.getHarnessWebContents(win);
       (harnessWc || win.webContents).openDevTools({ mode: 'detach' });
@@ -839,20 +905,30 @@ class HarnessController extends EventEmitter {
     return url;
   }
 
-  async performStart({ showBoot, generation }) {
+  async performStart({ showBoot, generation, assertCurrent = () => {} }) {
+    const checkCurrent = () => {
+      this.assertOperationCurrent(generation);
+      assertCurrent();
+    };
+    checkCurrent();
     const skipUserPlugins = this.shouldSkipUserPlugins();
     try {
-      return await this.performStartOnce({ showBoot, generation, skipUserPlugins });
+      return await this.performStartOnce({ showBoot, generation, skipUserPlugins, assertCurrent });
     } catch (error) {
+      if (isCancellation(error)) throw error;
+      checkCurrent();
       if (!skipUserPlugins && !this.shuttingDown && !isCancellation(error) && this.looksLikePluginTreeFailure(error)) {
         await this.dsh.stop().catch(() => {});
+        checkCurrent();
         this.writePluginSkip(error);
         try {
-          return await this.performStartOnce({ showBoot: false, generation, skipUserPlugins: true });
+          return await this.performStartOnce({ showBoot: false, generation, skipUserPlugins: true, assertCurrent });
         } catch (recoveryError) {
+          checkCurrent();
           if (!this.shuttingDown && !isCancellation(recoveryError)) {
             this.setStartupFailure(recoveryError);
-            await this.ensureBootVisible().catch(() => {});
+            await this.ensureBootVisible(checkCurrent).catch(() => {});
+            checkCurrent();
             this.sendState();
           }
           throw recoveryError;
@@ -860,7 +936,8 @@ class HarnessController extends EventEmitter {
       }
       if (!this.shuttingDown && !isCancellation(error)) {
         this.setStartupFailure(error);
-        await this.ensureBootVisible().catch(() => {});
+        await this.ensureBootVisible(checkCurrent).catch(() => {});
+        checkCurrent();
         this.sendState();
       }
       throw error;
@@ -886,6 +963,7 @@ class HarnessController extends EventEmitter {
   cancelRecovery() {
     this.recoveryGeneration += 1;
     this.recoveryTask = null;
+    this.pluginRecoveryTask = null;
     this.clearTimers();
     return this.setRecovery({
       status: 'cancelled',
@@ -902,6 +980,7 @@ class HarnessController extends EventEmitter {
     this.recoveryGeneration += 1;
     this.operationGeneration += 1;
     this.recoveryTask = null;
+    this.pluginRecoveryTask = null;
     this.clearTimers();
     this.setRecovery({
       status: 'cancelled',
@@ -962,6 +1041,7 @@ class HarnessController extends EventEmitter {
     this.shuttingDown = true;
     this.recoveryGeneration += 1;
     this.recoveryTask = null;
+    this.pluginRecoveryTask = null;
     this.clearTimers();
     const currentOperation = this.operation;
     const currentRestart = this.restartOperation;

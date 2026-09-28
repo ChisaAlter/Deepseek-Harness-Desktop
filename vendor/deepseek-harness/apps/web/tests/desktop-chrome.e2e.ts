@@ -29,7 +29,9 @@ describe('web e2e: titlebar cluster and right sidebar guide', () => {
 
   beforeAll(async () => {
     await mkdir(SNAPSHOT_DIR, { recursive: true })
-    scaffold = await launchWebScaffold({})
+    // The shipped default keeps the Session log capsule hidden; these
+    // assertions cover the opt-in path (Interface Settings switch).
+    scaffold = await launchWebScaffold({ sessionLogTitlebarAction: true })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)

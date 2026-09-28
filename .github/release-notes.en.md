@@ -8,9 +8,11 @@
 - **Session costs**: Usage Statistics now shows costs by model, includes a price-period editor, and has a more compact activity calendar.
 - **One resident whale conversation**: The main window, desktop quick chat, and enabled IM channels share one persistent conversation. Settings separate chat and capabilities from desktop appearance and behavior; quick chat uses a floating model and reasoning picker.
 - **File and browser work loops**: File references and deliverables in chat open the relevant surface. HTML, HTM, XHTML, and PDF deliverables first open in the chat mini preview, then move to the right Browser panel on request while retaining the same page and history.
+- **One right panel**: Files, browser pages, diffs, and other resources open in place in the same right panel. Closing the last content tab returns to its entry view without switching between separate sidebars.
+- **Launcher and data preservation**: Failed imports preserve existing data, and failed plugin replacements restore the previous installation. Stopping or cancelling startup invalidates older recovery tasks. Import lists and long confirmations remain scrollable in small windows and at high zoom levels.
 - **Account sign-in**: The system browser opens automatically when a desktop account authorization link becomes available; the dialog still offers a copyable link.
 - **Interface fixes**: The Jobs popover avoids clipping under the conversation header. The browser mini preview has slimmer chrome and improved dragging, resizing, and title display. The whale pet's interaction area follows the character more closely.
-- **Harness baseline**: Updated to `dsh-v0.1.7-alpha.2` while retaining desktop work loops and plugin capabilities.
+- **Harness baseline**: Updated to `dsh-v0.1.7-rc.2` while retaining desktop work loops and plugin capabilities.
 
 ## Technical contract
 

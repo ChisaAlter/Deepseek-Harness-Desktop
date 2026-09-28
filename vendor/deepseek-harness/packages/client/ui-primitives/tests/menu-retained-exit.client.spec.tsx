@@ -54,7 +54,10 @@ describe('Menu retained exit frame', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
 
-    const retired = screen.getByRole('menu')
+    // aria-hidden + inert take it out of the a11y tree, so query the DOM.
+    const retired = document.querySelector<HTMLElement>('[role="menu"]')
+    expect(retired).not.toBeNull()
+    if (retired === null) throw new Error('Expected the retained menu')
     expect(retired.isConnected).toBe(true)
     expect(retired.getAttribute('data-state')).toBe('closed')
     expect(retired.getAttribute('aria-hidden')).toBe('true')
@@ -85,7 +88,7 @@ describe('Menu retained exit frame', () => {
           autoFocus
           anchor={<button type="button">trigger</button>}
           items={items}
-          onSelect={onSelect}
+          onSelect={(id) => { onSelect(id); setOpen(false) }}
           onClose={() => { setOpen(false) }}
         />
       )

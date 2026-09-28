@@ -56,7 +56,7 @@
   margin: 0;
   padding: 2px 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   font-size: 14px;
   line-height: 22px;

@@ -188,7 +188,7 @@
   flex: none;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-compact);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;

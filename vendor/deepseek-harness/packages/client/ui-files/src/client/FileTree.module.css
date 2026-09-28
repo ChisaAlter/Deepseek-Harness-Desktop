@@ -23,7 +23,7 @@
   min-height: 28px;
   padding: 0 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: 12px;
@@ -69,7 +69,7 @@
   margin-right: 4px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;

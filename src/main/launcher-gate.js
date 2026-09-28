@@ -3,6 +3,13 @@
 const fs = require('fs');
 const path = require('path');
 
+// Local copy of the blocked predicate so the gate can honor an unreadable
+// journal the same way the service/index admission paths do (fail closed),
+// without taking a hard require on data-import here.
+function journalIsBlockedImpl(journal) {
+  return Boolean(journal) && (journal.phase === 'blocked' || journal.unreadable === true);
+}
+
 function lastDesktopStartPath(userDataDir) {
   return path.join(userDataDir, 'last-desktop-start.json');
 }
@@ -340,6 +347,8 @@ async function runColdStartGate({
   sendToLauncher,
   recoverInterruptedImport,
   probeImportHold,
+  readImportJournal,
+  journalIsBlocked,
   startDesktop,
   drainParkedUpdateCheck = async () => {},
   log = () => {},
@@ -359,11 +368,22 @@ async function runColdStartGate({
     importRecovery = recoverInterruptedImport() || importRecovery;
   } catch (error) {
     log(`导入日志恢复失败：${error && error.message ? error.message : String(error)}`, 'error');
+    // A recovery exception must fail closed: hold at the launcher instead of
+    // risking an auto-start over unknown transaction state.
+    importRecovery.blocked = true;
   }
+  // Persistent unresolved recovery holds the launcher on every start path —
+  // including direct starts that bypass the shallow import probe — and it
+  // does not clear just because a valid session already exists.
+  const recoveryBlocked = importRecovery.blocked === true
+    || (typeof readImportJournal === 'function'
+      && (journalIsBlocked || journalIsBlockedImpl)(readImportJournal(userDataDir)));
   // Shallow probe only (feature card `data-import`): the gate needs the
   // destEmpty && sourceHasData verdict, not session titles/cwd metadata —
   // the full scanImport stays on the import page.
-  const holdForImport = probeImportHold().hold === true || importRecovery.recovered === true;
+  const holdForImport = probeImportHold().hold === true
+    || importRecovery.recovered === true
+    || recoveryBlocked;
   const lastStartFailed = readLastDesktopStart(userDataDir).ok === false;
   const stayAtLauncher = holdForImport || lastStartFailed;
   const autoStart = shouldAutoStartDesktop({

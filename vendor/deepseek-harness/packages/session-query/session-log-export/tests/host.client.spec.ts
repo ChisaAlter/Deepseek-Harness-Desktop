@@ -27,7 +27,7 @@ describe('session-log-export host', () => {
     await ctx.plugin(MemorySettings).await()
     const fiber = await ctx.plugin(SessionLogDownload)
     const ns = SESSION_LOG_EXPORT_SETTINGS_NAMESPACE
-    expect(ctx.settings.get(ns)).toEqual({ titlebarAction: true })
+    expect(ctx.settings.get(ns)).toEqual({ titlebarAction: false })
     await ctx.settings.update(ns, { titlebarAction: false })
     expect(ctx.settings.get(ns)).toEqual({ titlebarAction: false })
     await expect(ctx.settings.update(ns, { titlebarAction: 'no' })).rejects.toThrow()

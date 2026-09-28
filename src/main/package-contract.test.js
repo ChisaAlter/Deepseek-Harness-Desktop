@@ -51,6 +51,16 @@ test('manifest keeps the runtime and build-tool dependencies', () => {
   assert.equal(pkg.engines?.node, '^22.19.0 || >=24.0.0');
 });
 
+test('account startup WebSocket dependency is locked for production packaging', () => {
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  assert.equal(typeof pkg.dependencies?.ws, 'string', 'account-backend needs ws in the packaged runtime');
+  assert.equal(lock.packages[''].dependencies.ws, pkg.dependencies.ws);
+  const websocket = lock.packages['node_modules/ws'];
+  assert.ok(websocket, 'a developer-only node_modules/ws must not mask a missing lock entry');
+  assert.notEqual(websocket.dev, true);
+  assert.equal(typeof websocket.integrity, 'string');
+});
+
 test('manifest keeps the packaging contract after-pack depends on', () => {
   const build = pkg.build;
   assert.equal(typeof build, 'object', 'build block is missing');
@@ -106,7 +116,7 @@ test('manifest packages the built-in dsh-remote vendor tree', () => {
     ?.find((entry) => entry.from === 'vendor' && entry.to === 'vendor')
     ?.filter;
   assert.equal(Array.isArray(vendorFilter), true, 'vendor extraResources entry is missing');
-  for (const pattern of ['dsh-usage-panel/**', 'dsh-im/**', 'dshbot/**', 'dsh-whale/**', 'dsh-remote/**']) {
+  for (const pattern of ['dsh-usage-panel/**', 'dsh-im/**', 'dshbot/**', 'dsh-whale/**', 'dsh-remote/**', 'dsh-task-control/**', 'dsh-platform-session/**']) {
     assert.equal(vendorFilter.includes(pattern), true, `vendor filter lost ${pattern}`);
   }
   const remoteRuntime = pkg.build.extraResources.find((entry) => entry.to === 'vendor/dshd-remote/node_modules');

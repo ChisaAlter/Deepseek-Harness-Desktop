@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `desktop-build-runtime` |
 | **status** | `proposed` |
-| **last verified** | 2026-09-22 — 官方构建改为四阶段（native-system / host / client / web）输入-产物凭据复用：`node vendor/deepseek-harness/node_modules/vitest/vitest.mjs run scripts/build-stage-credentials.client.spec.ts --environment node` 11/11；`tsc --noEmit -p tsconfig.host.json` 通过；稳态 `build.ts --profile official` 不跑任何阶段、`prestart-ensure.mjs` 不触发构建；commit bump 只重建 client + web（约 37–68 s）。同日构建输入判定改走共享扫描层（`scripts/source-scan.test.mjs` 7/7；client 输入统计 261 ms → 138 ms），并且 `dsh-im` 改由深度闭包检查决定复用（`node --test src/main/after-pack.test.js` 35/35）。此前 2026-09-20 恢复 `package.json` 字段并新增 `src/main/package-contract.test.js`：`node --test src/main/package-contract.test.js src/main/installer-branding.test.js` 15/15（5 + 10）。 |
+| **last verified** | 2026-09-28 — 一源一目录装配通过 747 包 / 3602 边验证；tar 搬迁、循环与严格身份回归通过。桌面 2765 通过/2 跳过；源码与安装树冒烟、NSIS 与资产校验通过。ws 与平台会话资源已随包。当前仅本地演练，CI 同 SHA 候选与正式生产验收未完成。 |
 
 ## User paths
 
@@ -14,6 +14,8 @@
 
 ## Invariants
 
+- 每个运行时源 realpath 对应一个物理包目录；消费者经根内链接解析到相同或隔离的源实例。version 1 `.dsh-runtime-links.json` 仅记录相对路径，归档前移除链接、解压后恢复，实际解析边与发布文件都须通过验证。
+- 账户启动依赖 `ws` 必须在根生产 dependencies 与锁文件中声明，不能依赖本机额外安装。工作区依赖同源拆分与异源合并均阻断打包，字节相同不豁免；删除副本后的依赖树必须复验，正确收拢不能因复制计数不变而失败。
 - `package.json` 必须保留 `scripts`（至少含 start / test / setup:harness / sync:harness / pack / dist / check:governance / doc-sync）、`devDependencies`（electron / electron-builder / semver / pnpm）、`dependencies.electron-updater`、engines、overrides 与完整 `build` 块（asarUnpack / electronDist / extraMetadata / afterPack / publish / win / nsis / mac / dmg）。
 - `build.extraResources` 的首个 vendor filter 必须包含全部内置插件目录，含 `dsh-remote/**`；`vendor/chisacode-remote/.tmp/desktop-runtime/node_modules → vendor/dshd-remote/node_modules` 的第二条资源映射不得丢。
 - NSIS 品牌契约（artifact 名、installerLanguages、`build/installer.nsh`）由 `windows-installer` 卡定义，本卡只保证字段存活，不重复定义取值。
@@ -25,8 +27,11 @@
 
 ## Allowed touch
 
+- `scripts/runtime-instance-graph.js`、`src/shared/runtime-links.js`、`src/main/harness-extract.js` 与对应测试 — 2026-09-28 用户全面修复授权下的一源一目录装配、链接清单和提取恢复
 - `package.json` — 清单字段与打包配置
 - `src/main/package-contract.test.js` — 结构门禁
+- `package-lock.json` — 2026-09-28 用户授权补齐 `ws@8.21.3` 生产锁记录，不改已有依赖版本
+- `scripts/after-pack.js`、`src/main/after-pack-workspace.test.js`、`src/main/after-pack-identity.test.js` — 2026-09-28 用户授权恢复实例合并/拆分阻断并修正删除后的收敛复验
 - `scripts/source-scan.mjs`、`scripts/source-scan.test.mjs` — 构建输入的共享谓词、目录剪枝、单次运行 memo 及其机检
 - `scripts/prestart-ensure.mjs` — client 失效判定、阶段凭据调用与输入扫描调用
 - `vendor/deepseek-harness/scripts/build-stage-credentials.mjs`、`.d.mts`、`.client.spec.ts` — 阶段凭据的判定实现、类型声明与机检
@@ -39,11 +44,13 @@
 
 ## Do not touch
 
-- `package-lock.json` 的解析结果与已锁定依赖版本（改清单不等于改锁）
+- `package-lock.json` 的其他解析结果与已锁定依赖版本（上述 ws 补齐授权除外）
 - `SHA512SUMS.txt` 生成与更新器校验流；发行资产名称按 `windows-installer` 卡同步
 - 真实发布、签名与 mac DMG 上传策略
 
 ## Gates
+
+实例与生产依赖回归：`node --test src/main/after-pack-identity.test.js src/main/after-pack-workspace.test.js src/main/after-pack.test.js src/main/package-contract.test.js`。
 
 | Kind | What |
 | --- | --- |
@@ -52,6 +59,8 @@
 
 ## Sources
 
+- Decision: [运行时按源实例装配并在解压后恢复链接](../decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md)
+- Decision: [打包实例门禁恢复与账户运行时依赖补齐](../decisions/implemented/bug-fix/2026-09-28-packaging-identity-gates-and-ws.md)
 - Decision: [桌面清单保留完整脚本、运行时依赖与打包资源契约](../decisions/proposed/bug-fix/2026-09-19-desktop-manifest-runtime-contract.md)
 - Decision: [构建输入按真实来源判定，每次运行只枚举一次](../decisions/proposed/process/2026-09-22-build-input-scan-dedup.md)
 - Decision: [官方构建按阶段验证输入-产物凭据，命中即复用](../decisions/proposed/process/2026-09-21-build-stage-credentials.md)

@@ -107,9 +107,9 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-chat/src/client/settings/PreferenceRow.tsx', includes: ['<FlipText className={css.selectorLabel} text={selectedLabel} />'] },
   { file: 'packages/client/ui-primitives/src/Menu.tsx', includes: ['const { mounted, state } = usePresence(open)', 'data-dsh-motion="popover"', 'data-state={state}'] },
   { file: 'packages/client/ui-primitives/src/DisclosureRow.tsx', includes: ['const { mounted, state } = usePresence(open)', 'data-dsh-motion="fade"', 'data-state={state}'] },
-  { file: 'packages/client/ui-input-trigger/src/client/MenuView.tsx', includes: ['const lastOpen = useRef(state)', 'if (state.open) lastOpen.current = state', 'const view = state.open ? state : lastOpen.current', 'const { mounted, state: motionState } = usePresence(state.open)', 'data-dsh-motion="popover"', 'data-state={motionState}'] },
+  { file: 'packages/client/ui-input-trigger/src/client/MenuView.tsx', includes: ['const lastOpen = useRef(state)', 'lastOpenCrumbs', 'lastOpen.current = state', 'const view = state.open ? state : lastOpen.current', 'const { mounted, state: motionState } = usePresence(state.open)', 'data-dsh-motion="popover"', 'data-state={motionState}'] },
   { file: 'packages/client/ui-primitives/src/HoverCard.tsx', includes: ["const compactMotion = variant === 'compact' && !inline", 'usePresence(compactMotion && open)', "data-dsh-motion={compactMotion ? 'popover' : undefined}", "data-state={compactMotion ? cardState : closing ? 'closed' : 'open'}"] },
-  { file: 'packages/client/ui-primitives/src/Tooltip.module.css', includes: ['animation: tooltip-in var(--ds-motion-duration-swap)'] },
+  { file: 'packages/client/ui-primitives/src/Tooltip.tsx', includes: ["data-dsh-motion=\"fade\"", 'data-state={state}', 'usePresence(requestedVisible && !disabled)'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])', '.heroWorkspaceRow', 'max-width: var(--dsh-composer-resized-width', 'align-self: center'] },
   { file: 'packages/client/ui-conversation/src/client/ComposerBeam.tsx', includes: ['data-composer-beam', '--dsh-composer-beam-period', '--dsh-composer-beam-bloom-opacity', '--dsh-composer-beam-track-width', 'data-beam-breathing'] },
   { file: 'packages/client/ui-conversation/src/client/ComposerBeam.module.css', includes: ['.beamBloom::before', 'inset: -4px', 'blur(var(--dsh-composer-beam-glow-blur', '.beamStroke {', 'padding: var(--dsh-composer-beam-track-width', 'transparent 30%', '-webkit-mask-composite: source-in, xor', 'mask-composite: intersect, exclude', 'mask-composite: add', 'corner-shape: round'] },
@@ -149,23 +149,13 @@ const FORK_FILE_MARKERS = [
   // Desktop fork: the shipped web-app composition carries the browse rows, so
   // the scaffold's upstream -auto disable+insert pair must stay removed (it
   // duplicates the shipped client browse row and fails every boot sweep).
-  // The right column is the classic surfaces track: SurfacesRoot hosts the
-  // declared `surfaces` seat tree (tab strip + EmptyState picker + occupants)
-  // and every open path expands it via ctx.layout.openSurfaces(). The native
-  // sidebar dock stays only for upstream-exclusive kinds — expanding either
-  // column collapses the other, so exactly one right column is visible.
-  { file: 'packages/client/ui-layout/src/client/index.ts', includes: ['surfaces: number'] },
-  { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['surfaces: layoutInfo.surfaces'] },
-  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ["name: 'surfaces'", 'SurfacesRoot', 'openClassicSurfaces', 'collapseRightPanel', 'ctx.layout.openSurfaces()', 'sidebarRightTabs'], excludes: ['SurfacesGone', 'expandRightPanel'] },
-  { file: 'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx', includes: ['SurfaceTabs', 'EmptyState', 'useSyncExternalStore'] },
-  // The empty-state grid mirrors the sidebarRightTabs guide registry one-for-one
-  // and opens picks through sidebarRight.openTabIn — no second card list.
-  { file: 'packages/client/ui-surfaces/src/client/EmptyState.tsx', includes: ['SidebarRightGuideBox', 'EmptyStateGuide'] },
-  { file: 'packages/client/ui-surfaces/tests/empty-state.client.spec.tsx', includes: ['guide('] },
-  { file: 'packages/client/ui-sidebar-right/src/client/index.ts', includes: ['layout.closeSurfaces()'] },
-  { file: 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx', includes: ['restoreClassic'] },
-  { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['layout.toggleSurfaces()'] },
-  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['isSurfacesShortcut'], excludes: ['rightbarShown'] },
+  // One full-height DSHD column owns guide and content; no second host or toggle.
+  { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['surfaces: 0'], excludes: ["renderSlot('surfaces'"] },
+  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ['openWorkspaceSurface', 'openResourceIn', 'openTabIn'], excludes: ['collapseRightPanel', 'ctx.layout.openSurfaces()'] },
+  { file: 'packages/client/ui-sidebar-right/src/client/index.ts', includes: ['layout.openRightbar'], excludes: ['layout.closeSurfaces()'] },
+  { file: 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx', includes: ['data-sidebar-right-guide-only'], excludes: ['restoreClassic'] },
+  { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['toggleExpanded()'], excludes: ['layout.toggleSurfaces()'] },
+  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['isSurfacesShortcut', 'rightbarShown'] },
   // Keyboard-shortcut adoption (keyboard-shortcuts card): explicit local-first
   // input policy, panel chords owned by the registry, terminal region marker.
   { file: 'packages/client/shortcuts/src/protocol.ts', includes: ["./policy.ts'"] },
@@ -181,7 +171,7 @@ const FORK_FILE_MARKERS = [
   // the editable desktop viewer and the surfaces file editor, so the native
   // document preview claims them (Office→PDF, XLSX→Spreadsheet).
   { file: 'packages/client/ui-files/src/client/desktop-files.ts', includes: ['OFFICE_PREVIEW_EXTENSIONS', 'isOfficePreviewPath'] },
-  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ['OFFICE_DOCUMENTS', 'openOfficeDocument'] },
+  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ['fileAddressFor', 'openResourceIn'] },
   { file: 'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx', includes: ['openOfficeDocument'] },
   // Shared review diff renderer (P4 adoption): business-neutral unified/split
   // rows, wrap, sync scroll, and cancelable highlighting live in ui-primitives.

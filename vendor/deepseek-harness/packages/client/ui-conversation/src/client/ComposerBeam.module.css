@@ -17,7 +17,7 @@
   inset: -4px;
   z-index: 0;
   overflow: hidden;
-  border-radius: 26px;
+  border-radius: var(--dsw-radius-composer-frame);
   corner-shape: round;
   pointer-events: none;
 }
@@ -34,7 +34,7 @@
 .beamInner,
 .beamStroke {
   inset: 4px;
-  border-radius: 22px;
+  border-radius: var(--dsw-radius-composer);
   corner-shape: round;
 }
 
@@ -218,7 +218,7 @@
   position: absolute;
   inset: 4px;
   padding: 1.5px;
-  border-radius: 22px;
+  border-radius: var(--dsw-radius-composer);
   corner-shape: round;
   background: var(
     --dsh-composer-beam-bloom-gradient,

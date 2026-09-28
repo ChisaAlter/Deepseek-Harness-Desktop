@@ -89,7 +89,7 @@
   height: 10px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   cursor: pointer;
 }

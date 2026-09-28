@@ -10,6 +10,8 @@
 | **last verified (titlebar capsules)** | 2026-09-23 — 会话标题栏「在应用中打开」、Session 日志与 Git 胶囊统一为 32px 高、18px 圆角、`--dsw-alias-border-l2` 半像素描边和 14px 图标；文档预览栏保留 24px 控件规格。|
 | **last verified (unavailable state)** | 2026-09-23 — 无 cwd、Git 状态加载中或读取不可用时隐藏整组标题栏 Git 控件；`ui-git` 定向测试 62/62 通过，含登记后恢复与非仓库初始化；定向类型检查、客户端打包与 Web 构建通过。|
 
+| **last verified (crowding opt-in + overflow)** | 2026-09-28 — Session 日志胶囊默认收进界面设置（`session-log-download.titlebarAction` 默认 `false`，`ChromeVisibility` 按初始默认收紧谓词）；被 cozy/compact 密度收起的 `conversation.session.header.actions` 由 utilities 前的 28px 箭头座席承接——悬停/聚焦临时弹出、点击 pin 住、Esc/外部点击收起，密度回到 `full` 时座席卸载。`session-log-export` 相关测试（chrome-visibility/client-apply/host/route/archive 61 项）与 `skeleton.client.spec.tsx` 45 项（含两条溢出用例）绿；`desktop-chrome.e2e.ts` 走 `sessionLogTitlebarAction` scaffold 选项验证 opt-in 集群；release QA 新增 `interface.sessionLogSwitch` 步验证开关路径并还原默认。|
+
 ## User paths
 
 1. 标题栏看当前分支 → 打开「选择分支」→ 搜索 / 切换 / 创建并检出。
@@ -36,6 +38,8 @@
 - 已知权衡（信任粒度）：通过过滤的登记根对 Git/FS/PTY 全量生效，不做逐操作确认；边界是「登记只来自用户主动打开的工作区」加上盘符根与高危祖先过滤。
 - `gitPush`（含 skip）在 `refs/remotes/<primary>/HEAD` 缺失或悬空时补上：先 `git remote set-head <primary> --auto`，失败则指向刚推的分支。这样首发非 `main`/`master` 的仓 `isDefaultRef` 为真，Commit & push 而不是误走 Commit, push & PR。不把 push 失败画成 set-head 失败。
 - 官方 `dsh web` 标题栏 Git 视觉；不另做皮肤。
+- Session 日志胶囊默认不进标题栏：`session-log-download.titlebarAction` 默认 `false`，加载中/远端记忆快照不得闪出；`settings.interface.item` 的「会话日志导出」开关是唯一 opt-in 路径，`/export` 命令不受影响。
+- 标题行在 `cozy`/`compact` 密度（或 520px 容器断点）收起 `conversation.session.header.actions` 时，utilities 前必须渲染箭头溢出座席：悬停/聚焦临时展示、点击 pin、Esc/外部 pointerdown/再点收起；密度回到 `full` 座席卸载且状态清零。弹出面板避开 actions 带的 `overflow:hidden`，用菜单表面 token。
 
 ## Allowed touch
 
@@ -45,7 +49,8 @@
 - Preload / `ipc.js` 的 `shell:git-*`
 - 本卡与 handbook `modules/git-titlebar.md`
 - vendor `ui-git` 的标题栏可见性及定向测试（仅针对状态不可用时隐藏整组）
-- 会话标题栏胶囊的局部视觉修复：vendor `ui-open-in-app` 的目录控件与 `session-log-export` 的标题栏按钮样式；文档预览文件控件不随之改尺寸
+- 会话标题栏胶囊的局部修复：vendor `ui-open-in-app` 的目录控件与 `session-log-export` 的标题栏按钮（含默认可见性与界面设置开关）；文档预览文件控件不随之改尺寸
+- 会话 header 拥挤兜底：ui-conversation `ConversationSession.tsx` 的溢出座席与其 `ConversationRoot.module.css` 样式、`skeleton.client.spec.tsx` 定向测试；release-ui-walk 的 titlebar/interface 步
 
 ## Do not touch
 
@@ -65,6 +70,7 @@
 
 - Decision: [Git 标题栏一次 refresh 共用一份读取上下文](../decisions/proposed/architecture/2026-09-22-git-refresh-read-context.md)
 - Decision: [Git 状态不可用时隐藏标题栏操作组](../decisions/implemented/bug-fix/2026-09-23-hide-unavailable-git-titlebar.md)
+- Decision: [会话日志默认收起 + 次级 Agent 操作溢出按钮](../decisions/implemented/bug-fix/2026-09-28-titlebar-crowding-opt-in-and-overflow.md)
 
 - Handbook：[../handbook/modules/git-titlebar.md](../handbook/modules/git-titlebar.md)
 - Spec：[../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md](../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md)

@@ -71,8 +71,26 @@ test('attachRendererConsoleTail keeps error-level lines only', () => {
   const contents = { on: (ev, fn) => { handlers[ev] = fn; } };
   const tail = new RendererConsoleTail();
   attachRendererConsoleTail(contents, tail);
-  handlers['console-message']({ level: 1, message: 'info' });
-  handlers['console-message']({ level: 3, message: 'ERR real failure' });
-  handlers['console-message']({ level: 3, message: 'ERR second' });
+  handlers['console-message']({ level: 'info', message: 'info' });
+  handlers['console-message']({ level: 'warning', message: 'warning' });
+  handlers['console-message']({ level: 'error', message: 'ERR real failure' });
+  handlers['console-message']({ level: 'error', message: 'ERR second' });
   assert.deepEqual(tail.snapshot(), ['ERR real failure', 'ERR second']);
+});
+
+test('console tail truncates oversized lines at complete UTF-8 boundaries', () => {
+  for (const limit of [0, 1, 2, 3, 4, 16]) {
+    for (const line of ['x'.repeat(64), '鲸'.repeat(32), '🐳'.repeat(32)]) {
+      const tail = new RendererConsoleTail(limit);
+      tail.push('old');
+      tail.push(line);
+      const kept = tail.snapshot().join('');
+      assert.ok(Buffer.byteLength(kept) <= limit, `UTF-8 budget ${limit}`);
+      assert.equal(tail.bytes, Buffer.byteLength(kept));
+      assert.ok(!kept.includes('\uFFFD'), 'no partial UTF-8 code point');
+      if (kept) assert.ok(line.endsWith(kept), 'retain the most recent text');
+      tail.push('z');
+      assert.ok(tail.bytes <= limit, 'subsequent lines also stay bounded');
+    }
+  }
 });

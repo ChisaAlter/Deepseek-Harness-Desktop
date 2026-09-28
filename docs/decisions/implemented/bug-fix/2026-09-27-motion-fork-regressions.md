@@ -20,9 +20,9 @@ Status: implemented
 按 `docs/motion.md` 恢复丢失的 recipe，并把每个调用点登记为 fork 断言，防止下一次同步再次静默覆盖：
 
 - `ModelSelect` 的模型名与推理档、`PreferenceRow` 的选项文案改用 `FlipText`（400ms `flip`）。
-- `Menu`、`MenuView`、`HoverCard`（compact 变体）恢复 `usePresence` + `data-dsh-motion="popover"`；`MenuView` 退场期间保留最后一次打开的分组快照，避免 200ms 内渲染空面板。
+- `Menu`、`MenuView`、`HoverCard`（compact 变体）恢复 `usePresence` + `data-dsh-motion="popover"`；`MenuView` 退场期间保留最后一次打开的分组与面包屑快照（`lastOpen` + `lastOpenCrumbs`），避免 200ms 内渲染空面板或面包屑闪空。
 - `DisclosureRow` 恢复 `usePresence` + `data-dsh-motion="fade"`。
-- `Tooltip.module.css` 的 `.bubble` 应用已有的 `tooltip-in`，时长走 `--ds-motion-duration-swap`。
+- `Tooltip` 改走 `usePresence` + `data-dsh-motion="fade"`（透明度走 `--ds-motion-duration-swap`）：相比原 `tooltip-in` keyframes 多补了退场淡出，且退场帧随 `aria-hidden` + `inert` 退出 a11y 树。
 
 `HoverCard` 的 `preview` 变体保留上游自己的 100ms 淡出——`close()` 只为 `variant === "preview"` 进入该 closing 相位；`inline` 与 compact 变体走共享 recipe，不叠加第二套淡出。`Menu` 的锚点追踪仍严格跟随逻辑 `open`，退场期间只冻结位置，避免关闭后继续测量。
 

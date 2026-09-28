@@ -599,7 +599,7 @@
   height: 28px;
   padding: 0 10px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 14px;
+  border-radius: var(--dsw-radius-button-sm);
   color: var(--dsw-alias-label-primary);
   font-size: 12px;
   line-height: 18px;
@@ -618,7 +618,8 @@
 }
 
 .effortOption:has(input:focus-visible) {
-  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+  --dsw-focus-ring-color: var(--dsw-alias-border-l3);
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color);
 }
 
 .effortOption input {

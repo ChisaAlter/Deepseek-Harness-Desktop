@@ -32,6 +32,7 @@ interface SidebarRightTabsFace {
   register: (definition: {
     id: string
     kind: string
+    keepMounted?: boolean
     priority: 'extension'
     title: () => string
     guide: readonly { id: string; order: number; title: () => string; description: () => string }[]
@@ -64,6 +65,7 @@ export function apply(ctx: Context): void {
     ctx.effect(() => tabs.register({
       id: PREVIEW_ID,
       kind: BROWSER_KIND,
+      keepMounted: true,
       priority: 'extension',
       title: () => t('title'),
       guide: [{

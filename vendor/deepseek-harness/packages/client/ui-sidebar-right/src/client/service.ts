@@ -125,6 +125,8 @@ export interface SidebarRightBinding {
 
 /** Where an open lands; every field is optional and the defaults are the common case. */
 export interface SidebarRightPlacement {
+  /** False opens content without expanding the panel (chat mini preview). */
+  readonly expand?: boolean
   /** Land a new tab in this pane instead of the active docked one. */
   readonly paneId?: PaneId
   /** Prefer a new pane for new content; use the target pane when splitting is unavailable. */

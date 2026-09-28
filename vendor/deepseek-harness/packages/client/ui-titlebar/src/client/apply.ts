@@ -32,15 +32,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Services required by the titlebar plugin. */
 export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'configForms', 'shortcuts']
 
-/**
- * The DSHD panel button toggles the classic surfaces column. The merged
- * right Sidebar dock is mutually exclusive with it: collapse an expanded
- * dock first so the two right columns never compete.
- */
+/** Toggle the single right panel shared by guide and content. */
 function toggleSurfaces(ctx: Context): void {
-  const sidebar = ctx.get('sidebarRight')
-  if (sidebar !== undefined && sidebar.isExpanded()) sidebar.toggleExpanded()
-  ctx.layout.toggleSurfaces()
+  ctx.get('sidebarRight')?.toggleExpanded()
 }
 
 /**

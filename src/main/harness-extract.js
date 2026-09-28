@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { harnessHasGhosttyAssets } = require('../shared/ghostty-assets');
+const { materializeRuntimeLinks } = require('../shared/runtime-links');
 
 function looseHarnessRoot() {
   return path.join(process.resourcesPath, 'vendor', 'deepseek-harness');
@@ -235,7 +236,12 @@ async function ensurePackagedHarness(log = () => {}) {
   const identity = archiveExists
     ? packagedRuntimeIdentity(readPackagedPin(), fs.statSync(archive).size)
     : null;
-  if (identity && canReuseExtractedHarness(dest, identity)) {
+  let linksReady = true;
+  try { materializeRuntimeLinks(dest); } catch (error) {
+    linksReady = false;
+    log(`运行时链接需要重建：${error.message}`);
+  }
+  if (identity && linksReady && canReuseExtractedHarness(dest, identity)) {
     return dest;
   }
   if (!archiveExists) {
@@ -262,6 +268,7 @@ async function ensurePackagedHarness(log = () => {}) {
   log('正在解压运行时（仅首次，之后会变快）…');
   fs.mkdirSync(dest, { recursive: true });
   await runTar(['-xf', archive, '-C', dest]);
+  materializeRuntimeLinks(dest);
   if (!hasBuiltHarness(dest)) {
     throw new Error('运行时解压不完整，请重新安装');
   }

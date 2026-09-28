@@ -1,11 +1,11 @@
 /**
- * Four-column shell frame, registered into the built-in 'root' slot (the web
- * shell renders only 'root'). Owns the grid tracks (sidebar | center |
- * rightbar | surfaces) plus a shared titlebar row over conversation and
- * rightbar (surfaces spans every row to the window top), the conversation-
+ * Shell frame, registered into the built-in 'root' slot (the web shell renders
+ * only 'root'). Owns the sidebar, conversation, and single full-height rightbar
+ * tracks; the legacy surfaces track stays at zero. Also owns the conversation
+ * titlebar row and the conversation-
  * column terminal drawer, the single 48px caption drag band (columns 1–end,
  * first child so columns paint above it), the titlebar trailing cluster (in
- * that row, not over the open surfaces column), the phone overlay band
+ * that row, ending before the open rightbar), the phone overlay band
  * (portrait below PHONE_MAX), landscape sidebar (rotate keeps the column in
  * the grid), the drag handles (pointer capture + rAF throttle), the concession
  * chain (columns.ts), and the child-slot render decisions: the sidebar slot
@@ -66,11 +66,6 @@ function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'use
  */
 function RightbarColumn(props: { children?: ReactNode }) {
   return <div className={css.detailsCol} data-rightbar-col>{props.children}</div>
-}
-
-/** Surfaces column grid item; width 0 keeps the subtree mounted (never unmount on close). */
-function SurfacesColumn(props: { children?: ReactNode }) {
-  return <div className={css.surfacesCol}>{props.children}</div>
 }
 
 /** Terminal drawer under the conversation column; height 0 keeps the subtree mounted. */
@@ -352,14 +347,14 @@ export function AppFrame({
     viewport,
     !layoutInfo.rightbarShown && narrow ? 0 : sidebarPreference,
     rightbarPreference,
-    layoutInfo.surfaces,
+    0,
     collapsedWidth,
   )
   const cols = computeColumns(
     viewport,
     sidebarPreference,
     layoutInfo.rightbarTrack ? rightbarPreference : 0,
-    layoutInfo.surfaces,
+    0,
     collapsedWidth,
   )
   const colsRef = useRef(cols)
@@ -369,31 +364,26 @@ export function AppFrame({
   const drawerWidth = Math.min(PHONE_DRAWER, Math.max(SIDEBAR_MIN, viewport - 48))
   const sidebarWidth = phone ? (sidebarCollapsed ? 0 : drawerWidth) : cols.sidebar
   const rightbarTracked = layoutInfo.rightbarTrack && cols.rightbar > 0
-  const clusterOverConversation = clusterVisible && cols.rightbar === 0
+  const clusterOverConversation = clusterVisible
   const titlebarDensity = resolveTitlebarDensity(cols.center, clusterOverConversation)
-  const conversationReserve = titlebarConversationReserve(clusterVisible, trailingWidth, cols.rightbar)
+  const conversationReserve = titlebarConversationReserve(clusterVisible, trailingWidth, 0)
 
   // The drag base is the rendered width captured at drag start (grabbing a
   // concession-clamped panel must not jump back to the stored preference);
   // it stays frozen for the whole gesture so dx deltas do not compound.
   const sidebarBase = useRef(0)
   const rightbarBase = useRef(0)
-  const surfacesBase = useRef(0)
   // Track-level transitions pause for the whole gesture: eased tracks would
   // detach the column edge from the pointer (AppFrame.module.css).
   const [dragging, setDragging] = useState(false)
   const onDragEnd = useCallback(() => { setDragging(false) }, [])
   const onSidebarStart = useCallback(() => { sidebarBase.current = colsRef.current.sidebar; setDragging(true) }, [])
   const onRightbarStart = useCallback(() => { rightbarBase.current = rightbarWidth.current; setDragging(true) }, [])
-  const onSurfacesStart = useCallback(() => { surfacesBase.current = colsRef.current.surfaces; setDragging(true) }, [])
   const onSidebarDrag = useCallback((dx: number) => {
     actions.setSidebar(sidebarBase.current + dx)
   }, [actions])
   const onRightbarDrag = useCallback((dx: number) => {
     actions.setRightbar(rightbarBase.current - dx)
-  }, [actions])
-  const onSurfacesDrag = useCallback((dx: number) => {
-    actions.setSurfaces(surfacesBase.current - dx)
   }, [actions])
   const productTitle = process.env.DSH_CLIENT_TITLE ?? t('brand.localBuild')
   const sidebar = useMemo(() => renderSlot('sidebar', {
@@ -413,8 +403,8 @@ export function AppFrame({
         ...(document.documentElement.hasAttribute('data-windows-titlebar')
           ? { '--dsh-windows-sidebar-width': `${cols.sidebar}px` } : {}),
         gridTemplateColumns: phone
-          ? `0px minmax(0, 1fr) ${cols.rightbar}px ${cols.surfaces}px`
-          : `${cols.sidebar}px minmax(0, 1fr) ${cols.rightbar}px ${cols.surfaces}px`,
+          ? `0px minmax(0, 1fr) ${cols.rightbar}px 0px`
+          : `${cols.sidebar}px minmax(0, 1fr) ${cols.rightbar}px 0px`,
         gridTemplateRows: `auto minmax(0, 1fr) ${layoutInfo.terminalDrawer}px`,
         '--dshd-titlebar-conversation-reserve': `${conversationReserve}px`,
       } as CSSProperties}
@@ -478,7 +468,6 @@ export function AppFrame({
         <RightbarColumn>
           {renderSlot('rightbar', { width: normal.rightbar, viewportWidth: viewport, canShow: normal.rightbar > 0 })}
         </RightbarColumn>
-        <SurfacesColumn>{renderSlot('surfaces', {})}</SurfacesColumn>
       </>
       <div className={css.overlayLayer} data-shell-overlay>
         {overlays}
@@ -488,11 +477,11 @@ export function AppFrame({
         ref={trailingRef}
         className={css.titlebarTrailing}
         data-titlebar-trailing
-        data-titlebar-trailing-over-surfaces={cols.surfaces === 0 || undefined}
+        data-titlebar-trailing-over-surfaces={!rightbarTracked || undefined}
         id="dshd-shell-titlebar-trailing"
       >
         {renderSlot('shell.titlebar.trailing', {
-          surfaces: layoutInfo.surfaces,
+          surfaces: 0,
           rightbarShown: layoutInfo.rightbarShown,
           terminalDrawer: layoutInfo.terminalDrawer,
           managedSession,
@@ -507,7 +496,6 @@ export function AppFrame({
       {!phone && layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
         <DragHandle side="rightbar" left={viewport - normal.rightbar - cols.surfaces} onStart={onRightbarStart} onDrag={onRightbarDrag} onEnd={onDragEnd} />
       )}
-      {!phone && cols.surfaces > 0 && <DragHandle side="surfaces" left={viewport - cols.surfaces} onStart={onSurfacesStart} onDrag={onSurfacesDrag} onEnd={onDragEnd} />}
     </div>
   )
 }

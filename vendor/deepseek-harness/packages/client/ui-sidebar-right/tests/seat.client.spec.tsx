@@ -360,10 +360,7 @@ describe('RightbarSeat presentation', () => {
     }
     expect(h.view.container.querySelector(`[data-dockkit-tab-close="${initial.id}"]`)).not.toBeNull()
     act(() => { h.controller.close(initial.id) })
-    expect(h.layout().expanded).toBe(false)
-    // The close leaves the layout empty; the next expansion reseeds.
-    expect(Object.keys(h.layout().tabs)).toHaveLength(0)
-    act(() => { h.controller.toggleExpanded() })
+    expect(h.layout().expanded).toBe(true)
     const reseeded = Object.values(h.layout().tabs)[0]!
     expect(reseeded.kind).toBe('text')
     expect(reseeded.id).not.toBe(initial.id)

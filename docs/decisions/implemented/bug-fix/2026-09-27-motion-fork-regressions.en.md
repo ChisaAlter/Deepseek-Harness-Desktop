@@ -20,9 +20,9 @@ The cause is that these call sites live in upstream-owned files. The fork marker
 Restore the lost recipes as documented in `docs/motion.md`, and register every call site as a fork assertion so the next sync fails loudly instead of regressing silently:
 
 - The model name and reasoning effort in `ModelSelect`, and the option label in `PreferenceRow`, use `FlipText` again (400ms `flip`).
-- `Menu`, `MenuView`, and the compact `HoverCard` variant use `usePresence` with `data-dsh-motion="popover"` again; `MenuView` keeps its last open group snapshot through the exit so the 200ms transition never paints an empty card.
+- `Menu`, `MenuView`, and the compact `HoverCard` variant use `usePresence` with `data-dsh-motion="popover"` again; `MenuView` keeps its last open group and breadcrumb snapshot through the exit (`lastOpen` + `lastOpenCrumbs`) so the 200ms transition never paints an empty card or flashes empty breadcrumbs.
 - `DisclosureRow` uses `usePresence` with `data-dsh-motion="fade"` again.
-- `Tooltip.module.css` applies its existing `tooltip-in` animation to `.bubble`, timed by `--ds-motion-duration-swap`.
+- `Tooltip` now runs `usePresence` with `data-dsh-motion="fade"` (opacity timed by `--ds-motion-duration-swap`): it gains an exit fade the old `tooltip-in` never had, and the retained exit frame leaves the a11y tree through `aria-hidden` + `inert`.
 
 `HoverCard`'s `preview` variant keeps its own upstream 100ms fade — `close()` only enters that closing phase for `variant === "preview"`; the `inline` and compact variants use the shared recipe and do not stack a second fade. `Menu` anchor tracking still follows the logical `open` flag; the exit frame only freezes placement instead of measuring a closed list.
 
@@ -34,4 +34,4 @@ Restore the lost recipes as documented in `docs/motion.md`, and register every c
 
 ## Consequences
 
-Cost: `Menu` and `HoverCard` carry one more presence state, `MenuView` retains one last-open snapshot, and the fork assertions gain seven rows, so a future upstream refactor must update `docs/motion.md` before removing these call sites. Benefit: model and reasoning picks flip again, menus/overlays/disclosures regain their 100–200ms recipes, the tooltip keyframes stop being dead code, and the next `sync:harness` fails on the assertion rather than degrading silently.
+Cost: `Menu` and `HoverCard` carry one more presence state, `MenuView` retains one last-open snapshot, and the fork assertions pin each call site, so a future upstream refactor must update `docs/motion.md` before removing these call sites. Benefit: model and reasoning picks flip again, menus/overlays/disclosures regain their 100–200ms recipes, and the next `sync:harness` fails on the assertion rather than degrading silently.

@@ -2,7 +2,7 @@
 
 中文 | [English](design-language.en.md)
 
-DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.7-alpha.2`（`00102833dfaee1da9f48a3a8eae9d34005a75218`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
+DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.7-rc.2`（`477b4f420553e8a52c2fbccc464d7561b239c443`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
 
 「与基线一致」不靠主观印象，按三条硬标准判定，全部落在实物上：
 
@@ -12,7 +12,7 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 
 责任方向是单向的：**先改本文档，再改代码。** `sync:harness` 换钉版只更新代码基线，不自动改设计语言；新基线带来的视觉差异必须先写进本文档裁决，再落到实现。启动页的海平线画布只活在 [`src/renderer/boot.html`](../src/renderer/boot.html)，见 [桌面启动页](#桌面启动页)，不得扩散。
 
-改 UI / 布局 / 前端之前先读本文。工程落地细则（CSS Modules、token 分层、动效 recipe）以钉版 vendor 树内的文档为准，本文不重复那份清单：
+UI 改动先读本文。工程细则（CSS Modules、token 分层、动效 recipe）以钉版 vendor 文档为准：
 
 - Token 源码：[design-platform.css](../vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css)、[base.css](../vendor/deepseek-harness/packages/client/ui-theme/src/styles/base.css)、[gradient-shadow-text.css](../vendor/deepseek-harness/packages/client/ui-theme/src/styles/gradient-shadow-text.css)、[motion.css](../vendor/deepseek-harness/packages/client/ui-theme/src/styles/motion.css)
 - 控件原语：`vendor/deepseek-harness/packages/client/ui-primitives/`（`Button` / `Input` / `Menu` / `Modal` / `Tooltip` / 图标）
@@ -31,6 +31,8 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 终端、diff、代码块按基线约定保留等宽、不换行；那是内容排版，不是另做一套 chrome。
 
 ## 强制规则
+
+发布整改遵循[回归契约](decisions/implemented/bug-fix/2026-09-28-release-gui-contract-reconciliation.md)。
 
 「新会话」沿用现有入口、草稿画布和输入框，只复用没有历史身份的普通空草稿；已有标题、曾由插件管理或属于分叉的会话保留原身份，不作为新草稿打开。不新增控件或改变视觉样式。
 
@@ -134,11 +136,11 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 桌面账户登录在授权链接就绪后自动打开系统浏览器；等待弹窗继续显示复制链接的手动入口，浏览器打开失败不关闭该弹窗。同一登录尝试不重复弹出浏览器。
 
-布局：`AppFrame` 是栏，不是卡片网格。关着的栏宽度为 0 且不画分隔线。标题栏尾簇是 28×28 图标按钮，给窗口控件留出实测避让，不要自绘一套窗口皮肤。`main` slot 的非会话面板（插件管理等）只挂在标题栏行之下的内容行，由 `AppFrame` 的 `mainPanel` 容器承接；`conversation` 是唯一跨整列两行、自带 subgrid 的面板，其他面板不得把内容伸进标题栏行。桌面只有**一条可见右栏**：恢复 DSHD 原有的 `ui-surfaces` 呈现轨道，右栏从窗口顶部开始，顶部是页签条（标题右侧为关闭键，末尾为新增键），下方是 Files / Browser / Terminal / Diff / Agents 工作面。`Ctrl+\` 与标题栏右面板按钮开合这条轨道。原生 `ui-sidebar-right` 仅作需要其专有资源时的兼容入口，不得与 DSHD 右栏同时显示。无页签时使用 DSHD 原有居中两列方形入口：内宽上限 320px、间距 8px、圆角 12px，图标 / 标题 / 说明纵向居中。右栏 surface Tab 的关闭控件在标题**右侧**；未经用户明确要求，不要把它挪到左侧。工作区文件与产物的主点击留在应用工作环内：交付卡片中的 HTML / HTM / XHTML / PDF 先进入聊天区 Browser 悬浮预览，其余浏览器文档进入右栏 Browser，其他可读文件进入右栏 Document Preview；统一右栏文档预览头部的独立窗口预览是显式次级动作，系统默认程序仅用于右键命令或工作区权威之外的回退。独立窗口文件预览是单实例、只读、置顶的原生子窗口：保留系统标题栏与关闭命中区，内容面直接使用官方 Web UI canvas / `--dsw-alias-*` token，不套卡片、不引入第二套壳层皮肤；图片、音视频按 contain 居中，文本 / HTML / PDF 占满可滚动内容区，打开下一文件原位替换。它与 DockKit 的页内 float 是不同层级，后者不创建原生窗口。Browser 另提供 `dshd mini-player`：它是同一 Browser guest 的 renderer 浮层投影，挂在 `shell.overlay`、限定在聊天可视区内，可拖拽，并从四边与四角拖动调整大小；浮层只迁移 guest 的呈现边界，不创建第二个 BrowserView 或外部窗口。浮层工具条使用现有 `ui-primitives` 图标按钮与 `--dsw-alias-*` 角色色，guest 像素区与拖拽/缩放命中区分离，关闭或恢复后回到原 Browser surface 且保留 URL / history。
+布局：`AppFrame` 是栏，不是卡片网格。关着的栏宽度为 0 且不画分隔线。标题栏尾簇是 28×28 图标按钮，给窗口控件留出实测避让，不要自绘一套窗口皮肤。`main` slot 的非会话面板（插件管理等）只挂在标题栏行之下的内容行，由 `AppFrame` 的 `mainPanel` 容器承接；`conversation` 是唯一跨整列两行、自带 subgrid 的面板，其他面板不得把内容伸进标题栏行。桌面只用**一个全高右栏**：`ui-sidebar-right` 统一入口与内容页签；移除 `ui-surfaces` 独立栏及互斥切换。顶部页签末尾有新增键；隐藏栏内的分栏、全屏和收起按钮。`Ctrl+\` 与标题栏按钮开合同一容器。点卡、切页不得改变栏宽、分隔线或聊天区；关闭末页原位返回入口。无页签时使用 DSHD 原有居中两列方形入口：内宽上限 320px、间距 8px、圆角 12px，图标 / 标题 / 说明纵向居中。右栏 surface Tab 的关闭控件在标题**右侧**；未经用户明确要求，不要把它挪到左侧。工作区文件与产物的主点击留在应用工作环内：交付卡片中的 HTML / HTM / XHTML / PDF 先进入聊天区 Browser 悬浮预览，其余浏览器文档进入右栏 Browser，其他可读文件进入右栏 Document Preview；统一右栏文档预览头部的独立窗口预览是显式次级动作，系统默认程序仅用于右键命令或工作区权威之外的回退。独立窗口文件预览是单实例、只读、置顶的原生子窗口：保留系统标题栏与关闭命中区，内容面直接使用官方 Web UI canvas / `--dsw-alias-*` token，不套卡片、不引入第二套壳层皮肤；图片、音视频按 contain 居中，文本 / HTML / PDF 占满可滚动内容区，打开下一文件原位替换。它与 DockKit 的页内 float 是不同层级，后者不创建原生窗口。Browser 另提供 `dshd mini-player`：它是同一 Browser guest 的 renderer 浮层投影，挂在 `shell.overlay`、限定在聊天可视区内，可拖拽，并从四边与四角拖动调整大小；浮层只迁移 guest 的呈现边界，不创建第二个 BrowserView 或外部窗口。浮层工具条使用现有 `ui-primitives` 图标按钮与 `--dsw-alias-*` 角色色，guest 像素区与拖拽/缩放命中区分离，关闭或恢复后回到原 Browser surface 且保留 URL / history。
 
-会话顶部：常驻 header 与 Session header 共用一条标题布局轨道，只由外层提供内边距；标题、视图页签和右栏顶部保持基准对齐。嵌套 Session header 不再独立占列或重复推开内容。右栏展开后，标题行按扣除标题栏尾簇的**实际可用宽度**收起次级 Agent 操作；打开方式和右侧尾簇之间至少留 8px，按钮不可互相覆盖。标题可省略，但不能靠裁掉相邻按钮来假装有空间。
+会话顶部：常驻 header 与 Session header 共用一条标题布局轨道，只由外层提供内边距；标题、视图页签和右栏顶部保持基准对齐。嵌套 Session header 不再独立占列或重复推开内容。右栏展开后，标题行按扣除标题栏尾簇的**实际可用宽度**收起次级 Agent 操作；打开方式和右侧尾簇之间至少留 8px，按钮不可互相覆盖。标题可省略，但不能靠裁掉相邻按钮来假装有空间；收起项由箭头找回。
 
-会话标题栏的「在应用中打开」、Session 日志和 Git 操作胶囊统一为 32px 高、18px 圆角、`0.5px solid var(--dsw-alias-border-l2)` 外描边，图标统一为 14px；分段控件的内分隔线也使用 `--dsw-alias-border-l2`。Git 状态尚未载入、会话无工作目录或状态读取不可用时，整组 Git 操作（分支、主按钮、下拉）隐藏；已确认是非 Git 仓库时仍显示「初始化 Git」，有效仓库的禁用动作仍可通过菜单说明原因。文档预览栏的文件打开控件仍使用自身的紧凑尺寸。
+会话标题栏的「在应用中打开」、默认收起的 Session 日志和 Git 操作胶囊统一为 32px 高、18px 圆角、`0.5px solid var(--dsw-alias-border-l2)` 外描边，图标统一为 14px；分段控件内分隔线也用 `--dsw-alias-border-l2`。Git 状态尚未载入、会话无工作目录或状态读取不可用时，整组 Git 操作（分支、主按钮、下拉）隐藏；已确认是非 Git 仓库时仍显示「初始化 Git」，有效仓库的禁用动作仍可通过菜单说明原因。文档预览栏的文件打开控件仍使用自身的紧凑尺寸。
 
 48px 标题栏仅空白可拖拽；会话层级导航、Agent 操作、目录按钮和插件入口在 Windows/macOS 均须可点击。当前会话标题和 Agent 预设为只读标签；祖先会话、Agent Team 及其它按钮可点击。
 
@@ -216,9 +218,11 @@ Live2D 桌宠以整窗透明 Canvas 绘制，独立于主窗内的小矩形 Code
 
 ## 桌面启动器
 
-Recovery Board 在既有归因文本位区分会话投影缓存格式错误与用户插件失败；缓存错误提示优先于跳过插件模式状态，不新增面板或操作控件，不建议清空原始会话。
+恢复标题 16/24；导入正文至少 120px，缩放时外层可滚动，勾选和操作可达。确认卡上下各留 24px，长正文独立滚动，标题和按钮不收缩。
 
-启动器是冷启动闸门窗，不是海平线画布。源文件是 [`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。色表是 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 的基线浅色 `:root` 与深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把 Appearance 壁纸种子写进 `--dsw-alias-*`。禁止 `--boot-*`、`data-boot-theme`，也禁止在 `launcher.css` 里写第二套 `[data-theme]` / `prefers-color-scheme` 色板。
+Recovery Board 归因区分投影缓存与插件失败；缓存错误优先于跳过状态，不增控件、不建议清空会话。
+
+启动器是冷启动闸门。源码：[`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。复用 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 浅色 `:root` / 深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 令 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme`，不写 Appearance 壁纸种子。禁用 `--boot-*`、`data-boot-theme` 及第二套 `[data-theme]` / `prefers-color-scheme` 色板。
 
 ## 现有偏差（不要再扩散）
 

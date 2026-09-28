@@ -96,6 +96,7 @@
           "dsh-im/**",
           "dshbot/**",
           "dsh-task-control/**",
+          "dsh-platform-session/**",
           "dsh-whale/**",
           "dsh-remote/**"
         ]
@@ -196,6 +197,7 @@
     }
   },
   "dependencies": {
-    "electron-updater": "6.8.9"
+    "electron-updater": "6.8.9",
+    "ws": "8.21.3"
   }
 }

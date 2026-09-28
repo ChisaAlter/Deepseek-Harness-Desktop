@@ -118,7 +118,8 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
           narrowExpanded: false,
           surfaces: persisted?.surfaces ?? 0,
           terminalDrawer: persisted?.terminalDrawer ?? 0,
-          rightbar: null,
+          rightbar: typeof (window as Window & { shell?: { listDir?: unknown } }).shell?.listDir === 'function'
+            ? lastSurfacesWidth() : null,
           rightbarShown: false,
           rightbarTrack: false,
           rightbarFullscreen: false,
@@ -173,6 +174,9 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       setRightbar: (d, px: number) => {
         d.layoutInfo.rightbarInstant = false
         d.layoutInfo.rightbar = clampWidth(px, RIGHTBAR_MIN, Math.max(RIGHTBAR_MIN, d.layoutInfo.viewportWidth * RIGHTBAR_MAX_RATIO))
+        if (typeof (window as Window & { shell?: { listDir?: unknown } }).shell?.listDir === 'function') {
+          writeLayoutPersist({ lastSurfaces: d.layoutInfo.rightbar })
+        }
       },
       openRightbar: (d, track: boolean, fullscreen: boolean) => {
         if (!d.layoutInfo.rightbarShown || d.layoutInfo.rightbarTrack !== track || d.layoutInfo.rightbarFullscreen !== fullscreen) {

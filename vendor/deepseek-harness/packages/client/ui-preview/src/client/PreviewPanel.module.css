@@ -28,7 +28,7 @@
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -162,7 +162,7 @@
   color: var(--dsw-alias-label-secondary);
   text-align: center;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-base);
 }
 
@@ -175,7 +175,7 @@
   min-height: 150px;
   overflow: visible;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
   box-shadow: var(--dsw-elevation-soft);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
@@ -193,7 +193,7 @@
   height: 28px;
   padding: 0 4px 0 10px;
   border-bottom: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--dsw-radius-md) var(--dsw-radius-md) 0 0;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   cursor: grab;
@@ -222,13 +222,13 @@
   height: 24px;
 }
 
-.miniPlayerActions .icon { width: 24px; height: 24px; border-radius: 6px; }
+.miniPlayerActions .icon { width: 24px; height: 24px; border-radius: var(--dsw-radius-compact); }
 
 .miniPlayerViewport {
   position: absolute;
   inset: 28px 0 0;
   overflow: hidden;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--dsw-radius-md) var(--dsw-radius-md);
   background: var(--dsw-alias-bg-base);
 }
 

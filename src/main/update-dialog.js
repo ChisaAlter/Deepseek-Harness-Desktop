@@ -9,6 +9,7 @@
  */
 
 const { ipcMain } = require('electron');
+const { currentTheme } = require('./chrome');
 
 const UPDATE_DIALOG_IPC = {
   status: 'dsh-update-dialog:status',
@@ -91,6 +92,16 @@ class ShellConfirmDialog {
       technicalDetails: options.technicalDetails ?? '',
       technicalDetailsLabel: this.text.technicalDetails,
       maximized: isEffectivelyMaximized(parent),
+      // Each prompt decides which (if any) buttons are destructive — the
+      // renderer paints them with the danger outline so the risky verb reads
+      // as such, not as the safe primary. `options.dangerIds` mirrors Electron
+      // button indices; absent/empty → all neutral.
+      dangerIds: Array.isArray(options.dangerIds)
+        ? options.dangerIds.filter((i) => Number.isInteger(i) && i >= 0 && i < buttons.length)
+        : [],
+      // The renderer applies `data-ds-dark-theme` from this; the shared
+      // `shell:theme` broadcast then keeps the card in step on later flips.
+      scheme: currentTheme().scheme,
     };
     return new Promise((resolve) => {
       // The scrim corners track the parent silhouette; fake-maximized parents

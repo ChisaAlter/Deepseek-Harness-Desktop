@@ -40,7 +40,7 @@ const { BrowserGuests, installBrowserGuests } = require('./browser-guests');
 const { connectWelcome } = require('./welcome-backend');
 const { openWelcomeWindow, WELCOME_IPC } = require('./welcome-window');
 const { resolveDesktopStartupLocale } = require('./desktop-locale');
-const { probeImportHold, recoverInterruptedImport } = require('./data-import');
+const { probeImportHold, recoverInterruptedImport, readImportJournal, journalIsBlocked } = require('./data-import');
 const { isLauncherPackage } = require('../launcher/product');
 const runtimeInstall = require('../launcher/runtime-install');
 const installDetect = require('../launcher/install-detect');
@@ -67,7 +67,10 @@ const {
   dshKernelState,
   enablePlugin,
   pluginRemoveGuardError,
+  configureProfileOps,
 } = require('./profile-ops');
+const importGuard = require('./import-guard');
+const { createReloadWithCleanup } = require('./desktop-reload');
 const { downloadSavePath } = require('./download-path');
 const {
   createMainWindow,
@@ -561,16 +564,57 @@ function showForeground() {
 
 async function startDesktopFromLauncher(options = {}) {
   const recoveryLaunch = options.recoveryLaunch === true || options.skipLaunch === true;
+  // Persistent blocked-import admission boundary: a user clicking Start in
+  // the launcher (or a menu/tray auto-start reaching this entry point) must
+  // not boot the desktop over unresolved import transactions — the kernel
+  // would write through a half-replaced destination tree. Hold at the
+  // launcher with the import tab surfaced instead.
+  try {
+    const pending = readImportJournal(app.getPath('userData'));
+    const blocked = journalIsBlocked(pending);
+    if (blocked) {
+      await openLauncher();
+      sendToLauncher('shell:show-tab', { tab: 'import' });
+      sendToLauncher('shell:desktop-failed', { error: 'import-recovery-blocked' });
+      return { ok: false, error: 'import-recovery-blocked', pendingTxns: (pending && pending.pendingTxns) || [] };
+    }
+  } catch {
+    // An unreadable journal must fail closed too — unknown transaction
+    // state is not a safe boot boundary.
+    await openLauncher();
+    sendToLauncher('shell:show-tab', { tab: 'import' });
+    sendToLauncher('shell:desktop-failed', { error: 'import-recovery-blocked' });
+    return { ok: false, error: 'import-recovery-blocked' };
+  }
   try {
     if (options.forceRestart) {
       // forceRestart replaces a running desktop: ride the same protected
       // commit as menu/tray restarts so active work prompts first.
-      const guarded = await restartWithCleanup();
+      // `options.maintenanceToken` delegates the caller's slot ownership so
+      // an already-admitted start/retry reaching this restart is recognized
+      // as the same operation rather than refused as a foreign caller.
+      const guarded = await restartWithCleanup(options.maintenanceToken);
       if (guarded && guarded.proceeded === false) {
         return { ok: false, cancelled: guarded.code === 'cancelled', code: guarded.code || 'blocked' };
       }
     } else {
-      await harness.start();
+      // A standalone cold start owns its operation for the same reason the
+      // restart boundary does: while the kernel boots (dest trees writable),
+      // a competing import/install must be refused rather than overlap. The
+      // non-forced path is not itself a restart, so it cannot ride
+      // restartWithCleanup — acquire the shared slot here and release when
+      // the whole start settles. If maintenance is already held by someone
+      // else, this start must refuse.
+      if (importGuard.isMaintenanceHeld() && !importGuard.holdsMaintenance(options.maintenanceToken)) {
+        return { ok: false, error: 'maintenance-in-progress', owner: importGuard.maintenanceOwner()?.kind };
+      }
+      const ownsToken = !importGuard.isMaintenanceHeld();
+      const acquired = ownsToken ? importGuard.acquireMaintenance('start') : null;
+      try {
+        await harness.start();
+      } finally {
+        if (acquired) importGuard.releaseMaintenance(acquired);
+      }
     }
     const stickyAfter = typeof harness.shouldSkipUserPlugins === 'function'
       ? harness.shouldSkipUserPlugins()
@@ -606,6 +650,7 @@ async function confirmUnverifiedColdStart(info) {
     buttons: ['仍要安装', '取消'],
     defaultId: 1,
     cancelId: 1,
+    dangerIds: [0],
     title: '安装包无法校验',
     message: `版本 ${info?.tag || info?.latest || ''} 未提供 SHA512SUMS.txt 校验清单，无法验证安装包完整性。仍要下载并安装吗？`,
     noLink: true,
@@ -673,6 +718,8 @@ function runColdStartGate() {
     sendToLauncher,
     recoverInterruptedImport: () => recoverInterruptedImport({ userDataDir }),
     probeImportHold,
+    readImportJournal,
+    journalIsBlocked,
     startDesktop: launcherPackage
       ? () => runtimeInstall.startExternalDesktop()
       : () => startDesktopFromLauncher(),
@@ -842,16 +889,20 @@ async function confirmTaskStop(operation, inspection) {
   ].filter(Boolean).join('\n');
   const options = {
     type: 'warning',
-    buttons: ['取消', `仍然${verb}`],
-    defaultId: 0,
-    cancelId: 0,
+    // Order matches confirmUnverifiedColdStart / openDesktopUpdate: confirm
+    // action at index 0 (primary), cancel at index 1 (secondary). Enter and
+    // Esc both land on cancel — the risky verb requires an explicit click.
+    buttons: [`仍然${verb}`, '取消'],
+    defaultId: 1,
+    cancelId: 1,
+    dangerIds: [0],
     title: `${verb}前确认`,
     message: `${verb}将中断仍在运行的工作`,
     detail,
     noLink: true,
   };
   const result = await confirmDialog(firstVisibleWindow(), options);
-  return result.response === 1;
+  return result.response === 0;
 }
 
 const taskProtection = createTaskProtection({
@@ -915,17 +966,22 @@ async function pickWorkspace() {
   return result.filePaths[0];
 }
 
-/** Tear down desktop-bound child processes and views (PTY, BrowserView). */
+/**
+ * Tear down desktop-bound child processes and views (PTY, BrowserView).
+ * Returns a promise that settles only after the preview close has completed —
+ * restart/reload/quit must not proceed while a BrowserView teardown is still
+ * in flight, or a raced detach leaves a half-removed view behind.
+ */
 function cleanupDesktopResources() {
   if (!desktopResources) {
-    return;
+    return Promise.resolve();
   }
   try {
     desktopResources.pty.killAll();
   } catch (error) {
     dsh.log(`PTY 清理失败：${error.message}`, 'app');
   }
-  void Promise.resolve(desktopResources.preview.closeAll()).catch((error) => {
+  return Promise.resolve(desktopResources.preview.closeAll()).catch((error) => {
     dsh.log(`预览清理失败：${error.message}`, 'app');
   });
 }
@@ -934,28 +990,69 @@ function cleanupDesktopResources() {
  * Restart goes through the task-protection funnel: active Host work prompts
  * before PTY/preview teardown. `recordLastDesktopStart` keeps running inside
  * the commit so a cancelled prompt does not leave a stale failure marker.
+ *
+ * `delegatedToken` implements owner-aware delegation: an internal call that
+ * is part of the operation already owning the maintenance slot carries that
+ * exact owner token down (e.g. the service's start/retry reaching a forced
+ * restart). Only the live owner token passes — a bare kind string, a stale
+ * token, or an unrelated caller still refuses.
  */
-function restartWithCleanup() {
-  return taskProtection.coordinate('restart', {
-    commit: async () => {
-      cleanupDesktopResources();
-      return recordLastDesktopStart(app.getPath('userData'), () => harness.restart(), () => kernelLogTail(dsh));
-    },
-  }).then((result) => (result.proceeded ? undefined : result));
+function restartWithCleanup(delegatedToken) {
+  // The shared maintenance slot admits only one mutating operation at a time.
+  // An import, install, or start that already holds it owns the destination
+  // trees — a restart must refuse rather than prompt and tear down under it,
+  // unless this restart IS that same operation delegating to itself.
+  if (importGuard.isMaintenanceHeld() && !importGuard.holdsMaintenance(delegatedToken)) {
+    return Promise.resolve({
+      proceeded: false,
+      code: 'maintenance-in-progress',
+      owner: importGuard.maintenanceOwner()?.kind,
+    });
+  }
+  // A persistent blocked import journal must hold every restart boundary —
+  // menu, tray, and nested starts — not only launcher Start. Unknown or
+  // unreadable journal state fails closed the same way.
+  try {
+    const pending = readImportJournal(app.getPath('userData'));
+    if (journalIsBlocked(pending)) {
+      return Promise.resolve({ proceeded: false, code: 'import-recovery-blocked', pendingTxns: pending?.pendingTxns || [] });
+    }
+  } catch {
+    return Promise.resolve({ proceeded: false, code: 'import-recovery-blocked' });
+  }
+  // Standalone invocation (menu/tray restart, or a start channel that did
+  // not delegate a token): checking the slot is not enough — this boundary
+  // must OWN the operation while it is pending, or a competitor admitted
+  // between the check and the commit would overlap the teardown. An
+  // explicitly delegated live owner token delegates instead of acquiring.
+  const ownsToken = !importGuard.isMaintenanceHeld();
+  const acquired = ownsToken ? importGuard.acquireMaintenance('restart') : null;
+  const releaseAcquired = () => { if (acquired) importGuard.releaseMaintenance(acquired); };
+  try {
+    return taskProtection.coordinate('restart', {
+      commit: async () => {
+        await cleanupDesktopResources();
+        return recordLastDesktopStart(app.getPath('userData'), () => harness.restart(), () => kernelLogTail(dsh));
+      },
+    }).then((result) => (result.proceeded ? undefined : result))
+      .finally(releaseAcquired);
+  } catch (error) {
+    releaseAcquired();
+    throw error;
+  }
 }
 
-function reloadWithCleanup() {
-  // Reload keeps the Host alive: no admission lock, only the prompt and the
-  // shell-side teardown (PTY/preview) inside commit.
-  return taskProtection.coordinate('reload', {
-    hostLock: false,
-    commit: async () => {
-      cleanupDesktopResources();
-      return harness.reload();
-    },
-  }).then((result) => (result.proceeded ? undefined : result));
-}
-
+const reloadWithCleanup = createReloadWithCleanup({
+  getMainWindow,
+  dsh,
+  harness,
+  taskProtection,
+  importGuard,
+  readImportJournal,
+  journalIsBlocked,
+  cleanupDesktopResources,
+  getUserDataDir: () => app.getPath('userData'),
+});
 function quitApp() {
   if (qaEnv('DSH_QA_SHELL') && process.env.DSH_QA_ALLOW_QUIT !== '1') {
     qaQuitIntercepted = true;
@@ -1077,6 +1174,21 @@ if (!gotLock) {
     dsh.log(`Harness 家目录 ${desktopHome}`, 'app');
     const config = loadConfig();
     configureDesktopPet({ loadConfig, saveConfig, currentTheme });
+    // Profile/config mutations must refuse BEFORE writing while a blocked
+    // import journal persists — the same persistent verdict every other
+    // write boundary honors, applied here because profile-ops owns no
+    // userData path of its own.
+    configureProfileOps({
+      journalBlocked: () => {
+        try {
+          return journalIsBlocked(readImportJournal(app.getPath('userData')));
+        } catch {
+          // An unreadable journal fails closed — unknown state is not a
+          // safe mutation boundary.
+          return true;
+        }
+      },
+    });
     if (LIVE2D_PET_FEATURE) {
       configureLive2dPet({
         loadConfig,
@@ -1408,6 +1520,7 @@ if (!gotLock) {
         loadConfig,
         saveConfig,
         getHarnessWebContents,
+        getWelcomeWebContents: () => welcomeWindow && !welcomeWindow.isDestroyed() ? welcomeWindow.webContents : null,
         showMain,
         invokeTrayAction,
         probeRemoteSnapshot,
@@ -1450,7 +1563,7 @@ if (!gotLock) {
         stoppingForQuit = true;
         stopDesktopInstallControl();
         void taskControlPeer.stop();
-        cleanupDesktopResources();
+        await cleanupDesktopResources();
         hideHarnessView(getMainWindow());
         closingOverlayActive = true;
         await showClosingOverlay(getMainWindow(), loadConfig().locale).catch(() => {});
@@ -1476,6 +1589,7 @@ if (!gotLock) {
         buttons: ['重试', '强制退出'],
         defaultId: 0,
         cancelId: 0,
+        dangerIds: [1],
         noLink: true,
       }).catch(() => ({ response: 0 }));
       if (choice.response === 1) {
@@ -1484,7 +1598,7 @@ if (!gotLock) {
         try {
           stopDesktopInstallControl();
           void taskControlPeer.stop();
-          cleanupDesktopResources();
+          await cleanupDesktopResources();
           hideHarnessView(getMainWindow());
           await harness.shutdown();
         } catch {

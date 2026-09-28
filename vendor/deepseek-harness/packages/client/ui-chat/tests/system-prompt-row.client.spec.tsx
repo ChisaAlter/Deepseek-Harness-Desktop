@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ChatNode } from '../src/client/contract/chat-nodes.ts'
 import { SystemPromptNodeView } from '../src/client/chat/SystemPromptRow.tsx'
@@ -9,7 +9,7 @@ import { en } from '../src/client/locale.ts'
 afterEach(cleanup)
 
 describe('SystemPromptNodeView', () => {
-  it('mounts the opaque context body only while its row is expanded', () => {
+  it('deactivates the opaque context body on collapse and unmounts after exit', async () => {
     const text = '# Agent rules\n\n- Read first\n- **Act carefully**'
     const node: ChatNode<'system-prompt'> = {
       key: 'request-prompt:1',
@@ -39,7 +39,8 @@ describe('SystemPromptNodeView', () => {
 
     fireEvent.click(disclosure)
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('[data-system-prompt-body]')).toBeNull()
+    expect(container.querySelector('[data-system-prompt-body]')?.closest('[aria-hidden="true"]')).not.toBeNull()
+    await waitFor(() => { expect(container.querySelector('[data-system-prompt-body]')).toBeNull() })
   })
 
   it('titles an in-history prompt update as an update of the same row', () => {

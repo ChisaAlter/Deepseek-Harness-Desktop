@@ -77,6 +77,10 @@ function snapshotMode(value: string | undefined): SnapshotMode {
 }
 
 const mode = snapshotMode(process.env.DSH_SNAPSHOT)
+const refreshHeaders = process.env.DSH_SNAPSHOT_HEADERS === 'refresh'
+if (process.env.DSH_SNAPSHOT_HEADERS !== undefined && (!refreshHeaders || mode !== 'replay')) {
+  throw new Error('DSH_SNAPSHOT_HEADERS only supports refresh during keyless replay')
+}
 const RUNTIME_WORKSPACE_ENTRIES = ['.agents', '.dsh', '.snapshot-patches'] as const
 
 interface JsonObject {
@@ -1233,7 +1237,10 @@ describe('headless recorded-session snapshots', () => {
           sessionHeaderVersion(log.content, `harvested Session ${index}`),
         ))
       }
-      if (mode !== 'replay') await writeHeaderSidecars(scenario, actualLogs, actualContext)
+      if (mode !== 'replay' || refreshHeaders) await writeHeaderSidecars(scenario, actualLogs, actualContext)
+      if (refreshHeaders) {
+        expect(await fixtureSessions(scenario), 'header refresh must preserve recorded Session bytes').toEqual(fixtures)
+      }
 
       expect(result.stdout).toBe(`${finalTextFromSession(fixtures[0] as string)}\n`)
       expect(result.stderr).toBe(expectedStderr)

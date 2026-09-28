@@ -393,6 +393,77 @@ test('downloadFile aborts an in-flight request on signal and removes the partial
   }
 });
 
+test('same-version install with an advanced stamp but a FAILED installer does not report success', async () => {
+  // Regression for R4: an already-registered same-version request whose exe
+  // stamp advanced while the installer child reported a spawn error must
+  // NOT settle as installed — a timestamp only proves a file changed, not
+  // that the installation completed.
+  let polls = 0;
+  const deps = {
+    isLauncherPackage: () => true,
+    isPackaged: true,
+    loadConfig: () => ({ downloadRoute: 'github' }),
+    releaseSource: fakeSource({
+      latest: { status: 'available', latest: '2.0.0', tag: 'v2.0.0', assetUrl: 'https://example.test/setup.exe', assetName: 'Setup.exe' },
+    }),
+    update: fakeUpdate({
+      installFromAsset: async (info, onProgress, options) => {
+        const child = installerChild();
+        options.onInstallerLaunch(child);
+        // Installer fails immediately (spawn error / nonzero exit).
+        setImmediate(() => child.emit('error', new Error('spawn-fail')));
+        return { ...info, launched: true };
+      },
+    }),
+    installedInfo: () => {
+      polls += 1;
+      if (polls === 1) {
+        // Baseline: version already installed and registered.
+        return { registeredInstall: true, installPath: 'C:\\Apps\\DSHD', version: '2.0.0' };
+      }
+      // Same version, but the exe stamp advanced (file was touched).
+      return { registeredInstall: true, installPath: 'C:\\Apps\\DSHD', version: '2.0.0' };
+    },
+    existsSync: () => true,
+    statSync: () => ({ mtimeMs: polls === 1 ? 1 : 9999 }),
+    pollMs: 5,
+    waitMs: 60,
+  };
+  const result = await runtimeInstall.installRuntime({ route: 'github' }, null, deps);
+  assert.notEqual(result.status, 'installed', 'a failed installer must not be promoted by a touched timestamp');
+  assert.equal(result.ok, false);
+});
+
+test('an empty/unbound target version is refused before installFromAsset runs', async () => {
+  // Regression for R4: when the release info carries no usable version/tag,
+  // the target cannot be bound — installation must never be attempted.
+  let installCalls = 0;
+  const deps = {
+    isLauncherPackage: () => true,
+    isPackaged: true,
+    loadConfig: () => ({ downloadRoute: 'github' }),
+    releaseSource: fakeSource({
+      // Deliberately no tag and no version-bearing field that normalizes.
+      latest: { status: 'available', latest: '', tag: '', assetUrl: 'https://example.test/setup.exe', assetName: 'Setup.exe' },
+    }),
+    update: fakeUpdate({
+      installFromAsset: async () => {
+        installCalls += 1;
+        return { launched: true };
+      },
+    }),
+    installedInfo: () => ({ registeredInstall: false, installPath: '', version: '' }),
+    existsSync: () => true,
+    statSync: () => ({ mtimeMs: 1 }),
+    pollMs: 5,
+    waitMs: 50,
+  };
+  const result = await runtimeInstall.installRuntime({ route: 'github' }, null, deps);
+  assert.equal(installCalls, 0, 'an unbound target must never reach the installer');
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'unbound-target-version');
+});
+
 test('downloadFile rejects upfront when the signal is already aborted', async () => {
   const controller = new AbortController();
   controller.abort();

@@ -225,11 +225,12 @@ describe('session export compression config', () => {
   it('defaults to level 6 and rejects values outside the integer 0-9 range', () => {
     expect(SessionLogExport.Config({})).toEqual({
       compressionLevel: 6,
+      titlebarAction: false,
     })
     expect(SessionLogExport.Config({ compressionLevel: 0 }))
-      .toEqual({ compressionLevel: 0 })
+      .toEqual({ compressionLevel: 0, titlebarAction: false })
     expect(SessionLogExport.Config({ compressionLevel: 9 }))
-      .toEqual({ compressionLevel: 9 })
+      .toEqual({ compressionLevel: 9, titlebarAction: false })
     for (const value of [-1, 10, 1.5]) {
       expect(() => SessionLogExport.Config({ compressionLevel: value } as never)).toThrow()
     }

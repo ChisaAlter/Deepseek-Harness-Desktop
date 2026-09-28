@@ -1026,8 +1026,14 @@ test('recovery reconciles a journaled interrupted session copy', async () => {
   mkdirSync(tmp, { recursive: true });
   writeFileSync(path.join(tmp, 'session.jsonl'), 'staged');
   writeFileSync(txn, JSON.stringify({ version: 1, opId, dest, tmp, bak, state: 'staged' }));
-  // Journal must be in 'copying' for recoverInterruptedImport to act.
-  writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({ phase: 'copying', sourceHome: tree.source, destHome: tree.dest }));
+  // Journal must be in 'copying' for recoverInterruptedImport to act, and
+  // the opId must be registered in the importer-owned inventory (bound to
+  // its destination) for the discovered sidecar to be executed — an
+  // unregistered/legacy journal preserves the record instead.
+  writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({
+    phase: 'copying', sourceHome: tree.source, destHome: tree.dest,
+    txnIds: [opId], txnDests: { [opId]: dest },
+  }));
   const outcome = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
   assert.equal(outcome.recovered, true);
   assert.equal(outcome.blocked, false);
@@ -1062,5 +1068,256 @@ test('importSessions reuses a provided scan instead of rescanning the source', a
   });
   assert.equal(result.sessions[0].status, 'copied');
   assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl')), true);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('runImport refuses ambiguous skills in preflight with zero writes across all categories', async () => {
+  const tree = makeTree();
+  const { runImport } = require('./data-import');
+  const agents = path.join(tree.root, 'agents-skills');
+  writeSkill(path.join(tree.source, 'skills'), 'dup');
+  writeSkill(agents, 'dup');
+  const result = await runImport({
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    userDataDir: tree.userData,
+    agentsSkillsRoot: agents,
+    selectedRels: ['proj/sess-a'],
+    selectedSkillIds: ['home:dup', 'agents:dup'],
+    importAttachments: true,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'ambiguous-destination');
+  // Zero writes anywhere — sessions and attachments must not have landed even
+  // though they were selected and would individually have succeeded.
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a')), false);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'attachments', 'file.bin')), false);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'skills', 'dup')), false);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('runImport dedupes a repeated skill id before ambiguity grouping', async () => {
+  const tree = makeTree();
+  const { runImport } = require('./data-import');
+  writeSkill(path.join(tree.source, 'skills'), 'solo');
+  const result = await runImport({
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    userDataDir: tree.userData,
+    selectedSkillIds: ['home:solo', 'home:solo', 'home:solo'],
+  });
+  // The same source id repeated must not be treated as an ambiguous collision.
+  assert.equal(result.ok, true);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'skills', 'solo')), true);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('journal validation refuses missing destHome / unsupported phase / malformed inventory', () => {
+  const tree = makeTree();
+  const { readImportJournal, journalIsBlocked, recoverInterruptedImport } = require('./data-import');
+  const journalFile = path.join(tree.userData, 'import-journal.json');
+  const cases = [
+    { name: 'missing destHome', body: { phase: 'copying' } },
+    { name: 'unsupported phase', body: { phase: 'migrating', destHome: tree.dest } },
+    { name: 'malformed inventory (non-array)', body: { phase: 'copying', destHome: tree.dest, txnIds: 'op-1' } },
+    { name: 'malformed inventory (non-string id)', body: { phase: 'copying', destHome: tree.dest, txnIds: [42] } },
+  ];
+  for (const { name, body } of cases) {
+    fs.writeFileSync(journalFile, JSON.stringify(body));
+    const journal = readImportJournal(tree.userData);
+    // Manual admission (journalIsBlocked) and cold recovery
+    // (recoverInterruptedImport -> blocked) must agree on the SAME verdict
+    // for every invalid shape — a present-but-unusable record holds the app.
+    assert.equal(journal.unreadable, true, `${name} should read as unreadable`);
+    assert.equal(journalIsBlocked(journal), true, `${name} should block manual admission`);
+    const outcome = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+    assert.equal(outcome.blocked, true, `${name} should hold cold recovery`);
+    assert.equal(outcome.recovered, false, `${name} must not report recovered`);
+  }
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('a valid journal and a missing file remain authorized controls', () => {
+  const tree = makeTree();
+  const { readImportJournal, journalIsBlocked, recoverInterruptedImport } = require('./data-import');
+  // Missing file: absence, not blocked.
+  assert.equal(readImportJournal(tree.userData), null);
+  const missing = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+  assert.equal(missing.blocked, undefined);
+  // A valid journal is read and does not block.
+  fs.writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({
+    phase: 'done', sourceHome: tree.source, destHome: tree.dest,
+  }));
+  const journal = readImportJournal(tree.userData);
+  assert.equal(journal.unreadable, undefined);
+  assert.equal(journalIsBlocked(journal), false);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('field-less legacy journal preserves discovered sidecars without executing them', () => {
+  const tree = makeTree();
+  const { recoverInterruptedImport } = require('./data-import');
+  fs.mkdirSync(path.join(tree.dest, 'sessions'), { recursive: true });
+  const dest = path.join(tree.dest, 'sessions', 'proj', 'sess-x');
+  const opId = 'payload-op';
+  const tmp = `${dest}.import-tmp-${opId}`;
+  const bak = `${dest}.import-bak-${opId}`;
+  const txn = `${dest}.import-txn-${opId}`;
+  fs.mkdirSync(tmp, { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'session.jsonl'), 'payload');
+  // A payload-dropped, correctly named sidecar with internally consistent
+  // paths — but the legacy journal has NO txnIds inventory field.
+  fs.writeFileSync(txn, JSON.stringify({ version: 1, opId, dest, tmp, bak, state: 'staged' }));
+  fs.writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({
+    phase: 'copying', sourceHome: tree.source, destHome: tree.dest,
+  }));
+  const outcome = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+  // Unowned records must never mutate data: the staged copy, the journal
+  // file, and the blocked verdict all persist intact.
+  assert.equal(outcome.blocked, true);
+  assert.equal(fs.existsSync(tmp), true, 'unowned staged copy must remain intact');
+  assert.equal(fs.existsSync(txn), true, 'unowned sidecar must not be consumed');
+  assert.equal(fs.existsSync(path.join(tmp, 'session.jsonl')), true);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('a registered opId presented for the wrong destination is refused', () => {
+  const tree = makeTree();
+  const { recoverInterruptedImport } = require('./data-import');
+  fs.mkdirSync(path.join(tree.dest, 'sessions'), { recursive: true });
+  const dest = path.join(tree.dest, 'sessions', 'proj', 'sess-x');
+  const opId = 'bound-op';
+  const tmp = `${dest}.import-tmp-${opId}`;
+  const bak = `${dest}.import-bak-${opId}`;
+  const txn = `${dest}.import-txn-${opId}`;
+  fs.mkdirSync(tmp, { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'session.jsonl'), 'staged');
+  fs.writeFileSync(txn, JSON.stringify({ version: 1, opId, dest, tmp, bak, state: 'staged' }));
+  // The opId IS registered — but bound to a DIFFERENT destination. The same
+  // ID presented for this tree must not authorize the sidecar.
+  fs.writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({
+    phase: 'copying', sourceHome: tree.source, destHome: tree.dest,
+    txnIds: [opId], txnDests: { [opId]: path.join(tree.dest, 'other-target') },
+  }));
+  const outcome = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+  assert.equal(outcome.blocked, true);
+  assert.equal(fs.existsSync(tmp), true, 'unbound-destination sidecar preserved');
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('a registered opId with no destination binding is preserved, not executed', () => {
+  const tree = makeTree();
+  const { recoverInterruptedImport } = require('./data-import');
+  fs.mkdirSync(path.join(tree.dest, 'sessions'), { recursive: true });
+  const dest = path.join(tree.dest, 'sessions', 'proj', 'sess-x');
+  const opId = 'id-only-op';
+  const tmp = `${dest}.import-tmp-${opId}`;
+  const bak = `${dest}.import-bak-${opId}`;
+  const txn = `${dest}.import-txn-${opId}`;
+  fs.mkdirSync(tmp, { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'session.jsonl'), 'staged');
+  fs.writeFileSync(txn, JSON.stringify({ version: 1, opId, dest, tmp, bak, state: 'staged' }));
+  // ID-only legacy inventory: txnIds registers the op but txnDests is absent
+  // — an ID alone must not silently gain destination authority.
+  fs.writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({
+    phase: 'copying', sourceHome: tree.source, destHome: tree.dest, txnIds: [opId],
+  }));
+  const outcome = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+  assert.equal(outcome.blocked, true);
+  assert.equal(fs.existsSync(tmp), true, 'ID-only sidecar must remain intact');
+  assert.equal(fs.existsSync(txn), true);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('registered opId with empty map / missing key / non-string binding is preserved', () => {
+  const variants = [
+    { name: 'empty map', txnDests: {} },
+    { name: 'missing key', txnDests: { 'other-op': '/x' } },
+    { name: 'non-string value', txnDests: { 'bound-op': 42 } },
+  ];
+  for (const { name, txnDests } of variants) {
+    const tree = makeTree();
+    const { recoverInterruptedImport } = require('./data-import');
+    fs.mkdirSync(path.join(tree.dest, 'sessions'), { recursive: true });
+    const dest = path.join(tree.dest, 'sessions', 'proj', 'sess-x');
+    const opId = 'bound-op';
+    const tmp = `${dest}.import-tmp-${opId}`;
+    const bak = `${dest}.import-bak-${opId}`;
+    const txn = `${dest}.import-txn-${opId}`;
+    fs.mkdirSync(tmp, { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'session.jsonl'), 'staged');
+    fs.writeFileSync(txn, JSON.stringify({ version: 1, opId, dest, tmp, bak, state: 'staged' }));
+    fs.writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({
+      phase: 'copying', sourceHome: tree.source, destHome: tree.dest,
+      txnIds: [opId], txnDests,
+    }));
+    const outcome = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+    assert.equal(outcome.blocked, true, `${name}: should hold`);
+    assert.equal(fs.existsSync(tmp), true, `${name}: staging preserved`);
+    fs.rmSync(tree.root, { recursive: true, force: true });
+  }
+});
+
+test('attachment merge aborts on staged-dir inspection failure without publishing', async () => {
+  const tree = makeTree();
+  const { importSessions } = require('./data-import');
+  // Destination attachments hold a destination-only file; source has a
+  // conflicting file. Staging unites them, then an inspection error on the
+  // staged directory must abort the merge — never rm the staged dir and
+  // never publish a tree missing the destination-only bytes.
+  fs.mkdirSync(path.join(tree.dest, 'attachments', 'sub'), { recursive: true });
+  fs.writeFileSync(path.join(tree.dest, 'attachments', 'sub', 'dest-only.txt'), 'must-survive');
+  fs.writeFileSync(path.join(tree.dest, 'attachments', 'sub', 'conflict.txt'), 'dest-version');
+  fs.mkdirSync(path.join(tree.source, 'attachments', 'sub'), { recursive: true });
+  fs.writeFileSync(path.join(tree.source, 'attachments', 'sub', 'conflict.txt'), 'src-version');
+  const original = fs.lstatSync;
+  let injected = 0;
+  fs.lstatSync = (p) => {
+    // Narrow the injection to the staged conflicting directory only — a
+    // catch-all '.import-tmp-' filter could let an unrelated early throw
+    // satisfy the failure assertion without exercising the overlay path.
+    if (String(p).includes('attachments.import-tmp-') && String(p).endsWith('sub')) {
+      injected += 1;
+      const err = new Error('EACCES simulated inspection failure');
+      err.code = 'EACCES';
+      throw err;
+    }
+    return original(p);
+  };
+  let result;
+  let threw = null;
+  try {
+    result = await importSessions({
+      sourceHome: tree.source, destHome: tree.dest,
+      selectedRels: [], userDataDir: tree.userData,
+      importAttachments: true, overwrite: true,
+    });
+  } catch (error) {
+    threw = error;
+  } finally {
+    fs.lstatSync = original;
+  }
+  // The expected attachment failure surfaces as `failed:<reason>` on the
+  // attachments channel (importSessions records stage failures there rather
+  // than always rejecting). Either a rejected import OR a result whose
+  // attachments carry the inspection failure counts as the aborted merge —
+  // but NOT a generic unrelated exception, which is why we assert the
+  // specific reason and that the injection actually fired.
+  const attachmentFailed = (threw && /overlay-inspection-failed|EACCES/.test(String(threw.message)))
+    || (result && typeof result.attachments === 'string' && /failed:.*(overlay-inspection-failed|EACCES)/.test(result.attachments));
+  assert.equal(attachmentFailed, true, 'expected the staged-dir inspection failure reason');
+  assert.equal(injected > 0, true, 'the injection actually fired on the staged dir');
+  // The merge aborted — it did not publish an incomplete tree.
+  assert.equal((result && result.ok) === true, false, 'inspection failure must not report a successful merge');
+  // The live destination is untouched: destination-only bytes and the
+  // original conflict bytes both survive exactly.
+  assert.equal(fs.readFileSync(path.join(tree.dest, 'attachments', 'sub', 'dest-only.txt'), 'utf8'), 'must-survive');
+  assert.equal(fs.readFileSync(path.join(tree.dest, 'attachments', 'sub', 'conflict.txt'), 'utf8'), 'dest-version');
+  // The source bytes are equally untouched — the abort did not mutate the
+  // source side either.
+  assert.equal(fs.readFileSync(path.join(tree.source, 'attachments', 'sub', 'conflict.txt'), 'utf8'), 'src-version');
+  // No published tree may exist under a tmp name: staging was aborted, not
+  // renamed over the destination.
+  assert.equal(fs.readdirSync(tree.dest).some((n) => n.includes('.import-tmp-') && n.includes('attachments')), false, 'no staged tree may be published');
   fs.rmSync(tree.root, { recursive: true, force: true });
 });

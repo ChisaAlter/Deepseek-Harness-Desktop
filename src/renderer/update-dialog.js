@@ -3,6 +3,18 @@
 const api = window.dshUpdateDialog;
 let view;
 let responding = false;
+
+// The dialog is a transparent child BrowserWindow: the shell token table
+// (`dsh-webui-tokens.css`) ships its dark half behind `data-ds-dark-theme`.
+// `applyTheme` mirrors what `theme.js` does for boot/launcher surfaces; the
+// initial scheme arrives inside `view` and later flips land via `onTheme`.
+function applyScheme(scheme) {
+  const dark = scheme === 'dark';
+  document.documentElement.toggleAttribute('data-ds-dark-theme', dark);
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+  document.body?.toggleAttribute('data-ds-dark-theme', dark);
+}
+
 function respond(index) {
   if (responding || view === undefined) return;
   responding = true;
@@ -32,6 +44,7 @@ function render(state) {
   responding = false;
   view = state;
   applyWindowState(state);
+  applyScheme(state.scheme);
   document.documentElement.lang = state.locale;
   document.title = state.title;
   document.getElementById('title').textContent = state.message;
@@ -47,7 +60,8 @@ function render(state) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = label;
-    button.className = index === 0 ? 'primary' : 'secondary';
+    const danger = Array.isArray(state.dangerIds) && state.dangerIds.includes(index);
+    button.className = danger ? 'danger' : (index === 0 ? 'primary' : 'secondary');
     button.addEventListener('click', () => { respond(index); });
     document.getElementById('actions').append(button);
   }
@@ -60,3 +74,6 @@ let received = false;
 const unsubscribe = api.subscribe((state) => { received = true; render(state); });
 window.addEventListener('pagehide', unsubscribe, { once: true });
 void api.status().then((state) => { if (!received) render(state); });
+if (typeof api.onTheme === 'function') {
+  api.onTheme((theme) => applyScheme(theme?.scheme));
+}

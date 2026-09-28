@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** ToolCallTree-owned root/subcall markers and keyed Tool dispatch. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { bindDisclosure, useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
 import type { SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -86,7 +86,7 @@ describe('ToolCallTree', () => {
     expect(view.queryByRole('button')).toBeNull()
   })
 
-  it('forwards one stable disclosure Hook to nested calls and resets only their open state', () => {
+  it('forwards one stable disclosure Hook to nested calls and resets only their open state', async () => {
     const reset = createSnapshotStore(0)
     const useDisclosure = bindDisclosure(reset)
     const owners: ToolCallOwnerProps[] = []
@@ -109,7 +109,9 @@ describe('ToolCallTree', () => {
     expect(view.getByText('Child output')).toBeTruthy()
 
     act(() => { reset.set(1) })
-    expect(view.queryByText('Parent output')).toBeNull()
+    expect(view.getByText('Parent output').closest('[aria-hidden="true"]')).not.toBeNull()
+    expect(view.getByText('Child output').closest('[aria-hidden="true"]')).not.toBeNull()
+    await waitFor(() => { expect(view.queryByText('Parent output')).toBeNull() })
     expect(view.queryByText('Child output')).toBeNull()
     expect([...view.container.querySelectorAll('[data-expandable]')]).toEqual(rows)
     expect(owners).toEqual(dispatched)

@@ -86,13 +86,18 @@ describe('BlockAssembler properties', () => {
   it('re-assembly is idempotent: blocks() is stable across repeated calls', () => {
     fc.assert(fc.property(streamArb, (chunks) => {
       const a = feed(chunks)
-      expect(a.blocks()).toEqual(a.blocks())
-      // And message().content mirrors blocks().
-      expect(a.message({ provider: 'mock', model: 'mock' }).content).toEqual(a.blocks())
+      const first = outcome(a)
+      expect(outcome(a)).toEqual(first)
+      if (first.ok) {
+        expect(a.message({ provider: 'mock', model: 'mock' }).content).toEqual(first.blocks)
+      } else {
+        expect(() => a.message({ provider: 'mock', model: 'mock' }))
+          .toThrowError(expect.objectContaining({ code: MALFORMED_RESPONSE_CODE }))
+      }
     }))
   })
 
-  it('blocks() never throws and yields only valid content-block tags', () => {
+  it('blocks() rejects malformed calls and otherwise yields only valid content-block tags', () => {
     fc.assert(fc.property(streamArb, (chunks) => {
       const assembled = outcome(feed(chunks))
       if (!assembled.ok) return

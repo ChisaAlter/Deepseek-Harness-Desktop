@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 
 const inputCss = readFileSync(fileURLToPath(new URL('../src/client/skeleton/InputBar.module.css', import.meta.url)), 'utf8')
 const beamCss = readFileSync(fileURLToPath(new URL('../src/client/ComposerBeam.module.css', import.meta.url)), 'utf8')
+const themeCss = readFileSync(new URL('../../ui-theme/src/styles/base.css', import.meta.url), 'utf8')
 
 function declarations(source: string, selector: string): Map<string, string> | undefined {
   const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -17,7 +18,13 @@ function declarations(source: string, selector: string): Map<string, string> | u
     for (const part of body.split(';')) {
       const colon = part.indexOf(':')
       if (colon === -1) continue
-      found.set(part.slice(0, colon).trim(), part.slice(colon + 1).trim().replace(/\s+/g, ' '))
+      const value = part.slice(colon + 1).trim().replace(/\s+/g, ' ')
+        .replace(/var\((--dsw-radius-[\w-]+)\)/g, (_, name: string) => {
+          const token = new RegExp(`${name}:\\s*([^;]+);`).exec(themeCss)?.[1]
+          if (token === undefined) throw new Error(`Missing radius token: ${name}`)
+          return token
+        })
+      found.set(part.slice(0, colon).trim(), value)
     }
   }
   return found.size === 0 ? undefined : found

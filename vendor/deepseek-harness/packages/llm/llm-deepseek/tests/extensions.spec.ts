@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { Context, LoggerLevel } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import DeepSeekLlmApiExtensionRegistry from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import type { DeepSeekLlmApiExtensionRequest } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
@@ -137,7 +137,7 @@ describe('Messages request extensions', () => {
   it('sends the base request without extension fields when they fail to serialize', async () => {
     const ctx = await boot()
     const warnings: unknown[][] = []
-    ctx.logger.exporter({ levels: { default: LoggerLevel.WARN }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
+    ctx.logger.exporter({ levels: { default: Infinity }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
     const accept = vi.fn()
     ctx.deepseekLlmApiExtensions.register('dsh_messages_test', { prepare: () => ({ value: { value: 'log' }, accept }) })
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(sse(textEvents)))
@@ -171,7 +171,7 @@ describe('Messages request extensions', () => {
   it('fails the request without reporting omitted fields when the base body cannot serialize', async () => {
     const ctx = await boot()
     const warnings: unknown[][] = []
-    ctx.logger.exporter({ levels: { default: LoggerLevel.WARN }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
+    ctx.logger.exporter({ levels: { default: Infinity }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
     const accept = vi.fn()
     ctx.deepseekLlmApiExtensions.register('dsh_messages_test', { prepare: () => ({ value: { value: 'log' }, accept }) })
     const fetch = vi.fn<typeof globalThis.fetch>()

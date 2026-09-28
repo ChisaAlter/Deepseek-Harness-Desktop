@@ -299,6 +299,7 @@ const QA_REQUIRED_STEPS = [
   'market.installed',
   'usage-stats.section',
   'interface.dshbotSwitch',
+  'interface.sessionLogSwitch',
   'plugin.dshbot.defaultOff',
 ];
 
@@ -1158,7 +1159,10 @@ async function runReleaseUiWalk(wc, helpers) {
       surfaces: Boolean(dshFind('right panel|surfaces|右侧栏', bar)),
     };
   });
-  rec('titlebar.sessionLog', titlebar?.sessionLog, (titlebar?.labels || []).join(' | '));
+  // Session log ships opt-in since the titlebar crowding fix: the capsule
+  // must stay hidden until Interface Settings enables it (verified below).
+  rec('titlebar.sessionLog', titlebar?.sessionLog === false,
+    `hiddenByDefault=${titlebar?.sessionLog === false} labels=${(titlebar?.labels || []).join(' | ')}`);
   rec('titlebar.branch', titlebar?.branch, '');
   rec('titlebar.commit', titlebar?.commit, '');
   rec('titlebar.git', titlebar?.git, '');
@@ -1841,6 +1845,33 @@ async function runReleaseUiWalk(wc, helpers) {
   rec('interface.dshbotSwitch', Boolean(interfaceOpened && botsSetting?.nav
     && botsSetting?.switchPresent && botsSetting?.off && botsSetting?.beta),
   `nav=${botsSetting?.nav} switch=${botsSetting?.switchPresent} off=${botsSetting?.off} beta=${botsSetting?.beta}`);
+
+  // Session log titlebar capsule: default off; flipping the Interface switch
+  // draws the button, and turning it back off restores the lean titlebar.
+  const sessionLogSwitch = await waitUntil(() => pageEval(wc, () => {
+    const dialog = dshDialog();
+    const control = dialog && Array.from(dialog.querySelectorAll('[role="switch"]'))
+      .find((el) => /(会话日志|session log)/i.test(dshLabel(el)));
+    if (!dialog || !control) return null;
+    const off = control.getAttribute('aria-checked') === 'false';
+    if (off) control.click();
+    return { off };
+  }), 10_000);
+  const sessionLogShown = sessionLogSwitch?.off === true && Boolean(await waitUntil(() =>
+    pageEval(wc, () => {
+      const bar = document.querySelector('#dshd-shell-titlebar-trailing');
+      return Boolean(bar && dshFind('session log|会话日志|Session 日志', bar));
+    }), 8_000));
+  rec('interface.sessionLogSwitch', Boolean(sessionLogSwitch?.off && sessionLogShown),
+    `off=${sessionLogSwitch?.off} shownAfterEnable=${sessionLogShown}`);
+  // Restore the shipped default so later packaged runs see the lean titlebar.
+  await pageEval(wc, () => {
+    const dialog = dshDialog();
+    const control = dialog && Array.from(dialog.querySelectorAll('[role="switch"]'))
+      .find((el) => /(会话日志|session log)/i.test(dshLabel(el)));
+    if (control && control.getAttribute('aria-checked') === 'true') control.click();
+    return true;
+  });
   await dismiss();
   const botsTab = await pageEval(wc, () => {
     const tab = Array.from(document.querySelectorAll('[role="tab"]')).find((el) =>

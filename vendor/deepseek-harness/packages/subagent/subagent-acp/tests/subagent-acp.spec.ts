@@ -251,7 +251,7 @@ describe('child env layering (through the subprocess seam)', () => {
     const text = result.output.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('')
     expect(text).toBe('managed')
     await ctx.fiber.dispose()
-  })
+  }, 15_000)
 })
 
 describe('disposeAcpChild (the backend-owned teardown ladder over seam verbs)', () => {

@@ -26,6 +26,7 @@ function workspaces(itemCount: number): PanelTogglesProps['useWorkspaces'] {
 }
 
 function mount(opts: {
+  rightbarShown?: boolean
   surfaces?: number
   terminalDrawer?: number
   workspaceCount?: number
@@ -39,7 +40,7 @@ function mount(opts: {
       usePanelInfo={panelInfoStub}
       useResource={resourceStub}
       surfaces={opts.surfaces ?? 0}
-      rightbarShown={false}
+      rightbarShown={opts.rightbarShown ?? false}
       terminalDrawer={opts.terminalDrawer ?? 0}
       managedSession={false}
       useSessions={neverHook}
@@ -73,8 +74,8 @@ describe('PanelToggles', () => {
     expect(b.toggleTerminalDrawer).not.toHaveBeenCalled()
   })
 
-  it('marks the right-panel toggle pressed when surfaces is open', () => {
-    mount({ surfaces: 400 })
+  it('marks the right-panel toggle pressed when the shared panel is open', () => {
+    mount({ rightbarShown: true })
     expect(screen.getByRole('button', { name: 'Toggle right panel' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Toggle terminal drawer' }).getAttribute('aria-pressed')).toBe('false')
   })

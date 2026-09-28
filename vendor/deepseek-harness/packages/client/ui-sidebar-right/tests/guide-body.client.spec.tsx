@@ -58,11 +58,12 @@ function box(kind: string, order: number, icon?: SidebarRightGuideBox['icon'], d
  * fallback, which is what the chain does with no registrant.
  */
 function mountGuide(entries: readonly SidebarRightGuideBox[], custom?: (key: string) => ReactNode,
-  shortcuts: readonly ShortcutCatalogEntry[] = []) {
+  shortcuts: readonly ShortcutCatalogEntry[] = [], uniformEntries = false) {
   const guideEntries = createSnapshotStore<readonly SidebarRightGuideBox[]>(entries)
   const openTab = vi.fn()
   const renderSlot = vi.fn<GuideBodyProps['renderSlotChain']>((_seat, _owner, options) => options?.fallback)
   const props: GuideBodyProps = {
+    uniformEntries,
     ...standard, SessionProvider: ({ children }) => children,
     useShortcuts: <T,>(selector: (entries: readonly ShortcutCatalogEntry[]) => T): T => selector(shortcuts),
     useTabInfo: () => ({ sidebar: { expanded: true, fullscreen: false }, panel: { id: 'pane-guide' as PaneId },
@@ -82,6 +83,15 @@ function mountGuide(entries: readonly SidebarRightGuideBox[], custom?: (key: str
 }
 
 describe('GuideBody', () => {
+  it('keeps desktop cards uniform and opens the selected type in the same tab', () => {
+    const custom = vi.fn(() => <button>Choose a shell</button>)
+    const h = mountGuide([box('terminal', 20, Glyph, 'Run commands')], custom, [], true)
+    expect(h.view.queryByText('Choose a shell')).toBeNull()
+    expect(h.view.getByText('Run commands')).toBeDefined()
+    fireEvent.click(h.view.getByRole('button'))
+    expect(h.openTab).toHaveBeenCalledWith('terminal', { replaceTab: true })
+    expect(custom).not.toHaveBeenCalled()
+  })
   it('shows configured guide bindings and omits cleared key labels', () => {
     for (const keys of [['Ctrl', 'P'], []]) {
       const entry: ShortcutCatalogEntry = { id: 'workspace.files' as never, label: 'Files', aliases: [],

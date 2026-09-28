@@ -10,7 +10,7 @@
   height: 28px;
   padding: 6px;
   border: none;
-  border-radius: 28px;
+  border-radius: var(--dsw-radius-panel);
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;

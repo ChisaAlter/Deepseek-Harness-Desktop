@@ -56,7 +56,7 @@ const measure = `(() => {
   }
   return {
     viewport: innerWidth,
-    surfacesOpen: !frame.hasAttribute('data-surfaces-collapsed'),
+    rightbarOpen: document.querySelector('[data-sidebar-right-open]') !== null,
     density: frame.getAttribute('data-titlebar-density'),
     actionButtons: row.querySelector('[class*="headerActions"]')?.querySelectorAll('button').length ?? 0,
     utilityButtons: row.querySelector('[class*="headerUtilities"]')?.querySelectorAll('button').length ?? 0,
@@ -69,12 +69,12 @@ const measure = `(() => {
 try {
   let state = await evaluate(measure)
   if (!state) throw new Error('Select a normal Session before running the titlebar geometry check')
-  if (!state.surfacesOpen) {
+  if (!state.rightbarOpen) {
     await evaluate(`document.querySelector('[data-titlebar-trailing] button[aria-label="切换右侧栏"]')?.click()`)
     await new Promise(resolve => setTimeout(resolve, 500))
     state = await evaluate(measure)
   }
-  if (!state?.surfacesOpen) throw new Error('Could not open the surfaces column')
+  if (!state?.rightbarOpen) throw new Error('Could not open the right sidebar')
   if (state.actionButtons < 1 || state.utilityButtons < 1) {
     throw new Error('Select a normal workspace Session with Agent actions and an application opener')
   }

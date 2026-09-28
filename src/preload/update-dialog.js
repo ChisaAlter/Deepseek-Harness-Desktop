@@ -18,6 +18,14 @@ const api = {
     ipcRenderer.on(CHANNELS.changed, receive);
     return () => { ipcRenderer.removeListener(CHANNELS.changed, receive); };
   },
+  // `applyAppTheme` fans `shell:theme` out to every non-harness BrowserWindow
+  // (this dialog is one of them); forwarding keeps the scrim/card palette in
+  // step with the host theme instead of pinning a hard-coded dark look.
+  onTheme: (listener) => {
+    const receive = (_event, theme) => { listener(theme); };
+    ipcRenderer.on('shell:theme', receive);
+    return () => { ipcRenderer.removeListener('shell:theme', receive); };
+  },
 };
 
 // Only the packaged dialog document gets the bridge; it is served from

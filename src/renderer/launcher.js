@@ -668,12 +668,95 @@ function selectedRoute() {
   return picked ? picked.dataset.routePick : '';
 }
 
+// Route picks serialize: each new keypress is the latest intent and must be
+// saved, even if a previous save is still in flight. A naive `value===prev`
+// check drops the second pick when Right then Left fire before the status
+// refresh re-renders the selection, so dedup compares only against the last
+// value actually issued — never against the rendered selection.
+let routeSaveGen = 0;
+const lastIssuedRoute = { value: '' };
+
+async function issueRouteSave(api, value, refreshStatus, setHint, errText) {
+  const gen = ++routeSaveGen;
+  lastIssuedRoute.value = value;
+  try {
+    const reply = await api.saveLauncherConfig({ downloadRoute: value });
+    // A resolved refusal ({ok:false}) is as much a failure as a rejection:
+    // the service declined the write (e.g. maintenance-in-progress). Treat
+    // it identically — reset the marker and surface the error — instead of
+    // returning success on a route that was never persisted.
+    if (reply && reply.ok === false) {
+      throw Object.assign(new Error(reply.error || 'save-refused'), { refused: true });
+    }
+    if (gen === routeSaveGen) {
+      void refreshStatus();
+    }
+    return true;
+  } catch (error) {
+    // The save did not commit, so the issued marker must not keep pointing
+    // at a route that never persisted — re-seed it to the value that is
+    // actually selected. Otherwise a retry of the same route is deduped
+    // away (`value === lastIssuedRoute`) and the user can never re-pick it.
+    if (lastIssuedRoute.value === value) {
+      lastIssuedRoute.value = selectedRoute();
+    }
+    if (gen === routeSaveGen) {
+      setHint(errText(error, '设置保存失败'));
+    }
+    return false;
+  }
+}
+
+/**
+ * Radio-group arrow-key index step, extracted for direct testing: wraps
+ * Left/Up and Right/Down through the enabled subset only. Returns -1 for a
+ * key the radio group does not own, so the caller ignores it.
+ */
+function radioNextIndex(enabledList, currentIndex, key) {
+  if (key === 'ArrowLeft' || key === 'ArrowUp') {
+    return currentIndex <= 0 ? enabledList.length - 1 : currentIndex - 1;
+  }
+  if (key === 'ArrowRight' || key === 'ArrowDown') {
+    return currentIndex < 0 || currentIndex >= enabledList.length - 1 ? 0 : currentIndex + 1;
+  }
+  return -1;
+}
+
 // Both the home card and the settings row render from the same status payload
 // (status.routes / status.downloadRoute); unverified routes are visible but
 // not selectable per plan ("标注未完成" before real-file verification).
 function renderRouteControls(status) {
   const routes = Array.isArray(status?.routes) ? status.routes : [];
   const current = status?.downloadRoute || '';
+  // Remember which route had focus so an innerHTML re-render (triggered by a
+  // status refresh) can restore focus to the same logical option by id.
+  const focusedPickerRoute = document.activeElement?.dataset?.routePick;
+  const focusedSegRoute = document.activeElement?.dataset?.route;
+  // Seed the issued marker with the freshly rendered selection so a re-pick
+  // of the already-selected route is a no-op, while any different pick is
+  // always issued even if the render is mid-burst stale.
+  if (!lastIssuedRoute.value) {
+    lastIssuedRoute.value = current;
+  }
+  const pickRoute = async (value, prev) => {
+    // `prev` is what the render happened to show — stale as soon as a newer
+    // pick was issued. The only true duplicate is re-issuing the value we
+    // already issued most recently.
+    if (!value || value === lastIssuedRoute.value) return;
+    await issueRouteSave(pageShell(), value, refreshStatus, setHint, errText);
+  };
+  // Keyboard: arrows move AND select (radio-group semantics), skipping
+  // disabled routes; focus and checked state stay in sync via the same pick.
+  const radioKeyNav = (list, pick) => (event) => {
+    const enabled = list.filter((b) => !b.disabled);
+    const next = radioNextIndex(enabled, enabled.indexOf(document.activeElement), event.key);
+    if (next >= 0 && next < enabled.length) {
+      event.preventDefault();
+      const target = enabled[next];
+      target.focus();
+      pick(target);
+    }
+  };
   const railRoute = $('rail-route');
   if (railRoute) {
     railRoute.textContent = routeLabel(routes, current) || '未选择';
@@ -692,34 +775,37 @@ function renderRouteControls(status) {
         class="line-card${route.id === current ? ' is-sel' : ''}${route.verified ? '' : ' is-disabled'}"
         data-route-pick="${escapeHtml(route.id)}"
         aria-checked="${route.id === current ? 'true' : 'false'}"
+        tabindex="${route.id === current ? '0' : '-1'}"
         ${route.verified ? '' : 'disabled'}>
         <span class="lc-title"><span class="lc-radio" aria-hidden="true"></span>${escapeHtml(route.label)}${route.verified ? '' : ' <span class="badge warn">未启用</span>'}</span>
         <span class="lc-desc">${escapeHtml(route.detail || '')}</span>
       </button>`).join('');
     picker.querySelectorAll('[data-route-pick]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        try {
-          await pageShell()?.saveLauncherConfig({ downloadRoute: button.dataset.routePick });
-          void refreshStatus();
-        } catch (error) {
-          setHint(errText(error, '设置保存失败'));
-        }
+      button.addEventListener('click', () => pickRoute(button.dataset.routePick, current));
+    });
+    // Bind the container handler exactly once: re-rendering only replaces
+    // innerHTML, so a handler re-added each render would stack and replay a
+    // single keypress many times.
+    if (!picker.dataset.navBound) {
+      picker.dataset.navBound = '1';
+      picker.addEventListener('keydown', (event) => {
+        const buttons = [...picker.querySelectorAll('[data-route-pick]')];
+        radioKeyNav(buttons, (b) => pickRoute(b.dataset.routePick, selectedRoute()))(event);
       });
-    });
-    picker.addEventListener('keydown', (event) => {
-      const list = [...picker.querySelectorAll('[data-route-pick]')].filter((b) => !b.disabled);
-      const index = list.indexOf(document.activeElement);
-      let next = -1;
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-        next = index <= 0 ? list.length - 1 : index - 1;
-      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-        next = index < 0 || index >= list.length - 1 ? 0 : index + 1;
-      }
-      if (next >= 0 && next < list.length) {
-        event.preventDefault();
-        list[next].focus();
-      }
-    });
+      // Roving tabindex: whichever radio holds focus is the group's single
+      // tab stop; arrows that move focus move the stop with them.
+      picker.addEventListener('focusin', (event) => {
+        if (!event.target?.dataset?.routePick) return;
+        picker.querySelectorAll('[data-route-pick]').forEach((b) => {
+          b.tabIndex = b === event.target ? 0 : -1;
+        });
+      });
+    }
+    // Restore focus to the same logical route after the re-render.
+    if (focusedPickerRoute) {
+      const again = picker.querySelector(`[data-route-pick="${CSS.escape(focusedPickerRoute)}"]`);
+      if (again && !again.disabled) again.focus();
+    }
   }
   const seg = $('route-seg');
   const segNote = $('route-seg-note');
@@ -738,30 +824,25 @@ function renderRouteControls(status) {
         : '';
     }
     seg.querySelectorAll('[data-route]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        try {
-          await pageShell()?.saveLauncherConfig({ downloadRoute: button.dataset.route });
-          void refreshStatus();
-        } catch (error) {
-          setHint(errText(error, '设置保存失败'));
-        }
+      button.addEventListener('click', () => pickRoute(button.dataset.route, current));
+    });
+    if (!seg.dataset.navBound) {
+      seg.dataset.navBound = '1';
+      seg.addEventListener('keydown', (event) => {
+        const buttons = [...seg.querySelectorAll('[data-route]')];
+        radioKeyNav(buttons, (b) => pickRoute(b.dataset.route, selectedRoute()))(event);
       });
-    });
-    // Arrow-key navigation within the radio group, skipping disabled routes.
-    seg.addEventListener('keydown', (event) => {
-      const list = [...seg.querySelectorAll('[data-route]')].filter((b) => !b.disabled);
-      const index = list.indexOf(document.activeElement);
-      let next = -1;
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-        next = index <= 0 ? list.length - 1 : index - 1;
-      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-        next = index < 0 || index >= list.length - 1 ? 0 : index + 1;
-      }
-      if (next >= 0 && next < list.length) {
-        event.preventDefault();
-        list[next].focus();
-      }
-    });
+      seg.addEventListener('focusin', (event) => {
+        if (!event.target?.dataset?.route) return;
+        seg.querySelectorAll('[data-route]').forEach((b) => {
+          b.tabIndex = b === event.target ? 0 : -1;
+        });
+      });
+    }
+    if (focusedSegRoute) {
+      const again = seg.querySelector(`[data-route="${CSS.escape(focusedSegRoute)}"]`);
+      if (again && !again.disabled) again.focus();
+    }
   }
 }
 
@@ -1341,7 +1422,12 @@ function syncImportSummary() {
   $('import-mcp-count').textContent = `${mcpChecked}/${countBoxes('mcp-id')}`;
   $('import-settings-count').textContent = `${settingsChecked}/${countBoxes('setting-id')}`;
   $('import-presets-count').textContent = `${presetsChecked}/${countBoxes('preset-id')}`;
-  $('import-result').textContent = `已选 会话 ${sessionsChecked} · 技能 ${skillsChecked} · 插件 ${pluginsChecked} · MCP ${mcpChecked} · 设置 ${settingsChecked} · 预设 ${presetsChecked}`;
+  // Selection counts live on their own line — they must never overwrite the
+  // persistent terminal summary in #import-result.
+  const selLine = $('import-selection-line');
+  if (selLine) {
+    selLine.textContent = `已选 会话 ${sessionsChecked} · 技能 ${skillsChecked} · 插件 ${pluginsChecked} · MCP ${mcpChecked} · 设置 ${settingsChecked} · 预设 ${presetsChecked}`;
+  }
 }
 
 function syncSessionClusters() {
@@ -1521,6 +1607,9 @@ function importProgressText(payload) {
   if (payload.phase === 'cancelled') {
     return '已取消。';
   }
+  if (payload.phase === 'blocked') {
+    return '导入被阻止：存在未完成的事务需要恢复。';
+  }
   const label = IMPORT_PHASE_LABELS[payload.phase];
   if (!label) {
     return '';
@@ -1539,7 +1628,19 @@ function summarizeImport(result) {
   if (result.empty) {
     return '未选择任何项，没有写入桌面 home。';
   }
+  // Surface the service's top-level refusal reason first — a resolved
+  // ok:false with a capability/recovery/ambiguity error must explain itself
+  // rather than collapse into a generic "incomplete" line.
+  const refusalText = {
+    'slim-import-unsupported': '当前为精简启动器：无法安全地停止并隔离正在运行的桌面端，导入已拒绝。请打开完整桌面端启动器执行导入。',
+    'import-recovery-blocked': '检测到未完成的导入事务，已阻止本次导入以免破坏数据。请先重启桌面端让恢复流程完成，或检查导入目录中的残留事务。',
+    'ambiguous-destination': '所选技能存在同名目标目录且来自不同来源，必须每个目标只保留一个来源。请取消其中冲突项后重试。',
+    'transaction-needs-recovery': '导入过程中发生需要人工恢复的替换失败，已停止后续写入。请重启桌面端完成恢复后再导入。',
+    'shutdown-committed': '应用正在退出，导入已取消。',
+    'import-in-progress': '已有导入任务进行中。',
+  }[result.error];
   const lines = [
+    refusalText,
     `会话 已拷 ${countStatus(result.sessions, 'copied')} · 跳过 ${countStatus(result.sessions, 'skipped')} · 拒绝 ${countStatus(result.sessions, 'rejected')}`,
     `技能 已拷 ${countStatus(result.skills, 'copied')} · 跳过 ${countStatus(result.skills, 'skipped')} · 拒绝 ${countStatus(result.skills, 'rejected')}`,
     `插件 已装 ${countStatus(result.plugins, 'installed')} · 跳过 ${countStatus(result.plugins, 'skipped')} · 失败 ${countStatus(result.plugins, 'failed')}`,
@@ -1547,12 +1648,24 @@ function summarizeImport(result) {
     `设置 已写入 ${countStatus(result.settings, 'copied')} · 跳过 ${countStatus(result.settings, 'skipped')} · 凭据引用 已同步 ${countStatus(result.credentials, 'copied')} · 跳过 ${countStatus(result.credentials, 'skipped')}`,
     `预设 已拷 ${countStatus(result.presets, 'copied')} · 跳过 ${countStatus(result.presets, 'skipped')} · 拒绝 ${countStatus(result.presets, 'rejected')}`,
     `附件 ${result.attachments || 'absent'}`,
-  ];
-  const totalFailed = ['sessions', 'skills', 'plugins', 'mcp', 'settings', 'presets']
+  ].filter(Boolean);
+  const totalFailed = ['sessions', 'skills', 'plugins', 'mcp', 'settings', 'credentials', 'presets']
     .reduce((n, key) => n + countStatus(result[key], 'failed'), 0)
     + (typeof result.attachments === 'string' && result.attachments.startsWith('failed:') ? 1 : 0);
   if (totalFailed > 0) {
     lines.push(`共 ${totalFailed} 项失败。`);
+    // Item-level failures: name + reason, capped so a long run stays readable.
+    const failedItems = [];
+    for (const key of ['sessions', 'skills', 'plugins', 'mcp', 'settings', 'credentials', 'presets']) {
+      for (const row of Array.isArray(result[key]) ? result[key] : []) {
+        if (row && row.status === 'failed' && failedItems.length < 8) {
+          failedItems.push(`${row.rel || row.id || row.name || row.ref || '项'}：${row.error || '失败'}`);
+        }
+      }
+    }
+    if (failedItems.length) {
+      lines.push(failedItems.join('\n'));
+    }
   }
   if (result.ok === false) {
     lines.push('导入未完全成功。官方来源未改写。');
@@ -1602,9 +1715,19 @@ async function refreshImport(options = {}) {
       name: 'skill-id',
       value: (row) => row.id,
       title: (row) => row.displayName || row.name,
-      meta: (row) => skillSourceLabel(row.source),
+      meta: (row) => {
+        const base = skillSourceLabel(row.source);
+        if (Array.isArray(row.sourceCollision) && row.sourceCollision.length > 1) {
+          const peers = row.sourceCollision.filter((id) => id !== row.id).join('、');
+          return `${base} · 同名冲突：与 ${peers} 写入同一目录，二者选其一`;
+        }
+        return base;
+      },
       disabled: () => false,
       skipLabel: () => '',
+      marks: (row) => (Array.isArray(row.sourceCollision) && row.sourceCollision.length > 1
+        ? badge('同名冲突', true)
+        : ''),
       selections: savedSelections,
     });
     const slimPackage = lastStatus?.launcherPackage === true;
@@ -1747,17 +1870,21 @@ function renderRouteOptions(pop, routes, routeId, onPick) {
 }
 
 async function pickDownloadRoute(routeId, current, afterSave) {
-  if (routeId === current) {
+  // Route the popup save through the same issued-marker/generation the
+  // radio picker uses. Two different controls issuing saves without a
+  // shared marker can interleave (`A` popup, `B` radio, `A` resolves last)
+  // and leave the rendered selection out of sync with what persisted.
+  // Do NOT early-return on `routeId === current`: `current` is the stale
+  // rendered selection, which during an outstanding save can still show the
+  // previous route — returning to it would silently discard the user's
+  // latest intent. The only true duplicate is re-issuing the value we
+  // already issued most recently.
+  if (!routeId || routeId === lastIssuedRoute.value) {
     return;
   }
-  try {
-    await pageShell()?.saveLauncherConfig({ downloadRoute: routeId });
-    await refreshStatus();
-    if (typeof afterSave === 'function') {
-      afterSave();
-    }
-  } catch (error) {
-    setHint(errText(error, '设置保存失败'));
+  const saved = await issueRouteSave(pageShell(), routeId, refreshStatus, setHint, errText);
+  if (saved && typeof afterSave === 'function') {
+    afterSave();
   }
 }
 
@@ -2200,8 +2327,11 @@ function bind() {
   const importRunBtn = $('btn-import');
   const importCancelBtn = $('btn-import-cancel');
   let importOpSeq = 0;
+  let activeImportOpId = '';
   importRunBtn.addEventListener('click', async () => {
     const opSeq = ++importOpSeq;
+    const myOpId = `ui-import-${Date.now().toString(36)}-${opSeq}`;
+    activeImportOpId = myOpId;
     importRunBtn.disabled = true;
     importCancelBtn.hidden = false;
     importCancelBtn.disabled = false;
@@ -2213,6 +2343,7 @@ function bind() {
       }
       const result = await api?.runImport({
         ...scanOptions(),
+        opId: myOpId,
         overwrite: $('import-overwrite').checked,
         importAttachments: $('import-attachments').checked,
         selectedRels: checkedValues('session-rel'),
@@ -2233,18 +2364,51 @@ function bind() {
       if (opSeq === importOpSeq) {
         importRunBtn.disabled = false;
         importCancelBtn.hidden = true;
+        activeImportOpId = '';
       }
     }
   });
-  importCancelBtn.addEventListener('click', () => {
+  importCancelBtn.addEventListener('click', async () => {
     importCancelBtn.disabled = true;
-    void api?.cancelImport?.().catch?.(() => {});
+    // Capture the op we're cancelling BEFORE awaiting. `activeImportOpId`
+    // is shared mutable state the run handler clears on completion — reading
+    // it after an await could name a different (or no) operation.
+    const cancellingOpId = activeImportOpId;
+    // A cancellation outcome may only reach the UI while the op that
+    // requested it still owns the import state. If A's cancel resolves after
+    // A finished (or B started), writing it would overwrite a terminal
+    // summary or a different operation's live progress.
+    const stillOwns = () => cancellingOpId !== '' && activeImportOpId === cancellingOpId && importRunBtn.disabled === true;
+    try {
+      // Name the op we're cancelling so the service can refuse to abort a
+      // different operation it owns (e.g. a slim plugin retry holding the
+      // same slot).
+      const reply = await api?.cancelImport?.({ opId: cancellingOpId });
+      // A resolved refusal ({ok:false}) is still a refusal — the service
+      // declined to abort (wrong owner, already done, or non-import work).
+      // Surface it instead of silently showing a cancel that did nothing.
+      if (reply && reply.ok === false && stillOwns()) {
+        $('import-result').textContent = `取消被拒绝：${errText(reply.error, '无法取消')}`;
+      }
+    } catch (error) {
+      // A rejected cancellation is itself a terminal diagnostic — surface it
+      // instead of leaving an unhandled rejection and a stuck-looking state.
+      if (stillOwns()) {
+        $('import-result').textContent = `取消请求被拒绝：${errText(error, '无法取消')}`;
+      }
+    }
   });
   if (typeof api?.onImportProgress === 'function') {
     api.onImportProgress((payload) => {
       // Late events from an earlier operation must not overwrite a terminal
-      // summary; only accept progress while the run is still in flight.
+      // summary; only accept progress while the run is still in flight, and
+      // only when the event carries THIS operation's identity. An event with
+      // no `op` is unowned and can never be attributed to the active run —
+      // reject it too rather than let an unrelated emitter overwrite state.
       if (importRunBtn.disabled === false) {
+        return;
+      }
+      if (typeof payload?.op !== 'string' || !payload.op || payload.op !== activeImportOpId) {
         return;
       }
       const text = importProgressText(payload);
@@ -2352,5 +2516,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 if (typeof module === 'object' && module.exports) {
-  module.exports = { renderReleases };
+  module.exports = { renderReleases, radioNextIndex, issueRouteSave };
 }

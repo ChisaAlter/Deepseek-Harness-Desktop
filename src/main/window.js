@@ -98,6 +98,7 @@ function attachRendererRecovery(contents, label) {
         buttons: ['重新加载', '退出应用'],
         defaultId: 0,
         cancelId: 0,
+        dangerIds: [1],
         noLink: true,
       };
       // The harness surface is a WebContentsView (not a BrowserWindow-owned

@@ -1,7 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const {
   parseSimpleYaml,
+  parseCordisPatchSections,
   resolveTheme,
   officialShellBackground,
   usesOfficialShellChrome,
@@ -9,7 +13,7 @@ const {
   FAMILY_SEEDS,
   listThemes,
 } = require('./themes');
-const { clearDesktopDshHome } = require('./dsh-home');
+const { clearDesktopDshHome, setDesktopDshHome } = require('./dsh-home');
 
 test('parseSimpleYaml reads a ui-theme section with custom families', () => {
   const doc = parseSimpleYaml(`
@@ -85,4 +89,58 @@ test('resolveTheme without a desktop home does not require ~/.dsh', () => {
   const theme = resolveTheme({}, { systemDark: true });
   assert.equal(theme.id, 'deepseek');
   assert.equal(theme.scheme, 'dark');
+});
+
+test('parseCordisPatchSections splits a top-level patch array into entries', () => {
+  const entries = parseCordisPatchSections(`- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers:
+      step:
+        apiKeyEnv: STEP_API_KEY
+- id: ui-theme
+  name: "@deepseek-ai/dsh-client-ui-theme"
+  config:
+    preference: dark
+    activeDarkThemeId: celadon
+    backgroundEffectColors: []
+`);
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].id, 'llm-pi-ai');
+  assert.equal(entries[1].id, 'ui-theme');
+  assert.equal(entries[1].config.preference, 'dark');
+  assert.equal(entries[1].config.activeDarkThemeId, 'celadon');
+});
+
+test('resolveTheme follows the live profile cordis.patch.yml, not settings.yaml', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const profileDir = path.join(home, 'profiles', 'web');
+  fs.mkdirSync(profileDir, { recursive: true });
+  fs.writeFileSync(path.join(profileDir, 'cordis.patch.yml'),
+    '- id: ui-theme\n  config:\n    preference: dark\n    activeDarkThemeId: celadon\n');
+  // A leftover pre-migration settings.yaml may exist; the patch must win.
+  fs.writeFileSync(path.join(home, 'settings.yaml'), 'ui-theme:\n  preference: light\n');
+  setDesktopDshHome(home);
+  try {
+    const theme = resolveTheme({}, { systemDark: false });
+    assert.equal(theme.scheme, 'dark');
+    assert.equal(theme.id, 'celadon');
+  } finally {
+    clearDesktopDshHome();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('resolveTheme falls back to legacy settings.yaml when no profile patch exists', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  fs.writeFileSync(path.join(home, 'settings.yaml'), 'ui-theme:\n  preference: dark\n    \n');
+  setDesktopDshHome(home);
+  try {
+    const theme = resolveTheme({}, { systemDark: false });
+    assert.equal(theme.scheme, 'dark');
+    assert.equal(theme.id, 'deepseek');
+  } finally {
+    clearDesktopDshHome();
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });

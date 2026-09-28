@@ -35,7 +35,7 @@
   box-sizing: border-box;
   padding: 12px 14px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -49,9 +49,10 @@
 }
 
 .textarea:focus {
+  --dsw-focus-ring-color: var(--dsw-alias-border-l3);
   outline: none;
   border-color: var(--dsw-alias-border-l3);
-  box-shadow: 0 0 0 1px var(--dsw-alias-border-l3);
+  box-shadow: 0 0 0 1px var(--dsw-focus-ring-color);
 }
 
 .textarea:disabled {

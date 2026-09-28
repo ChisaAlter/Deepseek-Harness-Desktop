@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 
 import type { StartedToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -320,7 +320,7 @@ describe('ToolRow', () => {
     expect(view.queryByRole('button', { name: /展开其余/ })).toBeNull()
   })
 
-  it('formats the argument body only while expanding it', () => {
+  it('formats the argument body only while expanding it', async () => {
     const stringify = vi.spyOn(JSON, 'stringify')
     const bodyFormatCalls = () => stringify.mock.calls.filter(
       ([value, replacer, space]) => typeof value === 'object'
@@ -339,7 +339,8 @@ describe('ToolRow', () => {
 
     fireEvent.click(view.getByRole('button'))
     expect(bodyFormatCalls()).toBe(1)
-    expect(view.queryByText(/"a": 1/)).toBeNull()
+    expect(view.getByText(/"a": 1/).closest('[aria-hidden="true"]')).not.toBeNull()
+    await waitFor(() => { expect(view.queryByText(/"a": 1/)).toBeNull() })
   })
 
   it('keeps the business icon across running and error states', () => {

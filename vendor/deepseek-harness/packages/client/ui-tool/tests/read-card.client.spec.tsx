@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { Context } from '@deepseek-ai/cordis'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -221,7 +221,7 @@ describe('ReadRow keyed toolview', () => {
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
   }
 
-  it('collapses to the path summary; the whole row toggles the read card', () => {
+  it('collapses to the path summary; the whole row toggles the read card', async () => {
     const view = render(<ReadRow {...rowProps(settled())} />)
     expect(view.getByText('读取')).toBeTruthy()
     // Collapsed: the path is the summary link alone, and the card is absent.
@@ -236,7 +236,8 @@ describe('ReadRow keyed toolview', () => {
     expect(view.getByText('显示 3 / 180 行')).toBeTruthy()
     // Collapse back in place, leaving the summary link available.
     toggleRow(view)
-    expect(view.container.querySelector('[data-read]')).toBeNull()
+    expect(view.container.querySelector('[data-read]')?.closest('[aria-hidden="true"]')).not.toBeNull()
+    await waitFor(() => { expect(view.container.querySelector('[data-read]')).toBeNull() })
     expect(view.getAllByText('src/a.ts')).toHaveLength(1)
   })
 

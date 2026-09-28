@@ -27,6 +27,14 @@
   --dsw-radius-lg: 16px;
   --dsw-radius-xl: 20px;
   --dsw-radius-panel: 28px;
+  --dsw-radius-compact: 6px;
+  --dsw-radius-inset: 10px;
+  --dsw-radius-badge: 13px;
+  --dsw-radius-button-sm: 14px;
+  --dsw-radius-action: 15px;
+  --dsw-radius-button: 18px;
+  --dsw-radius-composer: 22px;
+  --dsw-radius-composer-frame: 26px;
 }
 
 @media (prefers-reduced-motion: reduce) {

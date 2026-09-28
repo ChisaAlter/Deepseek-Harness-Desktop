@@ -373,4 +373,51 @@ describe('MenuView', () => {
     mount(openState())
     expect(screen.queryByRole('navigation')).toBeNull()
   })
+
+  it('keeps the breadcrumb snapshot through the exit hold, deactivates it, then reopens on new headers', () => {
+    vi.useFakeTimers()
+    try {
+      const drill: ReadonlyMap<string, readonly InputTriggerCrumb[]> = new Map([['command', [
+        { label: 'Workspace', value: 'root' },
+        { label: 'module1', value: 'module1', current: true },
+      ]]])
+      const { menu, headers } = mount(openState(), drill)
+      expect(screen.getByRole('navigation', { name: '目录导航' }).textContent).toBe('Workspacemodule1')
+
+      // The controller closes the menu and then clears the headers in the same
+      // reduce; React batches both stores into one render, where the logical
+      // close must not overwrite the retained last-open header snapshot.
+      act(() => {
+        menu.set(CLOSED)
+        headers.set(new Map())
+      })
+
+      // Retained for the exit recipe: the last-open breadcrumb survives, but the
+      // whole surface is logically closed (aria-hidden + inert).
+      const shell = menuShell()
+      expect(shell.getAttribute('data-state')).toBe('closed')
+      expect(shell.getAttribute('aria-hidden')).toBe('true')
+      expect(shell.hasAttribute('inert')).toBe(true)
+      expect(screen.queryByRole('navigation')).toBeNull()
+      expect(shell.querySelector('nav')?.textContent).toBe('Workspacemodule1')
+
+      // Reopening with a different header replaces the retained snapshot.
+      act(() => {
+        headers.set(new Map([['command', [{ label: 'Elsewhere', value: 'other', current: true }]]]))
+        menu.set(openState())
+      })
+      expect(menuShell().hasAttribute('inert')).toBe(false)
+      expect(screen.getByRole('navigation', { name: '目录导航' }).textContent).toBe('Elsewhere')
+
+      // A fresh close with cleared headers still shows the new breadcrumb, never
+      // the stale drilled one.
+      act(() => {
+        menu.set(CLOSED)
+        headers.set(new Map())
+      })
+      expect(menuShell().querySelector('nav')?.textContent).toBe('Elsewhere')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

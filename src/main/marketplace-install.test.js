@@ -449,6 +449,208 @@ test('installImportPlugin re-adds an already-installed registry name', async () 
   assert.deepEqual(calls, [['add', 'good-plugin@1.2.3']]);
 });
 
+test('A6: failed import overwrite restores original specs, dependencies and physical installation', async () => {
+  writeProfileDep('good-plugin', '^1.0.0');
+  writePlugin('good-plugin', { version: '1.0.0', main: 'index.js' }, {
+    'index.js': 'module.exports = "working original";\n',
+  });
+  writePlugin('shared-dependency', { version: '3.0.0' }, { 'data.bin': 'original dependency bytes' });
+  fs.writeFileSync(path.join(profileDir(), 'pnpm-lock.yaml'), 'original locked resolution\n');
+  fs.writeFileSync(path.join(profileDir(), 'pnpm-workspace.yaml'), 'allowBuilds:\n  trusted: true\n');
+  const files = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml',
+    'node_modules/good-plugin/package.json', 'node_modules/good-plugin/index.js',
+    'node_modules/shared-dependency/package.json', 'node_modules/shared-dependency/data.bin'];
+  const original = files.map(file => fs.readFileSync(path.join(profileDir(), file)));
+  const calls = [];
+  const result = await installImportPlugin('good-plugin@2.0.0', {
+    allowBuilds: ['good-plugin'],
+    runPlugin: async args => {
+      calls.push(args);
+      if (args[0] === 'add') {
+        writeProfileDep('good-plugin', '2.0.0');
+        writePlugin('good-plugin', { version: '2.0.0', main: 'missing.js' }, { 'index.js': 'broken replacement' });
+        writePlugin('shared-dependency', { version: '4.0.0' }, { 'data.bin': 'changed dependency' });
+        writeClientPlugin('new-dependency');
+        fs.writeFileSync(path.join(profileDir(), 'pnpm-lock.yaml'), 'new lock\n');
+      } else if (args[0] === 'remove') {
+        // Model the destructive remove from the audit without deleting fixture paths.
+        writeProfileDep('unrelated', '1.0.0');
+        fs.unlinkSync(path.join(profileDir(), 'node_modules/good-plugin/index.js'));
+      } else {
+        throw new Error('rollback must not require another package-manager command');
+      }
+      return { ok: true, log: '' };
+    },
+  });
+  assert.equal(result.ok, false);
+  for (const [index, file] of files.entries()) {
+    assert.deepEqual(fs.readFileSync(path.join(profileDir(), file)), original[index], file);
+  }
+  assert.equal(fs.existsSync(path.join(profileDir(), 'node_modules/new-dependency')), false);
+  assert.equal(result.rolledBack, true);
+  assert.deepEqual(calls, [['add', 'good-plugin@2.0.0']]);
+});
+
+for (const channel of ['import', 'github', 'catalog']) {
+  test(`A6: ${channel} overwrite restores an identifiable old plugin after versionless replacement`, async () => {
+    const name = channel === 'catalog' ? NPM_SPEC : 'good-plugin';
+    const oldSpec = channel === 'github' ? 'github:acme/good-plugin#old' : '^1.0.0';
+    writeProfileDep(name, oldSpec);
+    writePlugin(name, { version: '1.0.0', main: 'index.js' }, { 'index.js': 'old entry' });
+    const options = { runPlugin: async args => {
+      assert.equal(args[0], 'add');
+      writeProfileDep(name, channel === 'github' ? 'github:acme/good-plugin#new' : '2.0.0');
+      writePlugin(name, { version: undefined, main: 'index.js' }, { 'index.js': 'new entry' });
+      return { ok: true };
+    } };
+    const result = channel === 'import' ? await installImportPlugin(`${name}@2.0.0`, options)
+      : channel === 'github' ? await installPlugin('github:acme/good-plugin#new', options)
+        : await installMarketplacePlugin(NPM_ID, options);
+    assert.match(result.error, /name 或 version/);
+    assert.equal(result.rolledBack, true);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(profileDir(), 'package.json'))).dependencies[name], oldSpec);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(profileDir(), 'node_modules', name, 'package.json'))).version, '1.0.0');
+    assert.equal(fs.readFileSync(path.join(profileDir(), 'node_modules', name, 'index.js'), 'utf8'), 'old entry');
+    assert.equal(fs.existsSync(path.join(profileDir(), 'pnpm-workspace.yaml')), false);
+    assert.equal(fs.readdirSync(profileDir()).some(name => name.startsWith('.install-rollback-')), false);
+  });
+}
+
+for (const mode of ['failure', 'throw', 'success']) {
+  test(`A6: CLI ${mode} after writing an overwrite preserves the appropriate physical version`, async () => {
+    writeProfileDep('good-plugin', '~1.0.0');
+    writePlugin('good-plugin', { version: '1.0.0', main: 'index.js' }, { 'index.js': 'old' });
+    const result = await installImportPlugin('good-plugin@2.0.0', { runPlugin: async args => {
+      assert.equal(args[0], 'add');
+      writeProfileDep('good-plugin', '2.0.0');
+      writePlugin('good-plugin', { version: '2.0.0', main: 'index.js' }, { 'index.js': 'new' });
+      fs.writeFileSync(path.join(profileDir(), 'pnpm-lock.yaml'), 'new lock');
+      if (mode === 'throw') throw new Error('CLI interrupted after partial write');
+      return { ok: mode === 'success', log: mode === 'failure' ? 'download failed' : '' };
+    } });
+    assert.equal(result.ok, mode === 'success');
+    if (mode !== 'success') assert.equal(result.rolledBack, true);
+    const pkg = JSON.parse(fs.readFileSync(path.join(profileDir(), 'node_modules/good-plugin/package.json')));
+    assert.equal(pkg.version, mode === 'success' ? '2.0.0' : '1.0.0');
+    assert.equal(fs.readFileSync(path.join(profileDir(), 'node_modules/good-plugin/index.js'), 'utf8'), mode === 'success' ? 'new' : 'old');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(profileDir(), 'package.json'))).dependencies['good-plugin'], mode === 'success' ? '2.0.0' : '~1.0.0');
+    assert.equal(fs.existsSync(path.join(profileDir(), 'pnpm-lock.yaml')), mode === 'success');
+    assert.equal(fs.readdirSync(profileDir()).some(name => name.startsWith('.install-rollback-')), false);
+  });
+}
+
+test('A6: pnpm virtual store and package junctions survive a failed overwrite', async () => {
+  const name = '@scope/good-plugin';
+  writeProfileDep(name, '^1.0.0');
+  const modules = path.join(profileDir(), 'node_modules');
+  const store = path.join(modules, '.pnpm/good-plugin@1.0.0/node_modules/@scope/good-plugin');
+  fs.mkdirSync(store, { recursive: true });
+  fs.writeFileSync(path.join(store, 'package.json'), JSON.stringify({ name, version: '1.0.0', main: 'index.js' }));
+  fs.writeFileSync(path.join(store, 'index.js'), 'old virtual store bytes');
+  fs.mkdirSync(path.join(modules, '@scope'), { recursive: true });
+  fs.symlinkSync(store, path.join(modules, name), 'junction');
+  const originalLink = fs.readlinkSync(path.join(modules, name));
+  const overlay = path.join(dshHomeDir, 'external-overlay');
+  fs.mkdirSync(overlay);
+  fs.writeFileSync(path.join(overlay, 'keep.txt'), 'external overlay');
+  fs.symlinkSync(overlay, path.join(modules, 'overlay'), 'junction');
+  const result = await installImportPlugin(`${name}@2.0.0`, { runPlugin: async args => {
+    assert.equal(args[0], 'add');
+    writeProfileDep(name, '2.0.0');
+    // Simulate an in-place mutation through the link and removal of old bytes.
+    fs.writeFileSync(path.join(store, 'package.json'), JSON.stringify({ name, main: 'index.js' }));
+    fs.unlinkSync(path.join(store, 'index.js'));
+    return { ok: true };
+  } });
+  assert.equal(result.ok, false);
+  assert.equal(result.rolledBack, true, result.error);
+  assert.equal(fs.lstatSync(path.join(modules, name)).isSymbolicLink(), true);
+  assert.equal(fs.readlinkSync(path.join(modules, name)), originalLink);
+  assert.equal(fs.readFileSync(path.join(modules, name, 'index.js'), 'utf8'), 'old virtual store bytes');
+  assert.equal(fs.readFileSync(path.join(overlay, 'keep.txt'), 'utf8'), 'external overlay');
+  assert.equal(fs.readlinkSync(path.join(modules, 'overlay')), overlay);
+});
+
+test('A6: snapshot copy failure aborts before add and preserves the old installation', async t => {
+  writeProfileDep('good-plugin', '1.0.0');
+  writeClientPlugin('good-plugin');
+  t.mock.method(fs.promises, 'cp', async () => { throw new Error('ENOSPC snapshot'); });
+  let called = false;
+  const result = await installImportPlugin('good-plugin@2.0.0', { runPlugin: async () => { called = true; } });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /未执行安装.*ENOSPC/);
+  assert.equal(called, false);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(profileDir(), 'package.json'))).dependencies['good-plugin'], '1.0.0');
+  assert.equal(fs.existsSync(path.join(profileDir(), 'node_modules/good-plugin/lib/client.js')), true);
+  assert.equal(fs.readdirSync(profileDir()).some(name => name.startsWith('.install-rollback-')), false);
+});
+
+test('A6: a first install failing validation removes newly created profile files and modules', async () => {
+  const result = await installImportPlugin('good-plugin@2.0.0', {
+    allowBuilds: ['good-plugin'],
+    runPlugin: async args => {
+      assert.equal(args[0], 'add');
+      writeProfileDep('good-plugin', '2.0.0');
+      writeBarePlugin('good-plugin');
+      fs.writeFileSync(path.join(profileDir(), 'pnpm-lock.yaml'), 'new lock');
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.rolledBack, true);
+  assert.deepEqual(fs.readdirSync(profileDir()), []);
+});
+
+test('A6: loader conflict after overwriting a catalog plugin restores the previous bundle', async () => {
+  writeProfileDep(NPM_SPEC, '1.0.0');
+  writeBundlePlugin(NPM_SPEC);
+  writePlugin('other-plugin', { dsh: { bundle: { patch: 'cordis.patch.yml' } } }, {
+    'cordis.patch.yml': '- insert:\n    - id: shared-loader\n      name: other-plugin\n',
+  });
+  const manifest = path.join(profileDir(), 'package.json');
+  const before = { name: 'web', dependencies: { [NPM_SPEC]: '1.0.0', 'other-plugin': '3.0.0' } };
+  fs.writeFileSync(manifest, JSON.stringify(before));
+  const patchFile = path.join(profileDir(), 'node_modules', NPM_SPEC, 'cordis.patch.yml');
+  const originalPatch = fs.readFileSync(patchFile);
+  const result = await installMarketplacePlugin(NPM_ID, { runPlugin: async args => {
+    assert.equal(args[0], 'add');
+    fs.writeFileSync(manifest, JSON.stringify({ ...before, dependencies: { ...before.dependencies, [NPM_SPEC]: '2.0.0' } }));
+    fs.writeFileSync(patchFile, `- insert:\n    - id: shared-loader\n      name: ${NPM_SPEC}\n`);
+    return { ok: true };
+  } });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /shared-loader/);
+  assert.equal(result.rolledBack, true);
+  assert.deepEqual(fs.readFileSync(patchFile), originalPatch);
+  assert.deepEqual(JSON.parse(fs.readFileSync(manifest)), before);
+});
+
+test('A6: rollback publication failure retains the physical backup and suppresses approval retry', async t => {
+  writeProfileDep('good-plugin', '1.0.0');
+  writeClientPlugin('good-plugin');
+  const rename = fs.renameSync;
+  t.mock.method(fs, 'renameSync', (from, to) => {
+    if (String(from).includes('.install-rollback-') && path.basename(from) === 'node_modules') {
+      throw new Error('EACCES restore node_modules');
+    }
+    return rename(from, to);
+  });
+  const result = await installImportPlugin('good-plugin@2.0.0', { runPlugin: async () => {
+    writeProfileDep('good-plugin', '2.0.0');
+    writeBarePlugin('good-plugin');
+    return { ok: false, needsAllowBuilds: true, allowBuilds: ['good-plugin'] };
+  } });
+  assert.equal(result.ok, false);
+  assert.equal(result.rolledBack, false);
+  assert.equal(result.needsAllowBuilds, false);
+  assert.deepEqual(result.allowBuilds, []);
+  assert.match(result.rollbackError, /EACCES.*回滚备份保留/);
+  const backup = fs.readdirSync(profileDir()).find(name => name.startsWith('.install-rollback-'));
+  assert.ok(backup);
+  assert.equal(fs.readFileSync(path.join(profileDir(), backup, 'node_modules/good-plugin/lib/client.js'), 'utf8'), 'export {}\n');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(profileDir(), 'package.json'))).dependencies['good-plugin'], '1.0.0');
+});
+
 test('installImportPlugin still accepts the github channel', async () => {
   const { calls, runPlugin } = recordRunner((spec) => {
     writeProfileDep('good', spec);
@@ -605,7 +807,7 @@ test('installMarketplacePlugin rolls back a dependency when no loadable entry is
   const result = await installMarketplacePlugin(NPM_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /可加载|插件/);
-  assert.deepEqual(calls, [['add', NPM_SPEC], ['remove', NPM_SPEC]]);
+  assert.deepEqual(calls, [['add', NPM_SPEC]]);
 });
 
 test('installMarketplacePlugin installs github:owner/repo through the plugin runner', async () => {
@@ -699,7 +901,7 @@ test('installMarketplacePlugin removes a package with no loadable dsh entry', as
   const result = await installMarketplacePlugin(NPM_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /可加载/);
-  assert.deepEqual(calls, [['add', NPM_SPEC], ['remove', NPM_SPEC]]);
+  assert.deepEqual(calls, [['add', NPM_SPEC]]);
 });
 
 test('installMarketplacePlugin removes a github package with no loadable dsh entry', async () => {
@@ -711,7 +913,7 @@ test('installMarketplacePlugin removes a github package with no loadable dsh ent
   const result = await installMarketplacePlugin(GITHUB_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /可加载/);
-  assert.deepEqual(calls, [['add', GITHUB_SPEC], ['remove', '@virex/dsh-status-rotator']]);
+  assert.deepEqual(calls, [['add', GITHUB_SPEC]]);
 });
 
 test('installMarketplacePlugin removes a versionless package that would break request inventory', async () => {
@@ -727,7 +929,7 @@ test('installMarketplacePlugin removes a versionless package that would break re
   const result = await installMarketplacePlugin(NPM_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /name 或 version/);
-  assert.deepEqual(calls, [['add', NPM_SPEC], ['remove', NPM_SPEC]]);
+  assert.deepEqual(calls, [['add', NPM_SPEC]]);
 });
 
 test('installPlugin removes a versionless github package that would break request inventory', async () => {
@@ -743,7 +945,7 @@ test('installPlugin removes a versionless github package that would break reques
   const result = await installPlugin('github:acme/versionless-plugin', { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /name 或 version/);
-  assert.deepEqual(calls, [['add', 'github:acme/versionless-plugin'], ['remove', 'versionless-plugin']]);
+  assert.deepEqual(calls, [['add', 'github:acme/versionless-plugin']]);
 });
 
 test('installImportPlugin removes a versionless registry package', async () => {
@@ -759,7 +961,7 @@ test('installImportPlugin removes a versionless registry package', async () => {
   const result = await installImportPlugin('versionless-plugin@0.9.0', { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /name 或 version/);
-  assert.deepEqual(calls, [['add', 'versionless-plugin@0.9.0'], ['remove', 'versionless-plugin']]);
+  assert.deepEqual(calls, [['add', 'versionless-plugin@0.9.0']]);
 });
 
 test('installMarketplacePlugin removes a #path: package with no loadable dsh entry', async () => {
@@ -773,7 +975,7 @@ test('installMarketplacePlugin removes a #path: package with no loadable dsh ent
   const result = await installMarketplacePlugin(PATH_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /可加载/);
-  assert.deepEqual(calls, [['add', PATH_SPEC], ['remove', 'dsh-aionui-panel']]);
+  assert.deepEqual(calls, [['add', PATH_SPEC]]);
 });
 
 test('installMarketplacePlugin installs a GitHub URL when the install command is a tarball', async () => {
@@ -828,10 +1030,10 @@ test('installMarketplacePlugin removes a github package that landed only in node
   const result = await installMarketplacePlugin(GITHUB_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /可加载/);
-  assert.deepEqual(calls, [['add', GITHUB_SPEC], ['remove', '@virex/dsh-status-rotator']]);
+  assert.deepEqual(calls, [['add', GITHUB_SPEC]]);
 });
 
-test('installMarketplacePlugin removes a github package already in the profile when it is not loadable', async () => {
+test('installMarketplacePlugin preserves a github package already in the profile when it is not loadable', async () => {
   writeGithubOnlyStatusRotatorRegistry();
   writeProfileDep('@virex/dsh-status-rotator', GITHUB_SPEC);
   writeBarePlugin('@virex/dsh-status-rotator');
@@ -839,7 +1041,10 @@ test('installMarketplacePlugin removes a github package already in the profile w
   const result = await installMarketplacePlugin(GITHUB_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /可加载/);
-  assert.ok(calls.some((args) => args[0] === 'remove' && args[1] === '@virex/dsh-status-rotator'));
+  assert.deepEqual(calls, [['add', GITHUB_SPEC]]);
+  assert.equal(result.rolledBack, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(profileDir(), 'package.json'))).dependencies['@virex/dsh-status-rotator'], GITHUB_SPEC);
+  assert.equal(fs.existsSync(path.join(profileDir(), 'node_modules/@virex/dsh-status-rotator/package.json')), true);
 });
 
 test('installMarketplacePlugin removes a package whose bundle patch only sets patch: true', async () => {
@@ -848,7 +1053,7 @@ test('installMarketplacePlugin removes a package whose bundle patch only sets pa
   });
   const result = await installMarketplacePlugin(NPM_ID, { runPlugin });
   assert.equal(result.ok, false);
-  assert.deepEqual(calls, [['add', NPM_SPEC], ['remove', NPM_SPEC]]);
+  assert.deepEqual(calls, [['add', NPM_SPEC]]);
 });
 
 test('installMarketplacePlugin removes a package that inserts a duplicate loader id', async () => {
@@ -868,7 +1073,7 @@ test('installMarketplacePlugin removes a package that inserts a duplicate loader
   const result = await installMarketplacePlugin(NPM_ID, { runPlugin });
   assert.equal(result.ok, false);
   assert.match(result.error, /storage/);
-  assert.deepEqual(calls, [['add', NPM_SPEC], ['remove', NPM_SPEC]]);
+  assert.deepEqual(calls, [['add', NPM_SPEC]]);
 });
 
 test('updateMarketplacePlugin installs the checked npm version', async () => {

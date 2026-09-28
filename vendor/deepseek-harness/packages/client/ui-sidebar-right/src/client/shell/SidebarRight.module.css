@@ -149,6 +149,12 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* DSHD keeps panel management in the titlebar and keyboard commands. */
+.panel .iconButton,
+.panel :global([data-dockkit-split-button]) {
+  display: none;
+}
+
 /* The expand button's glyph, so collapse and expand share one affordance. */
 .collapseGlyph {
   transform: scaleX(-1);
@@ -179,4 +185,24 @@
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+
+/* The single DSHD column keeps its caption geometry for both guide and content. */
+.panel :global([data-dockkit-strip]) {
+  height: 48px;
+  min-height: 48px;
+  padding-top: 0;
+  align-items: center;
+  margin-right: var(--dshd-wco-controls, 8px);
+}
+
+.panel[data-sidebar-right-guide-only] :global([data-dockkit-strip]) > * {
+  visibility: hidden;
+  pointer-events: none;
+}
+.panel :global([data-dockkit-tab]) {
+  height: 24px;
+  max-width: 144px;
+  border-radius: var(--dsw-radius-sm);
+  font-size: 12px;
 }

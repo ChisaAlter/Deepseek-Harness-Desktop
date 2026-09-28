@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Archived: 2026-09-28
+
 中文 | [English](2026-09-27-empty-state-upstream-guide.en.md)
 
 ## Problem

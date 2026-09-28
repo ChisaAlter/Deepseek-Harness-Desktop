@@ -387,18 +387,6 @@ function listNodeModuleNames() {
   return names;
 }
 
-function listProfileDependencyNames() {
-  const manifest = readJsonFile(path.join(webProfileDir(), 'package.json'));
-  if (!manifest || typeof manifest !== 'object') {
-    return [];
-  }
-  return [...new Set([
-    ...Object.keys(manifest.dependencies || {}),
-    ...Object.keys(manifest.optionalDependencies || {}),
-    ...Object.keys(manifest.devDependencies || {}),
-  ])];
-}
-
 function specMatchesInstall(installedSpec, installSpec) {
   const left = githubIdentity(installedSpec);
   const right = githubIdentity(installSpec);
@@ -409,21 +397,12 @@ function resolveInstalledNames(spec, before, after, beforeModules, afterModules)
   const previous = new Set([...pluginNames(before), ...beforeModules]);
   const next = [...new Set([...pluginNames(after), ...afterModules])];
   const added = next.filter((name) => !previous.has(name));
-  if (added.length > 0) {
-    return added;
-  }
-  if (isValidPackageName(spec)) {
-    return [spec];
-  }
-  // A reinstall adds no new name; a `name@semver` registry spec can then only
-  // be matched by its parsed name, never by github identity.
+  // An overwrite can also add another dependency. Always validate the requested
+  // package, even when another newly discovered package is itself loadable.
   const registry = parseImportRegistrySpec(spec);
-  if (registry && pluginNames(after).includes(registry.name)) {
-    return [registry.name];
-  }
-  return (after.plugins || [])
-    .filter((row) => specMatchesInstall(row.spec, spec))
-    .map((row) => row.name);
+  const requested = isValidPackageName(spec) ? [spec] : registry ? [registry.name]
+    : (after.plugins || []).filter(row => specMatchesInstall(row.spec, spec)).map(row => row.name);
+  return [...new Set([...requested, ...added])];
 }
 
 function parsePatchInsertedIds(text) {
@@ -539,17 +518,13 @@ function loadableInstallFailure(added, error) {
  * must be loadable and carry the name/version the request-time plugin
  * inventory reports. A missing manifest pair throws during request
  * preparation and fails every official DeepSeek request, so the install is
- * refused. On failure the added packages and any newly added dependencies
- * are removed before the failure is returned.
+ * refused. The caller restores the complete pre-add snapshot on failure.
  * @param {object} added - `addPluginSpec` success result.
  * @param {object} before - `listInstalledPlugins()` snapshot from before add.
  * @param {string[]} beforeModules - `listNodeModuleNames()` snapshot.
- * @param {Set<string>} beforeDependencies - `listProfileDependencyNames()` snapshot.
- * @param {Function} runner - `pluginCommand(options)` runner.
- * @param {Function} [onProgress]
- * @returns {Promise<{ names: string[], remove: () => Promise<void>, failure: object | null }>}
+ * @returns {{ names: string[], failure: object | null }}
  */
-async function validateAddedPlugins(added, before, beforeModules, beforeDependencies, runner, onProgress) {
+function validateAddedPlugins(added, before, beforeModules) {
   const names = resolveInstalledNames(
     added.spec,
     before,
@@ -557,54 +532,127 @@ async function validateAddedPlugins(added, before, beforeModules, beforeDependen
     beforeModules,
     listNodeModuleNames(),
   );
-  const rollbackNames = [...new Set([
-    ...names,
-    ...listProfileDependencyNames().filter((name) => !beforeDependencies.has(name)),
-  ])];
-  const remove = async () => {
-    for (const name of rollbackNames) {
-      if (isValidPackageName(name)) {
-        await runner(['remove', name], onProgress);
-      }
-    }
-  };
   // A successful add with no discoverable package is still a failed install.
   if (names.length === 0 || !names.every(hasLoadableEntry)) {
-    await remove();
-    return { names: [], remove, failure: loadableInstallFailure(added) };
+    return { names: [], failure: loadableInstallFailure(added) };
   }
   const unidentifiable = names.find((name) => !hasInventoryIdentity(name));
   if (unidentifiable !== undefined) {
-    await remove();
     return {
       names: [],
-      remove,
       failure: loadableInstallFailure(added, `插件包 ${unidentifiable} 缺少 name 或 version 声明`),
     };
   }
-  return { names, remove, failure: null };
+  return { names, failure: null };
 }
 
-/**
- * Run `plugin add` and validate what it produced. `failure` is the `added`
- * result itself when the CLI failed, so callers can return it directly.
- * @param {string} spec
- * @param {object} options - forwarded to `addPluginSpec` / `pluginCommand`.
- * @returns {Promise<{ added: object, names: string[], remove: () => Promise<void>, failure: object | null }>}
- */
-async function addAndValidate(spec, options) {
+function installPathStat(file) {
+  try {
+    return fs.lstatSync(file);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+// Preserve actual bytes, including the pnpm virtual store and transitive deps.
+// A manifest-only rollback followed by `install` can fail offline or resolve a
+// different version. Links inside node_modules retain their original targets;
+// copying does not traverse desktop overlays or external link: dependencies.
+async function captureInstallSnapshot() {
+  const profile = webProfileDir();
+  fs.mkdirSync(profile, { recursive: true });
+  const entries = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'node_modules'].map(name => {
+    const file = path.join(profile, name);
+    const stat = installPathStat(file);
+    if (stat && (stat.isSymbolicLink() || (name === 'node_modules' ? !stat.isDirectory() : !stat.isFile()))) {
+      throw new Error(`无法安全备份 ${name}：需要普通文件或目录`);
+    }
+    return { name, file, existed: Boolean(stat) };
+  });
+  const dir = fs.mkdtempSync(path.join(profile, '.install-rollback-'));
+  try {
+    for (const entry of entries) {
+      if (entry.existed) {
+        await fs.promises.cp(entry.file, path.join(dir, entry.name), {
+          recursive: true, verbatimSymlinks: true,
+        });
+      }
+    }
+    return { dir, entries };
+  } catch (error) {
+    await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function discardInstallSnapshot(snapshot, result) {
+  try {
+    await fs.promises.rm(snapshot.dir, { recursive: true, force: true });
+  } catch (error) {
+    // Cleanup failure must not turn a committed install into another rollback.
+    result.log = [result.log, `安装快照清理失败，保留于 ${snapshot.dir}：${error.message}`].filter(Boolean).join('\n');
+  }
+  return result;
+}
+
+async function rollbackInstall(snapshot, failure) {
+  const errors = [];
+  for (const entry of snapshot.entries) {
+    try {
+      // Quarantine the replacement before publishing the saved installation.
+      // Never run `remove <name>`: that name may have been installed before add.
+      if (installPathStat(entry.file)) {
+        fs.renameSync(entry.file, path.join(snapshot.dir, `failed-${entry.name}`));
+      }
+      if (entry.existed) fs.renameSync(path.join(snapshot.dir, entry.name), entry.file);
+    } catch (error) {
+      errors.push(`${entry.name}: ${error.message}`);
+    }
+  }
+  invalidateMarketplaceUpdates();
+  const rollbackError = errors.length ? `${errors.join('；')}；回滚备份保留于 ${snapshot.dir}` : undefined;
+  const result = {
+    ...failure,
+    ok: false,
+    rolledBack: !rollbackError,
+    rollbackError,
+    error: `${failure.error || '安装失败'}${rollbackError ? `；自动回滚失败：${rollbackError}` : '；已恢复安装前状态'}`,
+    // Do not offer a retry/approval while the profile needs manual recovery.
+    ...(rollbackError ? { needsAllowBuilds: false, allowBuilds: [] } : {}),
+  };
+  return rollbackError ? result : discardInstallSnapshot(snapshot, result);
+}
+
+/** Snapshot before any CLI/workspace mutation; commit only after validation. */
+async function addAndValidate(spec, options, checkConflicts = false) {
   const before = listInstalledPlugins();
   const beforeModules = listNodeModuleNames();
-  const beforeDependencies = new Set(listProfileDependencyNames());
-  const added = await addPluginSpec(spec, options);
-  if (!added.ok) {
-    return { added, names: [], remove: async () => {}, failure: added };
+  let snapshot;
+  try {
+    snapshot = await captureInstallSnapshot();
+  } catch (error) {
+    return { failure: { ok: false, spec, error: `无法创建安装回滚点，未执行安装：${error.message}` } };
   }
-  const checked = await validateAddedPlugins(
-    added, before, beforeModules, beforeDependencies,
-    pluginCommand(options), options.onProgress,
-  );
-  return { added, ...checked };
+  let added;
+  let failure;
+  try {
+    added = await addPluginSpec(spec, options);
+    if (!added.ok) {
+      failure = added;
+    } else {
+      const checked = validateAddedPlugins(added, before, beforeModules);
+      failure = checked.failure;
+      if (!failure && checkConflicts) {
+        const clashes = checked.names.flatMap(name => conflictingEntryIds(name, pluginNames(before)));
+        if (clashes.length) failure = loadableInstallFailure(added, `插件会与已装包冲突（loader id: ${clashes[0].id}）`);
+      }
+    }
+  } catch (error) {
+    failure = { ok: false, spec, error: `安装异常：${error.message}`, log: added?.log || '' };
+  }
+  if (failure) return { failure: await rollbackInstall(snapshot, failure) };
+  return { added: await discardInstallSnapshot(snapshot, added), failure: null };
 }
 
 async function pinInstallSpec(spec, token) {
@@ -775,15 +823,9 @@ async function installMarketplacePlugin(id, options = {}) {
     if (isDroppedInstall(plugin, spec)) {
       return { ok: false, error: '该插件已退役，不再提供安装' };
     }
-    const before = listInstalledPlugins();
-    const { added, names, remove, failure } = await addAndValidate(spec, options);
+    const { added, failure } = await addAndValidate(spec, options, true);
     if (failure !== null) {
       return failure;
-    }
-    const clashes = names.flatMap((name) => conflictingEntryIds(name, pluginNames(before)));
-    if (clashes.length > 0) {
-      await remove();
-      return loadableInstallFailure(added, `插件会与已装包冲突（loader id: ${clashes[0].id}）`);
     }
     invalidateMarketplaceUpdates();
     return added;

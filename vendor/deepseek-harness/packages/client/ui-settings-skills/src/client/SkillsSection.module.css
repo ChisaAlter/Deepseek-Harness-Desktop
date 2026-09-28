@@ -24,7 +24,7 @@
 .iconAction {
   width: 28px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
 }
 
 .title {
@@ -48,7 +48,7 @@
 .scopeNotice {
   padding: 8px 12px;
   border-left: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-module-platform);
 }
 
@@ -139,7 +139,7 @@
 }
 
 .groupDisclosure:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -215,7 +215,7 @@
 }
 
 .tagRemove:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -250,7 +250,7 @@
   padding: 0;
   place-items: center;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-secondary);
   background: transparent;
   cursor: pointer;
@@ -261,7 +261,7 @@
 }
 
 .groupOptionsButton:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -314,7 +314,7 @@
 .iconAction:focus-visible,
 .textarea:focus-visible,
 .whenTextarea:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -324,7 +324,7 @@
   width: 28px;
   height: 28px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-2);
 }
@@ -374,7 +374,7 @@
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-secondary);
   background: transparent;
   cursor: pointer;
@@ -564,7 +564,7 @@
   width: 100%;
   resize: vertical;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   padding: 8px 10px;
   font: inherit;
   font-size: 14px;
@@ -604,7 +604,7 @@
   margin: 0;
   padding: 12px;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
 }
 
 .invocationEditor legend {

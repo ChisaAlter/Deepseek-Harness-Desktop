@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `core-regression-gates` |
 | **status** | `active` |
-| **last verified** | 2026-09-07 — vendored Harness 同步到 `dsh-v0.1.3-alpha.1`（`d347e703908d0406b7a7ef80e3a0e594d86b2215`）；Host 与 Client library build 通过，Desktop tests 1425 passed / 2 skipped，重点 Client 101 文件 / 1279 项通过，package / catalog / type-equivalence 直接门禁通过。全库 doc-sync 仍受既有翻译配对、归档 note seal、JSDoc 与断链债务阻断，本次不宣称通过 packaged smoke、像素门禁或完整实机 P0。 |
+| **last verified** | 2026-09-28 — GUI 745 文件 / 11049 通过 / 1 跳过；核心 215 文件 / 5009 通过 / 5 跳过；桌面 2765 通过 / 2 跳过。畸形工具调用只读回放、目录 freshness、第三方声明与官方构建通过；未以本地结果替代 CI 或生产安装包验收。 |
 
 ## User paths
 
@@ -20,6 +20,7 @@
 
 ## Allowed touch
 
+- 2026-09-28 全面修复授权：vendored client 焦点生命周期、既有 CSS token 消费及失败 GUI/LLM 测试；不得跳过失败项或放宽非法响应拒绝
 - .github/workflows/test.yml
 - src/main/ci-isolation.test.js 与核心门禁契约测试
 - vendor/deepseek-harness/packages/api/session-controller/tests/session-cold.host.spec.ts
@@ -32,5 +33,5 @@
 
 ## Sources
 
-- Decision: none
+- Decision: [发布前 GUI 与核心回归契约对齐](../decisions/implemented/bug-fix/2026-09-28-release-gui-contract-reconciliation.md)
 - Implementation entry: `.github/workflows/test.yml`、`src/main/ci-isolation.test.js`

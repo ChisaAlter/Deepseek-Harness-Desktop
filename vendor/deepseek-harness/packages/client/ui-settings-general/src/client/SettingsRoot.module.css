@@ -66,7 +66,8 @@
 }
 
 .trigger:focus-visible {
-  outline: 2px solid var(--dsw-alias-label-primary);
+  --dsw-focus-ring-color: var(--dsw-alias-label-primary);
+  outline: 2px solid var(--dsw-focus-ring-color);
   outline-offset: -2px;
 }
 
@@ -197,7 +198,8 @@
 }
 
 .navCell:focus-visible {
-  outline: 2px solid var(--dsw-alias-label-primary);
+  --dsw-focus-ring-color: var(--dsw-alias-label-primary);
+  outline: 2px solid var(--dsw-focus-ring-color);
   outline-offset: -2px;
 }
 

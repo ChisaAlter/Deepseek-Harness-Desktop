@@ -8,8 +8,8 @@ export const SESSION_LOG_EXPORT_SETTINGS_NAMESPACE = 'session-log-download'
 /** Field carrying whether the titlebar Session log button is drawn. */
 export const TITLEBAR_ACTION_FIELD = 'titlebarAction'
 
-/** Default keeps the Session log capsule in the titlebar trailing row. */
-export const DEFAULT_TITLEBAR_ACTION = true
+/** Default keeps the titlebar clear; Interface Settings opt the button in. */
+export const DEFAULT_TITLEBAR_ACTION = false
 
 /** Durable Session-log section shared by the Host schema and the browser scope. */
 export interface SessionLogExportSettings {

@@ -78,7 +78,7 @@
 .detail:focus {
   outline: none;
   border-color: var(--dsw-alias-border-l3);
-  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 1px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
 }
 
 .submit {

@@ -42,6 +42,8 @@ async function harness(
 ): Promise<{ ctx: Context; root: string; disposeInventory: () => Promise<void> }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-plugin-packages-'))
   roots.push(root)
+  // A loose fixture belongs to this profile, not to an ancestor checkout.
+  await writeFile(join(root, 'package.json'), JSON.stringify({ private: true }))
   const ctx = new Context()
   contexts.push(ctx)
   ctx.baseUrl = pathToFileURL(join(root, 'cordis.yml')).href

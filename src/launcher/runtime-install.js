@@ -20,6 +20,11 @@ const INSTALL_WAIT_MS = 8 * 60_000;
 const INSTALL_POLL_MS = 2500;
 const INSTALLED_CACHE_MS = 3000;
 
+/** Strip a leading `v` so registry/tag/exe version strings compare equal. */
+function normalizeVersionString(v) {
+  return String(v || '').trim().replace(/^v/i, '');
+}
+
 let installedCache = { at: 0, value: null };
 
 function resolveInstalledInfo(deps = {}) {
@@ -102,10 +107,22 @@ function runtimeExeStamp(info, deps = {}) {
  * before the install completes — completion is detected by the registry
  * record plus a changed/new main exe, not by the child alone.
  */
-function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVersion = '') {
+/**
+ * `childDone` is the lifecycle record populated by the installer-launch
+ * callback (attached at launch time so no already-emitted event is missed).
+ * It is passed in rather than subscribed here because the initial child may
+ * have exited before installFromAsset resolves.
+ */
+function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVersion = '', childDone) {
   const waitMs = deps.waitMs || INSTALL_WAIT_MS;
   const pollMs = deps.pollMs || INSTALL_POLL_MS;
   return new Promise((resolve) => {
+    // A signal aborted before the wait even begins must not hang the whole
+    // polling loop until timeout — surface the cancel immediately.
+    if (signal && signal.aborted === true) {
+      resolve('aborted');
+      return;
+    }
     let done = false;
     const finish = (value) => {
       if (done) {
@@ -123,16 +140,25 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVe
     if (signal) {
       signal.addEventListener('abort', onAbort, { once: true });
     }
-    const childDone = { fired: false };
+    // Lifecycle record. When the caller did not supply one (no child handle
+    // was captured at launch), synthesize a "not fired" record — we must not
+    // subscribe now or we'd miss events the child already emitted.
+    childDone = childDone || { fired: false, code: null, failed: false };
     if (child && typeof child.once === 'function') {
-      child.once('exit', () => {
-        childDone.fired = true;
-      });
-      child.once('error', () => {
-        childDone.fired = true;
-      });
-    } else {
-      childDone.fired = true;
+      // Attach only if the launch callback didn't already — attach-once so
+      // late subscriptions don't double-handle, and an already-ended child
+      // is reflected via its recorded state rather than a fresh listener.
+      if (childDone.fired !== true) {
+        child.once('exit', (code) => {
+          childDone.fired = true;
+          childDone.code = typeof code === 'number' ? code : null;
+          childDone.failed = code !== 0 && code !== null;
+        });
+        child.once('error', () => {
+          childDone.fired = true;
+          childDone.failed = true;
+        });
+      }
     }
     const cap = setTimeout(() => finish('timeout'), waitMs);
     const started = Date.now();
@@ -144,15 +170,53 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVe
         // keep polling
       }
       const exe = runtimeExePath(info, deps);
-      const observedVersion = typeof info?.version === 'string' ? info.version.trim() : '';
+      // Both sides are normalized so the registry's "v1.2.3", the tag's
+      // "1.2.3", and the exe's file version compare on equal footing;
+      // prerelease identity is preserved.
+      const observedVersion = typeof info?.version === 'string'
+        ? normalizeVersionString(info.version)
+        : '';
       // Success requires the observed registry version to match the
       // requested target exactly. A changed timestamp or child exit alone
       // cannot prove completion — a cancelled/failed install or an unrelated
       // repair must not read as success.
-      const versionMatches = targetVersion === ''
-        ? (observedVersion !== baseline.version || observedVersion === '')
-        : observedVersion === targetVersion;
-      const settled = Boolean(info?.registeredInstall && exe) && versionMatches;
+      //
+      // - Empty target: fail closed. The release contract always resolves a
+      //   version; an empty one means the target could not be bound, so no
+      //   observed state may be accepted as success.
+      // - Same-version request (repair/downgrade-to-equal): version match
+      //   was already true before the installer ran, so it is no evidence.
+      //   Accept only a real transition: a fresh registration where none
+      //   existed at baseline, or the exe's mtime advancing past the
+      //   baseline stamp. A timestamp alone cannot pass — the binary must
+      //   actually have been rewritten.
+      let settled = false;
+      if (targetVersion !== '' && observedVersion === targetVersion) {
+        const registered = Boolean(info?.registeredInstall && exe);
+        if (!registered) {
+          settled = false;
+        } else if (!baseline.registeredInstall) {
+          // No registration at baseline: the newly appearing registration at
+          // exactly the target version is itself the proof.
+          settled = true;
+        } else if (observedVersion !== baseline.version) {
+          // Upgrade/downgrade to a different version: registration match is
+          // sufficient evidence.
+          settled = true;
+        } else {
+          // Same version AND already registered at baseline: an unchanged
+          // registration carries no reliable completion signal for THIS
+          // install — the version was already correct before it ran, an
+          // elevated installer's initial child may exit before it finishes,
+          // and a touched mtime only proves a file changed (a cancelled or
+          // partially-failed rewrite also touches it). Without a trustworthy
+          // terminal signal this layer cannot prove completion, so the
+          // repair stays UNCONFIRMED: never auto-settle to success; keep
+          // polling to report observation, and let the wait time out into
+          // 'waiting' rather than fabricate a successful repair.
+          settled = false;
+        }
+      }
       if (settled) {
         finish(info);
         return;
@@ -215,12 +279,37 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
     if (!info.assetUrl) {
       return { ok: false, status: 'error', route, message: 'no-installer', htmlUrl: info.htmlUrl || '' };
     }
+    // Freeze the resolved target BEFORE the installer runs. Prefer the tag
+    // (it carries prerelease identity that `summarizeRelease`'s normalized
+    // `version` strips) so a beta/rc target binds to its exact registry
+    // string, falling back to `info.version`. The baseline version is
+    // normalized on the same footing so a registered "v1.2.3" vs target
+    // "1.2.3" never misreads as a different-version success.
+    const targetVersion = normalizeVersionString(info?.tag) || normalizeVersionString(info?.version);
+    // An unbound/empty target must never reach installation side effects.
+    // The release contract always resolves a version; an empty one means the
+    // target could not be bound, so no observed state may be treated as its
+    // completion. Refuse here — before installFromAsset runs — rather than
+    // letting the wait loop inherit an unprovable target.
+    if (!targetVersion) {
+      return {
+        ok: false,
+        status: 'error',
+        route,
+        message: '无法确定目标版本，已取消安装',
+        error: 'unbound-target-version',
+      };
+    }
     const baseline = {
       registeredInstall: Boolean(installed.registeredInstall),
-      version: installed.version || '',
+      version: normalizeVersionString(installed.version),
       stamp: runtimeExeStamp(installed, deps),
     };
     let installerChild = null;
+    // Capture the installer child's lifecycle AT launch time — subscribing
+    // here (not inside waitForInstall after installFromAsset resolves) means
+    // an exit/error the child emits early is recorded, never missed.
+    const installerChildDone = { fired: false, code: null, failed: false };
     const result = await updateMod.installFromAsset(info, onProgress, {
       signal: controller.signal,
       // The slim launcher must survive the install it is driving; the full
@@ -237,6 +326,17 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
       },
       onInstallerLaunch: (child) => {
         installerChild = child;
+        if (child && typeof child.once === 'function') {
+          child.once('exit', (code) => {
+            installerChildDone.fired = true;
+            installerChildDone.code = typeof code === 'number' ? code : null;
+            installerChildDone.failed = code !== 0 && code !== null;
+          });
+          child.once('error', () => {
+            installerChildDone.fired = true;
+            installerChildDone.failed = true;
+          });
+        }
       },
       userDataDir: deps.userDataDir,
     });
@@ -250,8 +350,9 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
     if (typeof onProgress === 'function') {
       onProgress({ phase: 'install-wait', percent: 100 });
     }
-    const targetVersion = typeof info?.version === 'string' ? info.version.trim() : '';
-    const found = await waitForInstall(installerChild, baseline, controller.signal, onProgress, deps, targetVersion);
+    // No unbound/empty target may reach waitForInstall — an empty one used to
+    // activate a fallback that accepted any changed version as success.
+    const found = await waitForInstall(installerChild, baseline, controller.signal, onProgress, deps, targetVersion, installerChildDone);
     invalidateInstalledCache();
     if (found === 'aborted') {
       return {

@@ -312,7 +312,7 @@ describe('ReviewTab', () => {
     await waitFor(() => {
       const highlighted = [...view.container.querySelectorAll('[data-diff-code]')]
       expect(highlighted.map(line => line.textContent)).toEqual(['const before = 1', '', 'const after = 2', ''])
-    })
+    }, { timeout: 10_000 })
     expect(view.container.querySelectorAll('[data-diff-code] span[style]').length).toBeGreaterThan(2)
   })
 

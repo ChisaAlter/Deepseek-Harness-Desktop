@@ -31,12 +31,23 @@ function desktopErrorState(error) {
 /** Bounded tail of renderer error-level console lines, oldest first. */
 class RendererConsoleTail {
   constructor(maxBytes = RENDERER_CONSOLE_MAX_BYTES) {
-    this.maxBytes = maxBytes;
+    this.maxBytes = Number.isFinite(maxBytes) ? Math.max(0, Math.floor(maxBytes)) : RENDERER_CONSOLE_MAX_BYTES;
     this.lines = [];
     this.bytes = 0;
   }
 
   push(line) {
+    if (Buffer.byteLength(line) > this.maxBytes) {
+      // The newest line alone exhausts the tail. Keep only its suffix, starting
+      // after any UTF-8 continuation bytes so decoding never invents a glyph.
+      const encoded = Buffer.from(line);
+      let start = encoded.length - this.maxBytes;
+      while (start < encoded.length && (encoded[start] & 0xc0) === 0x80) start += 1;
+      line = encoded.subarray(start).toString('utf8');
+      this.lines = [];
+      this.bytes = 0;
+    }
+    if (!line) return;
     this.lines.push(line);
     this.bytes += Buffer.byteLength(line);
     while (this.lines.length > 1 && this.bytes > this.maxBytes) {
@@ -127,7 +138,7 @@ async function pruneCrashReports(directory, retained = CRASH_REPORTS_RETAINED) {
 
 /**
  * Collect error-level console lines from one renderer into a tail buffer.
- * console-message levels: 0=verbose 1=info 2=warning 3=error.
+ * Electron's console-message Event uses string levels (including 'error').
  * @param {any} contents - renderer WebContents (Electron >=41: console-message takes an Event object).
  * @param {RendererConsoleTail} tail
  */
@@ -137,7 +148,7 @@ function attachRendererConsoleTail(contents, tail) {
   contents.on('console-message', (details) => {
     const level = details && (details.level ?? details.details?.level);
     const message = details && (details.message ?? details.details?.message);
-    if (level === 3 && typeof message === 'string') tail.push(message);
+    if ((level === 'error' || level === 3) && typeof message === 'string') tail.push(message);
   });
 }
 

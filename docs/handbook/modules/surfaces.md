@@ -2,7 +2,7 @@
 
 ## 职责与非目标
 
-**职责：** DSHD 原有 `ui-surfaces` 右栏上的 Files / Terminal / Browser / Diff / Agents ——可搜索、导航、选区进对话的工作环。
+**职责：** DSHD 单一右栏上的 Files / Terminal / Browser / Diff / Agents ——可搜索、导航、选区进对话的工作环。
 **非目标：** 不做空态「功能卡片墙」，不保留第二套可见右栏；不做 GPU 终端嵌入、worktree、turn-diff、review-comment pick（见 work-loops note 范围外）。
 
 ## 用户路径
@@ -11,12 +11,12 @@
 2. 对话文件提及、工具行和产物芯片通过 `workspaces.openPath` 进入发起 Session 的 DSHD 工作环；交付卡片中的 HTML / HTM / XHTML / PDF 经桌面 token URL 先进入聊天区 Browser 悬浮预览，浮层“在右侧栏打开”才展开右栏 Browser。其他文件在右栏打开；工作区根目录打开 Files。缺 cwd 或不在工作区内的路径交回 Host 打开。
 3. Files：搜文件、预览、Mention / 加入对话；文件预览头部的“独立窗口预览”按钮把当前**已保存**文件送入单实例置顶只读原生窗口。点击对话引用不会直接创建原生窗口。
 4. Browser：URL 导航、可选截图 / PiP / 录制；交付卡片中的浏览器文档先浮在聊天区，浮层“在右侧栏打开”再展开 Browser 右栏。右栏 Browser 工具栏仍可将预览移回聊天区，来回切换保留 URL / history。
-5. Tab 关闭在标题右侧。
+5. Tab 关闭在标题右侧。栏内分栏、全屏和收起按钮隐藏；标题栏按钮与快捷键仍可开合右栏。
 
 ## 架构要点
 
 - UI 在 harness client；Browser 与独立窗口文件预览栈在 main `preview.js` 及 `preview-*`。独立文件窗复用 `preview-workspace.js` 的工作区 token URL，主进程使用 preview 专属的 `allowScratchCwd` authority + 有界只读适配器，不复制 Files 的编辑 / 保存状态。
-- DSHD 右栏呈现所有者是 `@deepseek-ai/dsh-client-ui-surfaces`：顶部页签、关闭和新增控件均来自原有组件，内容由 `surfaces.*` 插槽注入。原生 `ui-sidebar-right` 只承接专有资源兼容路径；两条轨道开合互斥，由 `src/shared/single-right-panel-contract.test.js` 与 `harness-desktop-forks.js` 守卫。
+- DSHD 只有一个全高右栏，guide 与内容由 `ui-sidebar-right` 的同一份页签状态承载；`ui-surfaces` 仅适配文件/预览打开请求，不再挂载独立栏体。点卡原位开页、末页关闭原位回到 guide，栏宽和聊天区保持连续。
 - 右栏展开会减少会话标题行的实际内容宽度；`ConversationRoot.module.css` 在扣除 AppFrame 尾簇预留后的标题行上做局部容器查询，窄到 520px 时收起次级 Agent 操作。AppFrame 对尾簇的实测小数宽度向上取整，保留打开方式与尾簇至少 8px 间距。整列宽度决定的尾簇密度不改，以免测量宽度反馈振荡。几何验收用 `node scripts/verify-titlebar-fit.mjs` 连到带 CDP 端口的源码 Electron 普通工作区会话。
 - 无页签时使用 DSHD 原有的居中两列方形入口；终端入口选择 shell。
 - Browser 悬浮预览复用同一原生 guest。顶部 28px 窄条展示文件名与右栏、关闭按钮；网页视口从其下方铺满。由于 BrowserView 会盖住网页矩形内的 renderer 事件，四边与四角缩放命中区放在该矩形外侧，使用 pointer capture 并由几何函数限制在聊天可视区。

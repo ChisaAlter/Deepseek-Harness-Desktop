@@ -101,14 +101,7 @@ export function apply(ctx: Context): void {
         // Quota / SecurityError: Preview still listens for the event when mounted.
       }
       window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, { detail: { kind: 'preview', url, sessionId } }))
-      // Raising the column only makes sense when the delivery lands in the
-      // visible seat; a foreign-session event queues into that seat's bucket.
-      const sessions = ctx.get('sessions') as {
-        list?: { getSnapshot(): { byId: Record<string, { id: string; retainedBy: { mainView?: number } }> } }
-      } | undefined
-      const mainView = sessions?.list === undefined ? sessionId : Object.values(sessions.list.getSnapshot().byId)
-        .find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
-      if (sessionId === undefined || sessionId === mainView) ctx.layout.openSurfaces()
+
     },
   })
 

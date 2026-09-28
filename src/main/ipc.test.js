@@ -227,6 +227,12 @@ function loadIpc(options = {}) {
         ok: true, empty: true, sessions: [], skills: [], plugins: [], mcp: [], settings: [], credentials: [], presets: [],
       };
     }),
+    // readImportJournal/journalIsBlocked must exist: the shared restart
+    // admission boundary (recordBootRestart) calls them, and a missing export
+    // would throw inside its try/catch and fail closed. Default to a clean
+    // (no-journal) read; tests that exercise the blocked path can override.
+    readImportJournal: options.readImportJournal || (() => null),
+    journalIsBlocked: options.journalIsBlocked || ((j) => Boolean(j && (j.phase === 'blocked' || j.unreadable === true))),
   });
   stub('./plugin-forensics', {
     inspectPlugins: () => ({ genericCause: null, suspects: [], plugins: [] }),
@@ -1045,7 +1051,8 @@ test('launcher skip-user-plugins writes recovery and force-restarts desktop', as
     assert.equal(result.ok, true);
     assert.deepEqual(writes, ['launcher-skip-user-plugins']);
     assert.equal(ipc.startDesktop(), 1);
-    assert.deepEqual(ipc.startDesktopArgs[0], { forceRestart: true });
+    assert.equal(ipc.startDesktopArgs[0].forceRestart, true);
+    assert.equal(ipc.startDesktopArgs[0].maintenanceToken?.kind, 'start');
   } finally {
     ipc.restore();
   }
@@ -1078,7 +1085,8 @@ test('launcher start-desktop force-restarts when clearing sticky skip', async ()
     assert.equal(result.ok, true);
     assert.equal(cleared, 1);
     assert.equal(ipc.startDesktop(), 1);
-    assert.deepEqual(ipc.startDesktopArgs[0], { forceRestart: true });
+    assert.equal(ipc.startDesktopArgs[0].forceRestart, true);
+    assert.equal(ipc.startDesktopArgs[0].maintenanceToken?.kind, 'start');
   } finally {
     ipc.restore();
   }
@@ -1100,7 +1108,9 @@ test('launcher start-desktop does not force-restart without sticky skip', async 
   try {
     await ipc.invoke('shell:start-desktop', launcherEvent());
     assert.equal(ipc.startDesktop(), 1);
-    assert.deepEqual(ipc.startDesktopArgs[0], {});
+    // startOp delegates its acquired 'start' token down for owner-aware
+    // nested-restart delegation.
+    assert.equal(ipc.startDesktopArgs[0].maintenanceToken?.kind, 'start');
   } finally {
     ipc.restore();
   }
@@ -1120,7 +1130,12 @@ test('launcher retry-full-plugins clears sticky and uses startDesktop recovery l
     assert.equal(result.ok, true);
     assert.equal(cleared, 1);
     assert.equal(ipc.startDesktop(), 1);
-    assert.deepEqual(ipc.startDesktopArgs[0], { recoveryLaunch: true, forceRestart: true });
+    // The call delegates the acquired maintenance token down so the nested
+    // forced restart is recognized as the same owner (owner-aware
+    // delegation), not refused as a foreign caller.
+    assert.equal(ipc.startDesktopArgs[0].recoveryLaunch, true);
+    assert.equal(ipc.startDesktopArgs[0].forceRestart, true);
+    assert.equal(ipc.startDesktopArgs[0].maintenanceToken?.kind, 'retry');
     assert.equal(ipc.startHarness(), 0);
   } finally {
     ipc.restore();
@@ -1429,7 +1444,7 @@ test('run-import reports kernelStopped only when a running kernel was stopped', 
     },
   });
   try {
-    const running = await ipc.invoke('shell:run-import', launcherEvent(), {});
+    const running = await ipc.invoke('shell:run-import', launcherEvent(), { selectedRels: ['proj/sess-a'] });
     assert.equal(running.kernelStopped, true);
     assert.equal(stopCalls, 1);
   } finally {
@@ -1447,11 +1462,31 @@ test('run-import reports kernelStopped only when a running kernel was stopped', 
     },
   });
   try {
-    const result = await idle.invoke('shell:run-import', launcherEvent(), {});
+    const result = await idle.invoke('shell:run-import', launcherEvent(), { selectedRels: ['proj/sess-a'] });
     assert.equal(result.kernelStopped, false);
     assert.equal(stopCalls, 1);
   } finally {
     idle.restore();
+  }
+});
+
+test('run-import with empty selection is a no-write no-stop operation', async () => {
+  let stopCalls = 0;
+  const ipc = loadIpc({
+    dsh: {
+      state: 'ready',
+      logs: [],
+      snapshot: () => ({ state: 'ready' }),
+      stop: async () => { stopCalls += 1; },
+    },
+  });
+  try {
+    const result = await ipc.invoke('shell:run-import', launcherEvent(), {});
+    assert.equal(result.ok, true);
+    assert.equal(result.empty, true);
+    assert.equal(stopCalls, 0);
+  } finally {
+    ipc.restore();
   }
 });
 
@@ -1734,6 +1769,85 @@ test('shell:cancel-import with no import running resolves without aborting', asy
       () => ipc.invoke('shell:cancel-import', harnessEvent()),
       (error) => error.code === 'ERR_DSH_IPC_SENDER',
     );
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('boot restart owns the maintenance slot while pending — competitors are refused', async () => {
+  // The first-admitted boot restart must keep its ownership for the whole
+  // pending operation, not just pass a one-shot check. While its retry is
+  // still in flight, a competing operation that checks the slot must see it
+  // held (reverse-order exclusion).
+  const importGuard = require('./import-guard');
+  let releaseRetry;
+  const ipc = loadIpc({
+    harness: {
+      retryFullPlugins: () => new Promise((resolve) => { releaseRetry = () => resolve({ state: 'ready' }); }),
+      snapshot: () => ({ state: 'ready' }),
+    },
+  });
+  try {
+    const pending = ipc.invoke('shell:restart', bootEvent());
+    // Yield so the handler reaches its acquire + awaits the deferred retry.
+    await new Promise((r) => setImmediate(r));
+    assert.equal(importGuard.isMaintenanceHeld(), true, 'boot restart must hold the slot while pending');
+    // A competing standalone operation is refused, not admitted over it.
+    const competitor = importGuard.acquireMaintenance('import');
+    assert.equal(competitor, null, 'a competitor cannot acquire while the restart is pending');
+    releaseRetry();
+    const snapshot = await pending;
+    assert.equal(snapshot.state, 'ready');
+    assert.equal(importGuard.isMaintenanceHeld(), false, 'the slot releases when the restart settles');
+    assert.deepEqual(ipc.lastStartWrites, [{ ok: true }]);
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('boot restart under maintenance refuses and acquires nothing', async () => {
+  const importGuard = require('./import-guard');
+  const foreign = importGuard.acquireMaintenance('import');
+  const ipc = loadIpc({
+    harness: { retryFullPlugins: async () => ({ state: 'ready' }), snapshot: () => ({ state: 'ready' }) },
+  });
+  try {
+    const outcome = await ipc.invoke('shell:restart', bootEvent());
+    assert.equal(outcome.ok, false);
+    assert.equal(outcome.error, 'maintenance-in-progress');
+    // The refused path neither ran the retry nor wrote a start marker.
+    assert.deepEqual(ipc.lastStartWrites, []);
+    // Ownership still belongs to the original holder.
+    assert.equal(importGuard.holdsMaintenance(foreign), true);
+  } finally {
+    importGuard.releaseMaintenance(foreign);
+    ipc.restore();
+  }
+});
+
+test('remove-plugin refuses before any side effect while the import journal is blocked', async () => {
+  // A blocked/unreadable import journal must refuse plugin removal BEFORE
+  // the kernel stops, the uninstall runs, or the config mutates — acquiring
+  // the slot alone is not equivalent to honoring the persistent verdict.
+  let stopped = 0;
+  const ipc = loadIpc({
+    config: { disabledPlugins: ['user-pack'] },
+    dsh: {
+      state: 'ready',
+      logs: [],
+      snapshot: () => ({ state: 'ready' }),
+      stop: async () => { stopped += 1; },
+    },
+    readImportJournal: () => ({ phase: 'blocked', destHome: '/x', pendingTxns: ['op-1'] }),
+  });
+  try {
+    const result = await ipc.invoke('shell:remove-plugin', launcherEvent(), 'user-pack');
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'import-recovery-blocked');
+    // Zero side effects: no kernel stop, no uninstall, no config save.
+    assert.equal(stopped, 0, 'kernel must not be stopped');
+    assert.equal(ipc.uninstallCalls.length, 0, 'uninstall must not run');
+    assert.equal(ipc.saveConfigCalls.length, 0, 'no config write');
   } finally {
     ipc.restore();
   }

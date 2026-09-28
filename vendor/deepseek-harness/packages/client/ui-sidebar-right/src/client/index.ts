@@ -161,7 +161,6 @@ export function apply(ctx: ClientContext): void {
     const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence' | 'closeTab'> = {
       syncPresentation({ shown, track, fullscreen }) {
         if (shown) {
-          layout.closeSurfaces()
           layout.openRightbar(track, fullscreen)
         }
         else layout.closeRightbar()
@@ -219,6 +218,7 @@ export function apply(ctx: ClientContext): void {
     // Stage two for the guide: it declares the chain child it hosts and reads
     // the registry's entry boxes, which an ordinary type has no reason to do.
     const guideInjected: GuideInjected = {
+      uniformEntries: true,
       hooks: {
         shortcuts: ctx.shortcuts.catalog,
         guideEntries: { subscribe: listener => tabs.subscribe(listener), getSnapshot: () => tabs.guide() },

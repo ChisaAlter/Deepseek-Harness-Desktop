@@ -16,7 +16,7 @@
   padding: 6px 2px 6px 10px;
   box-sizing: border-box;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
@@ -31,7 +31,8 @@
 }
 
 .trigger:focus-visible {
-  outline: 2px solid var(--dsw-alias-label-primary);
+  --dsw-focus-ring-color: var(--dsw-alias-label-primary);
+  outline: 2px solid var(--dsw-focus-ring-color);
   outline-offset: -2px;
 }
 
@@ -85,7 +86,7 @@
   padding: 20px 20px 24px;
   box-sizing: border-box;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--dsw-radius-lg);
   /* Raised layer follows the glass slider; the wallpaper canvas cap must
      not punch through this popup. */
   background: var(--dsw-alias-bg-layer-2);
@@ -138,7 +139,7 @@
   height: 32px;
   padding: 0 12px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -151,7 +152,7 @@
   height: 196px;
   padding: 12px;
   box-sizing: border-box;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
 }
@@ -173,7 +174,7 @@
   padding: 0 12px;
   box-sizing: border-box;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -227,7 +228,7 @@
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv2);
   color: var(--dsw-alias-label-primary);
@@ -297,7 +298,7 @@
   height: 28px;
   padding: 0 10px;
   border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -318,7 +319,7 @@
   padding: 0 8px;
   box-sizing: border-box;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -326,7 +327,7 @@
 }
 
 .renameInput:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 1px;
 }
 

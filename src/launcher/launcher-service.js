@@ -14,6 +14,7 @@ const releaseSource = require('./release-source');
 const runtimeInstall = require('./runtime-install');
 const forensicsLog = require('./forensics-log');
 const { isLauncherPackage, runtimeTarget, desktopStateDir, desktopUserDataDir } = require('./product');
+const importGuard = require('../main/import-guard');
 
 // In the slim package this process's config.json is the LAUNCHER's own file —
 // desktop-owned keys (disabledPlugins, pluginRecovery) live in the runtime's
@@ -151,9 +152,81 @@ function createLauncherService(deps) {
   }
 
   let importAbort = null;
+  // What kind of operation holds the single-operation slot, so a cancel
+  // request can never abort work it did not start (e.g. a slim retry must
+  // not be cancellable through the import cancel path).
+  let importAbortKind = '';
+  // The opId the running import identified itself with; `cancelImport`
+  // validates a caller-supplied opId against it so a stale handle can never
+  // abort a newer operation.
+  let currentImportOpId = '';
+  // The maintenance-guard token held for the current operation, if this
+  // service acquired one. start/install/retry/import all reserve the same
+  // shared slot (importGuard) so no two mutating operations overlap in
+  // either arrival order — not merely an import-vs-import check.
+  let heldGuardToken = null;
+
+  /**
+   * Reserve the shared maintenance slot for `kind`. Returns the token, or
+   * null when another operation (of ANY kind, in either arrival order)
+   * already owns it.
+   */
+  function acquireMaintenanceSlot(kind, meta = {}) {
+    const token = importGuard.acquireMaintenance(kind, meta);
+    if (token) {
+      heldGuardToken = token;
+    }
+    return token;
+  }
+
+  /** Release the slot only if this service still owns the token. */
+  function releaseMaintenanceSlot(token) {
+    importGuard.releaseMaintenance(token);
+    if (heldGuardToken === token) {
+      heldGuardToken = null;
+    }
+  }
+
+  /** Run the cleanup helper and await it when it returns a promise. */
+  async function runDesktopCleanup() {
+    if (typeof stopDesktopCleanup === 'function') {
+      await stopDesktopCleanup();
+    }
+  }
+
+  /**
+   * Admission boundary for every operation that starts or mutates the
+   * desktop runtime: a persistent `blocked` import journal must hold even a
+   * user clicking Start — importing left destination trees unresolved and
+   * booting over them risks writing through a half-replaced directory.
+   */
+  function blockedStartError() {
+    if (typeof dataImport.readImportJournal !== 'function') {
+      return null;
+    }
+    try {
+      const journal = dataImport.readImportJournal(desktopStateDir(app));
+      if (dataImport.journalIsBlocked(journal)) {
+        return { ok: false, error: 'import-recovery-blocked', pendingTxns: journal.pendingTxns || [] };
+      }
+    } catch {
+      // Unreadable journal state must not quietly allow a start either.
+      return { ok: false, error: 'import-recovery-blocked' };
+    }
+    return null;
+  }
+
+  function importIsCancelledSignal(signal) {
+    return Boolean(signal && signal.aborted === true);
+  }
+
+  // Autonomous plugin recovery must use the same persistent import verdict
+  // as explicit Start. The controller itself owns the shared maintenance slot.
+  harness?.setRecoveryAdmissionCheck?.(blockedStartError);
 
   async function runImportTask(options = {}, onProgress) {
-    if (importAbort) {
+    const guard = acquireMaintenanceSlot('import', { opId: options.opId });
+    if (!guard) {
       return { ok: false, error: 'import-in-progress' };
     }
     const hasSelection = [
@@ -161,8 +234,29 @@ function createLauncherService(deps) {
       'selectedMcpIds', 'selectedSettingIds', 'selectedPresetIds',
     ].some((key) => Array.isArray(options[key]) && options[key].length > 0)
       || options.importAttachments === true;
+    const controller = new AbortController();
+    importAbort = controller;
+    importAbortKind = 'import';
+    currentImportOpId = typeof options.opId === 'string' && options.opId ? options.opId : '';
+    try {
     if (!hasSelection) {
-      return { ok: true, empty: true, sessions: [], skills: [], plugins: [], mcp: [], settings: [], credentials: [], presets: [], attachments: 'absent' };
+      // Empty selection is a no-write operation: claim the slot so concurrent
+      // requests still serialize, but skip the protected stop boundary —
+      // nothing is about to be copied.
+      const sourceHome = typeof options.sourceHome === 'string' ? options.sourceHome : undefined;
+      const extraSkillDirs = Array.isArray(options.extraSkillDirs)
+        ? options.extraSkillDirs.filter((row) => typeof row === 'string')
+        : [];
+      const result = await dataImport.runImport({
+        sourceHome, extraSkillDirs, userDataDir: desktopStateDir(app),
+        opId: typeof options.opId === 'string' ? options.opId : undefined,
+        signal: controller.signal, onProgress,
+      });
+      return {
+        ...result,
+        kernelStopped: false,
+        hold: dataImport.probeImportHold({ sourceHome, extraSkillDirs }).hold,
+      };
     }
     // Slim cannot establish cross-process quiescence: the desktop runtime is
     // a separate process this launcher cannot drain. Fail closed before any
@@ -170,22 +264,45 @@ function createLauncherService(deps) {
     if (isLauncherPackage()) {
       return { ok: false, error: 'slim-import-unsupported', capability: 'import' };
     }
-    const pendingRecovery = dataImport.readImportJournal(desktopStateDir(app));
-    if (pendingRecovery && pendingRecovery.phase === 'blocked') {
+    const pendingRecovery = typeof dataImport.readImportJournal === 'function'
+      ? dataImport.readImportJournal(desktopStateDir(app))
+      : null;
+    if (pendingRecovery && dataImport.journalIsBlocked(pendingRecovery)) {
       return { ok: false, error: 'import-recovery-blocked', pendingTxns: pendingRecovery.pendingTxns || [] };
     }
-    const controller = new AbortController();
-    importAbort = controller;
-    try {
+    // A committed shutdown must not be re-entered for import — the process
+    // is already on the way down; importing now would race the teardown.
+    if (typeof protection.isCommitted === 'function' && protection.isCommitted()) {
+      return { ok: false, error: 'shutdown-committed' };
+    }
+    if (importIsCancelledSignal(controller.signal)) {
+      return { ok: false, cancelled: true, error: 'cancelled' };
+    }
       // Run the whole stop-and-import sequence inside a nonterminal
       // coordinated commit so the task-protection coordinator holds the
       // exclusion boundary for the duration of the import.
       let kernelStopped = false;
       let result = null;
       const coordinated = await protection.coordinate('stop', {
-        preConfirmed: true,
+        // Import is not the explicit-consent Stop button: it goes through the
+        // normal protected decision (inspect active work, acquire, drain,
+        // re-inspect, then prompt). The preConfirmed exemption stays with the
+        // stop action only.
         commit: async () => {
-          kernelStopped = await stopKernelIfRunning();
+          if (importIsCancelledSignal(controller.signal)) {
+            throw new Error('import-cancelled-before-stop');
+          }
+          // Controller-level quiescence — not a bare kernel stop. This cancels
+          // recovery timers, invalidates pending start/restart operations,
+          // drains queued restarts, and runs desktop resource cleanup so no
+          // managed work can fire while the import copies.
+          await runDesktopCleanup();
+          if (harness && typeof harness.stopDesktop === 'function') {
+            kernelStopped = kernelIsRunning(dsh) || Boolean(harness.snapshot?.().state === 'ready');
+            await harness.stopDesktop();
+          } else {
+            kernelStopped = await stopKernelIfRunning();
+          }
           const sourceHome = typeof options.sourceHome === 'string' ? options.sourceHome : undefined;
           const extraSkillDirs = Array.isArray(options.extraSkillDirs)
             ? options.extraSkillDirs.filter((row) => typeof row === 'string')
@@ -204,6 +321,7 @@ function createLauncherService(deps) {
             selectedSettingIds: Array.isArray(options.selectedSettingIds) ? options.selectedSettingIds : [],
             selectedPresetIds: Array.isArray(options.selectedPresetIds) ? options.selectedPresetIds : [],
             importAttachments: options.importAttachments === true,
+            opId: typeof options.opId === 'string' ? options.opId : undefined,
             signal: controller.signal,
             onProgress,
             installPlugin: (spec) => (isLauncherPackage()
@@ -224,8 +342,11 @@ function createLauncherService(deps) {
         }).hold,
       };
     } finally {
+      releaseMaintenanceSlot(guard);
       if (importAbort === controller) {
         importAbort = null;
+        importAbortKind = '';
+        currentImportOpId = '';
       }
     }
   }
@@ -256,14 +377,37 @@ function createLauncherService(deps) {
   }
 
   function installRuntimeOp(options = {}, onProgress) {
-    return runtimeInstall.installRuntime(options, onProgress, {
-      confirmUnverified: confirmUnverifiedInstall,
-    });
+    // Installing a runtime writes the same destination trees an import
+    // protects; the two operations must never overlap.
+    const blocked = blockedStartError();
+    if (blocked) {
+      return Promise.resolve({ ok: false, status: 'error', error: blocked.error, message: '存在未恢复的导入事务，已阻止安装', pendingTxns: blocked.pendingTxns });
+    }
+    const guard = acquireMaintenanceSlot('install');
+    if (!guard) {
+      return Promise.resolve({ ok: false, error: 'operation-in-progress', status: 'error', message: '已有其他任务进行中' });
+    }
+    return Promise.resolve()
+      .then(() => runtimeInstall.installRuntime(options, onProgress, {
+        confirmUnverified: confirmUnverifiedInstall,
+      }))
+      .finally(() => releaseMaintenanceSlot(guard));
   }
 
   async function installUpdateOp(onProgress) {
     if (isLauncherPackage()) {
       return installRuntimeOp({}, onProgress);
+    }
+    if (importGuard.isMaintenanceHeld()) {
+      return { status: 'error', launched: false, ok: false, error: 'operation-in-progress', message: '已有其他任务进行中' };
+    }
+    const blocked = blockedStartError();
+    if (blocked) {
+      return { status: 'error', launched: false, ok: false, error: blocked.error, message: '存在未恢复的导入事务，已阻止更新', pendingTxns: blocked.pendingTxns };
+    }
+    const guard = acquireMaintenanceSlot('install');
+    if (!guard) {
+      return { status: 'error', launched: false, ok: false, error: 'operation-in-progress', message: '已有其他任务进行中' };
     }
     try {
       return await update.installUpdate(onProgress, {
@@ -283,12 +427,25 @@ function createLauncherService(deps) {
         launched: false,
         message: error.message || String(error),
       };
+    } finally {
+      releaseMaintenanceSlot(guard);
     }
   }
 
   async function installReleaseOp(tag, onProgress) {
+    // Same admission rule as installRuntime: never run a release install
+    // while the import slot is held or a blocked journal is unresolved.
+    const blocked = blockedStartError();
+    if (blocked) {
+      return { status: 'error', launched: false, ok: false, error: blocked.error, message: '存在未恢复的导入事务，已阻止安装', pendingTxns: blocked.pendingTxns };
+    }
     if (isLauncherPackage()) {
+      // installRuntimeOp acquires + releases the shared slot itself.
       return installRuntimeOp({ tag }, onProgress);
+    }
+    const guard = acquireMaintenanceSlot('install');
+    if (!guard) {
+      return { status: 'error', launched: false, ok: false, error: 'operation-in-progress', message: '已有其他任务进行中' };
     }
     try {
       return await update.installRelease(tag, onProgress, {
@@ -297,12 +454,25 @@ function createLauncherService(deps) {
       });
     } catch (error) {
       return { status: 'error', launched: false, message: error.message || String(error) };
+    } finally {
+      releaseMaintenanceSlot(guard);
     }
   }
 
   function startOp() {
+    const blocked = blockedStartError();
+    if (blocked) {
+      return Promise.resolve(blocked);
+    }
+    const guard = acquireMaintenanceSlot('start');
+    if (!guard) {
+      return Promise.resolve({ ok: false, error: 'operation-in-progress' });
+    }
+    try {
     if (isLauncherPackage()) {
-      return runtimeInstall.startExternalDesktop();
+      return Promise.resolve()
+        .then(() => runtimeInstall.startExternalDesktop())
+        .finally(() => releaseMaintenanceSlot(guard));
     }
     const wasSticky = stickySkipActive(harness);
     if (harness && typeof harness.clearPluginRecovery === 'function') {
@@ -311,16 +481,37 @@ function createLauncherService(deps) {
     const start = typeof startDesktop === 'function' ? startDesktop : startHarness;
     // Clearing sticky while already ready would otherwise early-return with skip mode still live.
     if (wasSticky) {
-      return start({ forceRestart: true });
+      return Promise.resolve()
+        .then(() => start({ forceRestart: true, maintenanceToken: guard }))
+        .finally(() => releaseMaintenanceSlot(guard));
     }
-    return start();
+    return Promise.resolve()
+      .then(() => start({ maintenanceToken: guard }))
+      .finally(() => releaseMaintenanceSlot(guard));
+    } catch (error) {
+      // A synchronous throw before the guarded promise is built must release
+      // the slot — otherwise a sticky-flag or clear failure holds it forever.
+      releaseMaintenanceSlot(guard);
+      throw error;
+    }
   }
 
   function startSkippedOp() {
+    const blocked = blockedStartError();
+    if (blocked) {
+      return Promise.resolve(blocked);
+    }
+    const guard = acquireMaintenanceSlot('start');
+    if (!guard) {
+      return Promise.resolve({ ok: false, error: 'operation-in-progress' });
+    }
+    try {
     if (isLauncherPackage()) {
       // Cross-process plugin skip is not plumbed yet; forward the flag for
       // future desktop-side honoring and start anyway.
-      return runtimeInstall.startExternalDesktop(['--skip-user-plugins']);
+      return Promise.resolve()
+        .then(() => runtimeInstall.startExternalDesktop(['--skip-user-plugins']))
+        .finally(() => releaseMaintenanceSlot(guard));
     }
     if (harness && typeof harness.writePluginSkip === 'function') {
       harness.writePluginSkip(new Error('launcher-skip-user-plugins'));
@@ -328,7 +519,13 @@ function createLauncherService(deps) {
     const start = typeof startDesktop === 'function' ? startDesktop : startHarness;
     // Must force restart: plain start() no-ops when already ready / joins an
     // in-flight boot that captured skipUserPlugins=false before this click.
-    return start({ forceRestart: true });
+    return Promise.resolve()
+      .then(() => start({ forceRestart: true, maintenanceToken: guard }))
+      .finally(() => releaseMaintenanceSlot(guard));
+    } catch (error) {
+      releaseMaintenanceSlot(guard);
+      throw error;
+    }
   }
 
   async function stopOp() {
@@ -344,9 +541,7 @@ function createLauncherService(deps) {
       // but no second confirmation may stand between the click and the stop.
       preConfirmed: true,
       commit: async () => {
-        if (typeof stopDesktopCleanup === 'function') {
-          stopDesktopCleanup();
-        }
+        await runDesktopCleanup();
         if (harness && typeof harness.stopDesktop === 'function') {
           await harness.stopDesktop();
         } else {
@@ -365,6 +560,22 @@ function createLauncherService(deps) {
   }
 
   async function removePluginOp(name, onProgress) {
+    // Persistent recovery admission BEFORE any removal side effect: a
+    // blocked/unreadable import journal must refuse the uninstall before the
+    // kernel stops or the config mutates — acquiring the slot alone is not
+    // equivalent to honoring the persistent verdict.
+    const blocked = blockedStartError();
+    if (blocked) {
+      return blocked;
+    }
+    // Removal is a mutating operation: it must ACQUIRE the shared slot, not
+    // merely check it. An uninstall admitted first then overlapping a later
+    // import is exactly the one-way-exclusion gap the slot exists to close.
+    const guard = acquireMaintenanceSlot('plugin-remove');
+    if (!guard) {
+      return { ok: false, error: 'maintenance-in-progress' };
+    }
+    try {
     const raw = String(name || '').trim();
     if (!raw) {
       return { ok: false, error: 'missing-name' };
@@ -387,6 +598,9 @@ function createLauncherService(deps) {
       pluginConfigIO.save({ disabledPlugins: disabled });
     }
     return { ...result, kernelStopped, forensics: collectForensics() };
+    } finally {
+      releaseMaintenanceSlot(guard);
+    }
   }
 
   return {
@@ -426,6 +640,12 @@ function createLauncherService(deps) {
     },
 
     saveLauncherConfig(patch) {
+      // The launcher config write mutates the same destination the import
+      // journal protects; a held maintenance slot means another operation
+      // owns the trees, so refuse rather than race a write through it.
+      if (importGuard.isMaintenanceHeld()) {
+        return { ok: false, error: 'maintenance-in-progress', owner: importGuard.maintenanceOwner()?.kind };
+      }
       const next = saveConfig(normalizeLauncherConfigPatch(patch || {}));
       return configPayload(next);
     },
@@ -502,9 +722,21 @@ function createLauncherService(deps) {
 
     runImport: runImportTask,
 
-    cancelImport() {
+    cancelImport(options = {}) {
       if (!importAbort) {
         return { ok: false };
+      }
+      // Only the import that is actually running may be cancelled. A
+      // retry-owned slot must not be abortable through this path, and a
+      // caller that names a different opId is not this op's owner. A caller
+      // that names NO opId at all is also refused when the running import
+      // identified itself — an unscoped cancel may not kill a scoped op.
+      if (importAbortKind !== 'import') {
+        return { ok: false, error: 'not-an-import-operation' };
+      }
+      const requested = typeof options === 'string' ? options : options?.opId;
+      if (currentImportOpId && requested !== currentImportOpId) {
+        return { ok: false, error: 'not-current-operation' };
       }
       importAbort.abort();
       return { ok: true };
@@ -515,11 +747,17 @@ function createLauncherService(deps) {
     pluginForensics: collectForensics,
 
     async disablePlugins(names) {
+      if (importGuard.isMaintenanceHeld()) {
+        return { ok: false, error: 'import-in-progress' };
+      }
       const result = await disablePlugins(names, { dsh, startHarness, configIO: pluginConfigIO });
       return result.ok === true ? { ...result, forensics: collectForensics() } : result;
     },
 
     async disablePlugin(name) {
+      if (importGuard.isMaintenanceHeld()) {
+        return { ok: false, error: 'import-in-progress' };
+      }
       const raw = String(name || '').trim();
       if (!raw) {
         return { ok: false, error: 'missing-name' };
@@ -529,6 +767,9 @@ function createLauncherService(deps) {
     },
 
     async enablePlugin(name) {
+      if (importGuard.isMaintenanceHeld()) {
+        return { ok: false, error: 'import-in-progress' };
+      }
       const raw = String(name || '').trim();
       if (!raw) {
         return { ok: false, error: 'missing-name' };
@@ -544,13 +785,32 @@ function createLauncherService(deps) {
     startDesktopSkipped: startSkippedOp,
 
     retryFullPlugins() {
+      const blocked = blockedStartError();
+      if (blocked) {
+        return Promise.resolve(blocked);
+      }
+      const guard = acquireMaintenanceSlot('retry');
+      if (!guard) {
+        return Promise.resolve({ ok: false, error: 'operation-in-progress' });
+      }
+      try {
       if (isLauncherPackage()) {
-        return retryFullPluginsSlim();
+        return Promise.resolve()
+          .then(() => retryFullPluginsSlim())
+          .finally(() => releaseMaintenanceSlot(guard));
       }
       if (harness && typeof harness.clearPluginRecovery === 'function') {
         harness.clearPluginRecovery();
       }
-      return startDesktop({ recoveryLaunch: true, forceRestart: true });
+      return Promise.resolve()
+        .then(() => startDesktop({ recoveryLaunch: true, forceRestart: true, maintenanceToken: guard }))
+        .finally(() => releaseMaintenanceSlot(guard));
+      } catch (error) {
+        // clearPluginRecovery / config reads between acquire and the guarded
+        // promise must release on synchronous throw too.
+        releaseMaintenanceSlot(guard);
+        throw error;
+      }
     },
   };
 
@@ -562,6 +822,14 @@ function createLauncherService(deps) {
    * any step must leave the config untouched and not spawn.
    */
   async function retryFullPluginsSlim() {
+    // Single maintenance owner: stop → config rewrite → launch must serialize
+    // against a concurrent retry, a Start, or an in-flight import. Reuse the
+    // shared maintenance slot — the outer `retryFullPlugins` already holds
+    // it, so this body must not re-acquire. `importAbortKind` only marks the
+    // slot's kind so cancelImport can refuse to abort non-import work.
+    importAbortKind = 'retry';
+    currentImportOpId = '';
+    try {
     const fs = require('fs');
     const path = require('path');
     const configFile = desktopConfigFile();
@@ -604,7 +872,16 @@ function createLauncherService(deps) {
     } catch {
       return { ok: false, error: 'verify-failed' };
     }
-    return runtimeInstall.startExternalDesktop();
+    // `await` keeps the single-op slot held until the spawn settles; a bare
+    // `return` inside try/finally releases it while startup is still in
+    // flight and a following op could interleave with the boot.
+    return await runtimeInstall.startExternalDesktop();
+    } finally {
+      if (importAbortKind === 'retry') {
+        importAbortKind = '';
+        currentImportOpId = '';
+      }
+    }
   }
 }
 

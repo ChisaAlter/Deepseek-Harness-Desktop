@@ -35,7 +35,7 @@
   min-height: 76px;
   padding: 12px 20px;
   border: 0;
-  border-radius: 22px;
+  border-radius: var(--dsw-radius-composer);
   corner-shape: round;
   background: var(--dsw-specific-input-major);
   box-shadow:
@@ -131,7 +131,7 @@
   min-width: 0;
   padding: 8px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -172,7 +172,7 @@
   min-width: 112px;
   padding: 4px 6px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
 }
 
 .colorInput {
@@ -202,7 +202,7 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -234,7 +234,7 @@
   min-height: 36px;
   padding: 0 10px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font: inherit;

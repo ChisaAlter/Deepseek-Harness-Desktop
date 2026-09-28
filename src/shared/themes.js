@@ -137,6 +137,74 @@ function readHarnessThemeSettings() {
   }
 }
 
+/**
+ * The active profile's `ui-theme` config row lives in the user patch layer
+ * (`profiles/<name>/cordis.patch.yml`) — the legacy `settings.yaml` document
+ * was renamed `.imported` on first launch and the section moved into the
+ * patch. Each patch file is a top-level YAML array of `{id, config}` rows;
+ * the settings service replaces the whole `config` blob on every write, so
+ * the row carrying the id `ui-theme` is the live source.
+ *
+ * Reads only the user's own patch — bundle/base defaults are irrelevant for
+ * the boot/launcher chrome palette because every write goes through the
+ * settings service into this file. Missing file/missing row → {}.
+ */
+function parseCordisPatchSections(text) {
+  const entries = [];
+  let current = null;
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    // A top-level `- ` row starts a new patch entry; deeper-indented `- `
+    // rows stay inside the current entry's nested lists.
+    if (/^- /.test(raw)) {
+      current = [];
+      entries.push(current);
+      current.push(raw.slice(2));
+      continue;
+    }
+    if (current === null) continue;
+    // Strip the two-space block indent that sits under `- ` so the entry
+    // reparses as a small object.
+    current.push(raw.startsWith('  ') ? raw.slice(2) : raw);
+  }
+  return entries.map((chunk) => parseSimpleYaml(chunk.join('\n')));
+}
+
+function readCordisPatchThemeSettings(profileDir) {
+  const file = path.join(profileDir, 'cordis.patch.yml');
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return null;
+  }
+  try {
+    for (const entry of parseCordisPatchSections(text)) {
+      if (entry && entry.id === 'ui-theme' && entry.config && typeof entry.config === 'object') {
+        return entry.config;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Live `ui-theme` fields the shell chrome can read without booting the
+ * harness: preference, active light/dark family ids, custom families. Falls
+ * back to the removed `settings.yaml` for pre-migration homes.
+ */
+function readHarnessThemeSettingsLive() {
+  const home = dshHome();
+  if (!home) return {};
+  // The web profile is the only profile the desktop boots today
+  // (`dsh web`); if that ever widens, this lookup has to follow the launched
+  // profile instead of hardcoding `web`.
+  const patched = readCordisPatchThemeSettings(path.join(home, 'profiles', 'web'));
+  if (patched) return patched;
+  return readHarnessThemeSettings();
+}
+
 function mixHex(left, right, amount) {
   const parse = (hex) => {
     const value = String(hex || '').replace('#', '').slice(0, 6);
@@ -194,7 +262,7 @@ function listThemes() {
 }
 
 function resolveTheme(config = {}, options = {}) {
-  const harness = options.harness || readHarnessThemeSettings();
+  const harness = options.harness || readHarnessThemeSettingsLive();
   const systemDark = Boolean(options.systemDark);
   const preference = harness.preference || 'system';
   const mode = resolveMode(preference, systemDark);
@@ -246,5 +314,7 @@ module.exports = {
   themeCssVars,
   harnessThemeCss,
   readHarnessThemeSettings,
+  readHarnessThemeSettingsLive,
+  parseCordisPatchSections,
   parseSimpleYaml,
 };

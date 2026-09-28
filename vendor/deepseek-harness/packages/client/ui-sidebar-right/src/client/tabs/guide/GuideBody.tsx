@@ -27,6 +27,8 @@ import css from './GuideBody.module.css'
 
 /** What the guide body needs from its host beyond the framework shares. */
 export interface GuideInjected {
+  /** Desktop uses one card style for every registered entry. */
+  readonly uniformEntries?: boolean
   /** The registry's guide entries in `order`; observable, so a type registering later appears. */
   readonly hooks: {
     readonly shortcuts: ObservableSnapshot<readonly ShortcutCatalogEntry[]>
@@ -86,7 +88,7 @@ function ShippedGuide({ children, heading, subtitle }: { children: ReactNode, he
 }
 
 /** The guide tab's body, replaceable through its chain child. */
-export function GuideBody({ useTabInfo, useGuideEntries, renderSlot, renderSlotChain, useShortcuts, t }: GuideBodyProps): ReactNode {
+export function GuideBody({ useTabInfo, useGuideEntries, renderSlot, renderSlotChain, useShortcuts, t, uniformEntries }: GuideBodyProps): ReactNode {
   const shortcuts = useShortcuts(entries => entries)
   const { tab } = useTabInfo()
   const entries = useGuideEntries(entries => entries)
@@ -96,6 +98,10 @@ export function GuideBody({ useTabInfo, useGuideEntries, renderSlot, renderSlotC
       <ShippedGuide heading={t?.('tab.guide.heading')} subtitle={t?.('tab.guide.subtitle')}>
         {entries.map((entry) => {
           const description = entry.description?.()
+          if (uniformEntries) return <div key={JSON.stringify([entry.providerId, entry.id])} className={css.entryCell}>
+            <EntryBox entry={entry} described shortcut={shortcuts.find(shortcut => shortcut.id === entry.commandId)}
+              onPick={selected => { tab.actions.openTab(selected.kind, { replaceTab: true }) }} />
+          </div>
           return <div key={JSON.stringify([entry.providerId, entry.id])} className={css.entryCell}>
             {renderSlot('sidebar.right.tab.guide.entry', {
               entryId: entry.id, kind: entry.kind, title: entry.title(),

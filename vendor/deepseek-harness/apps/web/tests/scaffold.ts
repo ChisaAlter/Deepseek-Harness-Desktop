@@ -306,6 +306,11 @@ export interface WebScaffold {
 export interface LaunchOptions {
   /** Override the developer-tools preference; omitted uses the shipped default. */
   developerTools?: boolean
+  /**
+   * Pre-write the Session-log export `titlebarAction` preference; omitted keeps
+   * the shipped default (button hidden until Interface Settings opts in).
+   */
+  sessionLogTitlebarAction?: boolean
   /** Enable the real Open In rows with deterministic launch-environment facts. */
   openInAppEnvironment?: LaunchEnvironmentSnapshot
   /** Compare the replayed root Session; `read-only` also forbids refresh writes to a borrowed fixture. */
@@ -798,6 +803,11 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     await auditStartupEntries(ctx, 'web e2e scaffold')
     if (options.developerTools !== undefined) {
       await ctx.settings.update('ui-settings', { enabled: options.developerTools })
+    }
+    if (options.sessionLogTitlebarAction !== undefined) {
+      await ctx.settings.update('session-log-download', {
+        titlebarAction: options.sessionLogTitlebarAction,
+      })
     }
     if (options.welcomeNoticePending !== true) {
       await ctx.settings.mutate(WELCOME_NOTICE_SETTINGS_NAMESPACE, [{

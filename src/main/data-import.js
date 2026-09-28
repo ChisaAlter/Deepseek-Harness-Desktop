@@ -4,10 +4,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
+const { randomUUID } = require('crypto');
 const { getDesktopDshHome, tryGetDesktopDshHome } = require('../shared/dsh-home');
 const { DROPPED, OFFICIAL_TEMPLATE_BUNDLES, listInstalledPlugins } = require('./plugins');
 const { isValidGithubSpec, isValidPackageName } = require('../host/install-dsh-plugin-client');
-const { replaceDirJournaled, commitStagedDir, recoverImportTransactions, overlayDir, nextOpId } = require('./import-transaction');
+const { replaceDirJournaled, commitStagedDir, recoverImportTransactions, reconcileImportTransactionsSync, overlayDir, nextOpId, parentChainIsLinkFree } = require('./import-transaction');
 
 // Harness now persists current sessions as session.v3.jsonl(.zstd); keep the
 // legacy name for older official homes and imported desktop sessions.
@@ -528,15 +529,7 @@ function parseMcpServersYaml(text) {
 }
 
 function readMcpServers(home) {
-  const file = path.join(home, MCP_FILE);
-  if (!fs.existsSync(file)) {
-    return [];
-  }
-  try {
-    return parseMcpServersYaml(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return [];
-  }
+  return parseMcpServersYaml(readTextFile(path.join(home, MCP_FILE)) || '');
 }
 
 function dumpYamlScalar(value) {
@@ -715,8 +708,11 @@ function destHasSkill(destSkills, name) {
 function readTextFile(file) {
   try {
     return fs.readFileSync(file, 'utf8');
-  } catch {
-    return null;
+  } catch (error) {
+    // Only absence is empty. Permission/I/O/path errors leave the existing
+    // document unknown, so no merge may replace it with source-only data.
+    if (error.code === 'ENOENT') return null;
+    throw error;
   }
 }
 
@@ -763,16 +759,81 @@ function renderTopLevelSections({ preamble, order, blocks }) {
   return text ? `${text}\n` : '';
 }
 
-/** Atomic same-directory replace; best-effort 0600 (settings/credentials are user-private). */
-function writeFileAtomicPrivate(file, text) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.import-tmp`;
-  fs.writeFileSync(tmp, text, { mode: 0o600 });
-  fs.renameSync(tmp, file);
+/** Reject links (including junction ancestors) and unknown inspection state. */
+function inspectPrivateImportFile(file) {
+  const parent = path.dirname(path.resolve(file));
+  if (!parentChainIsLinkFree(parent, path.parse(parent).root)) {
+    throw new Error('unsafe-destination-parent-link');
+  }
+  let stat;
   try {
-    fs.chmodSync(file, 0o600);
-  } catch {
-    // Windows has no POSIX mode; rename already committed the content.
+    stat = fs.lstatSync(file);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+    throw new Error('unsafe-destination-file-link');
+  }
+  return stat;
+}
+
+function sameImportFile(a, b) {
+  return Boolean(a && b && a.dev === b.dev && a.ino === b.ino);
+}
+
+/**
+ * Same-directory atomic publication: never open/truncate the live file.
+ * Exclusive creation owns a random 0600 staging inode; descriptor writes do
+ * not follow a preplanted temporary link. Check parents and both leaves again
+ * before publication, and remove only our own staging inode on failure.
+ * These path checks do not provide OS-level protection against a concurrent
+ * actor changing ancestors between the final check and rename/unlink.
+ */
+function writeFileAtomicPrivate(file, text) {
+  inspectPrivateImportFile(file);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  inspectPrivateImportFile(file);
+  const tmp = `${file}.import-tmp-${randomUUID()}`;
+  let fd;
+  let owned;
+  let created = false;
+  try {
+    fd = fs.openSync(tmp, 'wx', 0o600);
+    created = true;
+    owned = fs.fstatSync(fd);
+    if (!sameImportFile(owned, inspectPrivateImportFile(tmp))) {
+      throw new Error('unsafe-destination-temp-changed');
+    }
+    fs.writeFileSync(fd, text, 'utf8');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = undefined;
+    inspectPrivateImportFile(file);
+    if (!sameImportFile(owned, inspectPrivateImportFile(tmp))) {
+      throw new Error('unsafe-destination-temp-changed');
+    }
+    fs.renameSync(tmp, file);
+    created = false;
+  } catch (error) {
+    try {
+      if (fd !== undefined) {
+        fs.closeSync(fd);
+        fd = undefined;
+      }
+      if (created) {
+        const current = inspectPrivateImportFile(tmp);
+        if (current) {
+          if (!sameImportFile(owned, current)) {
+            throw new Error('unsafe-destination-temp-changed');
+          }
+          fs.unlinkSync(tmp);
+        }
+      }
+    } catch (cleanupError) {
+      throw new Error(`${error.message}; import-temp-cleanup-failed: ${cleanupError.message}`, { cause: error });
+    }
+    throw error;
   }
 }
 
@@ -850,8 +911,11 @@ function settingsCandidates(sourceHome, destTarget) {
  * @returns {Map<string, { raw: string, unsupported: boolean }>}
  */
 function readCredentialRefs(home) {
+  return parseCredentialRefs(readTextFile(path.join(home, CREDENTIALS_FILE)));
+}
+
+function parseCredentialRefs(text) {
   const refs = new Map();
-  const text = readTextFile(path.join(home, CREDENTIALS_FILE));
   if (text === null) {
     return refs;
   }
@@ -898,8 +962,9 @@ function importCredentialRefs({ sourceHome, destTarget, refs, overwrite }) {
   }
   const sourceRefs = readCredentialRefs(sourceHome);
   const destFile = path.join(destTarget, CREDENTIALS_FILE);
+  inspectPrivateImportFile(destFile);
   const destText = readTextFile(destFile);
-  const destRefs = destText === null ? new Map() : readCredentialRefs(destTarget);
+  const destRefs = parseCredentialRefs(destText);
   const additions = [];
   const replacements = new Map();
   for (const ref of wanted) {
@@ -1181,13 +1246,108 @@ function writeJournal(file, payload) {
   fs.renameSync(tmp, file);
 }
 
+/**
+ * A journal file must decode to the COMPLETE supported journal shape — not
+ * merely any object with a `phase` key. Cold recovery
+ * (`recoverInterruptedImport`) and manual admission (`journalIsBlocked`)
+ * must agree on the SAME verdict for a file that exists on disk: a present
+ * record that cannot establish recovery state is unknown state and fails
+ * closed, never a "safe" read.
+ *
+ * Contract: object (non-array) + `phase` in SUPPORTED_JOURNAL_PHASES +
+ * `destHome` string (the tree the journal governs). When the optional
+ * `txnIds` inventory is present it must be an array of strings — a
+ * malformed inventory cannot be interpreted safely because recovery
+ * derives transaction authorization from it.
+ *
+ * Anything else present on disk — `null`, `[]`, `{}`,
+ * `{"phase":"copying"}` without destHome, an unknown phase value, a bare
+ * string/number — is a real file whose content is NOT a supported journal:
+ * unknown state (fails closed), not the same thing as a missing file.
+ */
+const SUPPORTED_JOURNAL_PHASES = new Set(['copying', 'blocked', 'recovered', 'done']);
+
+function isUsableJournalShape(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return false;
+  }
+  if (typeof parsed.phase !== 'string' || !SUPPORTED_JOURNAL_PHASES.has(parsed.phase)) {
+    return false;
+  }
+  if (typeof parsed.destHome !== 'string' || !parsed.destHome) {
+    return false;
+  }
+  if ('txnIds' in parsed
+      && (!Array.isArray(parsed.txnIds)
+          || !parsed.txnIds.every((id) => typeof id === 'string' && id))) {
+    return false;
+  }
+  // The destination-binding map is optional, but when present it must be a
+  // well-formed opId→dest record — recovery derives per-transaction
+  // destination authority from it, so a malformed map cannot be trusted.
+  if ('txnDests' in parsed
+      && (!parsed.txnDests || typeof parsed.txnDests !== 'object' || Array.isArray(parsed.txnDests)
+          || !Object.values(parsed.txnDests).every((v) => typeof v === 'string' && v))) {
+    return false;
+  }
+  return true;
+}
+
 function readImportJournal(userDataDir) {
   try {
     const parsed = JSON.parse(fs.readFileSync(journalPath(userDataDir), 'utf8'));
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
+    // Valid JSON is not necessarily a valid journal: `null`, `[]`, `{}` and
+    // other non-conforming shapes are present-but-unusable content — unknown
+    // recovery state, surfaced as unreadable so admission and recovery both
+    // refuse rather than read missing fields as "nothing pending".
+    if (!isUsableJournalShape(parsed)) {
+      return { unreadable: true, invalid: true, error: 'journal-not-a-journal' };
+    }
+    return parsed;
+  } catch (error) {
+    // Missing journal is absence; a present-but-unreadable/malformed journal
+    // is UNKNOWN state — the caller must not treat it as "nothing pending".
+    if (error && error.code === 'ENOENT') {
+      return null;
+    }
+    return { unreadable: true, error: error && error.message ? error.message : String(error) };
   }
+}
+
+/**
+ * Whether a journal read result must hold the recovery/admission boundary.
+ * True for an explicit `blocked` phase AND for an unreadable/malformed
+ * journal (unknown state fails closed — it may conceal pending work).
+ * `null` (missing) is not blocked.
+ */
+function journalIsBlocked(journal) {
+  return Boolean(journal) && (journal.phase === 'blocked' || journal.unreadable === true);
+}
+
+/**
+ * Register an opId in the userData-owned top journal's `txnIds` list. This
+ * is the importer-owned inventory recovery consults: only registered
+ * transactions may be reconciled, so a payload-dropped txn file is never
+ * executed. Best-effort — a registry write failure leaves the op
+ * unregistered (recovery then preserves it as unknown rather than mutating).
+ */
+function registerTxnId(journalFile, opId, dest) {
+  if (!journalFile || !opId) return;
+  // Registration is a REQUIRED write-ahead step: if the inventory cannot be
+  // persisted, the transaction must not begin — proceeding would mutate the
+  // tree under an operation recovery cannot attribute. Surface the failure
+  // as a no-mutation refusal rather than silently continuing unregistered.
+  // The inventory binds each opId to its intended destination (`txnDests`):
+  // an owned ID must only authorize the transaction recorded for its own
+  // target, never a lookalike sidecar elsewhere in the recovery tree.
+  const journal = readImportJournal(path.dirname(journalFile)) || {};
+  const ids = Array.isArray(journal.txnIds) ? journal.txnIds : [];
+  if (!ids.includes(opId)) ids.push(opId);
+  const txnDests = (journal.txnDests && typeof journal.txnDests === 'object' && !Array.isArray(journal.txnDests))
+    ? { ...journal.txnDests }
+    : {};
+  if (typeof dest === 'string' && dest) txnDests[opId] = dest;
+  writeJournal(journalFile, { ...journal, txnIds: ids, txnDests });
 }
 
 function removeImportTmpDirs(root) {
@@ -1245,18 +1405,55 @@ function recoverInterruptedImport({ userDataDir, destHome: dest } = {}) {
   const target = destHome(dest);
   const journalDir = userDataDir || path.join(target, '..');
   const journal = readImportJournal(journalDir);
-  if (!journal || journal.phase !== 'copying') {
+  if (!journal) {
     return { recovered: false, removedTmp: [] };
   }
+  // An unreadable/malformed journal cannot prove recovery state — hold it
+  // as blocked rather than treating it as nothing to recover. The shared
+  // reader already normalizes every invalid shape (missing destHome,
+  // unsupported phase, malformed inventory, non-object content) to
+  // `{unreadable:true}` — recovery and manual admission now consume the
+  // same verdict, so no second, stricter interpretation is needed here.
+  if (journal.unreadable === true) {
+    return { recovered: false, removedTmp: [], blocked: true };
+  }
   if (!samePath(journal.destHome, target)) {
+    return { recovered: false, removedTmp: [] };
+  }
+  // A journal already marked `blocked` persists: recovery must keep blocking
+  // until the unresolved transactions reconcile, even across later launches
+  // with a valid session present (no auto-start bypass).
+  const alreadyBlocked = journal.phase === 'blocked';
+  if (journal.phase !== 'copying' && !alreadyBlocked) {
     return { recovered: false, removedTmp: [] };
   }
   // Reconcile per-operation transaction journals: they carry the
   // authoritative state for staged/replacing/committed swaps. Legacy bare
   // `.import-tmp`/`.import-bak` dirs without a journal are preserved, not
   // deleted — they may be the only surviving copy of the user's data.
-  const outcome = reconcileImportTransactionsSync(target);
+  // Importer-owned inventory: only opIds the importer itself registered in
+  // the userData-owned top journal may be followed. A transaction file
+  // discovered inside imported payload is preserved as `unregistered`, not
+  // executed.
+  // A field-less legacy journal authorizes NOTHING: matching filenames and
+  // internally consistent paths establish where a record points, not who
+  // created it — imported payload can carry such a record, so absent
+  // ownership evidence must mean an empty authorized set, not permissive
+  // discovery-based mutation. Registered IDs are additionally bound to
+  // their recorded destinations via `txnDests` so an owned opId cannot
+  // authorize a lookalike sidecar elsewhere in the tree.
+  const allowedOpIds = new Set(Array.isArray(journal.txnIds) ? journal.txnIds : []);
+  const allowedTxnDests = (journal.txnDests && typeof journal.txnDests === 'object' && !Array.isArray(journal.txnDests))
+    ? journal.txnDests
+    : undefined;
+  const outcome = reconcileImportTransactionsSync(target, { allowedOpIds, allowedTxnDests });
   const blocked = outcome.pending.length > 0;
+  // An already-`blocked` journal that still has pending transactions must
+  // keep reporting unresolved recovery (recovered:false) so the gate holds;
+  // reporting `recovered` again would let a later launch auto-start past the
+  // preserved staging dirs. Only when pending is fully cleared does the
+  // journal move to `recovered`.
+  const stillUnresolved = alreadyBlocked && blocked;
   writeJournal(journalPath(journalDir), {
     ...journal,
     phase: blocked ? 'blocked' : 'recovered',
@@ -1264,72 +1461,10 @@ function recoverInterruptedImport({ userDataDir, destHome: dest } = {}) {
     removedTmp: outcome.removedTmp,
     pendingTxns: outcome.pending,
   });
-  return { recovered: true, removedTmp: outcome.removedTmp, pendingTxns: outcome.pending, blocked };
-}
-
-/**
- * Synchronous sweep for per-operation transaction journals left by
- * `replaceDirJournaled`/`commitStagedDir`. Legacy unjournaled
- * `.import-tmp`/`.import-bak` entries are preserved and reported as pending
- * rather than deleted.
- */
-function reconcileImportTransactionsSync(root) {
-  const removedTmp = [];
-  const pending = [];
-  const stack = [root];
-  while (stack.length) {
-    const dir = stack.pop();
-    let entries = [];
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
-    for (const entry of entries) {
-      const abs = path.join(dir, entry.name);
-      if (entry.isDirectory() && !entry.name.startsWith('.')) {
-        const stagingMatch = entry.name.match(/^(.*)\.import-(tmp|bak)(?:-(.+))?$/);
-        if (stagingMatch) {
-          const opId = stagingMatch[3];
-          const hasTxn = opId && entries.some((e2) => e2.isFile()
-            && e2.name === `${stagingMatch[1]}.import-txn-${opId}`);
-          if (!hasTxn) pending.push(abs);
-          continue;
-        }
-        stack.push(abs);
-        continue;
-      }
-      if (!entry.isFile() || !entry.name.includes('.import-txn-')) continue;
-      const journal = (() => { try { return JSON.parse(fs.readFileSync(abs, 'utf8')); } catch { return null; } })();
-      if (!journal || journal.version !== 1) { pending.push(abs); continue; }
-      const { dest, tmp, bak, state } = journal;
-      try {
-        if (state === 'staging' || state === 'staged') {
-          if (fs.existsSync(tmp)) { fs.rmSync(tmp, { recursive: true, force: true }); removedTmp.push(tmp); }
-          fs.rmSync(abs, { force: true });
-        } else if (state === 'replacing') {
-          const destThere = fs.existsSync(dest);
-          const tmpThere = fs.existsSync(tmp);
-          const bakThere = fs.existsSync(bak);
-          if (!destThere && tmpThere) {
-            fs.renameSync(tmp, dest);
-            if (bakThere) fs.rmSync(bak, { recursive: true, force: true });
-          } else if (!destThere && bakThere) {
-            fs.renameSync(bak, dest);
-            if (tmpThere) { fs.rmSync(tmp, { recursive: true, force: true }); removedTmp.push(tmp); }
-          } else if (destThere && bakThere) {
-            fs.rmSync(bak, { recursive: true, force: true });
-            if (tmpThere) { fs.rmSync(tmp, { recursive: true, force: true }); removedTmp.push(tmp); }
-          }
-          fs.rmSync(abs, { force: true });
-        } else if (state === 'committed') {
-          if (fs.existsSync(bak)) fs.rmSync(bak, { recursive: true, force: true });
-          fs.rmSync(abs, { force: true });
-        } else {
-          pending.push(abs);
-        }
-      } catch {
-        pending.push(abs);
-      }
-    }
-  }
-  return { removedTmp, pending };
+  // `recovered` reports that the recovery pass ran (journal was consumed),
+  // not that everything resolved — `blocked`/`pendingTxns` carry the unsafe
+  // remainder that must hold the launcher.
+  return { recovered: !stillUnresolved, removedTmp: outcome.removedTmp, pendingTxns: outcome.pending, blocked };
 }
 
 function importIsCancelled(signal) {
@@ -1347,17 +1482,39 @@ function emitImportProgress(onProgress, event) {
   }
 }
 
+/**
+ * Tag a progress event with the import operation's identity so the renderer
+ * can drop events belonging to a stale/earlier run.
+ */
+function progressOf(opId, event) {
+  return { ...event, op: opId };
+}
+
 // Async so each copy yields the event loop: large session dirs and the
 // attachments tree no longer stall every main-process IPC, and a cancel
 // request can be observed between items. The actual swap is a journaled
 // transaction so a crash mid-replace keeps at least one intact copy.
-async function copyDirAtomic(from, to) {
-  const result = await replaceDirJournaled(from, to);
+async function copyDirAtomic(from, to, { journalFile } = {}) {
+  // Write-ahead inventory: allocate the opId and register it BEFORE staging
+  // or any rename — and the registration must SUCCEED before mutation.
+  // A crash inside the transaction then leaves an attributable journal; a
+  // failed registration is a no-mutation refusal (we do not copy under an
+  // operation recovery cannot prove ownership of).
+  const opId = nextOpId();
+  try {
+    registerTxnId(journalFile, opId, to);
+  } catch (error) {
+    const wrapped = new Error(`transaction-registration-failed: ${error.message || error}`);
+    wrapped.needsRecovery = false;
+    throw wrapped;
+  }
+  const result = await replaceDirJournaled(from, to, { opId });
   if (!result.ok) {
     const error = new Error(result.error || 'replace-failed');
     error.needsRecovery = result.needsRecovery === true;
     throw error;
   }
+  return result;
 }
 
 /**
@@ -1367,8 +1524,37 @@ async function copyDirAtomic(from, to) {
  * survive. The merge is staged and published through the same journaled
  * transaction used for plain replaces.
  */
-async function mergeDirJournaled(sourceDir, destDir, { overwrite }) {
+async function mergeDirJournaled(sourceDir, destDir, { overwrite, journalFile } = {}) {
   const opId = nextOpId();
+  // Register (required) before staging/commit for the same write-ahead
+  // reason as copyDirAtomic — a failed registration refuses before any
+  // staging filesystem operation touches the destination tree.
+  try {
+    registerTxnId(journalFile, opId, destDir);
+  } catch (error) {
+    const wrapped = new Error(`transaction-registration-failed: ${error.message || error}`);
+    wrapped.needsRecovery = false;
+    throw wrapped;
+  }
+  // The staging boundary must be validated BEFORE the first staging
+  // filesystem operation, not only at commit. A destination-home parent that
+  // is a junction/symlink would receive staging writes outside the permitted
+  // tree during mkdir/cp/overlay — inspect the parent chain up front (an
+  // inspection failure must not read as "link-free").
+  {
+    const destParent = path.dirname(destDir);
+    let linkFree = false;
+    try {
+      linkFree = parentChainIsLinkFree(destParent, path.parse(path.resolve(destParent)).root);
+    } catch {
+      linkFree = false;
+    }
+    if (!linkFree) {
+      const error = new Error('unsafe-destination-link');
+      error.needsRecovery = false;
+      throw error;
+    }
+  }
   const tmp = `${destDir}.import-tmp-${opId}`;
   const parent = path.dirname(destDir);
   await fs.promises.mkdir(parent, { recursive: true });
@@ -1413,7 +1599,11 @@ async function importSessions({
   const chosen = Array.isArray(selectedRels) ? selectedRels : scan.sessions.map((row) => row.rel);
   const journalFile = journalPath(userDataDir || path.join(scan.destHome, '..'));
   const results = [];
-  writeJournal(journalFile, { phase: 'copying', sourceHome: scan.sourceHome, destHome: scan.destHome, items: [] });
+  // Initialize an explicit, versioned inventory up front. A journal that
+  // carries an (initially empty) `txnIds` array enforces the importer-owned
+  // transaction rule — field absence would otherwise be indistinguishable
+  // from a legacy journal and disable the inventory restriction.
+  writeJournal(journalFile, { phase: 'copying', sourceHome: scan.sourceHome, destHome: scan.destHome, items: [], txnIds: [] });
 
   const byRel = new Map(scan.sessions.map((row) => [row.rel, row]));
   let cancelled = false;
@@ -1439,10 +1629,18 @@ async function importSessions({
         results.push({ rel, status: 'skipped' });
       } else {
         try {
-          await copyDirAtomic(row.abs, path.join(scan.destHome, 'sessions', ...rel.split('/')));
+          await copyDirAtomic(row.abs, path.join(scan.destHome, 'sessions', ...rel.split('/')), { journalFile });
           results.push({ rel, status: 'copied' });
         } catch (error) {
-          results.push({ rel, status: 'failed', error: error.message || String(error) });
+          const row0 = { rel, status: 'failed', error: error.message || String(error) };
+          if (error.needsRecovery === true) {
+            row0.needsRecovery = true;
+            results.push(row0);
+            // An unresolved transaction must stop every later write, not just
+            // this phase: break out of the session loop now.
+            break;
+          }
+          results.push(row0);
         }
       }
     }
@@ -1451,39 +1649,73 @@ async function importSessions({
   }
 
   let attachments = 'absent';
+  let attachmentsNeedsRecovery = false;
   const shouldCopyAttachments = importAttachments !== false;
   const sourceAttachments = path.join(scan.sourceHome, 'attachments');
   if (!cancelled && importIsCancelled(signal)) {
     cancelled = true;
   }
+  // A session transaction that already needs recovery must stop the
+  // attachment phase too — checking only the cancel signal here let staging
+  // and replacement continue after the destination was left unresolved.
+  const sessionsNeedRecovery = results.some((row) => row.needsRecovery === true);
   if (cancelled) {
-    return { ok: false, cancelled: true, sessions: results, attachments, journal: journalFile };
+    const needsRecovery0 = attachmentsNeedsRecovery || sessionsNeedRecovery;
+    return { ok: false, cancelled: true, sessions: results, attachments, journal: journalFile, needsRecovery: needsRecovery0 };
   }
-  if (shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
+  if (!sessionsNeedRecovery && shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
     emitImportProgress(onProgress, { phase: 'attachments', done: 0, total: 1 });
     try {
-      await mergeDirJournaled(sourceAttachments, path.join(scan.destHome, 'attachments'), { overwrite });
+      await mergeDirJournaled(sourceAttachments, path.join(scan.destHome, 'attachments'), { overwrite, journalFile });
       attachments = 'copied';
     } catch (error) {
       attachments = `failed:${error.message || String(error)}`;
+      if (error.needsRecovery === true) attachmentsNeedsRecovery = true;
     }
     emitImportProgress(onProgress, { phase: 'attachments', done: 1, total: 1 });
   }
 
+  const attachmentsFailed = typeof attachments === 'string' && attachments.startsWith('failed:');
+  const needsRecovery = attachmentsNeedsRecovery
+    || results.some((row) => row.needsRecovery === true);
   // runImport() commits the journal only after every phase lands; an
   // interrupted later phase must remain recoverable instead of looking done.
+  // An unresolved transaction is reported `blocked`, never `done` — even on
+  // the standalone importSessions() path used directly by callers/tests.
   if (!deferJournalDone) {
+    // Preserve the importer-owned txnIds inventory through this transition —
+    // rebuilding the journal without it would drop the registry precisely
+    // when recovery consults it to authorize per-transaction journals.
+    const priorTxnIds = (() => {
+      try {
+        const existing = readImportJournal(path.dirname(journalFile));
+        return Array.isArray(existing?.txnIds) ? existing.txnIds : [];
+      } catch {
+        return [];
+      }
+    })();
+    const priorTxnDests = (() => {
+      try {
+        const existing = readImportJournal(path.dirname(journalFile));
+        return (existing?.txnDests && typeof existing.txnDests === 'object' && !Array.isArray(existing.txnDests))
+          ? existing.txnDests
+          : {};
+      } catch {
+        return {};
+      }
+    })();
     writeJournal(journalFile, {
-      phase: 'done',
+      phase: needsRecovery ? 'blocked' : 'done',
+      txnIds: priorTxnIds,
+      txnDests: priorTxnDests,
       sourceHome: scan.sourceHome,
       destHome: scan.destHome,
       items: results,
       attachments,
     });
   }
-  const attachmentsFailed = typeof attachments === 'string' && attachments.startsWith('failed:');
   const ok = results.every((row) => row.status !== 'failed') && !attachmentsFailed;
-  return { ok, sessions: results, attachments, journal: journalFile };
+  return { ok, sessions: results, attachments, journal: journalFile, needsRecovery };
 }
 
 async function importPlugins({
@@ -1553,7 +1785,7 @@ function destNameFromSkillId(id) {
   return idx === -1 ? text : text.slice(idx + 1);
 }
 
-async function importSkills({ scan, selectedIds, overwrite, signal, onProgress }) {
+async function importSkills({ scan, selectedIds, overwrite, signal, onProgress, journalFile }) {
   const chosen = Array.isArray(selectedIds) ? selectedIds : [];
   const byId = new Map((scan.skills || []).map((row) => [row.id, row]));
   const results = [];
@@ -1573,7 +1805,7 @@ async function importSkills({ scan, selectedIds, overwrite, signal, onProgress }
     if (ambiguous.length) {
       for (const [, ids] of ambiguous) {
         for (const id of ids) {
-          results.push({ id, status: 'rejected', error: 'ambiguous-destination', peers: ids });
+          results.push({ id, status: 'failed', error: 'ambiguous-destination', peers: ids });
         }
       }
       return results;
@@ -1595,17 +1827,34 @@ async function importSkills({ scan, selectedIds, overwrite, signal, onProgress }
       } else if (row.conflict && !overwrite) {
         results.push({ id, status: 'skipped' });
       } else {
+        // The conflict verdict above is scan-time. Re-check the live
+        // destination right before writing so a directory that appeared
+        // since the scan is skipped rather than silently overwritten.
+        const liveDest = path.join(scan.destHome, 'skills', row.destName);
+        if (fs.existsSync(liveDest) && !overwrite) {
+          results.push({ id, status: 'skipped' });
+          done += 1;
+          emitImportProgress(onProgress, { phase: 'skills', done, total: chosen.length, id });
+          continue;
+        }
         try {
-          await copyDirAtomic(row.abs, path.join(scan.destHome, 'skills', row.destName));
+          await copyDirAtomic(row.abs, path.join(scan.destHome, 'skills', row.destName), { journalFile });
           results.push({ id, status: 'copied' });
         } catch (error) {
-          results.push({ id, status: 'failed', error: error.message || String(error) });
+          const rec = { id, status: 'failed', error: error.message || String(error) };
+          if (error.needsRecovery === true) {
+            rec.needsRecovery = true;
+            results.push(rec);
+            break;
+          }
+          results.push(rec);
         }
       }
     }
     done += 1;
     emitImportProgress(onProgress, { phase: 'skills', done, total: chosen.length, id });
   }
+  results.needsRecovery = results.some((row) => row.needsRecovery === true);
   return results;
 }
 
@@ -1626,6 +1875,7 @@ function importSettings({ scan, selectedIds, overwrite }) {
   }
   const source = readSettingsSections(scan.sourceHome);
   const destFile = path.join(scan.destHome, SETTINGS_FILE);
+  inspectPrivateImportFile(destFile);
   const dest = readSettingsSections(scan.destHome);
   const wantedRefs = [];
   let changed = false;
@@ -1696,7 +1946,7 @@ function importSettings({ scan, selectedIds, overwrite }) {
 }
 
 /** Copy selected agent preset directories into dest `.agent-presets/` (conflict-skip). */
-async function importPresets({ scan, selectedIds, overwrite, signal, onProgress }) {
+async function importPresets({ scan, selectedIds, overwrite, signal, onProgress, journalFile }) {
   const chosen = Array.isArray(selectedIds) ? selectedIds : [];
   const byId = new Map((scan.presets || []).map((row) => [row.id, row]));
   const results = [];
@@ -1719,16 +1969,23 @@ async function importPresets({ scan, selectedIds, overwrite, signal, onProgress 
         results.push({ id, status: 'skipped' });
       } else {
         try {
-          await copyDirAtomic(row.abs, path.join(scan.destHome, AGENT_PRESETS_DIR, id));
+          await copyDirAtomic(row.abs, path.join(scan.destHome, AGENT_PRESETS_DIR, id), { journalFile });
           results.push({ id, status: 'copied' });
         } catch (error) {
-          results.push({ id, status: 'failed', error: error.message || String(error) });
+          const rec = { id, status: 'failed', error: error.message || String(error) };
+          if (error.needsRecovery === true) {
+            rec.needsRecovery = true;
+            results.push(rec);
+            break;
+          }
+          results.push(rec);
         }
       }
     }
     done += 1;
     emitImportProgress(onProgress, { phase: 'presets', done, total: chosen.length, id });
   }
+  results.needsRecovery = results.some((row) => row.needsRecovery === true);
   return results;
 }
 
@@ -1740,8 +1997,8 @@ function importMcp({ scan, selectedIds, overwrite }) {
   }
   const sourceServers = readMcpServers(scan.sourceHome);
   const destFile = path.join(scan.destHome, MCP_FILE);
-  const destExisted = fs.existsSync(destFile);
-  const destServers = destExisted ? readMcpServers(scan.destHome) : [];
+  inspectPrivateImportFile(destFile);
+  const destServers = readMcpServers(scan.destHome);
   const destById = new Map(destServers.map((row) => [String(row.id), row]));
   let changed = false;
   for (const id of chosen) {
@@ -1759,15 +2016,17 @@ function importMcp({ scan, selectedIds, overwrite }) {
     results.push({ id, status: 'copied' });
   }
   if (changed) {
-    fs.mkdirSync(path.dirname(destFile), { recursive: true });
-    fs.writeFileSync(destFile, dumpMcpServersYaml([...destById.values()]));
+    writeFileAtomicPrivate(destFile, dumpMcpServersYaml([...destById.values()]));
   }
   return results;
 }
 
 async function runImport(options = {}) {
   const selectedRels = Array.isArray(options.selectedRels) ? options.selectedRels : [];
-  const selectedSkillIds = Array.isArray(options.selectedSkillIds) ? options.selectedSkillIds : [];
+  // Deduplicate the selected skill ids once, up front: the ambiguity
+  // preflight AND the execution loop both consume the deduped set so a
+  // repeated id cannot copy the same source twice.
+  const selectedSkillIds = [...new Set(Array.isArray(options.selectedSkillIds) ? options.selectedSkillIds : [])];
   const selectedPluginNames = Array.isArray(options.selectedPluginNames) ? options.selectedPluginNames : [];
   const selectedMcpIds = Array.isArray(options.selectedMcpIds) ? options.selectedMcpIds : [];
   const selectedSettingIds = Array.isArray(options.selectedSettingIds) ? options.selectedSettingIds : [];
@@ -1783,7 +2042,11 @@ async function runImport(options = {}) {
   const scan = scanImport(options);
   const journalFile = journalPath(options.userDataDir || path.join(scan.destHome, '..'));
   const signal = options.signal;
-  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+  const opId = typeof options.opId === 'string' && options.opId ? options.opId : nextOpId();
+  const rawProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
+  // Every progress event carries this run's identity; a renderer can drop an
+  // event whose `op` does not match the operation it is currently tracking.
+  const onProgress = rawProgress ? (event) => rawProgress(progressOf(opId, event)) : null;
   if (empty) {
     emitImportProgress(onProgress, { phase: 'done', done: 0, total: 0 });
     return {
@@ -1798,7 +2061,50 @@ async function runImport(options = {}) {
       presets: [],
       attachments: 'absent',
       journal: journalFile,
+      opId,
     };
+  }
+
+  // R5: preflight skill-destination ambiguity BEFORE any phase writes —
+  // sessions/attachments must not land while the selected skill set would be
+  // rejected. Two distinct source roots targeting the same destName are
+  // ambiguous regardless of `overwrite`.
+  {
+    const byId0 = new Map((scan.skills || []).map((row) => [row.id, row]));
+    const byDest0 = new Map();
+    for (const id of new Set(selectedSkillIds)) {
+      const row = byId0.get(id);
+      if (!row) continue;
+      const key = process.platform === 'win32' ? row.destName.toLowerCase() : row.destName;
+      if (!byDest0.has(key)) byDest0.set(key, []);
+      if (!byDest0.get(key).includes(id)) byDest0.get(key).push(id);
+    }
+    const ambiguous0 = [...byDest0.entries()].filter(([, ids]) => ids.length > 1);
+    if (ambiguous0.length) {
+      const skillResults = [];
+      for (const [, ids] of ambiguous0) {
+        for (const id of ids) {
+          skillResults.push({ id, status: 'failed', error: 'ambiguous-destination', peers: ids });
+        }
+      }
+      // No journal entry: the selection was rejected in preflight before any
+      // write, so there is nothing to recover and nothing to mark done.
+      return {
+        ok: false,
+        empty: false,
+        error: 'ambiguous-destination',
+        sessions: [],
+        skills: skillResults,
+        plugins: [],
+        mcp: [],
+        settings: [],
+        credentials: [],
+        presets: [],
+        attachments: 'absent',
+        journal: journalFile,
+        opId,
+      };
+    }
   }
 
   // One scan feeds every phase; the importers used to rescan the source each.
@@ -1811,10 +2117,19 @@ async function runImport(options = {}) {
     onProgress,
     deferJournalDone: true,
   });
-  const skills = importIsCancelled(signal)
+  // R1: a transaction that needs recovery must stop every later mutation
+  // phase — continuing plugins/settings/presets after a dest tree is left
+  // unresolved would write `done` over an unresolved filesystem state and
+  // then bypass recovery on next launch. Latch the flag after EVERY phase so
+  // a skill/preset failure stops the phases that follow it too, not only the
+  // ones after sessions.
+  let recoverySoFar = sessions.needsRecovery === true;
+
+  const skills = (importIsCancelled(signal) || recoverySoFar)
     ? []
-    : await importSkills({ scan, selectedIds: selectedSkillIds, overwrite: options.overwrite === true, signal, onProgress });
-  const plugins = importIsCancelled(signal)
+    : await importSkills({ scan, selectedIds: selectedSkillIds, overwrite: options.overwrite === true, signal, onProgress, journalFile });
+  recoverySoFar = recoverySoFar || skills.needsRecovery === true;
+  const plugins = (importIsCancelled(signal) || recoverySoFar)
     ? { ok: true, plugins: [] }
     : await importPlugins({
       ...options,
@@ -1823,19 +2138,83 @@ async function runImport(options = {}) {
       signal,
       onProgress,
     });
-  const mcp = importIsCancelled(signal)
+  const mcp = (importIsCancelled(signal) || recoverySoFar)
     ? []
     : importMcp({ scan, selectedIds: selectedMcpIds, overwrite: options.overwrite === true });
-  const settingsOutcome = importIsCancelled(signal)
+  const settingsOutcome = (importIsCancelled(signal) || recoverySoFar)
     ? { settings: [], credentials: [] }
     : importSettings({
       scan,
       selectedIds: selectedSettingIds,
       overwrite: options.overwrite === true,
     });
-  const presets = importIsCancelled(signal)
+  const presets = (importIsCancelled(signal) || recoverySoFar)
     ? []
-    : await importPresets({ scan, selectedIds: selectedPresetIds, overwrite: options.overwrite === true, signal, onProgress });
+    : await importPresets({ scan, selectedIds: selectedPresetIds, overwrite: options.overwrite === true, signal, onProgress, journalFile });
+  recoverySoFar = recoverySoFar || presets.needsRecovery === true;
+
+  // Combine recovery flags from every mutating phase.
+  const needsRecovery = recoverySoFar
+    || skills.needsRecovery === true
+    || presets.needsRecovery === true;
+
+  if (needsRecovery) {
+    // Leave a persistent blocked journal the cold-start gate and every
+    // direct start path must honor. Never record `done` here — that would
+    // read as "settled" and let recovery be skipped.
+    // Preserve the importer-owned txnIds inventory across this transition:
+    // recovery consults it to decide which per-transaction journals are
+    // authorized. Rebuilding the journal without it would drop the registry
+    // precisely when recovery needs it most.
+    const priorTxnIds = (() => {
+      try {
+        const existing = readImportJournal(path.dirname(journalFile));
+        return Array.isArray(existing?.txnIds) ? existing.txnIds : [];
+      } catch {
+        return [];
+      }
+    })();
+    const priorTxnDests = (() => {
+      try {
+        const existing = readImportJournal(path.dirname(journalFile));
+        return (existing?.txnDests && typeof existing.txnDests === 'object' && !Array.isArray(existing.txnDests))
+          ? existing.txnDests
+          : {};
+      } catch {
+        return {};
+      }
+    })();
+    writeJournal(journalFile, {
+      phase: 'blocked',
+      txnIds: priorTxnIds,
+      txnDests: priorTxnDests,
+      sourceHome: scan.sourceHome,
+      destHome: scan.destHome,
+      blockedReason: 'transaction-needs-recovery',
+      sessions: sessions.sessions,
+      skills,
+      presets,
+      attachments: sessions.attachments,
+      blockedAt: new Date().toISOString(),
+    });
+    emitImportProgress(onProgress, { phase: 'blocked', done: 0, total: 0 });
+    return {
+      ok: false,
+      empty: false,
+      needsRecovery: true,
+      error: 'transaction-needs-recovery',
+      sessions: sessions.sessions,
+      skills,
+      plugins: plugins.plugins,
+      mcp,
+      settings: settingsOutcome.settings,
+      credentials: settingsOutcome.credentials,
+      presets,
+      attachments: sessions.attachments,
+      journal: journalFile,
+      opId,
+    };
+  }
   const cancelled = sessions.cancelled === true || importIsCancelled(signal);
   if (cancelled) {
     emitImportProgress(onProgress, { phase: 'cancelled', done: 0, total: 0 });
@@ -1852,6 +2231,7 @@ async function runImport(options = {}) {
       presets,
       attachments: sessions.attachments,
       journal: journalFile,
+      opId,
     };
   }
   writeJournal(journalFile, {
@@ -1887,6 +2267,7 @@ async function runImport(options = {}) {
     presets,
     attachments: sessions.attachments,
     journal: journalFile,
+    opId,
   };
 }
 
@@ -1906,6 +2287,7 @@ module.exports = {
   readCredentialRefs,
   recoverInterruptedImport,
   readImportJournal,
+  journalIsBlocked,
   runImport,
   journalPath,
   SESSION_LOG,

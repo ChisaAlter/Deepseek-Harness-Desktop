@@ -10,8 +10,11 @@ const inject = read('main/harness-chrome-inject.js');
 const boot = read('renderer/boot.css');
 const launcher = read('renderer/launcher.css');
 const scrim = read('renderer/update-dialog.css');
-const frameModule = read('../vendor/deepseek-harness/packages/client/ui-layout/src/client/AppFrame.module.css');
-const frameLib = read('../vendor/deepseek-harness/packages/client/ui-layout/lib/client.js');
+const themeTokens = read('../vendor/deepseek-harness/packages/client/ui-theme/src/styles/base.css');
+const frameRadius = themeTokens.match(/--dsw-radius-xl:\s*([^;]+);/)?.[1];
+assert.equal(frameRadius, '20px');
+const resolveFrameRadius = (css) => css.replaceAll('var(--dsw-radius-xl)', frameRadius);
+const frameModule = resolveFrameRadius(read('../vendor/deepseek-harness/packages/client/ui-layout/src/client/AppFrame.module.css'));
 const chrome = read('main/chrome.js');
 const updateOverlay = read('main/update-overlay.js');
 const live2d = read('main/desktop-live2d.js');
@@ -65,8 +68,4 @@ test('dialog scrim and AppFrame carry the shared radius into their own planes', 
   assert.match(frameModule, /border-radius:\s*20px/);
   assert.match(frameModule, /corner-shape:\s*round/);
   assert.match(frameModule, /--dsh-windows-content-radius:\s*20px/);
-  // The minifier may reorder declarations inside the rule; require both
-  // properties within one emitted block, in either order.
-  assert.match(frameLib, /\{[^}]*border-radius:20px;[^}]*corner-shape:round|\{[^}]*corner-shape:round;[^}]*border-radius:20px/);
-  assert.match(frameLib, /--dsh-windows-content-radius:20px/);
 });

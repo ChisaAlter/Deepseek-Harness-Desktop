@@ -24,7 +24,7 @@
 .iconAction {
   width: 28px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
 }
 
 .title {
@@ -186,7 +186,7 @@
 }
 
 .tools:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -225,7 +225,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   padding: 0;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
@@ -239,7 +239,7 @@
 }
 
 .toolsDialogClose:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -296,7 +296,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   padding: 0;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
@@ -314,7 +314,7 @@
 .iconAction:focus-visible,
 .jsonEditor:focus-visible,
 .textarea:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -329,7 +329,7 @@
 .empty,
 .emptySearch {
   border: 1px dashed var(--dsw-alias-border-l2);
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   padding: 24px;
   text-align: center;
 }
@@ -411,7 +411,7 @@
   width: 100%;
   resize: vertical;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   padding: 8px 10px;
   outline: none;
   background: var(--dsw-alias-bg-layer-1);
@@ -460,7 +460,7 @@
   flex-direction: column;
   gap: 2px;
   border-left: 2px solid var(--dsw-alias-state-warn-primary);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   padding: 8px 12px;
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-secondary);

@@ -171,6 +171,7 @@
 .crumbs,
 .headerActions,
 .headerUtilities,
+.actionsOverflow,
 .headerCorner {
   -webkit-app-region: no-drag;
 }
@@ -316,6 +317,56 @@ button.crumb:hover {
 
 .headerUtilities:empty {
   display: none;
+}
+
+/* Overflow seat for the title-adjacent Agent actions: rendered only while the
+   row density hides the inline band (cozy/compact), so it never duplicates
+   controls that are already visible. */
+.actionsOverflow {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.actionsOverflowButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.actionsOverflowButton:hover,
+.actionsOverflowButton[data-pinned] {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.actionsOverflowPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 48px));
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  box-shadow: var(--dsw-elevation-panel);
+  white-space: nowrap;
 }
 
 /* The far-right corner seat reaches 16px into the header's 28px right padding,

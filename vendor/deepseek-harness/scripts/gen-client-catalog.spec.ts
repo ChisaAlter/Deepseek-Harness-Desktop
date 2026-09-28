@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { collectSlotEntries, oversizedSlotReports, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
+import { collectSlotEntries, oversizedSlotReports, renderClientCatalog, resolveSlotEntries, validateSlotContracts } from './gen-client-catalog.ts'
 import type { SlotDeclaration, SlotRegistration, TypeDeclaration } from './slot-walk.ts'
 
 /** A declaration with every field the catalog needs, overridable per case. */
@@ -101,6 +101,17 @@ describe('client slot contract validation', () => {
 
 describe('client slot projection', () => {
   const kits = new Map<string, readonly string[]>([['root', ['useSessions: Hook']]])
+
+  it('generates identical valid literals from LF and CRLF owner declarations', () => {
+    const windowsTypes = new Map([...OWNER_TYPES].map(([name, type]) => [name, {
+      ...type, text: type.text.replaceAll('\n', '\r\n'),
+    }]))
+    const render = (types: typeof OWNER_TYPES) => renderClientCatalog(resolveSlotEntries(
+      [declaration({ ownerType: 'DemoOwnerProps' })], [registration()], types, kits,
+    ))
+    expect(render(windowsTypes)).toBe(render(OWNER_TYPES))
+    expect(render(windowsTypes)).not.toContain('\r')
+  })
 
   it('warns that a single seat with a shipped occupant is replaced, not shared', () => {
     const [entry] = resolveSlotEntries([declaration()], [registration()], OWNER_TYPES, kits)

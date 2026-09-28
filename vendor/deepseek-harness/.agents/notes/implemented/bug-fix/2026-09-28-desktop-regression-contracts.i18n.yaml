@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-28-desktop-regression-contracts.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-28-desktop-regression-contracts.md
+/agent-note-desktop-regression-contracts-preserve-identity-and-interaction:
+  en: 5b667505e7018244
+  zh: e87875d6c5159bbf
+/agent-note-desktop-regression-contracts-preserve-identity-and-interaction/problem:
+  en: 95b8d0c99b33dde5
+  zh: 682f447b1e5de8c1
+/agent-note-desktop-regression-contracts-preserve-identity-and-interaction/decision:
+  en: 733ec616dda5a3dc
+  zh: 0a2358ff0d0fdd5a
+/agent-note-desktop-regression-contracts-preserve-identity-and-interaction/alternatives-considered:
+  en: fc709ef0560ea9a3
+  zh: 4fd84b25af5ca2d9
+/agent-note-desktop-regression-contracts-preserve-identity-and-interaction/consequences:
+  en: c8ba6844665d7b3b
+  zh: 682c1ae9cab2ec26

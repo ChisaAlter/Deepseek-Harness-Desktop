@@ -293,10 +293,10 @@ describe('AppFrame', () => {
 
   it('renders every column occupant before workspace baselines settle (no loading gate)', () => {
     workspacesReady.current = false
-    const { getByTestId } = mountFrame()
+    const { frame, getByTestId } = mountFrame()
     expect(getByTestId('main-content').getAttribute('data-entry-key')).toBe('conversation')
     expect(getByTestId('rightbar-content')).toBeTruthy()
-    expect(getByTestId('surfaces-content')).toBeTruthy()
+    expect(frame.querySelector('[data-testid="surfaces-content"]')).toBeNull()
   })
 
   it('keeps Windows caption controls mounted with a zero-width collapsed column', () => {
@@ -757,8 +757,8 @@ describe('AppFrame frame measurement lifecycle', () => {
     const { frame, instance } = mountFrame()
     act(flushFrames)
     expect(instance.getSnapshot().layoutInfo.viewportWidth).toBe(1920)
-    act(() => { instance.actions.openSurfaces() })
-    expect(tracks(frame)[2]).toBe(540)
+    act(() => { instance.actions.openRightbar(true, false) })
+    expect(tracks(frame)[1]).toBe(864)
   })
 
   it('disconnects the observer and prevents queued or late reports after unmount', () => {
@@ -779,11 +779,11 @@ describe('AppFrame frame measurement lifecycle', () => {
 describe('AppFrame — surfaces column and terminal drawer', () => {
   it('renders the surfaces column, terminal drawer track, and titlebar trailing slot', () => {
     const { frame, getByTestId, slotCalls, trailingOwner } = mountFrame()
-    expect(getByTestId('surfaces-content')).toBeTruthy()
+    expect(frame.querySelector('[data-testid="surfaces-content"]')).toBeNull()
     expect(getByTestId('shell.terminalDrawer-content')).toBeTruthy()
     expect(getByTestId('shell.titlebar.trailing-content')).toBeTruthy()
     expect(slotCalls.map(c => c.key)).toEqual(expect.arrayContaining([
-      'surfaces', 'shell.terminalDrawer', 'shell.titlebar.trailing',
+      'rightbar', 'shell.terminalDrawer', 'shell.titlebar.trailing',
     ]))
     expect(tracks(frame)[2]).toBe(0)
     expect(drawerTrack(frame)).toBe(0)
@@ -805,9 +805,9 @@ describe('AppFrame — surfaces column and terminal drawer', () => {
 
   it('open surfaces and terminal drawer write their contract default tracks', () => {
     const { frame, instance } = mountFrame()
-    act(() => { instance.actions.openSurfaces() })
-    expect(tracks(frame)[2]).toBe(540)
-    expect(frame.hasAttribute('data-surfaces-collapsed')).toBe(false)
+    act(() => { instance.actions.openRightbar(true, false) })
+    expect(tracks(frame)[1]).toBe(864)
+    expect(frame.hasAttribute('data-rightbar-collapsed')).toBe(false)
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(2)
     act(() => { instance.actions.toggleTerminalDrawer() })
     expect(drawerTrack(frame)).toBe(280)
@@ -821,38 +821,30 @@ describe('AppFrame — surfaces column and terminal drawer', () => {
     expect(frame.firstElementChild?.getAttribute('data-dshd-caption')).toBe('band')
     const trailing = frame.querySelector('[data-titlebar-trailing]')!
     expect(trailing.hasAttribute('data-titlebar-trailing-over-surfaces')).toBe(true)
-    act(() => { instance.actions.openSurfaces() })
-    expect(frame.hasAttribute('data-surfaces-collapsed')).toBe(false)
+    act(() => { instance.actions.openRightbar(true, false) })
+    expect(frame.hasAttribute('data-rightbar-collapsed')).toBe(false)
     expect(frame.querySelector('[data-dshd-caption="band"]')).toBeTruthy()
     expect(trailing.hasAttribute('data-titlebar-trailing-over-surfaces')).toBe(false)
-    act(() => { instance.actions.closeSurfaces() })
+    act(() => { instance.actions.closeRightbar() })
     expect(frame.hasAttribute('data-surfaces-collapsed')).toBe(true)
     expect(trailing.hasAttribute('data-titlebar-trailing-over-surfaces')).toBe(true)
   })
 
-  it('surfaces drag widens leftward (negative dx grows the panel)', () => {
-    const { frame, instance } = mountFrame()
-    act(() => { instance.actions.openSurfaces() })
-    drag(handleFor(frame, 'surfaces'), 1380, 1320)
-    expect(tracks(frame)[2]).toBe(600)
-  })
-
-  it('concedes surfaces first and the rightbar second when both are open', () => {
-    frameWidth = 1800
+  it('ignores stale legacy column widths and exposes only one right resize handle', () => {
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.openSurfaces(); instance.actions.openRightbar(true, false) })
-    // 280 + 810 + 540 + 400 > 1800: surfaces holds its minimum and the
-    // rightbar track concedes to 760.
-    expect(tracks(frame)).toEqual([280, 760, 360])
-    resize(1339)
-    expect(tracks(frame)).toEqual([280, 300, 0])
+    expect(tracks(frame)[2]).toBe(0)
+    expect(frame.querySelectorAll('[data-side="rightbar"]')).toHaveLength(1)
+    expect(frame.querySelector('[data-side="surfaces"]')).toBeNull()
+    drag(handleFor(frame, 'rightbar'), 1056, 996)
+    expect(tracks(frame)[1]).toBe(924)
   })
 
   it('keeps surfaces and the terminal drawer mounted at zero size when closed', () => {
     const { frame, getByTestId } = mountFrame()
     expect(tracks(frame)[2]).toBe(0)
     expect(drawerTrack(frame)).toBe(0)
-    expect(getByTestId('surfaces-content')).toBeTruthy()
+    expect(frame.querySelector('[data-testid="surfaces-content"]')).toBeNull()
     expect(getByTestId('shell.terminalDrawer-content')).toBeTruthy()
     expect(frame.hasAttribute('data-surfaces-collapsed')).toBe(true)
     expect(frame.hasAttribute('data-terminal-drawer-collapsed')).toBe(true)
@@ -872,28 +864,28 @@ describe('AppFrame — titlebar density and conversation reserve', () => {
   it('rounds fractional trailing width up so the 8px clearance is never short', () => {
     trailingClusterWidth = 459.27
     const { frame, instance } = mountFrame()
-    act(() => { instance.actions.openSurfaces() })
+    act(() => { instance.actions.openRightbar(true, false) })
     act(() => { resize(frameWidth) })
     expect(frame.style.getPropertyValue('--dshd-titlebar-conversation-reserve')).toBe('460px')
   })
 
-  it('drops the conversation reserve when the rightbar track is at least as wide as the cluster', () => {
+  it('keeps the titlebar controls over conversation when the right panel is open', () => {
     trailingClusterWidth = 300
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.openRightbar(true, false) })
     act(() => { resize(frameWidth) })
-    expect(frame.hasAttribute('data-titlebar-over-conversation')).toBe(false)
+    expect(frame.hasAttribute('data-titlebar-over-conversation')).toBe(true)
     expect(frame.getAttribute('data-titlebar-density')).toBe('full')
-    expect(frame.style.getPropertyValue('--dshd-titlebar-conversation-reserve')).toBe('0px')
+    expect(frame.style.getPropertyValue('--dshd-titlebar-conversation-reserve')).toBe('300px')
   })
 
   it('collapses to cozy when an open surfaces column pins the center below 720', () => {
     frameWidth = 1500
     const { frame, instance, trailingOwner } = mountFrame()
-    act(() => { instance.actions.openSurfaces() })
-    expect(frame.getAttribute('data-titlebar-density')).toBe('cozy')
+    act(() => { instance.actions.openRightbar(true, false) })
+    expect(frame.getAttribute('data-titlebar-density')).toBe('compact')
     expect(trailingOwner()).toEqual({
-      surfaces: 540, rightbarShown: false, terminalDrawer: 0, managedSession: false, density: 'cozy',
+      surfaces: 0, rightbarShown: true, terminalDrawer: 0, managedSession: false, density: 'compact',
     })
   })
 
@@ -921,7 +913,7 @@ describe('AppFrame — narrow-viewport auto-collapse', () => {
   it('keeps the shared titlebar row when a compact header hides the trailing cluster', () => {
     frameWidth = 980
     const { frame, instance } = mountFrame()
-    act(() => { instance.actions.openSurfaces() })
+    act(() => { instance.actions.openRightbar(true, false) })
     expect(frame.hasAttribute('data-compact-header')).toBe(true)
     expect(frame.querySelector('[data-titlebar-row]')).toBeTruthy()
     expect(frame.style.gridTemplateRows.startsWith('auto minmax(0, 1fr)')).toBe(true)
@@ -1235,14 +1227,14 @@ describe('AppFrame — guard branches', () => {
 
   it('double resize inside one frame rides the pending rAF (??= guard)', () => {
     const { frame, instance } = mountFrame()
-    act(() => { instance.actions.openSurfaces() })
+    act(() => { instance.actions.openRightbar(true, false) })
     frameWidth = 1200
     act(() => {
       for (const observer of observers) if (!observer.disconnected) observer.fire()
       for (const observer of observers) if (!observer.disconnected) observer.fire()
       flushFrames()
     })
-    expect(tracks(frame)[2]).toBe(520)
+    expect(tracks(frame)[2]).toBe(0)
   })
 })
 

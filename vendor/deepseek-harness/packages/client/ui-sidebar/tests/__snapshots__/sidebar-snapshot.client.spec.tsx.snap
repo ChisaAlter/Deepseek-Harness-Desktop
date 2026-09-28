@@ -18,6 +18,24 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
         class="iconButton toggle"
         type="button"
       >
+        <span
+          aria-hidden="true"
+          class="railMark"
+        >
+          <div
+            data-slot="sidebar.brand.mark"
+            style="display: contents;"
+          >
+            <svg
+              aria-hidden="true"
+              data-content="965fe321"
+              fill="none"
+              height="17.6580310880829"
+              viewBox="0 0 23.16 17.04"
+              width="24"
+            />
+          </div>
+        </span>
         <svg
           aria-hidden="true"
           class="panelIcon"

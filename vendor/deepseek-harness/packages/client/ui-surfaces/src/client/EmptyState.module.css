@@ -47,7 +47,7 @@
   aspect-ratio: 1 / 1;
   padding: 12px;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
   text-align: center;

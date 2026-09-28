@@ -1221,4 +1221,44 @@ describe('ConversationRoot resident composer', () => {
     const b = mount(sessionSnapshotOf({ blank: true }))
     expect(b.view.container.querySelector('[data-width-handle]')).toBeNull()
   })
+
+  it('keeps header actions reachable through an overflow seat at cozy density', async () => {
+    document.documentElement.dataset.titlebarDensity = 'cozy'
+    const b = mount(sessionSnapshotOf())
+    const trigger = b.view.getByRole('button', { name: '更多会话操作' })
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+
+    // Hover/focus previews the hidden band; the trigger's second role is to pin it.
+    fireEvent.pointerEnter(trigger.parentElement as HTMLElement)
+    await act(async () => {})
+    const preview = b.view.getByRole('group', { name: '更多会话操作' })
+    expect(preview.querySelector('[data-testid="view-conversation.session.header.actions"]')).not.toBeNull()
+    expect(trigger.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.pointerLeave(trigger.parentElement as HTMLElement)
+    await act(async () => {})
+    expect(b.view.queryByRole('group', { name: '更多会话操作' })).toBeNull()
+
+    // Click pins the popover open until Escape or an outside pointerdown.
+    fireEvent.click(trigger)
+    await act(async () => {})
+    expect(b.view.getByRole('group', { name: '更多会话操作' })).toBeTruthy()
+    fireEvent.pointerLeave(trigger.parentElement as HTMLElement)
+    await act(async () => {})
+    expect(b.view.getByRole('group', { name: '更多会话操作' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {})
+    expect(b.view.queryByRole('group', { name: '更多会话操作' })).toBeNull()
+    delete document.documentElement.dataset.titlebarDensity
+  })
+
+  it('hides the overflow seat at full density and shows it again after a density change', async () => {
+    const b = mount(sessionSnapshotOf())
+    expect(b.view.queryByRole('button', { name: '更多会话操作' })).toBeNull()
+    act(() => { document.documentElement.dataset.titlebarDensity = 'compact' })
+    await act(async () => {})
+    expect(b.view.getByRole('button', { name: '更多会话操作' })).toBeTruthy()
+    act(() => { delete document.documentElement.dataset.titlebarDensity })
+    await act(async () => {})
+    expect(b.view.queryByRole('button', { name: '更多会话操作' })).toBeNull()
+  })
 })

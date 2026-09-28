@@ -317,6 +317,7 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
       style={{ width: fullscreen ? '100vw' : width,
         '--dsh-sidebar-width': fullscreen ? '100vw' : `${width}px` } as CSSProperties}
       data-sidebar-right-session={sessionId}
+      data-sidebar-right-guide-only={Object.values(surface.layout.tabs).every(tab => tab.kind === 'guide') || undefined}
       data-sidebar-right-panel={fullscreen ? 'fullscreen' : 'push'}
       data-sidebar-right-open={expanded || undefined}
       // Off-edge is out of reach: the stylesheet's visibility flip takes the
@@ -368,10 +369,7 @@ export function RightbarSeat({
   const shortcuts = useShortcuts(entries => entries)
   const surfaces = useStore(state => state.bySession)
   const surface = surfaces[sessionId]
-  const firstDesktopSeat = useRef(true)
-  const restoreClassic = firstDesktopSeat.current && active && surface !== undefined
-    && typeof (window as Window & { shell?: { listDir?: unknown } }).shell?.listDir === 'function'
-  const shown = active && surface !== undefined && surface.layout.expanded && !restoreClassic
+  const shown = active && surface !== undefined && surface.layout.expanded
   const autoFullscreen = viewportWidth < 768
   const fullscreen = autoFullscreen || surface?.layout.mode === 'fullscreen'
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -384,12 +382,6 @@ export function RightbarSeat({
   useEffect(() => {
     if (active && surface === undefined) actions.open(sessionId)
   }, [actions, sessionId, surface, active])
-
-  useLayoutEffect(() => {
-    if (!active || surface === undefined || !firstDesktopSeat.current) return
-    firstDesktopSeat.current = false
-    if (restoreClassic && surface.layout.expanded) actions.setExpanded(sessionId, false)
-  }, [active, actions, restoreClassic, sessionId, surface])
 
   useLayoutEffect(() => {
     if (shown && !fullscreen && !canShow) actions.setExpanded(sessionId, false)

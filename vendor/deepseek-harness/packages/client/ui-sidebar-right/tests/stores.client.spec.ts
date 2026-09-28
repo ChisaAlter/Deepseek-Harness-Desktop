@@ -100,12 +100,8 @@ describe('createSidebarRightStore — the sequence', () => {
     expect(Object.values(layout().tabs)).toHaveLength(1)
   })
 
-  it.each([false, true])('does not split an empty collapsed pane after close=%s', (afterClose) => {
+  it('does not split an initially empty collapsed pane', () => {
     const { actions, layout, surface } = harness()
-    if (afterClose) {
-      actions.openContent(SESSION, { kind: 'text', contentId: 'file:a', title: 'a' }, () => {})
-      actions.closeTab(SESSION, Object.values(layout().tabs)[0]!.id)
-    }
     const before = surface()
     const settled = vi.fn()
     actions.splitPane(SESSION, undefined, settled)
@@ -234,41 +230,32 @@ describe('createSidebarRightStore — the last docked tab', () => {
     expect(layout().tabs[guide()]).toBeDefined()
   })
 
-  it('closes the last non-guide tab together with the column, leaving it empty until the next expansion seeds', () => {
-    const { actions, layout, entries, expand, guide } = harness()
+  it('returns to the guide in place when the last content tab closes, with reversible history', () => {
+    const { actions, layout, guide, expand } = harness()
     expand()
-    actions.openContent(SESSION, { kind: 'text', contentId: 'dsh-resource://file/session/s-test/a.txt', title: 'a' }, () => {})
-    const text = Object.values(layout().tabs).find(tab => tab.kind === 'text')
-    if (text === undefined) throw new Error('expected the text tab beside the guide')
-    // Two tabs: closing the guide is an ordinary close, and the column stays open.
-    actions.closeTab(SESSION, guide())
-    expect(layout().expanded).toBe(true)
-    expect(Object.values(layout().tabs)).toEqual([text])
+    actions.openContent(SESSION, { kind: 'text', contentId: 'file:a', title: 'a', replaceTab: guide() }, () => {})
+    const text = Object.values(layout().tabs)[0]!
     const before = layout()
-    const recorded = entries()
-    // Fullscreen at the moment of the close: the collapse must hand the mode
-    // back too, or the next expand gives the whole window to the default page.
-    actions.setMode(SESSION, 'fullscreen')
-
     actions.closeTab(SESSION, text.id)
-
-    expect(layout().expanded).toBe(false)
-    expect(layout().mode).toBe('push')
-    // The collapsed column stands empty: no page was seeded behind the collapse.
-    expect(Object.values(layout().tabs)).toHaveLength(0)
-    expect(entries()).toBe(recorded + 2)
-
-    actions.undo(SESSION)
+    expect(layout().expanded).toBe(true)
+    expect(Object.values(layout().tabs).map(tab => tab.kind)).toEqual(['guide'])
     actions.undo(SESSION)
     expect(layout()).toEqual(before)
-
-    // The next expansion seeds the then-current default page.
     actions.redo(SESSION)
-    actions.redo(SESSION)
-    expand()
     expect(layout().expanded).toBe(true)
-    expect(Object.values(layout().tabs)).toHaveLength(1)
     expect(guide()).toBeDefined()
+  })
+
+  it('mounts mini-preview content without expanding a collapsed panel', () => {
+    const { actions, layout } = harness()
+    actions.openContent(SESSION, { kind: 'browser', contentId: 'sidebar://browser', title: 'Browser', expand: false }, () => {})
+    expect(layout().expanded).toBe(false)
+    expect(Object.values(layout().tabs).map(tab => tab.kind)).toEqual(['browser'])
+    actions.setExpanded(SESSION, true)
+    const tab = Object.values(layout().tabs)[0]!
+    actions.openContent(SESSION, { kind: 'browser', contentId: 'sidebar://browser', title: 'Browser', expand: false }, () => {})
+    expect(layout().expanded).toBe(true)
+    expect(Object.values(layout().tabs)).toEqual([tab])
   })
 
   it('closes a floating tab without touching the column: floats do not count as the last docked tab', () => {

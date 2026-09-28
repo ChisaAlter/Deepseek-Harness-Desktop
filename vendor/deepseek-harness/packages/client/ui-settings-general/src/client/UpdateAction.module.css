@@ -12,7 +12,7 @@
   margin: 4px 0;
   padding: 0 10px;
   border: none;
-  border-radius: 13px;
+  border-radius: var(--dsw-radius-badge);
   background: var(--dsw-alias-state-success-primary);
   color: #fff;
   cursor: pointer;
@@ -64,7 +64,7 @@
   max-width: calc(100vw - 48px);
   padding: 20px 24px;
   box-sizing: border-box;
-  border-radius: 16px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.24);
 }
@@ -128,7 +128,7 @@
   height: 30px;
   padding: 0 16px;
   border: none;
-  border-radius: 15px;
+  border-radius: var(--dsw-radius-action);
   background: var(--dsw-alias-state-success-primary);
   color: #fff;
   cursor: pointer;

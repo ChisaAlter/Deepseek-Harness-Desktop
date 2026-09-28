@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -42,7 +42,7 @@ describe('ReasoningRow', () => {
     expect(root.hasAttribute('data-preview')).toBe(summary !== '')
   })
 
-  it('retains summaries and expanded Markdown when the work-details mode changes', () => {
+  it('retains summaries and expanded Markdown when the work-details mode changes', async () => {
     const reset = createSnapshotStore(0)
     const useDisclosure = bindDisclosure(reset)
     const mode = createSnapshotStore<TranscriptViewMode>('standard')
@@ -68,7 +68,8 @@ describe('ReasoningRow', () => {
     }
     act(() => { reset.set(1) })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(view.queryByText('Detailed body')).toBeNull()
+    expect(body.closest('[aria-hidden="true"]')).not.toBeNull()
+    await waitFor(() => { expect(view.queryByText('Detailed body')).toBeNull() })
     expect(view.getByRole('button')).toBe(toggle)
   })
 

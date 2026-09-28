@@ -61,8 +61,8 @@ describe('AppFrame.module.css titlebar trailing cluster', () => {
   })
 
   it('stops the trailing cluster before an open surfaces column', () => {
-    const open = declarations('.frame:not([data-surfaces-collapsed]) .titlebarTrailing')
-    expect(open?.get('grid-column')).toBe('2 / 4')
+    const open = declarations('.frame:not([data-rightbar-collapsed]) .titlebarTrailing')
+    expect(open?.get('grid-column')).toBe('2 / 3')
     expect(open?.get('margin-right')).toBe('8px')
   })
 })

@@ -26,7 +26,7 @@
   box-sizing: border-box;
   height: 36px;
   padding: 0 10px;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-2);
 }
 

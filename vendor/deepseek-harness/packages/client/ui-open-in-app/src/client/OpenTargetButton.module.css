@@ -47,7 +47,7 @@
 .split[data-open-target='directory'] {
   height: 32px;
   border-color: var(--dsw-alias-border-l2);
-  border-radius: 18px;
+  border-radius: var(--dsw-radius-button);
 }
 
 .split[data-open-target='directory'] .main {

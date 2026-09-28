@@ -107,7 +107,13 @@ function registerLauncherChannels({ launcher, dsh, harness, startDesktop, record
     if (role === IPC_ROLES.LAUNCHER && typeof startDesktop === 'function') {
       return launcher.retryFullPlugins();
     }
-    await recordBootRestart();
+    // The non-launcher boot path shares recordBootRestart's admission
+    // boundary: a held maintenance slot or a blocked import journal refuses
+    // with {ok:false} before any restart side effect.
+    const outcome = await recordBootRestart();
+    if (outcome && outcome.ok === false) {
+      return outcome;
+    }
     return harness ? harness.snapshot() : dsh.snapshot();
   });
 
@@ -135,7 +141,7 @@ function registerLauncherChannels({ launcher, dsh, harness, startDesktop, record
     }
   }));
 
-  handle('shell:cancel-import', LAUNCHER_ONLY, () => launcher.cancelImport());
+  handle('shell:cancel-import', LAUNCHER_ONLY, (_event, options = {}) => launcher.cancelImport(options));
 
   handle('shell:list-releases', LAUNCHER_ONLY, () => launcher.listReleases());
 

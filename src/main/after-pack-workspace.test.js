@@ -354,22 +354,11 @@ test(`shared module identity with a conflicting third consumer and root ${topVer
     }
     const workspace = await overlayWorkspaceRuntimePackages(sourceRoot, destRoot);
     if (topVersion === '2.0.0') {
-      // The only expressible shared slot (root r) is occupied by a different
-      // version, so this shared source cannot collapse to one flat copy.
-      // repairFlattenedVersionIsolation keeps per-consumer nested copies as
-      // forced duplicates: every consumer still resolves r@1.0.0, though a
-      // and b necessarily load separate module instances (standard npm
-      // nesting — the flat tree has no shared slot left for them).
-      await repairFlattenedVersionIsolation(sourceRoot, destRoot, workspace.sources);
-      const [a, b] = ['a', 'b'].map((name) => require(path.join(destRoot, 'node_modules', name, 'lib', 'index.js')));
-      assert.equal(a.version, '1.0.0');
-      assert.equal(b.version, '1.0.0');
-      assert.notStrictEqual(a, b);
-      for (const name of ['a', 'b']) {
-        assert.equal(JSON.parse(fs.readFileSync(path.join(destRoot, 'node_modules', name, 'node_modules', 'r', 'package.json'))).version, '1.0.0');
-      }
-      const c = require(path.join(destRoot, 'node_modules', 'c', 'lib', 'index.js'));
-      assert.equal(c.version, '2.0.0');
+      // A version-correct copy is insufficient when it splits shared state.
+      await assert.rejects(
+        repairFlattenedVersionIsolation(sourceRoot, destRoot, workspace.sources),
+        /工作区依赖实例被拆分: r/,
+      );
       return;
     }
     await repairFlattenedVersionIsolation(sourceRoot, destRoot, workspace.sources);

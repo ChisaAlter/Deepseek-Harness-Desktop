@@ -5,7 +5,7 @@
   box-sizing: border-box;
   height: 32px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 18px;
+  border-radius: var(--dsw-radius-button);
   background: transparent;
   -webkit-app-region: no-drag;
 }
@@ -18,7 +18,7 @@
   height: 32px;
   padding: 6px 12px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 18px;
+  border-radius: var(--dsw-radius-button);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font-family: var(--dsw-font-family);

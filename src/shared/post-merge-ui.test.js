@@ -27,10 +27,10 @@ const UI_FEATURES = [
     // Classic right column: SurfacesRoot hosts the seat tree and every open
     // path expands the track via ctx.layout.openSurfaces(); the native dock
     // survives only as the compat rail for upstream-exclusive kinds.
-    name: 'classic surfaces right column',
+    name: 'single in-place right column',
     file: 'packages/client/ui-surfaces/src/client/apply.ts',
-    includes: ['SurfacesRoot', 'openClassicSurfaces', 'collapseRightPanel'],
-    excludes: ['SurfacesGone', 'expandRightPanel'],
+    includes: ['openWorkspaceSurface', 'openResourceIn', 'openTabIn'],
+    excludes: ['collapseRightPanel', 'ctx.layout.openSurfaces()'],
   },
   {
     name: 'Files search work loop',

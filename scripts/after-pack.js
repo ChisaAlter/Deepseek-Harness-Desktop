@@ -9,6 +9,8 @@ const {
 } = require('../src/main/plugin-runtime-files');
 const { DESKTOP_PACKAGES } = require('../src/shared/harness-desktop-forks');
 const { runSkipComposeContract } = require('./check-skip-compose-contract');
+const { assembleRuntimeInstances } = require('./runtime-instance-graph');
+const { RUNTIME_LINKS, removeRuntimeLinks } = require('../src/shared/runtime-links');
 const {
   ensureGhosttyAssetsInHarness,
   harnessHasGhosttyAssets,
@@ -1050,15 +1052,8 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
         sourceTargets.get(sourceKey).add(targetKey);
         const previousSource = targetSources.get(targetKey);
         if (previousSource && previousSource !== sourceKey) {
-          // .pnpm peer variants (same version, distinct context suffixes like
-          // `send@1.2.1_supports-color@9.4.0`) can hold byte-identical files;
-          // flattening legitimately serves both consumers from one copy, and a
-          // divergent dep subtree already fails `fileMatches` during the
-          // graphMatches pass. Only a content-divergent merge is a real
-          // identity violation.
-          if (!samePublishedPackageFiles(previousSource, sourceKey, harnessSrc)) {
-            throw new Error(`工作区依赖实例被合并: ${name} at ${targetKey} (${previousSource} / ${sourceKey})`);
-          }
+          // Identical bytes can still own independent module state.
+          throw new Error(`工作区依赖实例被合并: ${name} at ${targetKey} (${previousSource} / ${sourceKey})`);
         }
         targetSources.set(targetKey, sourceKey);
         const key = `${sourceKey}\0${targetKey}`;
@@ -1073,7 +1068,7 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
         }
       };
       for (const item of workspaceSources) { checkIdentity(item.source, item.target); }
-      let consolidated = false;
+      let identityTreeChanged = false;
       for (const [source, targets] of sourceTargets) {
         if (targets.size < 2) { continue; }
         const name = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8')).name;
@@ -1087,6 +1082,9 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
           if (found.length === 0) {
             console.log(`拍平孤儿副本清理: ${name} <- ${target}`);
             fs.rmSync(longPath(target), { recursive: true, force: true });
+            invalidateAfterCopy(target);
+            invalidateVisitedAfterCopy(target);
+            identityTreeChanged = true;
             alive.delete(target);
             continue;
           }
@@ -1146,14 +1144,8 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
             return resolvedDir === commonDir || resolvedDir.startsWith(commonDir + path.sep);
           });
         if (!collapsible) {
-          // pnpm's store can share one instance across arbitrary consumer
-          // positions; a flat node_modules cannot when a different version
-          // occupies every expressible common slot. The surviving copies are
-          // then forced duplicates — each resolver still sees this source —
-          // which is standard npm nesting, not an identity violation.
           const detail = `common=${common} sharedDest=${sharedDest} occupiedByOther=${occupiedByOther} shadowed=${shadowed} depsMatch=${depsStillMatch} resolvers=${resolvers.size}`;
-          console.log(`拍平共享实例无法收拢（强制重复，各自解析正确）: ${name} ×${alive.size} ${detail}`);
-          continue;
+          throw new Error(`工作区依赖实例被拆分: ${name} (${[...alive].join(' / ')}) ${detail}`);
         }
         console.log(`拍平共享实例收拢: ${name} ×${alive.size} -> ${sharedDest}`);
         if (!fs.existsSync(path.join(sharedDest, 'package.json'))) {
@@ -1176,15 +1168,15 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
           }
         }
         targetSource.set(sharedDest, source);
-        consolidated = true;
+        identityTreeChanged = true;
       }
-      if (!consolidated) {
+      if (!identityTreeChanged) {
         return copied;
       }
     }
-    if (!invalid && copied !== before && pass < MAX_REPAIR_PASSES - 1) {
-      // Shared-instance consolidation mutated the tree; re-verify the whole
-      // graph on the next pass before declaring convergence.
+    if (!invalid && pass < MAX_REPAIR_PASSES - 1) {
+      // Deletion-only repairs also change resolution. Re-verify before return,
+      // even when this pass copied no files.
       continue;
     }
     if (copied === before || pass === MAX_REPAIR_PASSES - 1) {
@@ -1192,6 +1184,13 @@ async function repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspac
     }
   }
   throw new Error('工作区运行时依赖隔离未收敛');
+}
+
+function assembleCanonicalRuntime(harnessSrc, harnessDest, sources) {
+  return assembleRuntimeInstances(harnessSrc, harnessDest, sources, {
+    resolvePackageFrom, runtimeDependencyEntries, collectFiles, copyFiles,
+    runtimeOmitRootDirs, samePublishedPackageFiles, devOnlyNames: DEV_ONLY_WORKSPACE_NAMES,
+  });
 }
 
 function assertNoDevOnlyPackages(harnessDest) {
@@ -1669,6 +1668,7 @@ function assertOfficeRuntime(resources, harnessDest) {
   // lockfile) which flattening hoists to the top-level slot — dead weight that
   // would wrongly serve any consumer resolving from a shallow position.
   for (const sibling of ['libreoffice-kit', 'libreoffice-kit-win32-x64']) {
+    if (fs.existsSync(path.join(harnessDest, RUNTIME_LINKS))) break;
     const stale = path.join(nm, sibling);
     if (path.resolve(stale) === path.resolve(kitDir) || path.resolve(stale) === path.resolve(engineDir || '')) { continue; }
     const manifestFile = path.join(stale, 'package.json');
@@ -1722,28 +1722,27 @@ module.exports = async function afterPack(context) {
   // dsh-task-control is dependency-free (node:* + relative imports only);
   // the closure assert still proves the packaged copy ships its lib/.
   assertVendoredPluginRuntimeDeps(resources, 'dsh-task-control');
+  assertVendoredPluginRuntimeDeps(resources, 'dsh-platform-session');
   await assertDshdRemoteRuntime(resources);
   const harnessDest = path.join(resources, 'vendor', 'deepseek-harness');
   const deployDir = resolveDeployDir(process.env.DSH_DEPLOY_DIR);
   const started = Date.now();
 
   let copied;
+  const harnessSrc = path.join(projectDir, 'vendor', 'deepseek-harness');
   if (deployDir) {
     console.log(`使用精简目录 ${deployDir} 组装 resources/vendor`);
     copied = await assembleFromDeploy(projectDir, deployDir, harnessDest);
   } else {
     console.log('使用当前 vendored Harness 全量复制（拍平 .pnpm 到顶层，避免超长路径）');
-    const harnessSrc = path.join(projectDir, 'vendor', 'deepseek-harness');
     console.log('收集文件清单（解引用 pnpm 链接，跳过循环与 dev-only 包）...');
     const files = collectFiles(harnessSrc, harnessDest, false, true);
     console.log(`待复制 ${files.length} 个文件，收集耗时 ${((Date.now() - started) / 1000).toFixed(1)}s（并发复制中）`);
     copied = await copyFiles(files, 32);
-    const workspace = await overlayWorkspaceRuntimePackages(harnessSrc, harnessDest);
-    copied += workspace.files;
-    console.log(`替换 ${workspace.packages} 个工作区运行时包，避免拍平时旧版本抢占`);
-    copied += await repairFlattenedVersionIsolation(harnessSrc, harnessDest, workspace.sources);
-    copied += await repairFlattenedCommanderEsm(harnessSrc, harnessDest);
   }
+  const workspace = await overlayWorkspaceRuntimePackages(harnessSrc, harnessDest);
+  copied += workspace.files;
+  copied += await assembleCanonicalRuntime(harnessSrc, harnessDest, workspace.sources);
 
   assertNoDevOnlyPackages(harnessDest);
 
@@ -1771,6 +1770,7 @@ module.exports = async function afterPack(context) {
   await runSkipComposeContract(harnessDest, { log: (line) => console.log(line) });
 
   const archive = path.join(resources, 'vendor', 'deepseek-harness.tar');
+  removeRuntimeLinks(harnessDest);
   console.log('打包运行时为单个 tar，减少 NSIS 解压文件数…');
   execFileSync('tar', ['-cf', path.basename(archive), '-C', path.basename(harnessDest), '.'], {
     cwd: path.dirname(harnessDest),
@@ -1791,6 +1791,7 @@ module.exports.collectFiles = collectFiles;
 module.exports.overlayWorkspaceRuntimePackages = overlayWorkspaceRuntimePackages;
 module.exports.collectPnpmFlattenFiles = collectPnpmFlattenFiles;
 module.exports.repairFlattenedVersionIsolation = repairFlattenedVersionIsolation;
+module.exports.assembleCanonicalRuntime = assembleCanonicalRuntime;
 module.exports.assertNoDevOnlyPackages = assertNoDevOnlyPackages;
 module.exports.repairFlattenedCommanderEsm = repairFlattenedCommanderEsm;
 module.exports.copyFiles = copyFiles;

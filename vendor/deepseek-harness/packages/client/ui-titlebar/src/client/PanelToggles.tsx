@@ -33,7 +33,7 @@ export type PanelTogglesProps =
  * @returns the two icon toggles.
  */
 export function PanelToggles({
-  surfaces,
+  rightbarShown,
   terminalDrawer,
   useWorkspaces,
   useTerminalToggle,
@@ -44,7 +44,7 @@ export function PanelToggles({
 }: PanelTogglesProps): ReactNode {
   const terminalAvailable = useWorkspaces(s => s.items.length > 0)
   const terminalOpen = terminalDrawer > 0
-  const surfacesOpen = surfaces > 0
+  const surfacesOpen = rightbarShown
   const showTerminal = useTerminalToggle(value => value)
   const showSurfaces = useSurfacesToggle(value => value)
 

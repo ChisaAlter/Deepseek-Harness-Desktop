@@ -15,6 +15,7 @@ import type { SessionLogChromeRowInjected } from './SessionLogChromeRow.tsx'
 import { SessionLogChromeRow } from './SessionLogChromeRow.tsx'
 import { ChromeVisibility } from './chrome-visibility.ts'
 import {
+  DEFAULT_TITLEBAR_ACTION,
   SESSION_LOG_EXPORT_SETTINGS_NAMESPACE,
   TITLEBAR_ACTION_FIELD,
   type SessionLogExportSettings,
@@ -55,6 +56,7 @@ export function apply(ctx: ClientContext): void {
   const chrome = new ChromeVisibility<SessionLogExportSettings>(
     ctx.configForms.get<SessionLogExportSettings>(SESSION_LOG_EXPORT_SETTINGS_NAMESPACE),
     TITLEBAR_ACTION_FIELD,
+    DEFAULT_TITLEBAR_ACTION,
   )
 
   ctx.slots.inject('shell.titlebar.trailing', () => ctx.slots.register({

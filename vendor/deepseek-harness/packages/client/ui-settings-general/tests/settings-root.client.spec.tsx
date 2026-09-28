@@ -227,6 +227,33 @@ describe('SettingsRoot trigger', () => {
     if (wide) expect(screen.getByRole('button', { name: 'Disconnected, reconnect now' })).toBeTruthy()
   })
 
+  it('does not let the account launcher reclaim focus from another owner after Settings closes', async () => {
+    const { renderSlot, navigation } = mount({ launcher: true })
+    const accountButton = screen.getByRole('button', { name: 'Account' })
+    const deepLinkTrigger = document.querySelector<HTMLButtonElement>('[data-dsh-settings-trigger]')
+    act(() => { deepLinkTrigger?.click() })
+    expect(navigation.getSnapshot()).toEqual({ open: true, sectionId: undefined })
+    // Another surface takes the keyboard while Settings is retiring; the
+    // launcher preference must not steal it back once passive effects flush.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    const other = document.createElement('button')
+    other.textContent = 'Other owner'
+    document.body.append(other)
+    other.focus()
+    try {
+      await new Promise(resolve => { setTimeout(resolve, 0) })
+      expect(document.activeElement).toBe(other)
+      expect(document.activeElement).not.toBe(accountButton)
+    } finally {
+      other.remove()
+    }
+    const launcherCall = renderSlot.mock.calls.find(call => call[0] === 'settings.launcher')!
+    act(() => { (launcherCall[1] as { openSettings: () => void }).openSettings() })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    // With no other owner, the launcher preference still applies.
+    await vi.waitFor(() => { expect(document.activeElement).toBe(accountButton) })
+  })
+
   it('shows installation instead of expected backend reconnection and restores connection feedback after failure', () => {
     const presentation = { phase: 'installing' as const, version: '1.0.1' }
     const f = mount({ dictionary: zh, connectionState: 'connecting',

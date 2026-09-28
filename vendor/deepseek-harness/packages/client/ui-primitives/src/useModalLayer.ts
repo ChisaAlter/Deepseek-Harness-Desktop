@@ -104,7 +104,7 @@ export function useModalLayer(dialog: RefObject<HTMLElement | null>, open: boole
     const previous = document.activeElement
     const stack = layers.get(document) ?? []
     layers.set(document, stack)
-    const layer = { element, close: () => { close.current() } }
+    const layer: ModalLayer = { element, close: () => { close.current() } }
     stack.push(layer)
     /**
      * A surface that is only being retained for its exit recipe is not a
@@ -163,6 +163,10 @@ export function useModalLayer(dialog: RefObject<HTMLElement | null>, open: boole
       if (stack.length === 0) layers.delete(document)
       if (wasTop) {
         const fallback = stack.at(-1)?.element
+        // A lower layer that retired beneath this one handed its opener over
+        // before this layer was spliced out, so read it from `layer` itself —
+        // by now the captured stack may already be empty.
+        const inherited = layer.outerOpener
         const restore = (): void => {
           // Resolve ownership against the document when this actually runs. A
           // newer layer may have registered after `wasTop` was decided — in the
@@ -184,14 +188,36 @@ export function useModalLayer(dialog: RefObject<HTMLElement | null>, open: boole
            */
           const eligible = (target: HTMLElement | undefined): target is HTMLElement =>
             target !== undefined && target.isConnected && target.closest(inactiveSelector) === null
+            && !target.matches(':disabled, [aria-disabled="true"]')
+          const active = document.activeElement
+          // An owner may deliberately focus a surviving control while closing.
+          if (active instanceof HTMLElement && active !== document.body && eligible(active)
+            && !element.contains(active) && (current === undefined || current.element.contains(active))) return
           const opener = previous instanceof HTMLElement ? previous : undefined
-          const candidate = eligible(opener) ? opener : eligible(fallback) ? fallback : undefined
+          const parentAutofocus = fallback?.querySelector<HTMLElement>('[data-modal-autofocus]') ?? undefined
+          // A lower layer that retired beneath this one handed us its own
+          // opener; prefer the nearest eligible ancestor target so a nested
+          // dialog does not strand focus inside a modal that is itself leaving.
+          const candidate = eligible(opener) ? opener
+            : eligible(inherited) ? inherited
+              : eligible(parentAutofocus) ? parentAutofocus
+                : eligible(fallback) ? fallback : undefined
           if (candidate !== undefined) focusWithoutRing(candidate)
         }
         // Keep the deferred retry for the commit path, and also apply it now so
         // a full unmount (where no later layout setup runs) still returns focus.
         pendingRestore.current = restore
         restore()
+      } else {
+        // Not the top layer: this retirement runs before the layer in front of
+        // it retires. Hand our opener down so the eventual topmost restoration
+        // can still reach an eligible target outside every closing surface,
+        // instead of finding only an opener that lives inside a retired parent.
+        const above = stack.at(-1)
+        if (above !== undefined && above.outerOpener === undefined
+          && previous instanceof HTMLElement && previous.isConnected) {
+          above.outerOpener = previous
+        }
       }
     }
   }, [dialog, open])

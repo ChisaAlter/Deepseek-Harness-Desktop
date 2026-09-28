@@ -28,6 +28,8 @@ const {
   uninstallPlugin,
 } = require('./marketplace-install');
 const { applyRendererConfigPatch } = require('./profile-ops');
+const importGuard = require('./import-guard');
+const { readImportJournal, journalIsBlocked } = require('./data-import');
 const { recordLastDesktopStart, kernelLogTail } = require('./launcher-gate');
 const { createLauncherService } = require('../launcher/launcher-service');
 const { createLauncherConfirm } = require('../launcher/launcher-confirm');
@@ -151,14 +153,59 @@ function registerIpc({
   // Boot-page restarts are full desktop starts: record their outcome in
   // last-desktop-start.json so the next cold-start gate sees the truth.
   // Launcher-role paths go through startDesktop, which records it itself.
-  const recordBootRestart = () => recordLastDesktopStart(
-    app.getPath('userData'),
-    () => (harness ? harness.retryFullPlugins() : startHarness()),
-    () => kernelLogTail(dsh),
-  );
+  // Both boot channels (shell:restart and the non-launcher
+  // shell:retry-full-plugins) funnel through this same boundary, so the
+  // shared maintenance admission and the persistent blocked-recovery verdict
+  // live here — not split across two handler-only checks that can drift.
+  //
+  // Ownership, not just admission: a boot restart that passes the check but
+  // does not acquire the slot leaves the destination tree unowned for the
+  // duration of the async retry — a later import/install would then be
+  // admitted and overlap the teardown. Acquire the token before the async
+  // work and release it only when the operation fully settles (only the
+  // boundary that acquired releases).
+  const recordBootRestart = async () => {
+    if (importGuard.isMaintenanceHeld()) {
+      return { ok: false, error: 'maintenance-in-progress', owner: importGuard.maintenanceOwner()?.kind };
+    }
+    try {
+      const pending = readImportJournal(app.getPath('userData'));
+      if (journalIsBlocked(pending)) {
+        return { ok: false, error: 'import-recovery-blocked', pendingTxns: pending?.pendingTxns || [] };
+      }
+    } catch {
+      // An unreadable journal must fail closed — unknown transaction state
+      // is not a safe restart boundary.
+      return { ok: false, error: 'import-recovery-blocked' };
+    }
+    const acquired = importGuard.acquireMaintenance('boot-restart');
+    if (!acquired) {
+      // Admitted free a moment ago but lost the race — refuse rather than
+      // run unowned or steal someone else's ownership.
+      return { ok: false, error: 'maintenance-in-progress', owner: importGuard.maintenanceOwner()?.kind };
+    }
+    try {
+      return await recordLastDesktopStart(
+        app.getPath('userData'),
+        // Delegate the token we just acquired into the nested restart so it
+        // is recognized as the same operation (startHarness is wired to
+        // restartWithCleanup), not refused as a foreign caller.
+        () => (harness ? harness.retryFullPlugins() : startHarness(acquired)),
+        () => kernelLogTail(dsh),
+      );
+    } finally {
+      importGuard.releaseMaintenance(acquired);
+    }
+  };
 
   handle('shell:restart', BOOT_ONLY, async () => {
-    await recordBootRestart();
+    // recordBootRestart is the shared admission boundary for every boot
+    // restart channel — it refuses while maintenance is held or a blocked
+    // import journal persists, and returns {ok:false} instead of a snapshot.
+    const outcome = await recordBootRestart();
+    if (outcome && outcome.ok === false) {
+      return outcome;
+    }
     return harness ? harness.snapshot() : dsh.snapshot();
   });
 

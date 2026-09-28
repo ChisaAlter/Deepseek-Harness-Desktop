@@ -47,7 +47,7 @@
 .iconAction {
   width: 28px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
 }
 
 .toolAnchor {
@@ -119,7 +119,7 @@
   gap: 8px;
   margin: 0;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   padding: 8px 12px;
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-secondary);
@@ -151,7 +151,7 @@
   flex-direction: column;
   gap: 8px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   padding: 12px 14px;
   background: var(--dsw-alias-bg-layer-3);
   font-size: 13px;
@@ -180,7 +180,7 @@
   flex-direction: column;
   gap: 2px;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   padding: 8px 12px;
   background: var(--dsw-alias-bg-module-platform);
 }
@@ -206,7 +206,7 @@
 .empty {
   margin: 0;
   border: 1px dashed var(--dsw-alias-border-l2);
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   padding: 24px;
   color: var(--dsw-alias-label-tertiary);
   font-size: 14px;
@@ -231,7 +231,7 @@
   min-width: 0;
   overflow: hidden;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   padding: 12px 14px;
   background: var(--dsw-alias-bg-layer-1);
   transition: border-color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
@@ -337,7 +337,7 @@
   height: 28px;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -348,7 +348,7 @@
 }
 
 .cardLink:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 
@@ -483,7 +483,7 @@
   aspect-ratio: 16 / 10;
   object-fit: contain;
   background: var(--dsw-alias-bg-module-platform);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
 }
 
 .imageActions {

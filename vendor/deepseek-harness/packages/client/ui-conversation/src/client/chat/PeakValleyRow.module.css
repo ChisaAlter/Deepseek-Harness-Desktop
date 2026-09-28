@@ -103,7 +103,8 @@
 }
 
 .cost:focus-visible {
+  --dsw-focus-ring-color: var(--dsw-alias-border-l3);
   outline: none;
   border-radius: 2px;
-  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color);
 }

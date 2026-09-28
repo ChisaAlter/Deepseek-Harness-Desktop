@@ -62,8 +62,8 @@ describe('ui-titlebar apply', () => {
     injected.toggleTerminalDrawer()
     injected.toggleSurfaces()
     expect(b.layout.toggleTerminalDrawer).toHaveBeenCalledOnce()
-    expect(b.layout.toggleSurfaces).toHaveBeenCalledOnce()
-    expect(b.sidebarRight.toggleExpanded).not.toHaveBeenCalled()
+    expect(b.layout.toggleSurfaces).not.toHaveBeenCalled()
+    expect(b.sidebarRight.toggleExpanded).toHaveBeenCalledOnce()
     const rows = b.slots.entries('settings.interface.item')
     expect(rows.map(row => row.options.id)).toEqual(['terminal-toggle', 'surfaces-toggle'])
     expect(rows[0]?.component).toBe(TerminalToggleRow)
@@ -80,16 +80,15 @@ describe('ui-titlebar apply', () => {
     expect(b.slots.entries('settings.interface.item')).toHaveLength(0)
   })
 
-  it('collapses an expanded right Sidebar dock before toggling surfaces', async () => {
+  it('toggles the same expanded panel without opening a second track', async () => {
     const b = await bench()
     b.sidebarRight.isExpanded.mockReturnValue(true)
     const entry = b.slots.entries('shell.titlebar.trailing')[0]
     const injected = (entry?.inject as unknown as () => PanelTogglesInjected)()
     injected.toggleSurfaces()
     expect(b.sidebarRight.toggleExpanded).toHaveBeenCalledOnce()
-    expect(b.layout.toggleSurfaces).toHaveBeenCalledOnce()
-    expect(b.sidebarRight.toggleExpanded.mock.invocationCallOrder[0])
-      .toBeLessThan(b.layout.toggleSurfaces.mock.invocationCallOrder[0]!)
+    expect(b.layout.toggleSurfaces).not.toHaveBeenCalled()
+
     await b.fiber.dispose()
   })
 

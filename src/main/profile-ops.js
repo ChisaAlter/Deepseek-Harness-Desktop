@@ -23,6 +23,67 @@ const { DSH_WHALE_ALIASES } = require('./dsh-whale-desktop');
 const { DSH_REMOTE_ALIASES } = require('./dsh-remote-desktop');
 const { USAGE_PANEL_ALIASES } = require('./usage-panel-preset');
 const { isPresetPlugin } = require('./plugin-forensics');
+const importGuard = require('./import-guard');
+
+/**
+ * Every profile/config mutation that writes the destination trees shares the
+ * one maintenance slot with import/start/install. When another operation
+ * holds it (an import mid-copy, a runtime install, a start), refuse rather
+ * than race a write through a half-replaced directory. The caller surfaces
+ * `maintenance-in-progress` as a normal operation error.
+ */
+
+/**
+ * Persistent recovery admission: a blocked import journal must refuse the
+ * write BEFORE any configuration is mutated — rejecting a later restart
+ * after the config already landed is not equivalent to refusing the
+ * mutation. The desktop (which owns the userData path) injects the probe via
+ * {@link configureProfileOps}; without a probe this check is inert.
+ */
+let journalBlockedProbe = null;
+
+function configureProfileOps({ journalBlocked } = {}) {
+  if (typeof journalBlocked === 'function') {
+    journalBlockedProbe = journalBlocked;
+  }
+}
+
+/** Reason the last {@link acquireMaintenance} returned null. */
+let lastAcquireRefusal = null;
+
+/** 'import-recovery-blocked' | 'maintenance-in-progress' | null */
+function acquireRefusalReason() {
+  return lastAcquireRefusal;
+}
+
+/**
+ * Acquire the maintenance slot for a profile mutation, returning the owner
+ * token (or null when held). The caller releases via `release(token)` on the
+ * synchronous path, or hands the token to `holdThrough` so ownership survives
+ * until the deferred align work settles.
+ */
+function acquireMaintenance(kind) {
+  lastAcquireRefusal = null;
+  if (journalBlockedProbe && journalBlockedProbe()) {
+    // Unknown or blocked recovery state fails closed: refuse the mutation
+    // BEFORE it is written — rejecting a later restart after config already
+    // landed is not equivalent to refusing the mutation. Surfaced as a
+    // null-token refusal; `acquireRefusalReason()` distinguishes it from
+    // ordinary slot occupancy for the caller's error payload.
+    lastAcquireRefusal = 'import-recovery-blocked';
+    return null;
+  }
+  const token = importGuard.acquireMaintenance(kind, { surface: 'profile-ops' });
+  if (!token) lastAcquireRefusal = 'maintenance-in-progress';
+  return token;
+}
+function releaseMaintenance(token) {
+  importGuard.releaseMaintenance(token);
+}
+/** Release `token` once `promise` settles; returns the same promise. */
+function holdThrough(token, promise) {
+  return Promise.resolve(promise).finally(() => releaseMaintenance(token));
+}
 
 const HARNESS_DOWN_AFTER_DISABLE = '插件禁用名单已写入，但 Harness 没有重新起来。请从现有入口重启。';
 const HARNESS_DOWN_AFTER_ENABLE = '插件启用已写入，但 Harness 没有重新起来。请从现有入口重启。';
@@ -87,12 +148,25 @@ function enqueueProfileAlign(work) {
   return run;
 }
 
-async function alignHarnessAfterProfileChange(startHarness, downError) {
+/**
+ * Realign Harness after a profile mutation. `ownerToken` is the maintenance
+ * token this operation acquired — it is forwarded to the restart boundary so
+ * the nested restart is recognized as THIS operation delegating to itself
+ * (owner-aware delegation), not refused as a foreign caller. A resolved
+ * refusal ({proceeded:false}) is reported truthfully, not read as success.
+ */
+async function alignHarnessAfterProfileChange(startHarness, downError, ownerToken) {
   if (typeof startHarness !== 'function') {
     return { harnessRestarted: false, error: downError };
   }
   try {
-    await startHarness();
+    const outcome = await startHarness(ownerToken);
+    // The restart may resolve a refusal rather than reject — e.g. the task
+    // protection funnel cancelled, or a foreign maintenance owner blocked it.
+    // A resolved non-proceed is not a successful restart.
+    if (outcome && outcome.proceeded === false) {
+      return { harnessRestarted: false, error: outcome.code || downError };
+    }
     return { harnessRestarted: true };
   } catch {
     return { harnessRestarted: false, error: downError };
@@ -105,13 +179,26 @@ async function alignHarnessAfterProfileChange(startHarness, downError) {
  * launcher's shell:disable-plugins / shell:disable-plugin handlers.
  */
 async function disablePlugins(names, { dsh, startHarness, configIO } = {}) {
+  const token = acquireMaintenance('plugin-disable');
+  if (!token) {
+    return { ok: false, error: acquireRefusalReason() || 'maintenance-in-progress', owner: importGuard.maintenanceOwner()?.kind };
+  }
+  // Exception-safe ownership: any synchronous throw between acquisition and
+  // the deferred-align handoff must release the slot, or a config/bundle
+  // failure would leave the global owner held until the process restarts.
+  // `transferred` flips once ownership moves into the align promise so the
+  // catch does not release a token the align legitimately still holds.
+  let transferred = false;
+  try {
   const list = uniqueNames(names);
   if (!list.length) {
+    releaseMaintenance(token);
     return { ok: false, error: 'missing-names' };
   }
   for (const raw of list) {
     const guardError = pluginDisableGuardError(raw);
     if (guardError) {
+      releaseMaintenance(token);
       return { ok: false, error: guardError, name: raw };
     }
   }
@@ -123,12 +210,22 @@ async function disablePlugins(names, { dsh, startHarness, configIO } = {}) {
   applyDisabledBundles(disabled);
   io.save({ disabledPlugins: disabled });
   if (!kernelNeedsAlign(dsh)) {
+    releaseMaintenance(token);
     return { ok: true, harnessRestarted: false };
   }
-  return enqueueProfileAlign(async () => {
-    const align = await alignHarnessAfterProfileChange(startHarness, HARNESS_DOWN_AFTER_DISABLE);
+  // The deferred align restart is part of this mutation — ownership must
+  // outlive the synchronous return and release only once it settles.
+  transferred = true;
+  return holdThrough(token, enqueueProfileAlign(async () => {
+    const align = await alignHarnessAfterProfileChange(startHarness, HARNESS_DOWN_AFTER_DISABLE, token);
     return { ok: true, ...align };
-  });
+  }));
+  } catch (error) {
+    if (!transferred) {
+      releaseMaintenance(token);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -138,8 +235,15 @@ async function disablePlugins(names, { dsh, startHarness, configIO } = {}) {
  * bundle re-add reports a failure.
  */
 async function enablePlugin(name, { dsh, startHarness, configIO } = {}) {
+  const token = acquireMaintenance('plugin-enable');
+  if (!token) {
+    return { ok: false, error: acquireRefusalReason() || 'maintenance-in-progress', owner: importGuard.maintenanceOwner()?.kind };
+  }
+  let transferred = false;
+  try {
   const raw = String(name || '').trim();
   if (!raw) {
+    releaseMaintenance(token);
     return { ok: false, error: 'missing-name' };
   }
   const io = configIO || { load: loadConfig, save: saveConfig };
@@ -148,15 +252,24 @@ async function enablePlugin(name, { dsh, startHarness, configIO } = {}) {
   applyDisabledBundles(disabled);
   io.save({ disabledPlugins: disabled });
   if (enabled.ok === false) {
+    releaseMaintenance(token);
     return { ok: false, ...enabled, harnessRestarted: false };
   }
   if (!kernelNeedsAlign(dsh)) {
+    releaseMaintenance(token);
     return { ok: true, ...enabled, harnessRestarted: false };
   }
-  return enqueueProfileAlign(async () => {
-    const align = await alignHarnessAfterProfileChange(startHarness, HARNESS_DOWN_AFTER_ENABLE);
+  transferred = true;
+  return holdThrough(token, enqueueProfileAlign(async () => {
+    const align = await alignHarnessAfterProfileChange(startHarness, HARNESS_DOWN_AFTER_ENABLE, token);
     return { ok: true, ...enabled, ...align };
-  });
+  }));
+  } catch (error) {
+    if (!transferred) {
+      releaseMaintenance(token);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -166,6 +279,16 @@ async function enablePlugin(name, { dsh, startHarness, configIO } = {}) {
  * built-in plugin toggle changed. Returns the saved config.
  */
 function applyRendererConfigPatch(patch, { app, applyAppTheme, harness, startHarness, log } = {}) {
+  // A config write mutates the destination the import journal protects.
+  // Acquire the slot for the synchronous write; when the patch also triggers
+  // a deferred align restart, hold ownership until that work settles.
+  const token = acquireMaintenance('config-patch');
+  if (!token) {
+    const reason = acquireRefusalReason() || 'maintenance-in-progress';
+    throw Object.assign(new Error(reason), { code: reason, owner: importGuard.maintenanceOwner()?.kind });
+  }
+  let transferred = false;
+  try {
   const safePatch = normalizeRendererConfigPatch(patch || {});
   const next = saveConfig(safePatch);
   if (app && typeof app.setLoginItemSettings === 'function') {
@@ -192,7 +315,7 @@ function applyRendererConfigPatch(patch, { app, applyAppTheme, harness, startHar
     // start composes: return the saved config first, then restart Harness
     // off-thread.
     setImmediate(() => {
-      void enqueueProfileAlign(() => alignHarnessAfterProfileChange(startHarness, 'built-in plugin toggle restart failed'))
+      void holdThrough(token, enqueueProfileAlign(() => alignHarnessAfterProfileChange(startHarness, 'built-in plugin toggle restart failed', token)))
         .then((result) => {
           if (result && result.harnessRestarted !== true && typeof log === 'function') {
             log(`切换内置插件后重启 Harness 失败：${result.error || 'unknown'}`);
@@ -200,8 +323,18 @@ function applyRendererConfigPatch(patch, { app, applyAppTheme, harness, startHar
         })
         .catch(() => {});
     });
+    // Ownership transfers to the deferred align; do not release it here.
+    transferred = true;
+    return next;
   }
+  releaseMaintenance(token);
   return next;
+  } catch (error) {
+    if (!transferred) {
+      releaseMaintenance(token);
+    }
+    throw error;
+  }
 }
 
 module.exports = {
@@ -217,4 +350,5 @@ module.exports = {
   disablePlugins,
   enablePlugin,
   applyRendererConfigPatch,
+  configureProfileOps,
 };

@@ -22,7 +22,7 @@
   width: 100%;
   box-sizing: border-box;
   background: var(--dsw-specific-bubble);
-  border-radius: 22px;
+  border-radius: var(--dsw-radius-composer);
   padding: 10px 16px;
   font-size: 16px;
   line-height: 24px;

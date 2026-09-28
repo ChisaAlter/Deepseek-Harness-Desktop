@@ -7,6 +7,9 @@ import { closeTopModal, isBehindModal } from '../src/useModalLayer.ts'
 import { Menu } from '../src/Menu.tsx'
 
 afterEach(cleanup)
+
+/** Mirrors the hook's published inactivity markers for assertions. */
+const inactiveSelectorForTest = '[aria-hidden="true"], [inert], [hidden]'
 function Nested({ withSearch = true }: { withSearch?: boolean }) {
   const [settings, setSettings] = useState(false)
   const [reference, setReference] = useState(false)
@@ -24,6 +27,45 @@ function Nested({ withSearch = true }: { withSearch?: boolean }) {
   </>
 }
 const escape = (init = {}) => fireEvent.keyDown(document.activeElement ?? document, { key: 'Escape', code: 'Escape', ...init })
+it('keeps the surviving control explicitly focused by the closing owner', () => {
+  let chosen: HTMLButtonElement | null = null
+  function Owner() {
+    const [open, setOpen] = useState(false)
+    return <>
+      <button onClick={() => { setOpen(true) }}>Open</button>
+      <button ref={element => { chosen = element }}>Chosen</button>
+      <Modal open={open} title="Confirm" closeLabel="Close" onClose={() => {
+        setOpen(false)
+        chosen?.focus()
+      }}>Body</Modal>
+    </>
+  }
+  render(<Owner />)
+  const opener = screen.getByRole('button', { name: 'Open' })
+  opener.focus(); fireEvent.click(opener)
+  escape()
+  expect(document.activeElement).toBe(chosen)
+})
+
+it('returns to parent autofocus when the original opener becomes disabled', () => {
+  function Owner() {
+    const [open, setOpen] = useState(false)
+    const [disabled, setDisabled] = useState(false)
+    return <Modal open title="Parent" closeLabel="Close parent" onClose={() => {}}>
+      <input data-modal-autofocus aria-label="Search" />
+      <button disabled={disabled} onClick={() => { setOpen(true) }}>Open child</button>
+      <Modal open={open} title="Child" closeLabel="Close child" onClose={() => {
+        setDisabled(true); setOpen(false)
+      }}>Body</Modal>
+    </Modal>
+  }
+  render(<Owner />)
+  const opener = screen.getByRole('button', { name: 'Open child' })
+  opener.focus(); fireEvent.click(opener)
+  escape()
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search' }))
+})
+
 it('closes only the top modal through application commands and restores each opener', () => {
   render(<Nested />)
   const settings = screen.getByRole('button', { name: 'Settings' }); settings.focus(); fireEvent.click(settings)
@@ -200,7 +242,7 @@ it('keeps Tab traversal inside the dialog when focus sits in a retired menu', ()
     <Menu open anchor={<button>Menu</button>} items={[{ id: 'item', label: 'Item' }]}
       onSelect={() => {}} onClose={() => {}} />
   </Modal>)
-  const dialog = screen.getByRole('dialog', { name: 'Settings' })
+  expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy()
   // A logically closed menu is retained for its exit recipe; focus left inside
   // it must not suppress this dialog's own traversal.
   const row = document.querySelector<HTMLButtonElement>('[role="menu"] button')
@@ -215,7 +257,7 @@ it('keeps Tab traversal inside the dialog when focus sits in a retired menu', ()
   expect(retiredMenu).not.toBeNull()
   row!.focus()
   expect(retiredMenu!.contains(document.activeElement)).toBe(true)
-  fireEvent.keyDown(row!, { key: 'Tab' })
+  expect(fireEvent.keyDown(row!, { key: 'Tab' })).toBe(false)
   // The key must be consumed AND focus must leave the retired subtree for an
   // exact eligible control; "still inside the dialog" would also hold while
   // focus stays on the retired row.
@@ -223,23 +265,57 @@ it('keeps Tab traversal inside the dialog when focus sits in a retired menu', ()
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close settings' }))
 })
 
-it('falls back to the surviving modal when the recorded opener is inside a hidden parent', () => {
-  // Close the child while its opener is hidden inside a still-open parent: the
-  // parent is a valid destination, so focus must not be stranded in the
-  // child's retained exit frame.
-  const tree = (parentOpen: boolean, childOpen: boolean, openerHidden: boolean) => <>
-    <Modal open={parentOpen} title="Parent" closeLabel="Close parent" onClose={() => {}}>
-      <div hidden={openerHidden}><button>Child opener</button></div>
+it.each(['hidden', 'aria-hidden', 'inert'] as const)(
+  'falls back to the surviving modal when the recorded opener is inside an inactive [%s] container',
+  (marker) => {
+    // Close the child while its opener is inactive inside a still-open parent:
+    // the parent is a valid destination, so focus must land on the parent
+    // itself rather than on the rejected opener or the retiring child.
+    const inactiveProps = marker === 'hidden' ? { hidden: true }
+      : marker === 'aria-hidden' ? { 'aria-hidden': true }
+        : { inert: '' }
+    const tree = (parentOpen: boolean, childOpen: boolean, openerInactive: boolean) => <>
+      <Modal open={parentOpen} title="Parent" closeLabel="Close parent" onClose={() => {}}>
+        <div {...(openerInactive ? inactiveProps : {})}><button>Child opener</button></div>
+      </Modal>
+      <Modal open={childOpen} title="Child" closeLabel="Close child" onClose={() => {}}>
+        <input data-modal-autofocus aria-label="Child input" />
+      </Modal>
+    </>
+    const view = render(tree(true, false, false))
+    screen.getByRole('button', { name: 'Child opener' }).focus()
+    view.rerender(tree(true, true, false))
+    view.rerender(tree(true, false, true))
+    const parent = screen.getByRole('dialog', { name: 'Parent' })
+    const active = document.activeElement as HTMLElement
+    // The rejected opener lives in an inactive container; focus must have moved
+    // into the surviving parent, not merely stayed somewhere inside it.
+    expect(parent.contains(active)).toBe(true)
+    expect(active.closest(inactiveSelectorForTest)).toBeNull()
+    // The child's retained overlay is hidden from the a11y tree, so query the
+    // DOM directly: focus must not sit inside that retiring surface.
+    const childOverlay = document.querySelector('[role="dialog"][aria-label="Child"]')?.closest('[data-dsh-motion="overlay"]')
+    expect(childOverlay?.contains(active) ?? false).toBe(false)
+  })
+
+it.each([false, true])('restores the external opener when a parent and child close together (child first: %s)', (childFirst) => {
+  const tree = (parentOpen: boolean, childOpen: boolean) => {
+    const parent = <Modal key="p" open={parentOpen} title="Parent" closeLabel="Close parent" onClose={() => {}}>
+      <button>Child opener</button>
     </Modal>
-    <Modal open={childOpen} title="Child" closeLabel="Close child" onClose={() => {}}>
+    const child = <Modal key="c" open={childOpen} title="Child" closeLabel="Close child" onClose={() => {}}>
       <input data-modal-autofocus aria-label="Child input" />
     </Modal>
-  </>
-  const view = render(tree(true, false, false))
+    return <>{childFirst ? <>{child}{parent}</> : <>{parent}{child}</>}<button>External</button></>
+  }
+  const external = () => screen.getByRole('button', { name: 'External' })
+  const view = render(tree(false, false))
+  external().focus()
+  view.rerender(tree(true, false))
   screen.getByRole('button', { name: 'Child opener' }).focus()
-  view.rerender(tree(true, true, false))
-  // Hide the opener, then retire the child in one commit.
-  view.rerender(tree(true, false, true))
-  const parent = screen.getByRole('dialog', { name: 'Parent' })
-  expect(parent.contains(document.activeElement)).toBe(true)
+  view.rerender(tree(true, true))
+  // One commit retires both layers; the external opener is the only eligible
+  // destination and must not be lost with the parent layer.
+  view.rerender(tree(false, false))
+  expect(document.activeElement).toBe(external())
 })

@@ -82,6 +82,8 @@ function seedRecord(id: TabId, seed: () => SidebarRightSeed): TabRecord {
  * claimed. Placement is by `replaceTab` first, then `paneId`, then the active pane.
  */
 export interface OpenContentIntent {
+  /** False preserves the current expanded state for a mini preview. */
+  readonly expand?: boolean
   readonly kind: string
   readonly contentId: string
   readonly title: string
@@ -308,7 +310,7 @@ export function createSidebarRightStore(
       openContent: (d, sessionId: string, intent, settled) => {
         d.bySession = seat(d, sessionId, s => advance(s, (state, mint) => {
           const { kind, contentId, title, replaceTab: replace } = intent
-          const ops: LayoutOp[] = [...planSetExpanded(state, true)]
+          const ops: LayoutOp[] = intent.expand === false ? [] : [...planSetExpanded(state, true)]
           // A replaced tab lends its pane and slot; one that floats cannot (a
           // floating pane holds one tab), so the new tab lands as if unplaced.
           const replaced = replace === undefined ? undefined : findTabPane(state, replace)
@@ -356,20 +358,13 @@ export function createSidebarRightStore(
         d.bySession = seat(d, sessionId, s =>
           advance(s, (state, mint) => pageKind(state, tabId) !== undefined ? [] : planDuplicateTab(state, mint, tabId).ops, seed))
       },
-      // A tab already gone — closed twice by a racing callback and the user — is
-      // left alone rather than handed to the kit, which refuses an unknown tab.
-      // The docked surface's last tab follows the close rule, whoever asks: the
-      // guide stays (the kit hides its close routes through `canCloseTab`, and
-      // this plan refuses the programmatic path), and anything else closes
-      // together with the column, which stays empty until an expansion seeds
-      // the then-current default page.
+      // Closing the last content page keeps the panel geometry and seeds its
+      // guide in the same transaction. A sole guide remains non-closable.
       closeTab: (d, sessionId: string, tabId: TabId) => {
         d.bySession = seat(d, sessionId, s => advance(s, (state) => {
           if (!canCloseTab(s, tabId)) return []
           if (!soleDockedTab(state, tabId)) return [{ type: 'closeTab', tabId }]
-          // The collapse also leaves fullscreen: the reopened column shows only
-          // the reseeded default page, which never earns the whole window.
-          return [{ type: 'closeTab', tabId }, ...planSetMode(state, 'push'), ...planSetExpanded(state, false)]
+          return [{ type: 'closeTab', tabId }]
         }, seed))
       },
       focusTab: (d, sessionId: string, tabId: TabId) => {

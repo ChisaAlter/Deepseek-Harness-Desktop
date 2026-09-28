@@ -7,8 +7,9 @@
 }
 
 .root [data-disclosure-row]:focus-visible {
-  border-radius: 6px;
-  outline: 2px solid var(--dsw-alias-label-tertiary);
+  --dsw-focus-ring-color: var(--dsw-alias-label-tertiary);
+  border-radius: var(--dsw-radius-compact);
+  outline: 2px solid var(--dsw-focus-ring-color);
   outline-offset: -2px;
 }
 
@@ -45,7 +46,7 @@
   width: calc(100% - 22px - var(--dsh-content-font-delta, 0px));
   margin: 4px 0 0 calc(22px + var(--dsh-content-font-delta, 0px));
   padding: 10px 16px 12px 12px;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: var(--dsw-alias-markdown-code-block);
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;

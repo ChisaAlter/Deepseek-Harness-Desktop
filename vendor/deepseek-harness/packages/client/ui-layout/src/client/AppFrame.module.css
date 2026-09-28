@@ -6,7 +6,7 @@
   min-width: 0;
   height: 100%;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: var(--dsw-radius-xl);
   corner-shape: round;
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
@@ -146,7 +146,7 @@
  */
 .detailsCol {
   grid-column: 3;
-  grid-row: 2 / -1;
+  grid-row: 1 / -1;
   position: relative;
   min-width: 0;
   overflow: visible;
@@ -212,7 +212,7 @@
   transform: translate(-50%, -50%);
   width: 12px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-inset);
   box-sizing: border-box;
   background: var(--dsw-alias-button-floating-fill);
   border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
@@ -281,6 +281,7 @@
 }
 
 .titlebarBand::after {
+  display: none;
   content: '';
   position: absolute;
   right: 0;
@@ -310,8 +311,8 @@
 
 /* Open surfaces occupies the titlebar row in column 4; keep Session log / Git /
    panel toggles in columns 2–3. Window controls sit on the surfaces tab bar. */
-.frame:not([data-surfaces-collapsed]) .titlebarTrailing {
-  grid-column: 2 / 4;
+.frame:not([data-rightbar-collapsed]) .titlebarTrailing {
+  grid-column: 2 / 3;
   margin-right: 8px;
 }
 
@@ -337,7 +338,7 @@
   height: 36px;
   padding: 0;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-button-floating-fill);
   color: var(--dsw-alias-label-primary);
   box-shadow: var(--dsw-shadow-lv2);

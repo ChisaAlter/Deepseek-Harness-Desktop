@@ -4,7 +4,7 @@
 /* The guide centres its heading and card grid in the pane; the minimum height
    lets a short guide sit centred while a tall one grows into the scroller. */
 .guide {
-  --dsl-guide-entry-radius: 12px;
+  --dsl-guide-entry-radius: var(--dsw-radius-md);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -16,10 +16,7 @@
 
 /* The lift, as a share of the pane's height: the centred column rises 5% of
    the pane, and a short pane gives it up before the capsules clip. */
-.guide::after {
-  content: '';
-  flex: 0 1 10%;
-}
+
 
 /* The heading above the grid, matching the surfaces empty-state intro: the
    invitation line on primary ink and its quieter explainer beneath. */
@@ -51,7 +48,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
-  max-width: 360px;
+  max-width: 320px;
 }
 
 /* A square capsule card: glyph centred over its title and description.
@@ -64,6 +61,7 @@
   place-content: center;
   justify-items: center;
   aspect-ratio: 1 / 1;
+  width: 100%;
   box-sizing: border-box;
   padding: 12px;
   color: var(--dsw-alias-label-primary);

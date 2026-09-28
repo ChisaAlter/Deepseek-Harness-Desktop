@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `marketplace-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-14 — 全部安装/更新通道新增 manifest 身份校验（非空 `name` + `version`，缺失即移除新装包并回滚），堵 versionless 包打爆请求 inventory 的残余路径。`marketplace-install.test.js` + `plugins.test.js` 共 69 项通过。2026-09-08 — 迁移 dshmarket 1.45.0 的收藏、排序 / 时间过滤、截图 / README / manifest 声明详情、安装卸载确认、批量更新和持久脱敏操作记录，保留桌面 IPC / profile / HarnessController / DSHD 视觉。来源一致性与模糊 lock commit 判定 fail closed，回滚失败停止批次。桌面 / IPC / preload 141 项、市场 52 项、完整 GUI 5483 项（1 跳过）、市场与滚动条聚焦 73 项、client typecheck、官方 Web 构建及 Electron 源码 smoke 通过。全仓 Web 回放在聊天滚动、设置、PTC 等场景出现失败和长时间超时后主动中止，未通过，未与基线对照确认归因；国际化全仓剩余 25 条其他模块违规，市场无违规。 |
+| **last verified** | 2026-09-28 — A6：catalog / 会话内 / launcher 导入安装在 CLI 或验证失败后离线恢复安装前元数据和物理依赖，不再 remove 旧安装；快照失败不进 CLI，恢复失败保留备份。`marketplace-install.test.js` + `plugins.test.js` 共 83 项通过（含 12 项 A6 回归）；原审计覆盖安装探针复跑后 manifest / 包 manifest / 入口 SHA-256 一致。未运行真实联网 pnpm、活跃 profile 或应用重启。2026-09-14 — 全部安装/更新通道新增 manifest 身份校验（非空 `name` + `version`），堵 versionless 包打爆请求 inventory 的残余路径。2026-09-08 — 迁移 dshmarket 1.45.0 的收藏、排序 / 时间过滤、截图 / README / manifest 声明详情、安装卸载确认、批量更新和持久脱敏操作记录，保留桌面 IPC / profile / HarnessController / DSHD 视觉。来源一致性与模糊 lock commit 判定 fail closed，回滚失败停止批次。桌面 / IPC / preload 141 项、市场 52 项、完整 GUI 5483 项（1 跳过）、市场与滚动条聚焦 73 项、client typecheck、官方 Web 构建及 Electron 源码 smoke 通过。全仓 Web 回放在聊天滚动、设置、PTC 等场景出现失败和长时间超时后主动中止，未通过，未与基线对照确认归因；国际化全仓剩余 25 条其他模块违规，市场无违规。 |
 
 ## User paths
 
@@ -39,7 +39,16 @@
 - 所有安装通道（catalog id / in-chat `install_dsh_plugin` / launcher 导入 / 更新）在
   `add` 成功后统一校验新装包有可加载入口且 manifest 携带非空 `name` + `version`
   ——缺 `version` 的包会在请求期打爆 plugin inventory（`REQUEST_EXTENSION`），
-  校验不过即移除新装包并回滚依赖。
+  校验不过即回滚；覆盖安装不能通过 `remove` 删除原有包。即使此次安装新增其他依赖，
+  也必须校验被覆盖的目标包，不能以新依赖可加载代替目标验证。
+- catalog / 会话内 / launcher 导入安装在写入 allowBuilds 和执行 `add` **之前**保存
+  `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml` 与完整 `node_modules`
+  （含 `.pnpm` 实体文件、传递依赖及原链接）的本地快照；快照失败不执行安装。
+  `add` 返回失败或抛异常、成功后入口 / manifest / catalog loader 冲突验证失败，均恢复旧规格、
+  锁定及物理安装，同时撤回新增文件；回滚不调用联网安装或 `remove`。
+  仅安装提交成功或全部恢复成功后清理快照；恢复失败返回 `rolledBack: false` / `rollbackError`、
+  保留备份路径并禁用构建授权重试提示，不能清掉唯一旧安装备份。
+  快照不跟随 `node_modules` 内指向外部目录的链接；外部源码、安装脚本任意副作用及进程崩溃自动恢复不在本事务保证内。
 - 更新检查只覆盖已安装且仍在精选目录中的行。npm 仅当 registry `latest` 的 semver
   严格高于已装版本时标记更新，无法判定或较低版本不提供更新；GitHub 用 profile
   `pnpm-lock.yaml` 的锁定 commit（或 manifest 中的 commit pin）与远端 HEAD 比较；
@@ -132,7 +141,7 @@ Gate：`src/host/install-dsh-plugin-client.test.js`、`src/main/desktop-install-
 
 ## Sources
 
-- Decision: none
+- Decision: [2026-09-28-launcher-audit-closeout-fixes](../decisions/implemented/bug-fix/2026-09-28-launcher-audit-closeout-fixes.md)
 
 - Handbook：[../handbook/modules/marketplace.md](../handbook/modules/marketplace.md)、[../handbook/flows/marketplace-install.md](../handbook/flows/marketplace-install.md)
 - Spec：[../superpowers/specs/2026-08-25-marketplace-desktop-integration.md](../superpowers/specs/2026-08-25-marketplace-desktop-integration.md)、[../superpowers/specs/2026-08-18-marketplace-parity-design.md](../superpowers/specs/2026-08-18-marketplace-parity-design.md)

@@ -60,6 +60,16 @@ function harness() {
   return { controller, store, layout, paneElement, tabElement, room, bind }
 }
 
+/** Model the transient empty pane directly; the last page now returns to the guide. */
+function clearPane(h: ReturnType<typeof harness>): void {
+  const surface = h.store.getSnapshot().bySession[SESSION]!
+  const pane = getPane(surface.layout, surface.layout.activePaneId)
+  h.store.store.set({ bySession: { [SESSION]: { ...surface, layout: {
+    ...surface.layout, expanded: false, tabs: {},
+    nodes: { ...surface.layout.nodes, [pane.id]: { ...pane, tabs: [], activeTabId: undefined } },
+  } } } })
+}
+
 describe('sidebar focus targets', () => {
   it('ignores floating pane markup outside a Session owner', () => {
     const pane = document.createElement('section')
@@ -212,6 +222,7 @@ describe('sidebar focus targets', () => {
     expect(h.controller.focusedTarget(stalePane)).toBeUndefined()
     h.controller.openTabFromTarget('files', h.controller.commandTarget(null)!)
     h.controller.close(h.controller.active()!.id)
+    clearPane(h)
     const empty = h.controller.commandTarget(null)!
     expect(empty.tabId).toBeUndefined()
     expect(h.controller.isTargetCurrent(empty)).toBe(true)
@@ -385,6 +396,7 @@ describe('sidebar keyboard commands', () => {
     } }, h.controller, makeTranslate(en), closeWindow))
     h.controller.openTabFromTarget('files', h.controller.commandTarget(null)!)
     h.controller.close(h.controller.active()!.id)
+    clearPane(h)
     const surface = h.store.getSnapshot().bySession[SESSION]!
     h.store.store.set({ bySession: { [SESSION]: { ...surface, layout: { ...surface.layout, expanded: true } } } })
     const target = h.paneElement()

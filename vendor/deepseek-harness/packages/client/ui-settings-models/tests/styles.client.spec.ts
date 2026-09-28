@@ -76,7 +76,8 @@ describe('ModelsSection theme styles', () => {
     expect(options).not.toMatch(/repeat\(3/)
     const chip = block('.effortOption')
     expect(chip).toContain('height: 28px')
-    expect(chip).toContain('border-radius: 14px')
+    expect(chip).toContain('border-radius: var(--dsw-radius-button-sm)')
+    expect(tokens).toMatch(/--dsw-radius-button-sm:\s*14px;/)
   })
 
   it('never falls back to a literal colour', () => {

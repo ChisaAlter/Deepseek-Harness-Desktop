@@ -106,7 +106,7 @@ describe('ui-user-terminal apply', () => {
       expect(sessionStorage.getItem('dshd-pending-preview-presentation')).toBeNull()
       expect(events).toHaveLength(1)
       expect(events[0]?.detail).toEqual({ kind: 'preview', url: 'http://127.0.0.1:5173', sessionId: SID })
-      expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+      expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     } finally {
       window.removeEventListener(OPEN_SURFACE_EVENT, onOpen)
       sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
@@ -154,7 +154,7 @@ describe('ui-user-terminal apply', () => {
       (sessionId: string) => TerminalShellInjected)('session-main')
     try {
       injected.openLocalUrl('http://127.0.0.1:5173')
-      expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+      expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     } finally {
       sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
       sessionStorage.removeItem('dshd-pending-preview-session')
@@ -168,7 +168,7 @@ describe('ui-user-terminal apply', () => {
       (sessionId: string) => TerminalShellInjected)(SID)
     expect(() => { injected.openLocalUrl('http://127.0.0.1:5173') }).not.toThrow()
     expect(sessionStorage.getItem(PENDING_PREVIEW_URL_KEY)).toBe('http://127.0.0.1:5173')
-    expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
     sessionStorage.removeItem('dshd-pending-preview-session')
     await b.fiber.dispose()
@@ -187,7 +187,7 @@ describe('ui-user-terminal apply', () => {
       expect(events).toHaveLength(1)
       expect((events[0]?.detail as { sessionId?: unknown }).sessionId).toBeUndefined()
       expect(sessionStorage.getItem('dshd-pending-preview-session')).toBeNull()
-      expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
+      expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     } finally {
       window.removeEventListener(OPEN_SURFACE_EVENT, onOpen)
       sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)

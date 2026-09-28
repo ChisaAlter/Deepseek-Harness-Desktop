@@ -7,7 +7,7 @@ interface Section {
 }
 
 describe('ChromeVisibility', () => {
-  it('stays shown while the Host section is loading, unavailable, or a remote memory snapshot', () => {
+  it('keeps the local default while the Host section is loading, unavailable, or a remote memory snapshot', () => {
     const host = stubSettingsScope<Section>()
     const chrome = new ChromeVisibility(host.scope, 'titlebarAction')
     expect(chrome.visible.getSnapshot()).toBe(true)
@@ -15,6 +15,18 @@ describe('ChromeVisibility', () => {
     host.publish({ status: 'unavailable', value: undefined, writable: false, mode: 'memory' })
     expect(chrome.visible.getSnapshot()).toBe(true)
     expect(chrome.writable.getSnapshot()).toBe(false)
+  })
+
+  it('defaults to hidden for opt-in chrome and shows only on an explicit true field', () => {
+    const host = stubSettingsScope<Section>()
+    const chrome = new ChromeVisibility(host.scope, 'titlebarAction', false)
+    expect(chrome.visible.getSnapshot()).toBe(false)
+    host.publish({ status: 'ready', value: {} as Section, revision: 1, writable: true })
+    expect(chrome.visible.getSnapshot()).toBe(false)
+    host.publish({ value: { titlebarAction: true }, revision: 2 })
+    expect(chrome.visible.getSnapshot()).toBe(true)
+    host.publish({ value: { titlebarAction: false }, revision: 3 })
+    expect(chrome.visible.getSnapshot()).toBe(false)
   })
 
   it('hides only when the field is explicitly false and publishes a Switch write locally first', () => {

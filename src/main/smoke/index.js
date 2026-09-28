@@ -18,6 +18,7 @@ const fs = require('fs');
 const { app } = require('electron');
 const { tryGetDesktopDshHome } = require('../../shared/dsh-home');
 const { titlebarMenuLooksOpen } = require('./titlebar-menu');
+const { waitForHarnessContents } = require('./client-ready');
 
 const SMOKE_SURFACES = 'right panel|surfaces|\u53f3\u4fa7\u680f';
 const SMOKE_BRANCH = 'switch branch|\u5207\u6362\u5206\u652f';
@@ -467,6 +468,7 @@ function createSmokeRunner(deps) {
     loadConfig,
     saveConfig,
     getHarnessWebContents,
+    getWelcomeWebContents = () => null,
     showMain,
     invokeTrayAction,
     probeRemoteSnapshot,
@@ -547,7 +549,16 @@ function createSmokeRunner(deps) {
       await Promise.resolve(harness.shutdown()).catch(() => {});
       app.exit(code);
     };
-    const wc = getHarnessWebContents(win) || win.webContents;
+    let wc;
+    try {
+      wc = await waitForHarnessContents(getHarnessWebContents, win, undefined, getWelcomeWebContents);
+    } catch (error) {
+      fs.writeFileSync(path.join(app.getPath('userData'), 'dshd-smoke.json'), JSON.stringify({
+        ok: false, error: error.message,
+      }, null, 2));
+      await exitSmoke(1);
+      return;
+    }
     const onError = (_event, error) => { pageErrors.push(String(error).slice(0, 500)); };
     wc.on('render-process-gone', (_event, details) => {
       pageErrors.push(`render-process-gone: ${details.reason}`);

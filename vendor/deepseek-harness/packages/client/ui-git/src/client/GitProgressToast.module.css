@@ -11,7 +11,7 @@
   width: min(320px, calc(100vw - 32px));
   padding: 12px 14px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv2);
   color: var(--dsw-alias-label-primary);
