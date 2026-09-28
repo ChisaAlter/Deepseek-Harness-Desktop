@@ -17,6 +17,9 @@
     "docs/decisions/archived/product/2026-09-25-boot-page-responsive-instrument-canvas.md": "37ff01ccb7959f26929b134633856dac84b65638d160dd47efc81542a4c26d16",
     "docs/decisions/archived/product/2026-09-26-boot-log-details-page.en.md": "85909b68386f31661a7b2ac171e6573c0636a67ba960b165359299adb57eec73",
     "docs/decisions/archived/product/2026-09-26-boot-log-details-page.i18n.yaml": "822db786dd3e46fa6e5bf0c5d3c2a0c5df80317fc61516ce39e6b530b9aa18f5",
-    "docs/decisions/archived/product/2026-09-26-boot-log-details-page.md": "a9f9b3b03a66f58e90ed626ef0a5df138d47e59aff7f64978beeb79c20bbb857"
+    "docs/decisions/archived/product/2026-09-26-boot-log-details-page.md": "a9f9b3b03a66f58e90ed626ef0a5df138d47e59aff7f64978beeb79c20bbb857",
+    "docs/decisions/archived/product/2026-09-27-shell-window-corner-radius-10.en.md": "2bf6898de7ab6cfe6340c6bf7a67b48c0b99350499c8345d5f08a5ee99d688d4",
+    "docs/decisions/archived/product/2026-09-27-shell-window-corner-radius-10.i18n.yaml": "32bec05e0a8637912deb81b7a440ac57046e600889b9611aad8bf551121b7001",
+    "docs/decisions/archived/product/2026-09-27-shell-window-corner-radius-10.md": "ac7e31feb51e5e01f00900eb1bf037f1246fe67537094665a3f12e6d0509e370"
   }
 }

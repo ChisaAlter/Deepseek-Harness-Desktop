@@ -62,6 +62,15 @@ async function writeRendererReport(why, contents) {
 const RECOVERY_DETAIL_TAIL_LINES = 8;
 const RECOVERY_DETAIL_BUDGET = 1200;
 
+// The composition root injects its productized confirmDialog so the crash
+// recovery prompt renders in-window when the crashed window is still visible;
+// without it the native messagebox is the honest fallback.
+let recoveryConfirm = null;
+
+function setRecoveryConfirm(fn) {
+  recoveryConfirm = typeof fn === 'function' ? fn : null;
+}
+
 function attachRendererRecovery(contents, label) {
   if (!contents || contents.__dshdRecoveryAttached) {
     return;
@@ -75,13 +84,13 @@ function attachRendererRecovery(contents, label) {
     }
     recovering = true;
     try {
-      const { dialog, app } = require('electron');
+      const { dialog, app, BrowserWindow } = require('electron');
       const reportPath = await writeRendererReport(why, contents);
       const reportLine = reportPath ? `\n诊断已写入 ${reportPath}` : '';
       const tail = String(why).split(/\r\n|[\n\r\u2028\u2029]/u).slice(-RECOVERY_DETAIL_TAIL_LINES).join('\n');
       const budget = RECOVERY_DETAIL_BUDGET - reportLine.length;
       const shortened = tail.slice(-budget).replace(/^[\uDC00-\uDFFF]/u, '');
-      const choice = await dialog.showMessageBox({
+      const options = {
         type: 'error',
         title: '界面异常',
         message: `${label}界面发生异常`,
@@ -90,7 +99,17 @@ function attachRendererRecovery(contents, label) {
         defaultId: 0,
         cancelId: 0,
         noLink: true,
-      }).catch(() => ({ response: 0 }));
+      };
+      // The harness surface is a WebContentsView (not a BrowserWindow-owned
+      // webContents), so map it back to the main window explicitly.
+      const owner = contents === (harnessView && harnessView.webContents)
+        ? mainWindow
+        : BrowserWindow.fromWebContents(contents);
+      const anchor = owner && !owner.isDestroyed() && owner.isVisible() ? owner : null;
+      const choice = await (recoveryConfirm
+        ? recoveryConfirm(anchor, options)
+        : dialog.showMessageBox(anchor || undefined, options)
+      ).catch(() => ({ response: 0 }));
       if (choice.response === 0 && !contents.isDestroyed()) {
         contents.reloadIgnoringCache();
       } else if (choice.response === 1) {
@@ -517,6 +536,9 @@ function ensureHarnessView(win) {
       // window's own layer presents first and the view's next frame lags a
       // beat — the minimize blank-flash. Keep the view producing frames.
       backgroundThrottling: false,
+      // Sidebar browser guests: <webview> attaches only through the
+      // BrowserGuests lease checks (will-attach-webview), never free-form.
+      webviewTag: true,
     },
   });
   win.addBrowserView(harnessView);
@@ -526,6 +548,16 @@ function ensureHarnessView(win) {
   } catch {
     // The shortcut service installs during app ready; a view created earlier
     // simply runs without the bridge until the next view creation.
+  }
+  try {
+    require('./browser-guests').getBrowserGuests()?.bind(
+      harnessView.webContents,
+      win,
+      (guest, name) => require('./shortcuts').getShortcutService()?.attachGuest(guest, name),
+    );
+  } catch {
+    // Guest binding installs during app ready; a view created earlier simply
+    // runs without webview guests until the next view creation.
   }
   attachPrivilegedNavigationGuards(harnessView.webContents, {
     allowUrl: isHarnessNavigationUrl,
@@ -835,6 +867,7 @@ function closeLauncherWindow() {
 
 module.exports = {
   createMainWindow,
+  setRecoveryConfirm,
   getMainWindow,
   getHarnessView,
   getHarnessWebContents,

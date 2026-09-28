@@ -13,7 +13,7 @@ empty token keeps the route closed).
 | --- | --- | --- |
 | `status` | — | lock + pending snapshot |
 | `inspect` | — | `{ activeWork, scheduledWork, coverage, hostGeneration, observedAt }` |
-| `acquire` | `{owner, kind, ttlMs, drainTimeoutMs}` | refuse new work, drain admitted, verify generation |
+| `acquire` | `{owner, kind, ttlMs, drainTimeoutMs}` | refuse new work, drain admitted, verify generation; `dshd/drain-timeout` replies carry `pendingCount` + `pendingLabels` identifying what stayed open |
 | `renew` | `{lockId, owner, ttlMs}` | extend expiry |
 | `release` | `{lockId, owner}` | unlock; re-drives schedule runtime |
 | `cancel` | `{lockId, owner, reason}` | unlock + emits `dsh-task-control/cancel` |

@@ -8,7 +8,7 @@ const {
   parkRemoteSnapshot,
 } = require('./config');
 const { normalizeRemotePatch } = require('./remote-patch');
-const { getMainWindow, getHarnessWebContents, openHarnessSettings, openMarketplace, openRemote } = require('./window');
+const { getMainWindow, getLauncherWindow, getHarnessWebContents, openHarnessSettings, openMarketplace, openRemote } = require('./window');
 const { applyAppTheme } = require('./chrome');
 const { currentVersion } = require('./update');
 const { registerLauncherChannels, configPayload } = require('./ipc-launcher');
@@ -30,6 +30,7 @@ const {
 const { applyRendererConfigPatch } = require('./profile-ops');
 const { recordLastDesktopStart, kernelLogTail } = require('./launcher-gate');
 const { createLauncherService } = require('../launcher/launcher-service');
+const { createLauncherConfirm } = require('../launcher/launcher-confirm');
 const { listWallpaperCatalog, downloadWallpaper } = require('./wallpaper-catalog');
 const { gitBranchList, gitCheckLargeFiles, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
 const { gitIpcNull, guardGitIpc } = require('./git-ipc-guard');
@@ -108,6 +109,10 @@ function registerIpc({
   // Launcher orchestration lives in the service; handlers below stay thin
   // authorization + renderer-transport delegates so the same service can sit
   // behind a different boundary later.
+  // Launcher-surface confirmations render as the renderer's own app-confirm
+  // card (the bridge mounts shell:app-confirm:response through extraChannels);
+  // a null answer falls back to the native box inside the service.
+  const launcherConfirm = createLauncherConfirm({ getWindow: getLauncherWindow });
   const launcher = createLauncherService({
     dsh,
     harness,
@@ -116,6 +121,7 @@ function registerIpc({
     stopDesktopCleanup,
     configPayload,
     statusContributors: [ipcComponents.contributeStatus, ipcDelta.contributeStatus],
+    askLauncherConfirm: launcherConfirm.ask,
   });
 
   handle('shell:get-state', BOOT_ONLY, () => (harness ? harness.snapshot() : dsh.snapshot()));
@@ -454,7 +460,7 @@ function registerIpc({
     harness,
     startDesktop,
     recordBootRestart,
-    extraChannels: [ipcComponents, ipcDelta],
+    extraChannels: [ipcComponents, ipcDelta, launcherConfirm],
     // Component teardown rides the protection commit point so a cancelled
     // quit prompt never leaves supervised services dead.
     onQuitCommit: (fn) => getTaskProtection().onCommitCleanup(fn),

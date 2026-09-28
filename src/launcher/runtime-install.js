@@ -102,7 +102,7 @@ function runtimeExeStamp(info, deps = {}) {
  * before the install completes — completion is detected by the registry
  * record plus a changed/new main exe, not by the child alone.
  */
-function waitForInstall(child, baseline, signal, onProgress, deps = {}) {
+function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVersion = '') {
   const waitMs = deps.waitMs || INSTALL_WAIT_MS;
   const pollMs = deps.pollMs || INSTALL_POLL_MS;
   return new Promise((resolve) => {
@@ -144,16 +144,16 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}) {
         // keep polling
       }
       const exe = runtimeExePath(info, deps);
-      const stamp = runtimeExeStamp(info, deps);
-      const settled = Boolean(info?.registeredInstall && exe)
-        && (info.version !== baseline.version || stamp !== baseline.stamp
-          || (!baseline.registeredInstall && !baseline.stamp));
-      // A same-version repair changes nothing in the record: once the
-      // installer process is gone AND the registry is populated, accept it.
-      const reinstallSettled = childDone.fired
-        && Boolean(info?.registeredInstall && exe)
-        && Date.now() - started > (deps.reinstallSettleMs ?? 10_000);
-      if (settled || reinstallSettled) {
+      const observedVersion = typeof info?.version === 'string' ? info.version.trim() : '';
+      // Success requires the observed registry version to match the
+      // requested target exactly. A changed timestamp or child exit alone
+      // cannot prove completion — a cancelled/failed install or an unrelated
+      // repair must not read as success.
+      const versionMatches = targetVersion === ''
+        ? (observedVersion !== baseline.version || observedVersion === '')
+        : observedVersion === targetVersion;
+      const settled = Boolean(info?.registeredInstall && exe) && versionMatches;
+      if (settled) {
         finish(info);
         return;
       }
@@ -250,7 +250,8 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
     if (typeof onProgress === 'function') {
       onProgress({ phase: 'install-wait', percent: 100 });
     }
-    const found = await waitForInstall(installerChild, baseline, controller.signal, onProgress, deps);
+    const targetVersion = typeof info?.version === 'string' ? info.version.trim() : '';
+    const found = await waitForInstall(installerChild, baseline, controller.signal, onProgress, deps, targetVersion);
     invalidateInstalledCache();
     if (found === 'aborted') {
       return {

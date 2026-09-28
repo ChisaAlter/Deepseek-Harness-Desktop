@@ -39,7 +39,10 @@ function windowChrome(overrides = {}) {
   const theme = currentTheme();
   return {
     frame: false,
-    roundedCorners: true,
+    // Transparent windows paint their own silhouette — Windows 11's DWM
+    // corner mask (~8px) would clip the larger page-drawn arc as a
+    // stair-stepped edge. Opaque chrome windows keep the OS rounding.
+    roundedCorners: !overrides.transparent,
     backgroundColor: theme.bg,
     autoHideMenuBar: true,
     ...overrides,

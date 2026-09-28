@@ -32,7 +32,7 @@ html {
 }
 
 body {
-  border-radius: 10px;
+  border-radius: 20px;
   overflow: hidden;
 }
 
@@ -72,7 +72,7 @@ body[data-harness-covered] {
   position: relative;
   height: 100%;
   min-height: 0;
-  border-radius: 10px;
+  border-radius: 20px;
   overflow: hidden;
   background: var(--boot-scene);
   opacity: 1;
@@ -226,11 +226,9 @@ body[data-state="error"] .horizon {
   -webkit-text-fill-color: var(--boot-ink);
 }
 
-/* 品牌副标：鲸屿 徽块独占一行；下一行 BASED ON DEEPSEEK HARNESS */
+/* 品牌副标：鲸屿字标独占一行；下一行 BASED ON DEEPSEEK HARNESS */
 .brand-tag {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   text-indent: 0;
 }
 
@@ -239,9 +237,6 @@ body[data-state="error"] .horizon {
   font-size: 10.5px;
   letter-spacing: 0.12em;
   text-indent: 0;
-  padding: 1.5px 6px;
-  border: 1px solid var(--boot-hairline);
-  border-radius: 4px;
 }
 
 .brand-sub {

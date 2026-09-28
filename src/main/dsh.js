@@ -13,6 +13,7 @@ const { childSpawnEnv } = require('../shared/child-spawn-env');
 const { desktopInstallEnv } = require('./desktop-install-control');
 const { officeRuntimeEnv } = require('./office-runtime');
 const { taskControlToken } = require('./task-protection');
+const { platformToken } = require('./platform-session');
 const { readPin } = require('../shared/harness-upstream');
 const { probeHarnessReady, isUnpublishedHarnessNpm } = require('./harness-browser-auth');
 
@@ -833,6 +834,7 @@ class DshManager extends EventEmitter {
     // payload simply leaves this unset.
     Object.assign(env, officeRuntimeEnv());
     env.DSHD_TASK_CONTROL_TOKEN = taskControlToken();
+    env.DSHD_PLATFORM_TOKEN = platformToken();
     // Producer-coverage declarations: the control plugin reports these as
     // `unavailable` (not `intentional-disabled`) when the flag is set but the
     // service is missing — a load failure must never read as "deliberately off".

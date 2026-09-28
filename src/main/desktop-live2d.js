@@ -104,10 +104,14 @@ function createPetProtocolHandler(rendererFile) {
       const url = new URL(request.url);
       const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
       const sharedTokens = rel === 'dsh-webui-tokens.css';
+      const projectHead = rel === 'pet-head.png';
       const file = sharedTokens
         ? path.resolve(root, '../shared/dsh-webui-tokens.css')
-        : path.normalize(path.join(root, rel));
-      if ((!sharedTokens && !file.startsWith(root + path.sep)) || !fs.statSync(file).isFile()) {
+        : projectHead
+          ? path.resolve(root, '../../assets/whale-head.png')
+          : path.normalize(path.join(root, rel));
+      if ((!sharedTokens && !projectHead && !file.startsWith(root + path.sep))
+        || !fs.statSync(file).isFile()) {
         return new Response('not found', { status: 404 });
       }
       return new Response(fs.readFileSync(file), {
@@ -714,6 +718,9 @@ function createLive2dPetManager(options = {}) {
       ...overlayBounds(),
       transparent: true,
       frame: false,
+      // Fullscreen overlay: its content must reach the display corners; the
+      // OS corner mask would clip the pet edge-on.
+      roundedCorners: false,
       resizable: false,
       minimizable: false,
       maximizable: false,
@@ -756,7 +763,13 @@ function createLive2dPetManager(options = {}) {
       rescanGrowth();
       pushGrowth(growth.snapshot());
     });
-    win.webContents.on?.('render-process-gone', (_e, details) => dbg(`pet: render-process-gone ${JSON.stringify(details)}`));
+    win.webContents.on?.('render-process-gone', (_e, details) => {
+      dbg(`pet: render-process-gone ${JSON.stringify(details)}`);
+      // The overlay is a fullscreen transparent always-on-top window; when its
+      // renderer (or the GPU compositor it rides) dies, Windows can keep the
+      // surface opaque-black over the whole display. Rebuild from scratch.
+      recreateWindow();
+    });
     win.webContents.on?.('console-message', (_e, level, message) => dbg(`console[${level}] ${message}`));
     win.webContents.on?.('did-fail-load', (_e, code, desc) => dbg(`pet: did-fail-load ${code} ${desc}`));
     win.on('closed', () => {
@@ -767,6 +780,56 @@ function createLive2dPetManager(options = {}) {
     });
     void win.loadURL(petUrl).catch(() => {});
     return win;
+  }
+
+  /** Rebuild the overlay window after a renderer/GPU/compositor failure. */
+  let recreating = false;
+  function recreateWindow() {
+    if (!state.enabled || recreating) {
+      return;
+    }
+    recreating = true;
+    try {
+      const old = win;
+      win = null;
+      interactive = false;
+      roamRect = null;
+      if (old && !old.isDestroyed?.()) {
+        old.destroy();
+      }
+      createWindow();
+    } catch (error) {
+      dbg(`pet: recreate failed ${String(error)}`);
+    } finally {
+      recreating = false;
+    }
+  }
+
+  // Layered-window alpha on Windows can silently die without any renderer
+  // event — a display reconfiguration or session resume is enough to flip
+  // the overlay opaque-black over the whole screen (the sprite still draws).
+  // No event reports that loss, so the risky transitions re-create the
+  // surface outright; a recreate when the surface is healthy just flickers.
+  const surfaceWatch = [];
+  function onSurfaceRisk(target, eventName) {
+    if (!target || typeof target.on !== 'function') {
+      return;
+    }
+    const handler = () => {
+      if (state.enabled && win && !win.isDestroyed?.()) {
+        dbg(`pet: surface-risk ${eventName} → recreate`);
+        recreateWindow();
+      }
+    };
+    target.on(eventName, handler);
+    surfaceWatch.push(() => target.removeListener?.(eventName, handler));
+  }
+  for (const eventName of ['display-metrics-changed', 'display-added', 'display-removed']) {
+    onSurfaceRisk(screen, eventName);
+  }
+  const powerMonitor = options.powerMonitor || electron.powerMonitor;
+  for (const eventName of ['resume', 'unlock-screen']) {
+    onSurfaceRisk(powerMonitor, eventName);
   }
 
   function show() {
@@ -1178,6 +1241,9 @@ function createLive2dPetManager(options = {}) {
       ipcMain.removeHandler?.('shell:live2d-look');
       handlersRegistered = false;
     }
+    while (surfaceWatch.length) {
+      try { surfaceWatch.pop()(); } catch {}
+    }
   }
 
   registerHandlers();
@@ -1200,6 +1266,7 @@ function createLive2dPetManager(options = {}) {
     getState: () => ({ ...state }),
     isEnabled: () => state.enabled,
     getWindow: () => win,
+    recreateWindow,
     isInteractive: () => interactive,
   };
 }

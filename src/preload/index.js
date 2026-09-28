@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const SHELL_ROLES = new Set(['boot', 'harness', 'launcher', 'pet', 'pet-live2d']);
 
@@ -224,6 +224,8 @@ function launcherApi(renderer) {
     onDesktopReady: subscribe(renderer, 'shell:desktop-ready'),
     onShowTab: subscribe(renderer, 'shell:show-tab'),
     onLauncherHint: subscribe(renderer, 'shell:launcher-hint'),
+    onAppConfirm: subscribe(renderer, 'shell:app-confirm'),
+    respondAppConfirm: invoke(renderer, 'shell:app-confirm:response'),
   };
 }
 
@@ -294,7 +296,7 @@ if (role === 'harness' && isMainFrame) {
   const markPlatform = () => {
     if (typeof document === 'undefined' || document.documentElement === null) return;
     document.documentElement.dataset.platform = process.platform;
-    document.documentElement.dataset.shortcutPolicy = 'local-first';
+    document.documentElement.dataset.shortcutPolicy = 'native-first';
   };
   if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.documentElement === null) {
     window.addEventListener('DOMContentLoaded', markPlatform, { once: true });
@@ -316,7 +318,85 @@ if (role === 'harness' && isMainFrame) {
       recording: invoke(ipcRenderer, 'shell:shortcuts-recording'),
       subscribe: subscribe(ipcRenderer, 'shell:shortcuts-changed'),
     },
+    // Upstream DesktopUpdateBridge contract: status/notify only — open()
+    // joins the shell-owned update flow (check → confirm → install), never
+    // selects artifacts or skips confirmation.
+    updates: {
+      status: invoke(ipcRenderer, 'shell:updates-status'),
+      open: invoke(ipcRenderer, 'shell:updates-open'),
+      subscribe: subscribe(ipcRenderer, 'shell:updates-changed'),
+    },
+    // Upstream DesktopBrowserBridge: lease-scoped webview guests, one open-
+    // requested subscription per lease. Partitions are main-owned.
+    browser: (() => {
+      const openListeners = new Map();
+      ipcRenderer.on('shell:browser-open-requested', (_event, request) => {
+        if (typeof request !== 'object' || request === null
+          || typeof request.lease !== 'string' || typeof request.url !== 'string') return;
+        const callbacks = openListeners.get(request.lease);
+        if (callbacks === undefined) return;
+        for (const callback of [...callbacks]) {
+          try { callback(request.url); } catch (error) { console.error('browser link handler failed', error); }
+        }
+      });
+      return {
+        acquire: invoke(ipcRenderer, 'shell:browser-acquire'),
+        release: invoke(ipcRenderer, 'shell:browser-release'),
+        onOpenRequested: (lease, listener) => {
+          let callbacks = openListeners.get(lease);
+          if (callbacks === undefined) {
+            callbacks = new Set();
+            openListeners.set(lease, callbacks);
+          }
+          callbacks.add(listener);
+          return () => {
+            callbacks.delete(listener);
+            if (callbacks.size === 0 && openListeners.get(lease) === callbacks) openListeners.delete(lease);
+          };
+        },
+      };
+    })(),
   });
+
+  // Upstream PlatformBridge (globalThis.dshPlatform): non-secret commands to
+  // the main-owned embedded document; credentials never cross this bridge.
+  contextBridge.exposeInMainWorld('dshPlatform', {
+    open: (page, bounds) => ipcRenderer.invoke('dsh-platform:open', page, bounds),
+    setBounds: (bounds) => ipcRenderer.invoke('dsh-platform:bounds', bounds),
+    close: () => ipcRenderer.invoke('dsh-platform:close'),
+  });
+  // Host-path bridge (upstream __DSH_HOST_PATHS__ contract): lets dropped files
+  // in the composer resolve to real filesystem paths so ui-conversation emits
+  // @path references instead of uploading bytes. Images stay uploads upstream.
+  contextBridge.exposeInMainWorld('__DSH_HOST_PATHS__', {
+    pathFor: (file) => {
+      try { return webUtils.getPathForFile(file); } catch { return ''; }
+    },
+  });
+  // Native-theme bridge (upstream preload-theme semantics): the Web UI writes
+  // html[data-ds-theme-source]; mirroring it to nativeTheme lets shell chrome
+  // (dialogs, tray icon contrast) follow the app palette. The main process
+  // only accepts this channel from the harness view.
+  try {
+    let sentTheme;
+    const sendTheme = () => {
+      const value = document.documentElement.getAttribute('data-ds-theme-source');
+      if (value === null || value === sentTheme) return;
+      sentTheme = value;
+      ipcRenderer.send('shell:native-theme', value);
+    };
+    const observeTheme = () => {
+      new MutationObserver(sendTheme).observe(document.documentElement, { attributeFilter: ['data-ds-theme-source'] });
+      sendTheme();
+    };
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', observeTheme, { once: true });
+    } else {
+      observeTheme();
+    }
+  } catch {
+    // Theme mirroring is cosmetic; a missing document root is not a failure.
+  }
 }
 
 if (api) {

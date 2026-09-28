@@ -12,13 +12,14 @@ function fakeRenderer() {
   };
 }
 
-function loadPreload(argv = ['electron']) {
+function loadPreload(argv = ['electron'], electronExtras = {}) {
   const electronPath = require.resolve('electron');
   const preloadPath = require.resolve('./index');
   const cachedElectron = require.cache[electronPath];
   const cachedPreload = require.cache[preloadPath];
   const previousArgv = process.argv.slice();
   let exposed = null;
+  const exposures = {};
 
   require.cache[electronPath] = {
     id: electronPath,
@@ -28,16 +29,18 @@ function loadPreload(argv = ['electron']) {
       contextBridge: {
         exposeInMainWorld(name, api) {
           exposed = { name, api };
+          exposures[name] = api;
         },
       },
       ipcRenderer: fakeRenderer(),
+      ...electronExtras,
     },
   };
   process.argv.splice(0, process.argv.length, ...argv);
   delete require.cache[preloadPath];
 
   try {
-    return { exports: require('./index'), exposed };
+    return { exports: require('./index'), exposed, exposures };
   } finally {
     process.argv.splice(0, process.argv.length, ...previousArgv);
     if (cachedElectron) require.cache[electronPath] = cachedElectron;
@@ -253,4 +256,52 @@ test('boot preload cannot import data or install a release', () => {
   assert.equal(api.onImportProgress, undefined);
   assert.equal(api.installRelease, undefined);
   assert.equal(api.pluginForensics, undefined);
+});
+
+test('harness preload exposes __DSH_HOST_PATHS__ pathFor with safe fallback', () => {
+  const { exposures } = loadPreload(
+    ['electron', '--dshd-shell-role=harness'],
+    { webUtils: { getPathForFile: (f) => (f && f._ok ? '/abs/' + f.name : '') } },
+  );
+  const bridge = exposures.__DSH_HOST_PATHS__;
+  assert.equal(typeof bridge?.pathFor, 'function');
+  assert.equal(bridge.pathFor({ name: 'a.ts', _ok: true }), '/abs/a.ts');
+  assert.equal(bridge.pathFor(null), '');
+});
+
+test('non-harness roles do not expose __DSH_HOST_PATHS__', () => {
+  const { exposures } = loadPreload(
+    ['electron', '--dshd-shell-role=boot'],
+    { webUtils: { getPathForFile: () => '/x' } },
+  );
+  assert.equal(exposures.__DSH_HOST_PATHS__, undefined);
+});
+
+test('harness preload exposes upstream dshDesktop.updates/browser and dshPlatform bridges', () => {
+  const { exposures } = loadPreload(
+    ['electron', '--dshd-shell-role=harness'],
+    { webUtils: { getPathForFile: () => '' } },
+  );
+  const updates = exposures.dshDesktop?.updates;
+  assert.equal(typeof updates?.status, 'function');
+  assert.equal(typeof updates?.open, 'function');
+  assert.equal(typeof updates?.subscribe, 'function');
+  const browser = exposures.dshDesktop?.browser;
+  assert.equal(typeof browser?.acquire, 'function');
+  assert.equal(typeof browser?.release, 'function');
+  assert.equal(typeof browser?.onOpenRequested, 'function');
+  const platform = exposures.dshPlatform;
+  assert.equal(typeof platform?.open, 'function');
+  assert.equal(typeof platform?.setBounds, 'function');
+  assert.equal(typeof platform?.close, 'function');
+});
+
+test('non-harness roles do not expose updates/browser/platform bridges', () => {
+  const { exposures } = loadPreload(
+    ['electron', '--dshd-shell-role=boot'],
+    { webUtils: { getPathForFile: () => '' } },
+  );
+  assert.equal(exposures.dshDesktop?.updates, undefined);
+  assert.equal(exposures.dshDesktop?.browser, undefined);
+  assert.equal(exposures.dshPlatform, undefined);
 });

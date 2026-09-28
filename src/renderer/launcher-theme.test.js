@@ -117,6 +117,18 @@ test('launcher import rescan preserves selections and shows scan feedback', () =
   assert.match(js, /importListRendered/);
 });
 
+test('launcher rail footer route chip opens the shared route popover', () => {
+  const js = fs.readFileSync(path.join(rendererDir, 'launcher.js'), 'utf8');
+  assert.match(html, /id="rail-route-btn"/);
+  assert.match(html, /id="rail-route-pop"/);
+  assert.match(html, /route-pop-up/);
+  assert.match(js, /rail-route-btn/);
+  assert.match(js, /rail-route-pop/);
+  assert.match(css, /\.route-pop\.route-pop-up/);
+  assert.match(css, /\.route-pop-wrap\.rail-route-wrap/);
+  assert.match(css, /\.line-chip-btn/);
+});
+
 test('launcher home toggles start/stop desktop from running state', () => {
   const js = fs.readFileSync(path.join(rendererDir, 'launcher.js'), 'utf8');
   assert.match(js, /desktopIsRunning/);
@@ -135,7 +147,9 @@ test('launcher versions panel: current version on top, expandable release rows, 
   assert.match(js, /renderVersionLead/);
   assert.match(js, /data-rel-toggle/);
   assert.match(js, /releaseDetailHtml/);
-  assert.match(js, /routePopoverOpen/);
+  assert.match(js, /setRoutePop/);
+  assert.match(js, /closeRoutePops/);
+  assert.match(js, /renderRouteOptions/);
   assert.match(js, /更新到此版本/);
   assert.match(js, /切换至此版本/);
   assert.match(js, /uninstallApp/);

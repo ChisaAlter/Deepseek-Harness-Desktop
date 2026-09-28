@@ -7,7 +7,7 @@ window.__ModuleLoader__.load({
     const react = require("react");
     const primitives = require("@deepseek-ai/dsh-client-ui-primitives");
     const { createElement: h, useState, useEffect, useMemo, useCallback, useRef, Fragment } = react;
-    const { Button, Input, Modal, SettingsSelect, Switch, Tooltip, IconSparkle16, IconSettingsOutline16 } = primitives;
+    const { Button, Input, Modal, SettingsSelect, Switch, Tooltip, IconSettingsOutline16 } = primitives;
 
     const NS = "dsh-whale";
     const PANEL_ID = "whale";
@@ -154,9 +154,21 @@ window.__ModuleLoader__.load({
       return result?.value ?? result;
     }
 
-    // Glyph rendered inside the sidebar.panellist row (before its label).
+    const WHALE_HEAD_URL = "/whale-isle-head.png";
+
+    // Project mark rendered inside the ship-owned slots. The host's public
+    // asset is byte-identical to assets/whale-head.png.
     function WhalePanelGlyph({ size }) {
-      return h(IconSparkle16, { size: size ?? 18, "aria-hidden": "true" });
+      const px = size ?? 18;
+      return h("img", {
+        className: "dsh-whale-head",
+        src: WHALE_HEAD_URL,
+        width: px,
+        height: px,
+        alt: "",
+        "aria-hidden": "true",
+        draggable: false,
+      });
     }
 
     // The panel row label follows the configured assistant name:
@@ -203,7 +215,7 @@ window.__ModuleLoader__.load({
           font: "inherit", fontSize: "14px", padding: wide ? "4px 8px" : "4px",
           display: "inline-flex", alignItems: "center", gap: "6px",
         },
-      }, "🐳", wide ? h("span", null, t("tab")) : null);
+      }, h(WhalePanelGlyph, { size: 18 }), wide ? h("span", null, t("tab")) : null);
     }
 
     // The 助理 panel row opens her persistent session directly: this `main`
@@ -232,7 +244,8 @@ window.__ModuleLoader__.load({
       }, [settingsNavigation]);
       return h("div", { className: "dsh-whale-page" },
         h("div", { className: "dsh-whale-hero" },
-          h("span", { className: "dsh-whale-badge", "aria-hidden": "true" }, "🐳"),
+          h("span", { className: "dsh-whale-badge", "aria-hidden": "true" },
+            h(WhalePanelGlyph, { size: 36 })),
           h("div", { className: "dsh-whale-title" }, panelName),
           h("div", { className: "dsh-whale-sub" }, error
             ? t("page.openFailed", { message: error })
@@ -262,6 +275,16 @@ window.__ModuleLoader__.load({
           onClick: openSettings,
         }, h(IconSettingsOutline16, { size: 16, "aria-hidden": "true" })),
       );
+    }
+
+    // The host renders presentation titles as text, so the project head is
+    // supplied as the leading identity mark in the header instead.
+    function WhaleHeaderMark(props) {
+      const { sessionId, useSessions } = props;
+      const isWhale = useSessions?.((state) =>
+        state?.byId?.[sessionId]?.presentation?.owner === "dsh-whale:assistant") ?? false;
+      if (!isWhale) return null;
+      return h(WhalePanelGlyph, { size: 16 });
     }
 
     function WhaleSettings(props) {
@@ -658,6 +681,23 @@ window.__ModuleLoader__.load({
           return false;
         }
       };
+      const declaresHeaderLeading = () => {
+        try {
+          return Boolean(ctx.slots?.spec?.("conversation.session.header.leading"));
+        } catch {
+          return false;
+        }
+      };
+      let headerMarkInstalled = false;
+      const installHeaderMark = () => {
+        if (headerMarkInstalled || !declaresHeaderLeading()) return;
+        headerMarkInstalled = true;
+        ctx.slots.inject("conversation.session.header.leading", () => ctx.slots.register({
+          name: "conversation.session.header.leading",
+          locale: NS,
+          inject: injectFace,
+        }, WhaleHeaderMark));
+      };
       let headerGearInstalled = false;
       const installHeaderGear = () => {
         if (headerGearInstalled || !declaresHeaderActions()) return;
@@ -712,10 +752,13 @@ window.__ModuleLoader__.load({
           .map((key) => ctx.slots.subscribe?.(key, installSidebar));
         const headerSubscriptions = ["conversation.session.header.actions"]
           .map((key) => ctx.slots.subscribe?.(key, installHeaderGear));
+        const lineageSubscriptions = ["conversation.session.header.leading"]
+          .map((key) => ctx.slots.subscribe?.(key, installHeaderMark));
         installSidebar();
         installHeaderGear();
+        installHeaderMark();
         return () => {
-          for (const unsubscribe of [...subscriptions, ...headerSubscriptions]) unsubscribe?.();
+          for (const unsubscribe of [...subscriptions, ...headerSubscriptions, ...lineageSubscriptions]) unsubscribe?.();
         };
       });
     }

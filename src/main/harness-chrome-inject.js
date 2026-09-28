@@ -9,6 +9,9 @@
   const CLUSTER = 8;
   /** Full titlebar height so the no-drag plate covers drag padding around the 32px buttons. */
   const CAPTION_HEIGHT = 48;
+  /** Transparent-window silhouette radius; every injected layer that draws the
+      rounded edge shares this one value (design-language 外框圆角 10). */
+  const FRAME_RADIUS = 20;
 
   const ICON_MIN = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.4" width="8" height="1.2" rx="0.6" fill="currentColor"/></svg>';
   const ICON_MAX = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.4" y="2.4" width="7.2" height="7.2" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>';
@@ -127,7 +130,10 @@
          outer frame. html/body stay transparent so nothing paints the
          native corners; #dshd-frame-canvas supplies the interior surface
          color inside the rounded clip, and the fixed wallpaper layer gets
-         its own matching radius (fixed elements escape body's overflow clip). */
+         its own matching radius (fixed elements escape body's overflow clip).
+         The window silhouette opts out of the client-wide squircle
+         (corner-shape: superellipse(1.5)) — the shell frame keeps the plain
+         circular arc a desktop window is expected to have. */
       html, body {
         background: transparent !important;
       }
@@ -142,7 +148,8 @@
            overlay layers) use body as containing block and fall inside the
            rounded overflow clip — a static body would let them escape it. */
         position: relative;
-        border-radius: 20px;
+        border-radius: ${FRAME_RADIUS}px;
+        corner-shape: round;
         overflow: hidden;
       }
       #${FRAME_CANVAS_ID} {
@@ -150,11 +157,13 @@
         inset: 0;
         z-index: -1;
         background: var(--dsw-alias-bg-base);
-        border-radius: 20px;
+        border-radius: ${FRAME_RADIUS}px;
+        corner-shape: round;
         pointer-events: none;
       }
       #dsh-wallpaper {
-        border-radius: 20px;
+        border-radius: ${FRAME_RADIUS}px;
+        corner-shape: round;
         overflow: hidden;
       }
       /* A hairline ring just inside the silhouette anchors the rounded edge:
@@ -165,7 +174,8 @@
       #${FRAME_RING_ID} {
         position: fixed;
         inset: 0;
-        border-radius: 20px;
+        border-radius: ${FRAME_RADIUS}px;
+        corner-shape: round;
         box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.4));
         pointer-events: none;
         z-index: 2147483646;

@@ -18,7 +18,7 @@ import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import { Children, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { focusWithoutRing, modalSelector, observeComposition } from '@deepseek-ai/dsh-client-ui-primitives'
+import { focusWithoutRing, foregroundModalSurfaces, observeComposition } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DockLabels } from '../contract/adapter.ts'
 import css from './dockkit.module.css'
 
@@ -71,7 +71,7 @@ export function TabMenu({ labels, anchor, onClose, onDismiss, extras }: TabMenuP
     const onKeyDown = (event: KeyboardEvent): void => {
       if (composition.guards(event) || event.defaultPrevented || event.key !== 'Escape'
         || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return
-      const top = [...document.querySelectorAll(modalSelector)].at(-1)
+      const top = foregroundModalSurfaces(document).at(-1)
       if (top !== menu) return
       event.preventDefault()
       if (event.repeat) return

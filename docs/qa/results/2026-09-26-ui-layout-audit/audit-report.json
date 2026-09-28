@@ -1,0 +1,902 @@
+{
+  "report": [
+    {
+      "surface": "00-main",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            867,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            895,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            924,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            952,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            981,
+            929,
+            28,
+            28
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    },
+    {
+      "surface": "01-sidebar-hover",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            867,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            895,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            924,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            952,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            981,
+            929,
+            28,
+            28
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    },
+    {
+      "surface": "02-account-menu",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            867,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            895,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            924,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            952,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            981,
+            929,
+            28,
+            28
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    },
+    {
+      "surface": "03-settings-general",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('设置', { exact: true }).first()\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-外观",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('外观', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-界面设置",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('界面设置', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-模型",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('模型', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-内置插件",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('内置插件', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-技能",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('技能', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-市场",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('市场', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-远程",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('远程', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-MCP",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('MCP', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-Agent 预设",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('Agent 预设', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-用量统计",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('用量统计', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-鲸鱼娘",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('鲸鱼娘', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-远程工作区",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('远程工作区', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-关于",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('关于', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "03-settings-账号与余额",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('账号与余额', { exact: true })\u001b[22m\n"
+    },
+    {
+      "surface": "04-main-after-settings",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            867,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            895,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            924,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            952,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            981,
+            929,
+            28,
+            28
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    },
+    {
+      "surface": "05-rightbar-guide",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            1289,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            1317,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            1346,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            1374,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            1403,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "浏览器打开本地应用或 URL。",
+          "rect": [
+            1456,
+            394,
+            186,
+            186
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "终端在此工作区启动一个 shell。",
+          "rect": [
+            1650,
+            394,
+            186,
+            186
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "文件浏览并阅读工作区文件。",
+          "rect": [
+            1456,
+            588,
+            186,
+            186
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "差异查看 git 变更。",
+          "rect": [
+            1650,
+            588,
+            186,
+            186
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "代理查看正在运行的代理。",
+          "rect": [
+            1456,
+            782,
+            186,
+            186
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    },
+    {
+      "surface": "06-panel-browser",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('浏览器', { exact: true }).first()\u001b[22m\n\u001b[2m    - locator resolved to <span class=\"o_oJAW_cardTitle\">浏览器</spa"
+    },
+    {
+      "surface": "07-panel-terminal",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('终端', { exact: true }).first()\u001b[22m\n\u001b[2m    - locator resolved to <span class=\"o_oJAW_cardTitle\">终端</span>"
+    },
+    {
+      "surface": "08-panel-files",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            641,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            669,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            698,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            726,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            755,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "chisacode.json",
+          "rect": [
+            805,
+            948,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "CLAUDE.md",
+          "rect": [
+            805,
+            976,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "CODE_OF_CONDUCT.md",
+          "rect": [
+            805,
+            1004,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "CONTRIBUTING.md",
+          "rect": [
+            805,
+            1032,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "docker-compose.yml",
+          "rect": [
+            805,
+            1060,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "Dockerfile",
+          "rect": [
+            805,
+            1088,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "flake.lock",
+          "rect": [
+            805,
+            1116,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "flake.nix",
+          "rect": [
+            805,
+            1144,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "knip.json",
+          "rect": [
+            805,
+            1172,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "lefthook.yml",
+          "rect": [
+            805,
+            1200,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "LICENSE",
+          "rect": [
+            805,
+            1228,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "NOTICE",
+          "rect": [
+            805,
+            1256,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "package.json",
+          "rect": [
+            805,
+            1284,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "pelican-bicycle.html",
+          "rect": [
+            805,
+            1312,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "pelican-bicycle.svg",
+          "rect": [
+            805,
+            1340,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "pnpm-lock.yaml",
+          "rect": [
+            805,
+            1368,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "pnpm-workspace.yaml",
+          "rect": [
+            805,
+            1396,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "README.md",
+          "rect": [
+            805,
+            1424,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "README.zh-CN.md",
+          "rect": [
+            805,
+            1452,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "SECURITY.md",
+          "rect": [
+            805,
+            1480,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "tsconfig.base.json",
+          "rect": [
+            805,
+            1508,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "tsconfig.json",
+          "rect": [
+            805,
+            1536,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "vitest.config.ts",
+          "rect": [
+            805,
+            1564,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "vitest.setup.ts",
+          "rect": [
+            805,
+            1592,
+            594,
+            28
+          ]
+        },
+        {
+          "kind": "hit-blocked",
+          "el": "浏览器打开本地应用或 URL。",
+          "by": "packages",
+          "rect": [
+            1246,
+            459
+          ]
+        },
+        {
+          "kind": "hit-blocked",
+          "el": "文件浏览并阅读工作区文件。",
+          "by": ".editorconfig",
+          "rect": [
+            1246,
+            653
+          ]
+        },
+        {
+          "kind": "hit-blocked",
+          "el": "代理查看正在运行的代理。",
+          "by": ".oxlintrc.json",
+          "rect": [
+            1246,
+            847
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    },
+    {
+      "surface": "09-panel-diff",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('差异', { exact: true }).first()\u001b[22m\n\u001b[2m    - locator resolved to <span class=\"o_oJAW_cardTitle\">差异</span>"
+    },
+    {
+      "surface": "10-panel-agents",
+      "fatal": "TimeoutError: locator.click: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('代理', { exact: true }).first()\u001b[22m\n\u001b[2m    - locator resolved to <span class=\"o_oJAW_cardTitle\">代理</span>"
+    },
+    {
+      "surface": "11-composer-presets",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            641,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            669,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            698,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            726,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            755,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "终端在此工作区启动一个 shell。",
+          "rect": [
+            1541,
+            346,
+            186,
+            186
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "差异查看 git 变更。",
+          "rect": [
+            1541,
+            540,
+            186,
+            186
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    },
+    {
+      "surface": "12-model-picker",
+      "issues": [
+        {
+          "kind": "offscreen",
+          "el": "左右分屏",
+          "rect": [
+            641,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "上下分屏",
+          "rect": [
+            669,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "最大化",
+          "rect": [
+            698,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "新建终端",
+          "rect": [
+            726,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "关闭终端",
+          "rect": [
+            755,
+            929,
+            28,
+            28
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "终端在此工作区启动一个 shell。",
+          "rect": [
+            1541,
+            346,
+            186,
+            186
+          ]
+        },
+        {
+          "kind": "offscreen",
+          "el": "差异查看 git 变更。",
+          "rect": [
+            1541,
+            540,
+            186,
+            186
+          ]
+        }
+      ],
+      "url": "http://127.0.0.1:3080/",
+      "vw": 1440,
+      "vh": 920
+    }
+  ],
+  "consoleErrors": []
+}

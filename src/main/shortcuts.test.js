@@ -226,3 +226,37 @@ test('ariaToAccelerator maps aria strings to Electron tokens', () => {
   assert.equal(ariaToAccelerator('Control+,'), 'CmdOrCtrl+,');
   assert.equal(ariaToAccelerator(undefined), undefined);
 });
+
+test('native-first: bound keys inside a focused iframe are intercepted and dispatched', async (t) => {
+  const { service, ipc, event, contents, inputEvent } = await createService(t);
+  service.attach({ webContents: contents });
+  await ipc.handlers.get(CHANNELS.get)(event, DEFINITIONS, null);
+  contents.focusedFrame = { url: `${'http://127.0.0.1:4180'}/frame`, parent: contents.mainFrame, name: 'dsh-sidebar-x' };
+  const evt = inputEvent();
+  contents.emit('before-input-event', evt, keydown('KeyO', { control: true }));
+  assert.equal(evt.defaultPrevented, true);
+  const input = contents.sent.find((entry) => entry.channel === CHANNELS.input);
+  assert.equal(input.payload.kind, 'iframe');
+  assert.equal(input.payload.frameName, 'dsh-sidebar-x');
+  assert.equal(input.payload.code, 'KeyO');
+});
+
+test('native-first: unbound iframe keys stay with the guest; main-frame bound keys intercept as keyboard', async (t) => {
+  const { service, ipc, event, contents, inputEvent } = await createService(t);
+  service.attach({ webContents: contents });
+  await ipc.handlers.get(CHANNELS.get)(event, DEFINITIONS, null);
+  contents.focusedFrame = { url: 'http://127.0.0.1:4180/frame', parent: contents.mainFrame, name: 'guest' };
+  const evt = inputEvent();
+  contents.emit('before-input-event', evt, keydown('KeyZ', { control: true }));
+  assert.equal(evt.defaultPrevented, false); // unbound: guest keeps it
+  contents.focusedFrame = contents.mainFrame;
+  const evt2 = inputEvent();
+  contents.emit('before-input-event', evt2, keydown('KeyO', { control: true }));
+  // Upstream priority: an accepted binding is intercepted on the main frame
+  // too — the vendored DOM dispatcher arbitrates region/modal after delivery.
+  assert.equal(evt2.defaultPrevented, true);
+  const input = contents.sent.find((entry) => entry.channel === CHANNELS.input);
+  assert.equal(input.payload.kind, 'keyboard');
+  assert.equal(input.payload.frameName, '');
+  assert.equal(input.payload.code, 'KeyO');
+});

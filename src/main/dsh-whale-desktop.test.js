@@ -251,6 +251,15 @@ test('vendored dsh-whale package passes its own runtime integrity gate', () => {
   assert.deepEqual(missingRuntimeFiles(dir), []);
 });
 
+test('assistant presentation title is the configured name without an emoji prefix', async () => {
+  const module = await import(pathToFileURL(path.join(
+    __dirname, '..', '..', 'vendor', 'dsh-whale', 'lib', 'index.js',
+  )).href);
+  assert.equal(typeof module.whaleDisplayName, 'function');
+  assert.equal(module.whaleDisplayName({ name: '吃白饭的' }), '吃白饭的');
+  assert.equal(module.whaleDisplayName({ name: '' }), '鲸鱼娘');
+});
+
 test('vendored dsh-whale peers satisfy the vendored runtime compatibility gate', async () => {
   // The Loader disables a row whose @deepseek-ai/dsh-* peers reject the
   // running runtime — exact pins stale after an upstream merge silently

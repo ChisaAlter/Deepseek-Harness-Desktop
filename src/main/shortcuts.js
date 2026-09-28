@@ -10,13 +10,16 @@
 // We expose only that narrow pair — never the full official product API
 // (browser/updates) — so other plugins cannot misdetect capabilities.
 //
-// Local-first policy (plan §7.2): physical keys are never preventDefault'd in
-// the main process. The top-frame DOM dispatcher arbitrates region/modal
-// synchronously before consuming; guest (iframe) input stays with the guest.
-// This layer owns: the keybindings.json single writer, menu-accelerator
-// suppression for bound chords, explicit menu-click dispatch through the
-// registry, recording suppression, overlay input blocking, and revision-checked
-// closeWindow.
+// Upstream-priority policy (user decision 2026-09-26): accepted bindings are
+// intercepted by the main process before the page/guest sees them — bound
+// keys inside a focused iframe and chord (second-code) bindings everywhere
+// are preventDefault'd and dispatched natively. The vendored DOM dispatcher
+// (packages/client/shortcuts/src/client/native.ts) still arbitrates
+// region/modal after interception. This layer owns: the keybindings.json
+// single writer, menu-accelerator suppression for bound chords, native
+// interception + guest attach, explicit menu-click dispatch through the
+// registry, recording suppression, overlay input blocking, and
+// revision-checked closeWindow.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -227,17 +230,41 @@ function createShortcutService(options) {
 
   const acceleratorFor = (commandId) => menuAccelerators()[commandId];
 
-  function attach(targetView) {
-    const contents = targetView.webContents;
-    const window = getWindow();
+  // Upstream attachInput: native interception for accepted bindings with
+  // chord tracking; guest webview contents attach through the same path with
+  // a lease name instead of main-frame semantics.
+  const scopedDesktop = platform === 'windows' || platform === 'macos';
+  const guestInputs = new Map();
+  let editingInput;
+
+  function attachInput(window, contents, guestName) {
+    let deadKey = false;
+    const held = new Set();
+    const consumed = new Map();
+    let inputFrame = null;
+    let inputRevision;
     let overlayRevision = overlayInput(window).revision;
+    const resetInput = () => {
+      deadKey = false;
+      held.clear();
+      consumed.clear();
+      inputFrame = null;
+      inputRevision = undefined;
+      if (!contents.isDestroyed()) contents.setIgnoreMenuShortcuts(false);
+    };
+    if (guestName !== undefined) guestInputs.set(contents, { window, reset: resetInput });
+    const resetWindow = () => {
+      resetInput();
+      for (const guest of guestInputs.values()) if (guest.window === window) guest.reset();
+    };
     const clear = () => {
+      resetInput();
+      if (guestName !== undefined) return;
       definitions = [];
       keys.clear();
       recording = false;
       rows = [];
       persistence?.setDefinitions(null);
-      if (!contents.isDestroyed()) contents.setIgnoreMenuShortcuts(false);
     };
     const navigation = (event) => {
       if (event.isMainFrame && !event.isSameDocument) clear();
@@ -245,6 +272,7 @@ function createShortcutService(options) {
     const beforeInput = (event, input) => {
       const overlay = overlayInput(window);
       if (overlay.revision !== overlayRevision) {
+        resetInput();
         overlayRevision = overlay.revision;
       }
       if (overlay.blocked) {
@@ -254,26 +282,123 @@ function createShortcutService(options) {
         event.preventDefault();
         return;
       }
-      if (event.defaultPrevented) return;
-      if (window === undefined || window.isDestroyed() || !window.isFocused() || !window.isEnabled()
-        || revision === undefined || protocol === null) {
+      if (event.defaultPrevented) {
+        resetInput();
+        return;
+      }
+      if (editingInput === contents) {
+        held.clear();
+        consumed.clear();
+        contents.setIgnoreMenuShortcuts(true);
+        return;
+      }
+      if (window !== getWindow() || !window.isFocused() || !window.isEnabled()
+        || revision === undefined || protocol === null
+        || (guestName !== undefined && !contents.isFocused())) {
         contents.setIgnoreMenuShortcuts(false);
+        held.clear();
+        consumed.clear();
         return;
       }
       const modifiers = ['control', 'alt', 'shift', 'meta'].filter((modifier) => input[modifier]);
-      // Bound chords belong to the DOM dispatcher: native menu accelerators on
-      // the same key are suppressed so one physical input has exactly one owner.
-      const match = keys.has(protocol.bindingKey({ code: input.code, modifiers }));
+      const key = protocol.bindingKey({ code: input.code, modifiers });
+      const match = keys.has(key);
       contents.setIgnoreMenuShortcuts(recording || match);
+      const frame = contents.focusedFrame;
+      const composing = input.isComposing || input.key === 'Dead' || deadKey
+        || (typeof input.modifiers?.includes === 'function' && input.modifiers.includes('altgr'));
+      if (input.type === 'keyDown') deadKey = input.key === 'Dead';
+      if (recording || composing || frame === null) {
+        held.clear();
+        consumed.clear();
+        return;
+      }
+      let binding = { code: input.code, modifiers };
+      let priority = false;
+      if (scopedDesktop) {
+        if (frame !== inputFrame || inputRevision !== revision) {
+          held.clear();
+          inputFrame = frame;
+          inputRevision = revision;
+        }
+        const modifierKey = /^(Control|Alt|Shift|Meta)(Left|Right)$/u.test(input.code);
+        if (input.type === 'keyUp') {
+          // A chord's first key reached the renderer, so its release must
+          // reach the same input handlers.
+          if (consumed.get(input.code) === 'press') event.preventDefault();
+          consumed.delete(input.code);
+          held.delete(input.code);
+          if (modifierKey) held.clear();
+          return;
+        }
+        if (!input.isAutoRepeat) consumed.delete(input.code);
+        if (modifierKey) {
+          held.clear();
+          return;
+        }
+        if (input.isAutoRepeat && consumed.has(input.code) && !match) {
+          event.preventDefault();
+          return;
+        }
+        if (input.isAutoRepeat && !held.has(input.code) && !match) return;
+        held.add(input.code);
+        const codes = [input.code, ...[...held].filter((value) => value !== input.code)];
+        codes.sort();
+        const pair = { code: codes[0], ...(codes[1] === undefined ? {} : { secondCode: codes[1] }), modifiers };
+        priority = keys.has(key);
+        if (codes.length === 2 && keys.has(protocol.bindingKey(pair))) {
+          binding = pair;
+          priority = true;
+        }
+      }
+      const main = guestName === undefined && frame === contents.mainFrame;
+      if (!priority && (main || !match)) return;
+      event.preventDefault();
+      if (input.type !== 'keyDown') return;
+      if (scopedDesktop) {
+        if (!input.isAutoRepeat) {
+          if (binding.secondCode !== undefined) {
+            consumed.set(binding.code, 'repeat');
+            consumed.set(binding.secondCode, 'repeat');
+          }
+          consumed.set(input.code, 'press');
+        }
+        // Electron can omit both keyups after interception; completed
+        // presses cannot seed another chord.
+        held.clear();
+      }
+      let embedding = frame;
+      while (guestName === undefined && !main && embedding.parent !== null && embedding.parent !== contents.mainFrame) {
+        embedding = embedding.parent;
+      }
+      // The product document (harness BrowserView) owns the registry
+      // dispatcher — guest/iframe inputs route to it, not the chrome window.
+      const dispatcher = view()?.webContents;
+      if (dispatcher === undefined || dispatcher.isDestroyed()) return;
+      dispatcher.send(CHANNELS.input, {
+        kind: guestName === undefined ? (main ? 'keyboard' : 'iframe') : 'webview',
+        revision,
+        frameName: guestName ?? (main ? '' : embedding.name),
+        code: binding.code,
+        ...(binding.secondCode === undefined ? {} : { secondCode: binding.secondCode }),
+        repeat: input.isAutoRepeat,
+        control: input.control,
+        alt: input.alt,
+        shift: input.shift,
+        meta: input.meta,
+      });
     };
     const dispose = () => {
       contents.off('did-start-navigation', navigation);
       contents.off('before-input-event', beforeInput);
+      contents.off('blur', resetInput);
       contents.off('destroyed', dispose);
-      if (window !== undefined) {
+      if (guestName === undefined && window !== undefined) {
+        window.off('blur', resetWindow);
         window.off('closed', closed);
       }
       disposers.delete(dispose);
+      guestInputs.delete(contents);
       if (!contents.isDestroyed()) contents.setIgnoreMenuShortcuts(false);
     };
     const closed = () => {
@@ -282,16 +407,59 @@ function createShortcutService(options) {
     };
     contents.on('did-start-navigation', navigation);
     contents.on('before-input-event', beforeInput);
+    contents.on('blur', resetInput);
     contents.once('destroyed', dispose);
-    if (window !== undefined) {
+    if (guestName === undefined && window !== undefined) {
       window.on('closed', closed);
+      window.on('blur', resetWindow);
     }
     disposers.add(dispose);
     return dispose;
   }
 
+  function attach(targetView) {
+    const contents = targetView.webContents ?? targetView;
+    return attachInput(getWindow(), contents);
+  }
+
+  /**
+   * Intercept an approved browser guest's keys until its lease ends.
+   * @param {object} guest - approved browser guest webContents.
+   * @param {string} name - main-issued lease used as the webview element name.
+   */
+  function attachGuest(guest, name) {
+    return attachInput(getWindow(), guest, name);
+  }
+
+  /**
+   * Send a native Edit action to the focused editor without matching user
+   * shortcuts (upstream sendEditingKey: interception bypasses the synthetic
+   * pair so menu roles still reach inputs).
+   * @param {string} keyCode - edit key.
+   * @param {Array<'control'>} modifiers - edit modifiers.
+   */
+  function sendEditingKey(keyCode, modifiers) {
+    const window = getWindow();
+    if (window === undefined || window.isDestroyed() || overlayInput(window).blocked) return;
+    const contents = [...guestInputs].find(([guest, owner]) => owner.window === window && !guest.isDestroyed() && guest.isFocused())?.[0]
+      ?? view()?.webContents;
+    if (contents === undefined || contents.isDestroyed()) return;
+    contents.focus();
+    const previous = editingInput;
+    editingInput = contents;
+    try {
+      contents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+      contents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+    } finally {
+      editingInput = previous;
+      if (!contents.isDestroyed()) contents.setIgnoreMenuShortcuts(recording);
+    }
+  }
+
   return {
     attach,
+    attachGuest,
+    sendEditingKey,
     dispatchMenuCommand,
     acceleratorFor,
     currentRevision: () => revision,

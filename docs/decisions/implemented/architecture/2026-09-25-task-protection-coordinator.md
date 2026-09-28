@@ -12,9 +12,9 @@ Status: implemented
 
 保护拆成三层，全部决策集中在壳侧协调器 `src/main/task-protection.js`：
 
-1. **Host 插件** `vendor/dsh-task-control/`：单例锁 + 在途请求集合 + 检查面。webServer 的 register/registerUpgrade/registerFallback 被原位包裹（含插件加载前已登记的路由），锁定期内新请求统一 503；`sessionController.resolveAgent` 与 `jobs.start` 被包裹，Schedule 投递、dshbot 例程、IM 渠道都不能在锁中开工。`/dshd-task-control/<inspect|acquire|renew|release|cancel|status>` 走每启动一次的 Bearer token（`DSHD_TASK_CONTROL_TOKEN` 由壳注入）。锁按 owner + lockId + generation 校验，acquire 内 drain 在途请求后复查代次，TTL 惰性过期；解锁回调驱动 `schedule.runtime.requestDrive()` 恢复到期提醒投递。
+1. **Host 插件** `vendor/dsh-task-control/`：单例锁 + 在途请求集合 + 检查面。webServer 的 register/registerUpgrade/registerFallback 被原位包裹（含插件加载前已登记的路由），锁定期内新请求统一 503；`sessionController.resolveAgent` 与 `jobs.start` 被包裹，Schedule 投递、dshbot 例程、IM 渠道都不能在锁中开工。`/dshd-task-control/<inspect|acquire|renew|release|cancel|status>` 走每启动一次的 Bearer token（`DSHD_TASK_CONTROL_TOKEN` 由壳注入）。锁按 owner + lockId + generation 校验，acquire 内 drain 在途请求后复查代次，TTL 惰性过期；解锁回调驱动 `schedule.runtime.requestDrive()` 恢复到期提醒投递。drain 集合只含会结束的准入（HTTP 请求/fallback 写/resolveAgent/jobs.start/connection 瀑布）——升级 socket 只做连接期准入（锁内新升级 503），其寿命属传输层不进 drain；drain-timeout 响应携 `pendingLabels` 标识仍占用的准入种类（2026-09-27 修复，见 [launcher-stop-controls](../bug-fix/2026-09-27-launcher-stop-controls.md)）。
 
-2. **壳协调器**：`inspect → 脏则确认 → acquire → drain → 复查 → commit`。confirm 由主进程弹原生对话框（操作动词 + 工作清单 + 未知覆盖告警）；Host 不在或检查失败按阻断处理。`terminal: true`（quit/install/update）在 commit 成功后闩住，后续 before-quit 重复协调直接放行；非终态 commit 后主动 release，commit 抛错先 release 再传播。`hostLock: false`（reload）跳过 Host 锁只保留确认面。组件关停注册为 onCommitCleanup，只在终态 commit 运行——取消的退出不再误杀 launcher 监管的服务。
+2. **壳协调器**：`inspect → 脏则确认 → acquire → drain → 复查 → commit`。confirm 由主进程弹窗（操作动词 + 工作清单 + 未知覆盖告警；有可见窗走壳层 overlay，无窗退原生框）；Host 不在或检查失败按阻断处理。launcher 发起的停止（peer `stop-desktop`、自带启动器 `stopOp`）带 `preConfirmed` 跳过两道确认门——点击即同意（2026-09-27，见 [launcher-stop-preconfirmed](../product/2026-09-27-launcher-stop-preconfirmed.md)）。`terminal: true`（quit/install/update）在 commit 成功后闩住，后续 before-quit 重复协调直接放行；非终态 commit 后主动 release，commit 抛错先 release 再传播。`hostLock: false`（reload）跳过 Host 锁只保留确认面。组件关停注册为 onCommitCleanup，只在终态 commit 运行——取消的退出不再误杀 launcher 监管的服务。
 
 3. **跨进程握手**：桌面进程在 userData 写 `task-control-peer.json`（url/token/pid/generation，每代随机 token，文件随 quit 清掉）。slim launcher 的 `stopExternalDesktop`/`installRuntime`/`installDelta` 先 `resolvePeer`：有握手走 `stop-desktop`/`prepare-install`（桌面自己协调并在许可后退出进程）；无握手（旧版桌面）回退 WM_CLOSE 优雅关闭并确认进程真的退出——**不再 taskkill /F**。进程仍在则报 `desktop-still-running` 阻断安装。
 
@@ -29,7 +29,7 @@ delta 车道据此改为：桌面拒绝退出/仍在运行直接报错，不回�
 
 ## Consequences
 
-- 所有退出/重启/停止/更新/安装/增量路径过同一协调器；无活动时零弹窗直过，有活动或覆盖未知时弹确认。
+- 所有退出/重启/停止/更新/安装/增量路径过同一协调器；无活动时零弹窗直过，有活动或覆盖未知时弹确认（launcher 发起停止除外——`preConfirmed` 直过）。
 - Host 插件缺失或控制路由不可达时 acquire 报 `dshd/unreachable`，无人值守的 update/install 被阻断——fail closed。
 - 锁 TTL（默认 10 分钟）兜底协调器崩溃不释放的场景；release 幂等。
 - slim 包安装期间桌面自己跑完整确认链，launcher 只等进程消失；旧版桌面要求用户正常退出。

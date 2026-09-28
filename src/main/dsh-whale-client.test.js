@@ -64,7 +64,10 @@ function makeCtx({ sessionsShape = '0.1.6', uiWorkspace = undefined, viaGet = fa
   const workspace = uiWorkspace === false
     ? undefined
     : { openSession: (id) => calls.openSession.push(id) };
-  const declared = specs.length ? new Set(specs) : new Set(['sidebar.panellist', 'main', 'sidebar.footer.action', 'conversation.session.header.actions']);
+  const declared = specs.length ? new Set(specs) : new Set([
+    'sidebar.panellist', 'main', 'sidebar.footer.action',
+    'conversation.session.header.actions', 'conversation.session.header.leading',
+  ]);
   const registrations = [];
   const rpcCalls = [];
   const disposers = [];
@@ -103,6 +106,8 @@ const faceOf = (registrations, slotName) => {
   assert.ok(hit, `expected a ${slotName} registration`);
   return hit.decl.inject();
 };
+
+const registeredNames = (registrations) => registrations.map((entry) => `${entry.decl.name}:${entry.decl.id ?? ''}`);
 
 test('client declares the uiWorkspace service dependency', () => {
   const { exports } = loadPlugin();
@@ -177,4 +182,31 @@ test('sidebar footer fallback opens her session through uiWorkspace on a 0.1.6 h
   await button.props.onClick();
   await settle();
   assert.deepEqual(calls.openSession, ['session-whale-1']);
+});
+
+test('whale slots use the project head and keep normal sessions untouched', () => {
+  const { exports } = loadPlugin();
+  const { ctx, registrations } = makeCtx({ specs: ['sidebar.panellist', 'main', 'conversation.session.header.actions', 'conversation.session.header.leading'] });
+  exports.apply(ctx);
+  assert.ok(registeredNames(registrations).includes('conversation.session.header.leading:'));
+
+  const glyph = registrations.find((entry) => entry.decl.name === 'sidebar.panellist');
+  const image = glyph.component({ size: 18 });
+  assert.equal(image.type, 'img');
+  assert.equal(image.props.src, '/whale-isle-head.png');
+  assert.equal(image.props.width, 18);
+  assert.equal(image.props.height, 18);
+  assert.equal(image.props.alt, '');
+
+  const mark = registrations.find((entry) => entry.decl.name === 'conversation.session.header.leading');
+  const mine = mark.component({
+    sessionId: 'session-whale-1',
+    useSessions: (select) => select({ byId: { 'session-whale-1': { presentation: { owner: 'dsh-whale:assistant' } } } }),
+  });
+  assert.equal(mine.type.name ?? mine.type, 'WhalePanelGlyph');
+  const other = mark.component({
+    sessionId: 'session-other',
+    useSessions: (select) => select({ byId: { 'session-other': { presentation: { owner: 'plugin:other' } } } }),
+  });
+  assert.equal(other, null);
 });

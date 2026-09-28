@@ -55,6 +55,33 @@ function makeProtection(overrides = {}, handlers = {}) {
   return { protection, calls };
 }
 
+test('a token-carrying ready URL still posts to the control prefix', async () => {
+  // The `dsh web:` line advertises <origin>/?token=…; appending the control
+  // route after that query used to post `/` and fail with http-405.
+  const urls = [];
+  const { fetchImpl, calls } = fetchScript({
+    inspect: async () => CLEAN_INSPECTION,
+    acquire: async () => ({ ok: true, lockId: 'l', owner: 'desktop-stop', generation: 1 }),
+    release: async () => ({ ok: true, released: true }),
+  });
+  const recordingFetch = async (url, init) => {
+    urls.push(String(url));
+    return fetchImpl(url, init);
+  };
+  const protection = createTaskProtection({
+    getBaseUrl: () => 'http://127.0.0.1:3080/?token=launch-secret',
+    hostRunning: () => true,
+    fetchImpl: recordingFetch,
+  });
+  const result = await protection.coordinate('stop', { commit: async () => {} });
+  assert.equal(result.proceeded, true);
+  assert.deepEqual(calls.map((c) => c.op), ['inspect', 'acquire', 'inspect', 'release']);
+  for (const url of urls) {
+    assert.match(url, /^http:\/\/127\.0\.0\.1:3080\/dshd-task-control\//);
+    assert.ok(!url.includes('token='), `control URL leaked the launch token: ${url}`);
+  }
+});
+
 test('clean inspection proceeds to commit without prompting or locking early', async () => {
   let committed = false;
   let prompted = false;
@@ -78,6 +105,41 @@ test('active work prompts; declined cancels before any side effect', async () =>
   assert.equal(committed, false);
   // No lock acquire on cancel — admission was never frozen.
   assert.deepEqual(calls.map((c) => c.op), ['inspect']);
+});
+
+test('preConfirmed skips the user-confirm gates but keeps the lock sequencing', async () => {
+  let prompted = false;
+  let committed = false;
+  const { protection, calls } = makeProtection({
+    inspection: DIRTY_INSPECTION,
+    confirm: async () => { prompted = true; return false; },
+  });
+  const result = await protection.coordinate('stop', {
+    preConfirmed: true,
+    commit: async () => { committed = true; },
+  });
+  assert.equal(result.proceeded, true);
+  assert.equal(committed, true);
+  assert.equal(prompted, false, 'a launcher-confirmed stop must never prompt');
+  assert.deepEqual(calls.map((c) => c.op), ['inspect', 'acquire', 'inspect', 'release']);
+});
+
+test('preConfirmed also skips the second-inspection re-confirm', async () => {
+  let n = 0;
+  let committed = false;
+  const { protection } = makeProtection({
+    confirm: async () => false,
+  }, {
+    inspect: async () => (n++ === 0 ? CLEAN_INSPECTION : DIRTY_INSPECTION),
+    acquire: async () => ({ ok: true, lockId: 'l', owner: 'desktop-stop', generation: 3 }),
+    release: async () => ({ ok: true, released: true }),
+  });
+  const result = await protection.coordinate('stop', {
+    preConfirmed: true,
+    commit: async () => { committed = true; },
+  });
+  assert.equal(result.proceeded, true);
+  assert.equal(committed, true);
 });
 
 test('dirty first inspect prompts once; clean second inspect proceeds', async () => {

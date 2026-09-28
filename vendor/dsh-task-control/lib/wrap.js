@@ -28,7 +28,7 @@ function exempt(path) {
 
 function gateHttpHandler(state, path, handler) {
   return async function gatedRoute(req, res) {
-    const admission = admit(state);
+    const admission = admit(state, `http ${req.method} ${req.url}`);
     if (!admission.accepted) {
       if (!res.headersSent) {
         res.writeHead(503, { 'content-type': 'application/json; charset=utf-8' });
@@ -53,7 +53,7 @@ function gateHttpHandler(state, path, handler) {
 
 function gateUpgradeHandler(state, path, handler) {
   return function gatedUpgrade(req, socket, head) {
-    const admission = admit(state);
+    const admission = admit(state, `upgrade ${req.url}`);
     if (!admission.accepted) {
       try {
         socket.write('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
@@ -63,7 +63,11 @@ function gateUpgradeHandler(state, path, handler) {
       socket.destroy();
       return undefined;
     }
-    socket.once('close', () => admission.done());
+    // Upgraded sockets live as long as their transport — holding the admission
+    // until close would make every lock drain time out on healthy clients.
+    // Connect-time admission still 503s new upgrades while locked; work the
+    // socket delivers is gated at the service chokepoints instead.
+    admission.done();
     return handler(req, socket, head);
   };
 }
@@ -142,7 +146,7 @@ function gateFallback(state, handler) {
     // window during the confirmation wait. Mutating methods on unmatched
     // paths are still gated — they are not reads.
     if (isReadMethod(req)) return handler(req, res);
-    const admission = admit(state);
+    const admission = admit(state, `fallback ${req.method} ${req.url}`);
     if (!admission.accepted) {
       res.writeHead(503, { 'content-type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: { code: admission.code } }));
@@ -166,7 +170,7 @@ export function wrapSessionController(state, sessionController) {
   const original = sessionController.resolveAgent;
   if (typeof original !== 'function') return false;
   sessionController.resolveAgent = async function resolveAgentGuarded(...args) {
-    const admission = admit(state);
+    const admission = admit(state, 'resolveAgent');
     if (!admission.accepted) {
       return { error: new AdmissionLockedError('session resolution refused while locked') };
     }
@@ -186,7 +190,7 @@ export function wrapJobs(state, jobs) {
   const original = jobs.start;
   if (typeof original !== 'function') return false;
   jobs.start = function jobsStartGuarded(...args) {
-    const admission = admit(state);
+    const admission = admit(state, 'jobs.start');
     if (!admission.accepted) {
       return Promise.reject(new AdmissionLockedError('job start refused while locked'));
     }

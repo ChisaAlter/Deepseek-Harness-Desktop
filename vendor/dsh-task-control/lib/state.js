@@ -44,24 +44,26 @@ function pruneExpiredLock(state, now) {
 /**
  * Admit one unit of independent work while unlocked. Admitted work registers
  * in `pending` until `done()` runs; a lock acquire drains exactly this set, so
- * the admit check and the pending add stay synchronous/atomic.
+ * the admit check and the pending add stay synchronous/atomic. `label`
+ * identifies the admission kind in drain-timeout diagnostics.
  * @param {ReturnType<typeof createControlState>} state
+ * @param {string} [label]
  * @returns {{ accepted: true, done: () => void } | { accepted: false, code: string }}
  */
-export function admit(state) {
+export function admit(state, label) {
   pruneExpiredLock(state, Date.now());
   if (state.stopping) return { accepted: false, code: 'dshd/host-stopping' };
   if (lockLive(state, Date.now())) return { accepted: false, code: LOCKED_CODE };
   let settle;
-  const pending = new Promise((resolve) => { settle = resolve; });
-  state.pending.add(pending);
+  const entry = { label: String(label || '?'), promise: new Promise((resolve) => { settle = resolve; }) };
+  state.pending.add(entry);
   let closed = false;
   return {
     accepted: true,
     done() {
       if (closed) return;
       closed = true;
-      state.pending.delete(pending);
+      state.pending.delete(entry);
       settle();
     },
   };
@@ -70,7 +72,7 @@ export function admit(state) {
 async function waitForDrain(state, timeoutMs) {
   const pending = [...state.pending];
   if (pending.length === 0) return { drained: true, count: 0 };
-  const settled = Promise.allSettled(pending);
+  const settled = Promise.allSettled(pending.map((entry) => entry.promise));
   if (!(timeoutMs > 0)) {
     await settled;
     return { drained: true, count: pending.length };
@@ -80,7 +82,8 @@ async function waitForDrain(state, timeoutMs) {
     if (typeof t.unref === 'function') t.unref();
   });
   const winner = await Promise.race([settled.then(() => 'drained'), timeout]);
-  return { drained: winner === 'drained', count: pending.length };
+  const remaining = [...state.pending].map((entry) => entry.label);
+  return { drained: winner === 'drained', count: pending.length, labels: remaining };
 }
 
 /**
@@ -128,7 +131,7 @@ export async function acquireLock(state, request) {
   }
   if (!drain.drained) {
     releaseLock(state, { lockId: state.lock.lockId, owner });
-    return { ok: false, code: 'dshd/drain-timeout', pendingCount: drain.count };
+    return { ok: false, code: 'dshd/drain-timeout', pendingCount: drain.count, pendingLabels: drain.labels };
   }
   return {
     ok: true,

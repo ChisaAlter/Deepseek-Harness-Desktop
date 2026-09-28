@@ -49,7 +49,7 @@
         padding: 8px 10px 6px;
         border-bottom: 1px solid var(--dsw-alias-border-l2);
       }
-      #pet-chat .pc-avatar { font-size: 14px; line-height: 1; }
+      #pet-chat .pc-avatar { width: 16px; height: 16px; object-fit: contain; }
       #pet-chat .pc-name { font-weight: 600; font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       #pet-chat .pc-x, #pet-chat .pc-tool {
         border: 0;
@@ -276,7 +276,7 @@
     <canvas id="pet"></canvas>
     <div id="pet-chat" hidden>
       <div class="pc-head">
-        <span class="pc-avatar" aria-hidden="true">🐳</span>
+        <img class="pc-avatar" src="pet-head.png" alt="" aria-hidden="true" draggable="false">
         <span class="pc-name">鲸鱼娘</span>
         <button id="pc-open" class="pc-tool" type="button" hidden title="在助理中打开" aria-label="在助理中打开">↗</button>
         <button id="pc-close" class="pc-x" type="button" aria-label="关闭">✕</button>

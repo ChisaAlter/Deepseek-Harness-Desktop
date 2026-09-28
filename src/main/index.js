@@ -1,4 +1,4 @@
-const { app, dialog, ipcMain, session } = require('electron');
+const { app, clipboard, dialog, ipcMain, session, shell, nativeTheme, systemPreferences } = require('electron');
 const { PRODUCT_NAME, LEGACY_DESKTOP_USER_DATA, preserveUserDataPath } = require('../shared/product-identity');
 preserveUserDataPath(app, LEGACY_DESKTOP_USER_DATA);
 const fs = require('fs');
@@ -13,6 +13,9 @@ const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDshbotPlugin } = require('./dshbot-desktop');
 const { ensureDesktopTaskControl } = require('./task-control-overlay');
+const { ensureDesktopPlatformSession } = require('./platform-session-overlay');
+const { fetchPlatformSession } = require('./platform-session');
+const { DesktopPlatformView, PLATFORM_IPC, platformBounds } = require('./platform-view');
 const { createTaskProtection, installTaskProtection, getTaskProtection } = require('./task-protection');
 const { createTaskControlPeer } = require('./task-control-peer');
 const { ensureDesktopDshWhale } = require('./dsh-whale-desktop');
@@ -31,7 +34,12 @@ const { buildMenu } = require('./menu');
 const { createTray, invokeTrayAction, refreshTrayMenu } = require('./tray');
 const { DESKTOP_PET_FEATURE, configureDesktopPet, getDesktopPet } = require('./desktop-pet');
 const { LIVE2D_PET_FEATURE, configureLive2dPet, getLive2dPet } = require('./desktop-live2d');
-const { checkUpdate, installUpdate, setGithubTokenProvider, currentVersion } = require('./update');
+const { checkUpdate, installUpdate, setGithubTokenProvider, setUpdateStateSink, currentVersion } = require('./update');
+const { createUpdatesState } = require('./updates-state');
+const { BrowserGuests, installBrowserGuests } = require('./browser-guests');
+const { connectWelcome } = require('./welcome-backend');
+const { openWelcomeWindow, WELCOME_IPC } = require('./welcome-window');
+const { resolveDesktopStartupLocale } = require('./desktop-locale');
 const { probeImportHold, recoverInterruptedImport } = require('./data-import');
 const { isLauncherPackage } = require('../launcher/product');
 const runtimeInstall = require('../launcher/runtime-install');
@@ -82,11 +90,21 @@ const {
   closeLauncherWindow,
   showMain,
   openHarnessSettings,
+  setRecoveryConfirm,
 } = require('./window');
 const { watchSystemTheme, currentTheme, applyAppTheme } = require('./chrome');
 const { showClosingOverlay } = require('./closing-overlay');
 const { installShortcutService, getShortcutService } = require('./shortcuts');
 const { hideOnClose } = require('./close-behavior');
+const { TrayHideNotice } = require('./background-notice');
+const { installMediaPermissions } = require('./media-permissions');
+const { attachRendererConsoleTail, RendererConsoleTail, writeCrashReport, pruneCrashReports, desktopErrorState } = require('./crash-report');
+const { UpdateJournal } = require('./update-journal');
+const { UpdateOverlays } = require('./update-overlay');
+const { ShellConfirmDialog } = require('./update-dialog');
+const { UpdateAttention } = require('./update-attention');
+const { rendererFile } = require('./paths');
+const { pathToFileURL } = require('node:url');
 const { qaFlag, qaRemoteMode: readRemoteMode } = require('./qa-gate');
 const { devToolsShortcutAllowed, attachDevToolsShortcut } = require('./devtools-shortcut');
 
@@ -201,6 +219,62 @@ async function resolveLaunchTarget(snapshot) {
 const mainCloseBound = new WeakSet();
 const launcherCloseBound = new WeakSet();
 
+/** Fatal crash reports live with the app's own logs, outside the install dir. */
+function crashLogDir() {
+  return require('node:path').join(app.getPath('logs'), 'crash');
+}
+
+// Shell-modal confirmation layer (upstream update-dialog/update-overlay):
+// the same transparent-child modal carries update asks, task-protection
+// prompts, and unverified-install warnings instead of the native messagebox.
+const shellOverlays = new UpdateOverlays();
+let shellConfirmInstance;
+function shellConfirm() {
+  if (!shellConfirmInstance) {
+    shellConfirmInstance = new ShellConfirmDialog(
+      require('node:path').join(__dirname, '..', 'preload', 'update-dialog.js'),
+      pathToFileURL(rendererFile('update-dialog.html')).href,
+      shellOverlays,
+    );
+  }
+  return shellConfirmInstance;
+}
+const updateAttention = new UpdateAttention({
+  title: '鲸屿更新已就绪',
+  body: '新版本已下载完成，回到窗口继续安装。',
+});
+
+/**
+ * Productized confirmation: shell overlay modal when a window can host it,
+ * native messagebox otherwise (no window yet, destroyed parent).
+ */
+async function confirmDialog(parent, options) {
+  if (parent && !parent.isDestroyed()) {
+    try {
+      return await shellConfirm().show(parent, options);
+    } catch (error) {
+      console.warn('dshd dialog: shell confirm failed, native fallback', error);
+    }
+  }
+  return dialog.showMessageBox(parent || undefined, options);
+}
+
+// Renderer crash/unresponsive recovery prompts go through the same styled
+// overlay when the crashed window is still on screen.
+setRecoveryConfirm(confirmDialog);
+
+const trayHideNotice = new TrayHideNotice({
+  markerPath: require('node:path').join(app.getPath('userData'), 'tray-hide-acknowledged'),
+  notify: () => {
+    const { Notification } = require('electron');
+    if (!Notification.isSupported()) return;
+    new Notification({
+      title: '已最小化到托盘',
+      body: '点击托盘图标可重新打开窗口，托盘菜单可完全退出。关闭行为见「设置 → 通用 → 关闭窗口时」。',
+    }).show();
+  },
+});
+
 function bindMainClose(win) {
   if (!win || mainCloseBound.has(win)) {
     return win;
@@ -215,7 +289,11 @@ function bindMainClose(win) {
     }
     if (hideOnClose(loadConfig(), quitting)) {
       event.preventDefault();
-      win.hide();
+      // First hide gets one transient toast naming the tray destination and
+      // the setting; later hides are fully silent.
+      trayHideNotice.close(() => {
+        if (!win.isDestroyed()) win.hide();
+      });
       return;
     }
     event.preventDefault();
@@ -270,6 +348,208 @@ function isDesktopKernelRunning() {
   return state === 'ready' || state === 'starting';
 }
 
+// ── Native welcome gate（上游 Welcome 流）──────────────────────────────────
+// needsWelcome({loggedIn,hasApiKey}) → 欢迎窗持有入口；skip/save/sign-in 完成
+// → enterWorkspace = showMain。账号 watch 流驱动状态推送、授权 URL 外开、
+// signed-out/session-expired 回流欢迎窗。Host 用同款 account RPC。
+
+let welcomeBackend;
+let welcomeWindow;
+let welcomeLocale;
+let pendingWelcomeNotice;
+let pendingHarnessEntry;
+let enteredWorkspace = false;
+let openedAttempt;
+let previousAccountStatus;
+let stopAccount;
+let platformView;
+let platformSessionRefresh;
+
+function needsWelcomeGate(state) {
+  return Boolean(state) && !state.loggedIn && !state.hasApiKey;
+}
+
+function platformLoginUrl(authorizeUrl) {
+  const url = new URL(authorizeUrl);
+  url.searchParams.set('theme', nativeTheme.shouldUseDarkColors ? 'dark' : 'light');
+  return url.href;
+}
+
+function welcomeClientMetadata() {
+  return {
+    version: currentVersion(),
+    locale: welcomeLocale?.id ?? 'zh-CN',
+    timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60,
+  };
+}
+
+async function enterWorkspace({ activate = true } = {}) {
+  if (quitting) return;
+  enteredWorkspace = true;
+  // The deferred workspace load resolves the entry before revealing.
+  const load = pendingHarnessEntry;
+  pendingHarnessEntry = undefined;
+  try {
+    await load?.();
+  } catch {
+    // The deferred load already ran its own failure path; the welcome stays
+    // closable and the boot page remains the recovery surface.
+    return;
+  }
+  const win = getMainWindow() ?? showMain();
+  if (win === undefined || win.isDestroyed()) return;
+  if (activate) win.show();
+  else win.showInactive();
+  if (welcomeWindow !== undefined) {
+    welcomeWindow.close();
+    welcomeWindow = undefined;
+  }
+}
+
+let openingWelcome;
+async function showWelcome() {
+  if (quitting) return;
+  if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
+    welcomeWindow.show();
+    welcomeWindow.focus();
+    return;
+  }
+  openingWelcome ??= (async () => {
+    welcomeWindow = await openWelcomeWindow(welcomeLocale, {
+      takeNotice: () => {
+        const notice = pendingWelcomeNotice;
+        pendingWelcomeNotice = undefined;
+        return Promise.resolve(notice);
+      },
+      startSignIn: async () => {
+        if (welcomeBackend === undefined) throw new Error('dshd welcome: backend unavailable');
+        return welcomeBackend.account.start(welcomeClientMetadata());
+      },
+      cancelSignIn: async (id) => {
+        if (welcomeBackend === undefined) throw new Error('dshd welcome: backend unavailable');
+        return welcomeBackend.account.cancel(id);
+      },
+      copySignInLink: async (id) => {
+        const state = await welcomeBackend?.account.state();
+        if (state?.attempt?.id !== id || state.attempt.phase !== 'waiting-browser' || state.attempt.authorizeUrl === undefined) {
+          throw new Error('dshd welcome: login link is unavailable');
+        }
+        clipboard.writeText(platformLoginUrl(state.attempt.authorizeUrl));
+      },
+      saveApiKey: async (apiKey) => {
+        if (welcomeBackend === undefined) return { ok: false };
+        const saved = await welcomeBackend.save(apiKey);
+        if (!saved.ok) return saved;
+        await enterWorkspace();
+        return { ok: true };
+      },
+      skip: enterWorkspace,
+    });
+    const window = welcomeWindow;
+    window.once('closed', () => {
+      void welcomeBackend?.account.state().then((state) => {
+        if (state.attempt !== null && !enteredWorkspace) return welcomeBackend?.account.cancel(state.attempt.id);
+        return undefined;
+      }).catch(() => undefined);
+    });
+    window.once('closed', () => {
+      if (welcomeWindow === window) welcomeWindow = undefined;
+      if (enteredWorkspace || quitting) return;
+      // The welcome gate owns the entry: closing it before entering the
+      // workspace quits the app (upstream policy).
+      app.quit();
+    });
+    if (quitting || enteredWorkspace) window.close();
+    else getMainWindow()?.hide();
+  })().finally(() => { openingWelcome = undefined; });
+  return openingWelcome;
+}
+
+function startAccountWatch() {
+  stopAccount?.();
+  if (welcomeBackend === undefined) return;
+  const account = welcomeBackend.account;
+  stopAccount = account.watch((state) => {
+    if (quitting) return;
+    if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
+      welcomeWindow.webContents.send(WELCOME_IPC.state, state);
+    }
+    // Embedded Platform documents track account identity: refresh the
+    // publisher snapshot on every transition (sign-in seeds credentials,
+    // sign-out clears and closes the view).
+    if (state.status !== previousAccountStatus) void platformSessionRefresh?.();
+    const attempt = state.attempt;
+    if (attempt?.phase === 'waiting-browser' && attempt.authorizeUrl !== undefined && openedAttempt !== attempt.id) {
+      openedAttempt = attempt.id;
+      void shell.openExternal(platformLoginUrl(attempt.authorizeUrl)).catch(() => undefined);
+    }
+    if (state.status === 'credential-stored' && attempt?.phase === 'succeeded' && welcomeWindow !== undefined) {
+      void enterWorkspace({ activate: false }).catch(() => undefined);
+    }
+    if (previousAccountStatus === 'credential-stored' && state.status === 'signed-out') {
+      void readWelcomeState().then(async (value) => {
+        if (needsWelcomeGate(value) && !quitting) {
+          enteredWorkspace = false;
+          await showWelcome();
+          if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
+            welcomeWindow.webContents.send(WELCOME_IPC.state, state);
+          }
+        }
+        return undefined;
+      }).catch(() => undefined);
+    }
+    previousAccountStatus = state.status;
+  }, () => {
+    // The stream reconnects; a transport failure does not change account state.
+  }, () => {
+    void readWelcomeState().then(async (value) => {
+      if (!needsWelcomeGate(value) || quitting) return;
+      pendingWelcomeNotice = 'session-expired';
+      enteredWorkspace = false;
+      await showWelcome();
+      const state = await account.state();
+      if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
+        welcomeWindow.webContents.send(WELCOME_IPC.state, state);
+      }
+    }).catch(() => undefined);
+  });
+}
+
+async function readWelcomeState() {
+  if (welcomeBackend === undefined) throw new Error('dshd welcome: backend unavailable');
+  return welcomeBackend.read();
+}
+
+/** Connect + watch + resolve the entry decision. Returns true when welcome owns the entry. */
+async function openInitialWelcome(targetUrl) {
+  if (quitting || welcomeBackend !== undefined) return false;
+  try {
+    // The harness view is not attached yet at the welcome gate, so the Host
+    // origin comes from the URL the workspace is about to load.
+    welcomeBackend = await connectWelcome(new URL(targetUrl).origin, () => dsh.sessionCookie);
+  } catch (error) {
+    console.warn('dshd welcome: backend connect failed', error);
+    welcomeBackend = undefined;
+    return false;
+  }
+  startAccountWatch();
+  let state;
+  try {
+    state = await readWelcomeState();
+  } catch (error) {
+    console.warn('dshd welcome: state read failed', error);
+    return false;
+  }
+  const languages = [];
+  try { languages.push(app.getLocale()); } catch { /* pre-ready */ }
+  welcomeLocale = resolveDesktopStartupLocale(state.localePreference, languages.length === 0 ? ['zh-CN'] : languages);
+  if (!enteredWorkspace && needsWelcomeGate(state)) {
+    await showWelcome();
+    return true;
+  }
+  return false;
+}
+
 function showForeground() {
   const win = getMainWindow();
   if (win && isDesktopKernelRunning()) {
@@ -321,7 +601,7 @@ async function startDesktopFromLauncher(options = {}) {
 
 /** Cold-start twin of the ipc.js unverified-install confirmation. */
 async function confirmUnverifiedColdStart(info) {
-  const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
+  const result = await confirmDialog(getLauncherWindow(), {
     type: 'warning',
     buttons: ['仍要安装', '取消'],
     defaultId: 1,
@@ -372,7 +652,11 @@ function runColdStartGate() {
       : checkUpdate,
     installUpdate: gateInstallUpdate,
     confirmUpdate: async (check) => {
-      const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
+      const win = getLauncherWindow();
+      if (win && !win.isDestroyed() && !win.isFocused()) {
+        updateAttention.ready(String(check.latest || check.version || 'update'), win, shellConfirm().window);
+      }
+      const result = await confirmDialog(win, {
         type: 'question',
         buttons: ['更新', '稍后'],
         defaultId: 0,
@@ -382,6 +666,7 @@ function runColdStartGate() {
         detail: updateAskDetail(check),
         noLink: true,
       });
+      updateAttention.clear();
       return result.response === 0;
     },
     openLauncher,
@@ -403,7 +688,17 @@ const harness = new HarnessController({
   createMainWindow: createMainWindowWithClose,
   getMainWindow,
   showBoot,
-  showHarness: (url, extra) => showHarness(url, { cookie: dsh.sessionCookie, ...extra }),
+  showHarness: async (url, extra) => {
+    // Native welcome gate (upstream): when neither account login nor a
+    // configured provider key exists, the welcome window owns the entry and
+    // the workspace load defers until skip/sign-in/save calls enterWorkspace.
+    if (!enteredWorkspace && await openInitialWelcome(url).catch(() => false)) {
+      pendingHarnessEntry = () => showHarness(url, { cookie: dsh.sessionCookie, ...extra });
+      return url;
+    }
+    enteredWorkspace = true;
+    return showHarness(url, { cookie: dsh.sessionCookie, ...extra });
+  },
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
@@ -418,6 +713,7 @@ const harness = new HarnessController({
   ensureDshImPlugin,
   ensureDshbotPlugin,
   ensureTaskControlPlugin: ensureDesktopTaskControl,
+  ensureDesktopPlatformSession,
   ensureDshWhalePlugin: ensureDesktopDshWhale,
   ensureDshRemotePlugin: ensureDesktopDshRemote,
   ensureDesktopMarket,
@@ -470,6 +766,65 @@ function describeWorkItem(item) {
   }
 }
 
+/**
+ * `dshDesktop.updates.open()`: run the same check→confirm→install flow the
+ * launcher gate owns, presented over the main window. Version confirmation
+ * and task protection stay identical — only the host surface differs.
+ */
+async function openDesktopUpdate() {
+  const win = getMainWindow();
+  const info = await checkUpdate();
+  if (info.status === 'available') {
+    const ask = await confirmDialog(win, {
+      type: 'question',
+      buttons: ['更新', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '发现新版本',
+      message: `是否更新到 ${info.latest || info.version || ''}？`,
+      detail: updateAskDetail(info),
+      noLink: true,
+    });
+    if (ask.response !== 0) return;
+    await installUpdate(() => {}, {
+      confirmUnverified: confirmUnverifiedColdStart,
+      expectedCheck: info,
+      taskProtection: getTaskProtection(),
+    });
+    return;
+  }
+  if (info.status === 'error') {
+    await confirmDialog(win, {
+      type: 'error',
+      buttons: ['重试', '取消'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '检查更新失败',
+      message: '无法连接更新服务，请稍后重试。',
+      detail: String(info.message || '').slice(0, 600),
+      noLink: true,
+    }).then((r) => (r.response === 0 ? openDesktopUpdate() : undefined));
+    return;
+  }
+  await confirmDialog(win, {
+    type: 'info',
+    buttons: ['知道了'],
+    defaultId: 0,
+    cancelId: 0,
+    title: '检查更新',
+    message: `当前已是最新版本 ${currentVersion()}`,
+    noLink: true,
+  });
+}
+
+// Anchor for productized confirmations: the first VISIBLE window — a hidden
+// main window must not push prompts to the native fallback while the
+// launcher is on screen.
+function firstVisibleWindow() {
+  return [getMainWindow(), getLauncherWindow()]
+    .find((win) => win && !win.isDestroyed() && win.isVisible()) || null;
+}
+
 async function confirmTaskStop(operation, inspection) {
   const verb = TASK_VERBS[operation] || '继续';
   const parts = [];
@@ -485,8 +840,6 @@ async function confirmTaskStop(operation, inspection) {
     parts.length > 0 ? `仍在运行：${[...new Set(parts)].join('；')}` : '后台任务状态无法完全确认',
     unknownCoverage ? '注意：部分后台服务状态未知' : '',
   ].filter(Boolean).join('\n');
-  const win = getMainWindow() || getLauncherWindow();
-  const anchor = win && win.isVisible() ? win : null;
   const options = {
     type: 'warning',
     buttons: ['取消', `仍然${verb}`],
@@ -497,9 +850,7 @@ async function confirmTaskStop(operation, inspection) {
     detail,
     noLink: true,
   };
-  const result = anchor
-    ? await dialog.showMessageBox(anchor, options)
-    : await dialog.showMessageBox(options);
+  const result = await confirmDialog(firstVisibleWindow(), options);
   return result.response === 1;
 }
 
@@ -524,8 +875,12 @@ const taskControlPeer = createTaskControlPeer({
   onPeerStop: async () => {
     // "Stop the desktop" for an external launcher means this process exits —
     // the legacy path was taskkill, so the protected equivalent is a
-    // terminal coordinate followed by the normal quit funnel.
-    const result = await taskProtection.coordinate('stop', { terminal: true });
+    // terminal coordinate followed by the normal quit funnel. The launcher's
+    // stop button is explicit consent: preConfirmed keeps the
+    // inspect/acquire/drain sequencing but skips the confirm — prompting
+    // again would double-prompt one click (and with every desktop window
+    // hidden it fell back to a native box).
+    const result = await taskProtection.coordinate('stop', { terminal: true, preConfirmed: true });
     if (!result.proceeded) {
       return { ok: false, code: result.code || 'cancelled' };
     }
@@ -533,7 +888,9 @@ const taskControlPeer = createTaskControlPeer({
     return { ok: true, quit: true };
   },
   onPeerInstall: async () => {
-    const result = await taskProtection.coordinate('install', { terminal: true });
+    // Same explicit-consent rule as onPeerStop: the launcher's install/更新
+    // click already authorized replacing the running desktop.
+    const result = await taskProtection.coordinate('install', { terminal: true, preConfirmed: true });
     if (!result.proceeded) {
       return { ok: false, code: result.code || 'cancelled' };
     }
@@ -640,7 +997,11 @@ const drainParkedUpdateCheck = createParkedUpdateDrainer({
     isPackaged: app.isPackaged,
     check,
     confirmUpdate: async (pending) => {
-      const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
+      const win = getLauncherWindow();
+      if (win && !win.isDestroyed() && !win.isFocused()) {
+        updateAttention.ready(String(pending.latest || pending.version || 'update'), win, shellConfirm().window);
+      }
+      const result = await confirmDialog(win, {
         type: 'question',
         buttons: ['更新', '稍后'],
         defaultId: 0,
@@ -650,6 +1011,7 @@ const drainParkedUpdateCheck = createParkedUpdateDrainer({
         detail: updateAskDetail(pending),
         noLink: true,
       });
+      updateAttention.clear();
       return result.response === 0;
     },
     installUpdate: gateInstallUpdate,
@@ -672,6 +1034,18 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => {
     showForeground();
+  });
+
+  // The pet overlay is a fullscreen transparent always-on-top window; a GPU
+  // process crash can leave its layered surface compositing opaque-black over
+  // the whole display (whale sprite still draws). Rebuild it on GPU death.
+  app.on('gpu-process-crashed', () => {
+    try { getLive2dPet()?.recreateWindow(); } catch {}
+  });
+  app.on('child-process-gone', (_event, details) => {
+    if (details?.type === 'GPU') {
+      try { getLive2dPet()?.recreateWindow(); } catch {}
+    }
   });
 
   app.setName(PRODUCT_NAME);
@@ -921,6 +1295,89 @@ if (!gotLock) {
 
     watchSystemTheme();
 
+    // In-app update indicator backend (upstream dshDesktop.updates): the Web
+    // chip reads status() and open() joins the shell-owned check→confirm→
+    // install flow — identical gates to the launcher ask.
+    const updatesState = createUpdatesState({ onOpen: openDesktopUpdate });
+    setUpdateStateSink((state) => {
+      updatesState.publish(state);
+      const wc = getHarnessWebContents(getMainWindow());
+      if (wc) updatesState.broadcast([wc]);
+    });
+
+    // Sidebar browser guests (upstream webview model): lease-checked
+    // will-attach-webview, per-workspace locked-down partitions, Host origin
+    // unreachable from guests.
+    installBrowserGuests(new BrowserGuests(() => getHarnessOrigin()), {
+      ipcMain,
+      getView: () => getHarnessView(),
+      getOrigin: () => getHarnessOrigin(),
+    });
+
+    // Embedded Platform documents (usage/top-up): an isolated WebContentsView
+    // child with account-scoped partitions and main-owned credential header
+    // injection. Session snapshots arrive from the loopback publisher route.
+    platformView = new DesktopPlatformView(
+      require('node:path').join(__dirname, '..', 'preload', 'platform.js'),
+      () => welcomeLocale?.id === 'zh-CN' ? 'zh_CN' : 'en_US',
+      process.platform === 'win32' ? 'win32' : 'darwin',
+      welcomeClientMetadata,
+    );
+    platformSessionRefresh = async () => {
+      try {
+        platformView?.setSession(await fetchPlatformSession(getHarnessOrigin()));
+      } catch {
+        // Loopback failures leave the last session; open() refetches.
+      }
+    };
+    const assertProductDoc = (event) => {
+      const view = getHarnessView();
+      if (view === undefined || event.sender !== view.webContents
+        || event.senderFrame !== view.webContents.mainFrame
+        || !event.senderFrame.url.startsWith(getHarnessOrigin())) {
+        throw new Error('dshd platform: rejected sender');
+      }
+      return getMainWindow();
+    };
+    ipcMain.on(PLATFORM_IPC.bootstrap, (event) => {
+      try { event.returnValue = platformView.bootstrap(event); }
+      catch { event.returnValue = null; }
+    });
+    ipcMain.handle(PLATFORM_IPC.open, async (event, page, bounds) => {
+      const owner = assertProductDoc(event);
+      if (page !== 'usage' && page !== 'top-up') throw new Error('dshd platform: invalid page');
+      await platformSessionRefresh?.();
+      return platformView.open(owner, page, platformBounds(bounds));
+    });
+    ipcMain.handle(PLATFORM_IPC.bounds, (event, bounds) => {
+      assertProductDoc(event);
+      platformView.setBounds(platformBounds(bounds));
+    });
+    ipcMain.handle(PLATFORM_IPC.close, (event) => {
+      assertProductDoc(event);
+      platformView.close();
+    });
+
+    // Microphone stays scoped to the owned harness main frame, audio only
+    // (upstream microphone-permissions policy, adapted to the loopback origin).
+    installMediaPermissions(session.defaultSession, () => {
+      const view = getHarnessView();
+      return view && !view.webContents.isDestroyed() ? view.webContents : undefined;
+    }, systemPreferences);
+
+    // html[data-ds-theme-source] → nativeTheme.themeSource, so native chrome
+    // (dialogs, tray icon contrast) follows the app palette (upstream
+    // preload-theme semantics; sender-gated to the harness view).
+    ipcMain.on('shell:native-theme', (event, value) => {
+      const view = getHarnessView();
+      if (!view || view.webContents.isDestroyed() || event.sender !== view.webContents) return;
+      if (value === 'light' || value === 'dark' || value === 'system') {
+        nativeTheme.themeSource = value;
+      }
+    });
+
+    void pruneCrashReports(crashLogDir()).catch((error) => console.warn('dshd: crash report prune failed', error));
+
     session.defaultSession.on('will-download', (event, item) => {
       const dest = downloadSavePath(app.getPath('downloads'), item.getFilename());
       item.setSavePath(dest);
@@ -1011,7 +1468,7 @@ if (!gotLock) {
     // unreachable runtime must not silently cancel the quit — offer a
     // last-resort force exit so the app can always be closed.
     if (result.code && result.code !== 'cancelled' && result.code !== 'busy') {
-      const choice = await dialog.showMessageBox({
+      const choice = await confirmDialog(firstVisibleWindow(), {
         type: 'warning',
         title: '退出未完成',
         message: '桌面运行时未响应退出请求',

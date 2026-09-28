@@ -28,7 +28,7 @@
 
 ## 退出/更新保护（P1）
 
-退出、重启、停止、reload、更新、增量安装全部过 `src/main/task-protection.js` 协调器：`inspect → 脏则原生确认 → acquire（Host 接纳锁 + drain）→ 复查 → commit`。Host 侧 `vendor/dsh-task-control`（overlay `desktop-task-control.patch.yml` 每次启动挂载）包裹 webServer 路由/升级/`connection/request` 瀑布与 `sessionController.resolveAgent`、`jobs.start`，锁定期间新工作一律拒绝，解锁时驱动 schedule `requestDrive` 恢复到期投递。slim 包经 userData 的 `task-control-peer.json` 握手让外部桌面自己跑协调；无握手的旧桌面走 WM_CLOSE，进程仍在即阻断，不再 `taskkill /F`。决策记录：[../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md](../../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md)。
+退出、重启、停止、reload、更新、增量安装全部过 `src/main/task-protection.js` 协调器：`inspect → 脏则确认（壳层弹窗，无可见窗退原生框） → acquire（Host 接纳锁 + drain）→ 复查 → commit`；launcher 发起的停止（peer `stop-desktop` 与自带启动器 `stopOp`）带 `preConfirmed` 跳过两道确认门——点击即同意。Host 侧 `vendor/dsh-task-control`（overlay `desktop-task-control.patch.yml` 每次启动挂载）包裹 webServer 路由/升级/`connection/request` 瀑布与 `sessionController.resolveAgent`、`jobs.start`，锁定期间新工作一律拒绝，解锁时驱动 schedule `requestDrive` 恢复到期投递。slim 包经 userData 的 `task-control-peer.json` 握手让外部桌面自己跑协调；无握手的旧桌面走 WM_CLOSE，进程仍在即阻断，不再 `taskkill /F`。决策记录：[../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md](../../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md)。
 
 ## 不变量
 

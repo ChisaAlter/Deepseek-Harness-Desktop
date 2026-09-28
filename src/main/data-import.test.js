@@ -290,12 +290,15 @@ test('recoverInterruptedImport consumes a copying journal and clears .import-tmp
   })}\n`);
   const result = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
   assert.equal(result.recovered, true);
-  assert.equal(result.removedTmp.length, 3);
-  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a.import-tmp')), false);
-  assert.equal(fs.existsSync(path.join(tree.dest, 'skills', 'alpha.import-tmp')), false);
-  assert.equal(fs.existsSync(path.join(tree.dest, 'attachments.import-tmp')), false);
+  // Unjournaled staging dirs are preserved, not deleted: they may be the
+  // only surviving copy after a crash in the old non-transactional swap.
+  assert.equal(result.blocked, true);
+  assert.equal(result.pendingTxns.length, 3);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a.import-tmp')), true);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'skills', 'alpha.import-tmp')), true);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'attachments.import-tmp')), true);
   assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-keep')), true);
-  assert.equal(readImportJournal(tree.userData).phase, 'recovered');
+  assert.equal(readImportJournal(tree.userData).phase, 'blocked');
   const again = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
   assert.equal(again.recovered, false);
   fs.rmSync(tree.root, { recursive: true, force: true });
@@ -959,9 +962,11 @@ test('runImport keeps the journal copying when cancelled in a later plugin stage
   const staged = path.join(tree.dest, 'sessions', 'proj', 'sess-b.import-tmp');
   fs.mkdirSync(staged, { recursive: true });
   fs.writeFileSync(path.join(staged, 'session.jsonl'), 'partial');
-  assert.equal(recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest }).recovered, true);
-  assert.equal(readImportJournal(tree.userData).phase, 'recovered');
-  assert.equal(fs.existsSync(staged), false);
+  const recovery = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+  assert.equal(recovery.recovered, true);
+  assert.equal(recovery.blocked, true);
+  assert.equal(readImportJournal(tree.userData).phase, 'blocked');
+  assert.equal(fs.existsSync(staged), true);
   assert.equal(fs.existsSync(completedSession), true);
   fs.rmSync(tree.root, { recursive: true, force: true });
 });
@@ -997,10 +1002,38 @@ test('a cancelled import leaves only completed sessions and a recoverable stagin
   const staged = path.join(tree.dest, 'sessions', 'proj', 'sess-b.import-tmp');
   fs.mkdirSync(staged, { recursive: true });
   fs.writeFileSync(path.join(staged, 'session.jsonl'), 'partial');
-  assert.equal(recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest }).recovered, true);
-  assert.equal(readImportJournal(tree.userData).phase, 'recovered');
-  assert.equal(fs.existsSync(staged), false);
+  const recovery = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+  assert.equal(recovery.recovered, true);
+  // A bare unjournaled `.import-tmp` is preserved, not deleted: it may hold
+  // the only surviving copy of user data after a crash in the old swap.
+  assert.equal(recovery.blocked, true);
+  assert.equal(readImportJournal(tree.userData).phase, 'blocked');
+  assert.equal(fs.existsSync(staged), true);
   assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl')), true);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('recovery reconciles a journaled interrupted session copy', async () => {
+  const tree = makeTree();
+  const { readImportJournal, recoverInterruptedImport } = require('./data-import');
+  const { writeFileSync, mkdirSync, writeFileSync: wf } = fs;
+  mkdirSync(path.join(tree.dest, 'sessions'), { recursive: true });
+  const dest = path.join(tree.dest, 'sessions', 'proj', 'sess-x');
+  const opId = 'test-op-1';
+  const tmp = `${dest}.import-tmp-${opId}`;
+  const bak = `${dest}.import-bak-${opId}`;
+  const txn = `${dest}.import-txn-${opId}`;
+  mkdirSync(tmp, { recursive: true });
+  writeFileSync(path.join(tmp, 'session.jsonl'), 'staged');
+  writeFileSync(txn, JSON.stringify({ version: 1, opId, dest, tmp, bak, state: 'staged' }));
+  // Journal must be in 'copying' for recoverInterruptedImport to act.
+  writeFileSync(path.join(tree.userData, 'import-journal.json'), JSON.stringify({ phase: 'copying', sourceHome: tree.source, destHome: tree.dest }));
+  const outcome = recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest });
+  assert.equal(outcome.recovered, true);
+  assert.equal(outcome.blocked, false);
+  assert.equal(fs.existsSync(tmp), false);
+  assert.equal(fs.existsSync(txn), false);
+  assert.equal(readImportJournal(tree.userData).phase, 'recovered');
   fs.rmSync(tree.root, { recursive: true, force: true });
 });
 

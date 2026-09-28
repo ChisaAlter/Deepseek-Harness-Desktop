@@ -60,7 +60,7 @@ Harness 0.1.7-alpha.2 同步保留本页既有视觉合同。新增上游组件�
 4. **主色不是电光蓝。** 默认主按钮是近黑（浅色）/ 近白（深色）：`--dsw-alias-button-primary-fill`（浅色即 `rgb(15, 17, 21)`）。品牌蓝是 `--dsw-static-deepseek-500`（`rgb(65, 118, 230)`）及其 alias（`--dsw-alias-button-info-fill`、`--dsw-alias-state-business-primary`），用于信息强调、用户气泡、选中态。禁止 `#2b5cff`、`#6ea8ff`、`#3964fe` 这类平行色板。
 5. **描边用透明度，不用实心灰。** 浅色 `rgba(0,0,0,.04/.10/.12)`，深色 `rgba(255,255,255,.06/.12/.16)`，对应 `--dsw-alias-border-l1`～`l3`。栏与栏之间是 1px 发丝线，不是投影卡片墙。
 6. **Hover / Active 用交互 token。** 浅色 `rgba(38, 49, 72, .06 / .10)`，深色 `rgba(255,255,255,.08 / .14)`：`--dsw-alias-interactive-bg-hover` / `active`。不要新造一层实心灰底。
-7. **圆角按角色。** 主按钮胶囊 18（高 36）/ 小按钮 14（高 28）；输入 8；菜单 12；对话框 24；Tooltip 8；图标点击区 8。不要 6px 方钮；999px 只给胶囊按钮和开关。桌面壳最外框（`.frame` 外缘与 Windows 标题栏内容角 `--dsh-windows-content-radius`）10；启动器窗口外框 10。两窗均为 `transparent` 窗口：启动器轮廓由 `.shell` 卡片自绘；桌面端剪影由页面自绘——boot 页 `.scene` 圆角卡、harness 页由注入层给 `body`（`position:relative`）圆角裁切并以 `#dshd-frame-canvas` 补底色（最大化归零）：absolute/fixed 全屏层逃逸 body 的圆角裁切，因此 `#dsh-wallpaper`、`#dshd-frame-canvas` 等层各自携带同径圆角（round 角形）。内部控件沿用各自角色值。
+7. **圆角按角色。** 主按钮胶囊 18（高 36）/ 小按钮 14（高 28）；输入 8；菜单 12；对话框 24；Tooltip 8；图标点击区 8。不要 6px 方钮；999px 只给胶囊按钮和开关。桌面壳最外框（`.frame` 外缘与 Windows 标题栏内容角 `--dsh-windows-content-radius`）20；启动器窗口外框 20。两窗均为 `transparent` 窗口：启动器轮廓由 `.shell` 卡片自绘；桌面端剪影由页面自绘——boot 页 `.scene` 圆角卡、harness 页由注入层给 `body`（`position:relative`）圆角裁切并以 `#dshd-frame-canvas` 补底色（最大化归零）：absolute/fixed 全屏层逃逸 body 的圆角裁切，因此 `#dsh-wallpaper`、`#dshd-frame-canvas` 等层各自携带同径圆角（round 角形）。透明剪影窗在窗口层关闭 OS 圆角遮罩（`roundedCorners: false`，`windowChrome` 对 `transparent` 覆盖自动关闭）：Windows 11 的 DWM 遮罩约 8px 且不做 alpha 混合，会把页面自绘的更大圆弧裁成阶梯锯齿；不画剪影的透明窗（welcome）保留 OS 圆角。内部控件沿用各自角色值。
 8. **字号必须配行高。** 标题 16/24，正文 14/22，紧凑 12/18，Tooltip 13/20。字重 400 / 500 / 600 / 700；Figma 510 渲染为 500。禁止 `font-weight: 650`。
 9. **间距是 4 的倍数。** 控件内边距、gap、栏间距用 4 / 8 / 12 / 14 / 16 / 20 / 24。
 10. **图标 16px、`currentColor`。** 用 `ui-primitives` 的 `ic_ds_*`。密集标题栏可用 14px。不要引入另一套图标库或彩色填充图标。
@@ -128,6 +128,8 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 设置侧栏导航禁止浏览器默认的黄色焦点轮廓。仅键盘焦点使用与设置入口一致的 `2px solid var(--dsw-alias-label-primary)` 内描边（`outline-offset: -2px`）；鼠标选中只显示中性选中底色，不额外画边框。
 
+助理身份统一用 [`assets/whale-head.png`](../assets/whale-head.png)，禁 emoji：侧栏、空态、桌宠卡、16px 标题栏头像。
+
 侧栏有官方账户入口时，设置与远程配对收进账户菜单；否则保留原入口。更新和连接状态独立呈现，空行不占位。两种入口打开同一设置面板；从菜单打开的弹窗关闭后焦点回到账户按钮。远程菜单复用 16px 手机图标和原配对弹窗。不可见的设置触发点供深链和快捷键使用。设置导航与页标题称「鲸鱼娘」，用既有 SegmentedTabs 分「聊天与能力」「桌面形象与行为」；复用 Setting-Cell、控件和弹窗。助理身份与 IM 在前页，形象、行为和互动在后页。
 
 桌面账户登录在授权链接就绪后自动打开系统浏览器；等待弹窗继续显示复制链接的手动入口，浏览器打开失败不关闭该弹窗。同一登录尝试不重复弹出浏览器。
@@ -175,7 +177,7 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 启动页是整窗一张海平线画布，不是中间再套卡片。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
 
-62% 高度的交接线分上下两半：线上天空（深色=深空，星云、银河带、星尘与亮星闪烁；浅色=高空，积云与天光），线下深海（调暗、表层透光、悬浮微粒、暗角）。交接线是 1px 细线，不加辉光；水下无光束、无涟漪。中央依次是 `Whale Isle` 衬线字标（Didot/Bodoni 系，窄亮带 6s 扫掠）与状态；副标两行：鲸屿 徽块 / BASED ON DEEPSEEK HARNESS（不闪）。启动态只呈现「启动中」与三点呼吸省略号，其余态收起。异常或恢复时动作面回中央（重试 / 取消自动重启 / 下载日志 / 回启动器排查，按 recovery gating）。
+62% 高度的交接线分上下两半：线上天空（深色=深空，星云、银河带、星尘与亮星闪烁；浅色=高空，积云与天光），线下深海（调暗、表层透光、悬浮微粒、暗角）。交接线是 1px 细线，不加辉光；水下无光束、无涟漪。中央依次是 `Whale Isle` 衬线字标（Didot/Bodoni 系，窄亮带 6s 扫掠）与状态；副标两行：鲸屿字标两侧细线 / BASED ON DEEPSEEK HARNESS（不闪）。启动态只呈现「启动中」与三点呼吸省略号，其余态收起。异常或恢复时动作面回中央（重试 / 取消自动重启 / 下载日志 / 回启动器排查，按 recovery gating）。
 
 日志收进底缘：单行 ticker（脉冲点 + 最新行 + `L NN` 行数 +「全部日志」入口；行按优先级复用——恢复/动作回执 > 状态提示 > 最新日志），点击、Enter 或 Space 升起毛玻璃抽屉承载带行号的完整日志（上限 400 行），Escape / 遮罩 / × 收回；不自动弹，重要行经 `isImportantBootLog` 标红。进度只展示 controller 或插件事件的实际状态，不虚构；插件加载留在本画布，后台 BrowserView 就绪才露出官方 Web UI，揭示为交叉淡化（harness 0→1 叠 `.scene` 淡出）。启动器跳板只在 settled `error` 且恢复状态非 `scheduled`/`restarting` 时出现。
 

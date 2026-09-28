@@ -66,8 +66,8 @@ export function apply(ctx) {
   // Second gate on the /api waterfall: the connection route was registered
   // before this plugin loaded, so it cannot be gated solely by the wrapped
   // registration path in compositions where the route table is rebuilt.
-  ctx.on('connection/request', async (_request, response, next) => {
-    const admission = admit(state);
+  ctx.on('connection/request', async (request, response, next) => {
+    const admission = admit(state, `conn ${request.method} ${request.url}`);
     if (!admission.accepted) {
       response.writeHead(503, { 'content-type': 'application/json; charset=utf-8' });
       response.end(JSON.stringify({ error: { code: admission.code } }));

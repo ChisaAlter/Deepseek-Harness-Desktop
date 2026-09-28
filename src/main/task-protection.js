@@ -65,7 +65,16 @@ function createTaskProtection(options = {}) {
 
   function baseUrl() {
     const value = typeof options.getBaseUrl === 'function' ? options.getBaseUrl() : '';
-    return typeof value === 'string' ? value.replace(/\/+$/, '') : '';
+    const raw = typeof value === 'string' ? value.replace(/\/+$/, '') : '';
+    if (!raw) return '';
+    // The ready URL carries the launch token (`dsh web: <origin>/?token=…`);
+    // appending the control prefix after that query would post to `/` and get
+    // a 405, so the control surface pins the origin.
+    try {
+      return new URL(raw).origin;
+    } catch {
+      return raw;
+    }
   }
 
   function hostRunning() {
@@ -179,6 +188,8 @@ function createTaskProtection(options = {}) {
    *   ends the process (quit/update); stop/restart keep coordinating.
    *   `hostLock: false` skips the Host acquire — reload keeps the Host alive,
    *   so a held lock would freeze admissions until its TTL.
+   *   `preConfirmed: true` skips both user-confirm gates — callers carrying
+   *   explicit consent (the launcher's stop button) must not prompt again.
    * @returns {Promise<{ proceeded: boolean, code?: string, inspection?: object }>}
    */
   async function coordinate(operation, opts = {}) {
@@ -194,7 +205,7 @@ function createTaskProtection(options = {}) {
     coordinating = operation;
     try {
       const first = mergedInspection(await inspect());
-      if (!inspectionClean(first)) {
+      if (!inspectionClean(first) && opts.preConfirmed !== true) {
         if (!(await confirmWithUser(operation, first))) {
           return { proceeded: false, code: 'cancelled', inspection: first };
         }
@@ -209,7 +220,7 @@ function createTaskProtection(options = {}) {
           return { proceeded: false, code: acquired.code || 'acquire-failed' };
         }
         const second = mergedInspection(await inspect());
-        if (!inspectionClean(second) && inspectionClean(first)) {
+        if (!inspectionClean(second) && inspectionClean(first) && opts.preConfirmed !== true) {
           // Work arrived between the first look and the lock — re-confirm
           // against the fresh picture rather than riding an obsolete prompt.
           if (!(await confirmWithUser(operation, second))) {

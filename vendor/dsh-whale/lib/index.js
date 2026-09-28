@@ -119,8 +119,8 @@ export function isWhaleAssistantContext(assembleCtx, snap, home) {
     && path.resolve(header.cwd) === path.resolve(whaleHome));
 }
 
-function whaleDisplayName(settings) {
-  return `🐳 ${String(settings?.name ?? '').trim() || '鲸鱼娘'}`;
+export function whaleDisplayName(settings) {
+  return String(settings?.name ?? '').trim() || '鲸鱼娘';
 }
 
 /**

@@ -78,9 +78,15 @@ function isRecurringRecord(record) {
 }
 
 async function collectSchedule(ctx, scheduledWork, coverage) {
-  // Schedule is a built-in of the web bundle — a missing service is runtime
-  // damage, so coverage fails closed as `unavailable` and blocks unattended
-  // commits rather than reading as a deliberate opt-out.
+  // The desktop declares schedule off by not passing DSHD_SCHEDULE_ENABLED;
+  // per the coverage contract that is `intentional-disabled`, not damage.
+  // Schedule is a built-in of the web bundle — when declared on, a missing
+  // service is runtime damage, so coverage fails closed as `unavailable` and
+  // blocks unattended commits rather than reading as a deliberate opt-out.
+  if (!envFlag('DSHD_SCHEDULE_ENABLED')) {
+    coverage.schedule = 'intentional-disabled';
+    return;
+  }
   const schedule = ctx.get('schedule');
   if (schedule === undefined || schedule === null || typeof schedule.catalog !== 'function') {
     coverage.schedule = 'unavailable';

@@ -143,12 +143,60 @@ function showTab(name) {
     const on = tab.dataset.tab === name;
     tab.classList.toggle('is-active', on);
     tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    tab.tabIndex = on ? 0 : -1;
   });
   document.querySelectorAll('.panel').forEach((panel) => {
     const on = panel.id === `panel-${name}` || panel.id === `tab-${name}`;
     panel.classList.toggle('is-active', on);
     panel.hidden = !on;
   });
+}
+
+/**
+ * Roving-tabindex arrow-key navigation for a tablist: arrows move focus,
+ * Home/End jump to the edges, Enter/Space activates (manual activation
+ * per ARIA tab pattern). `activate(tab)` is called on selection.
+ */
+function bindTablist(tablist, { orientation = 'horizontal', activate } = {}) {
+  const tabs = () => [...tablist.querySelectorAll('[role="tab"]')].filter((t) => !t.hidden && !t.disabled);
+  const prevKeys = orientation === 'vertical' ? ['ArrowUp'] : ['ArrowLeft'];
+  const nextKeys = orientation === 'vertical' ? ['ArrowDown'] : ['ArrowRight'];
+  tablist.addEventListener('keydown', (event) => {
+    const list = tabs();
+    if (!list.length) return;
+    const current = document.activeElement;
+    const index = list.indexOf(current);
+    let next = -1;
+    if (prevKeys.includes(event.key)) {
+      next = index <= 0 ? list.length - 1 : index - 1;
+    } else if (nextKeys.includes(event.key)) {
+      next = index < 0 || index >= list.length - 1 ? 0 : index + 1;
+    } else if (event.key === 'Home') {
+      next = 0;
+    } else if (event.key === 'End') {
+      next = list.length - 1;
+    }
+    if (next >= 0 && next < list.length) {
+      event.preventDefault();
+      list[next].focus();
+    }
+  });
+  // Keep tabindex roving: focus moves, the tab stop stays singular.
+  tablist.addEventListener('focusin', (event) => {
+    if (event.target.getAttribute('role') !== 'tab') return;
+    for (const tab of tabs()) {
+      tab.tabIndex = tab === event.target ? 0 : -1;
+    }
+  });
+  if (typeof activate === 'function') {
+    tablist.addEventListener('keydown', (event) => {
+      if ((event.key === 'Enter' || event.key === ' ')
+        && event.target.getAttribute('role') === 'tab') {
+        event.preventDefault();
+        activate(event.target);
+      }
+    });
+  }
 }
 
 function badge(text, warn) {
@@ -630,6 +678,13 @@ function renderRouteControls(status) {
   if (railRoute) {
     railRoute.textContent = routeLabel(routes, current) || '未选择';
   }
+  const railPop = $('rail-route-pop');
+  if (railPop) {
+    renderRouteOptions(railPop, routes, current, async (picked) => {
+      closeRoutePops();
+      await pickDownloadRoute(picked, current);
+    });
+  }
   const picker = $('route-picker');
   if (picker) {
     picker.innerHTML = routes.map((route) => `
@@ -651,13 +706,29 @@ function renderRouteControls(status) {
         }
       });
     });
+    picker.addEventListener('keydown', (event) => {
+      const list = [...picker.querySelectorAll('[data-route-pick]')].filter((b) => !b.disabled);
+      const index = list.indexOf(document.activeElement);
+      let next = -1;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        next = index <= 0 ? list.length - 1 : index - 1;
+      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        next = index < 0 || index >= list.length - 1 ? 0 : index + 1;
+      }
+      if (next >= 0 && next < list.length) {
+        event.preventDefault();
+        list[next].focus();
+      }
+    });
   }
   const seg = $('route-seg');
   const segNote = $('route-seg-note');
   if (seg) {
     seg.innerHTML = routes.map((route) => `
-      <button type="button" class="seg${route.id === current ? ' is-active' : ''}"
+      <button type="button" role="radio" class="seg${route.id === current ? ' is-active' : ''}"
         data-route="${escapeHtml(route.id)}" ${route.verified ? '' : 'disabled'}
+        aria-checked="${route.id === current ? 'true' : 'false'}"
+        tabindex="${route.id === current ? '0' : '-1'}"
         title="${escapeHtml(route.detail || '')}${route.verified ? '' : '（待验证）'}">${escapeHtml(route.label)}</button>`).join('');
     if (segNote) {
       const disabled = routes.filter((route) => !route.verified);
@@ -675,6 +746,21 @@ function renderRouteControls(status) {
           setHint(errText(error, '设置保存失败'));
         }
       });
+    });
+    // Arrow-key navigation within the radio group, skipping disabled routes.
+    seg.addEventListener('keydown', (event) => {
+      const list = [...seg.querySelectorAll('[data-route]')].filter((b) => !b.disabled);
+      const index = list.indexOf(document.activeElement);
+      let next = -1;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        next = index <= 0 ? list.length - 1 : index - 1;
+      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        next = index < 0 || index >= list.length - 1 ? 0 : index + 1;
+      }
+      if (next >= 0 && next < list.length) {
+        event.preventDefault();
+        list[next].focus();
+      }
     });
   }
 }
@@ -955,11 +1041,10 @@ function syncDesktopControls() {
   const start = $('btn-start');
   const stop = $('btn-stop');
   if (start) {
-    // Running state keeps a visible primary like the prototype: respawning the
-    // installed exe lands on the runtime's own single-instance handler, which
-    // focuses its window instead of booting a second desktop.
-    start.hidden = false;
-    start.textContent = running ? '打开桌面端窗口' : '启动桌面端';
+    // Controls are mutually exclusive: a running desktop offers only 关闭,
+    // a stopped one only 启动 — reopening a dismissed window rides the tray.
+    start.hidden = running;
+    start.textContent = '启动桌面端';
   }
   if (stop) {
     stop.hidden = !running;
@@ -1233,6 +1318,7 @@ function showImportCat(name) {
     const on = button.dataset.importCat === name;
     button.classList.toggle('is-active', on);
     button.setAttribute('aria-selected', on ? 'true' : 'false');
+    button.tabIndex = on ? 0 : -1;
   });
   document.querySelectorAll('[data-import-pane]').forEach((pane) => {
     const on = pane.dataset.importPane === name;
@@ -1462,6 +1548,12 @@ function summarizeImport(result) {
     `预设 已拷 ${countStatus(result.presets, 'copied')} · 跳过 ${countStatus(result.presets, 'skipped')} · 拒绝 ${countStatus(result.presets, 'rejected')}`,
     `附件 ${result.attachments || 'absent'}`,
   ];
+  const totalFailed = ['sessions', 'skills', 'plugins', 'mcp', 'settings', 'presets']
+    .reduce((n, key) => n + countStatus(result[key], 'failed'), 0)
+    + (typeof result.attachments === 'string' && result.attachments.startsWith('failed:') ? 1 : 0);
+  if (totalFailed > 0) {
+    lines.push(`共 ${totalFailed} 项失败。`);
+  }
   if (result.ok === false) {
     lines.push('导入未完全成功。官方来源未改写。');
   }
@@ -1614,15 +1706,58 @@ async function refreshPlugins() {
   }
 }
 
-function routePopoverOpen(open) {
-  const chip = $('versions-route-btn');
-  const pop = $('versions-route-pop');
+function setRoutePop(chip, pop, open) {
   if (!chip || !pop) {
     return;
   }
   pop.hidden = !open;
   if (chip.setAttribute) {
     chip.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+}
+
+// Both route popovers (Versions header + rail footer) close together: an
+// outside click or Escape sweeps every open one.
+function closeRoutePops(exceptWrap) {
+  document.querySelectorAll('.route-pop-wrap').forEach((wrap) => {
+    if (wrap === exceptWrap) {
+      return;
+    }
+    setRoutePop(wrap.querySelector('[aria-haspopup="listbox"]'), wrap.querySelector('.route-pop'), false);
+  });
+}
+
+// Shared option list for every route popover: checked current, unverified
+// rows disabled, one click delegates to the caller's save flow.
+function renderRouteOptions(pop, routes, routeId, onPick) {
+  pop.innerHTML = routes.map((route) => `
+    <button type="button" role="option" class="route-opt"
+      data-route-opt="${escapeHtml(route.id)}"
+      aria-selected="${route.id === routeId ? 'true' : 'false'}"
+      ${route.verified ? '' : 'disabled'}>
+      <span class="route-opt-check" aria-hidden="true">${route.id === routeId ? '✓' : ''}</span>
+      <span class="route-opt-body">
+        <span class="route-opt-title">${escapeHtml(route.label || route.id)}${route.verified ? '' : ' <span class="badge warn">未启用</span>'}</span>
+        <span class="route-opt-desc">${escapeHtml(route.detail || '')}${route.verified ? '' : '（待验证，暂不可用）'}</span>
+      </span>
+    </button>`).join('');
+  pop.querySelectorAll('[data-route-opt]').forEach((button) => {
+    button.addEventListener('click', () => { void onPick(button.dataset.routeOpt); });
+  });
+}
+
+async function pickDownloadRoute(routeId, current, afterSave) {
+  if (routeId === current) {
+    return;
+  }
+  try {
+    await pageShell()?.saveLauncherConfig({ downloadRoute: routeId });
+    await refreshStatus();
+    if (typeof afterSave === 'function') {
+      afterSave();
+    }
+  } catch (error) {
+    setHint(errText(error, '设置保存失败'));
   }
 }
 
@@ -1646,31 +1781,9 @@ function renderVersionsHead(status) {
     routeNode.hidden = !show;
   }
   if (pop) {
-    pop.innerHTML = routes.map((route) => `
-      <button type="button" role="option" class="route-opt"
-        data-route-opt="${escapeHtml(route.id)}"
-        aria-selected="${route.id === routeId ? 'true' : 'false'}"
-        ${route.verified ? '' : 'disabled'}>
-        <span class="route-opt-check" aria-hidden="true">${route.id === routeId ? '✓' : ''}</span>
-        <span class="route-opt-body">
-          <span class="route-opt-title">${escapeHtml(route.label || route.id)}${route.verified ? '' : ' <span class="badge warn">未启用</span>'}</span>
-          <span class="route-opt-desc">${escapeHtml(route.detail || '')}${route.verified ? '' : '（待验证，暂不可用）'}</span>
-        </span>
-      </button>`).join('');
-    pop.querySelectorAll('[data-route-opt]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        routePopoverOpen(false);
-        if (button.dataset.routeOpt === routeId) {
-          return;
-        }
-        try {
-          await pageShell()?.saveLauncherConfig({ downloadRoute: button.dataset.routeOpt });
-          await refreshStatus();
-          void refreshReleases();
-        } catch (error) {
-          setHint(errText(error, '设置保存失败'));
-        }
-      });
+    renderRouteOptions(pop, routes, routeId, async (picked) => {
+      closeRoutePops();
+      await pickDownloadRoute(picked, routeId, () => { void refreshReleases(); });
     });
   }
 }
@@ -1804,6 +1917,20 @@ function bind() {
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => activateTab(tab.dataset.tab));
   });
+  const mainNav = document.querySelector('nav.tabs[role="tablist"]');
+  if (mainNav) {
+    bindTablist(mainNav, {
+      orientation: 'vertical',
+      activate: (tab) => activateTab(tab.dataset.tab),
+    });
+  }
+  const importCats = document.querySelector('.import-cats[role="tablist"]');
+  if (importCats) {
+    bindTablist(importCats, {
+      orientation: 'horizontal',
+      activate: (tab) => showImportCat(tab.dataset.importCat),
+    });
+  }
   document.querySelectorAll('[data-goto]').forEach((link) => {
     link.addEventListener('click', () => activateTab(link.dataset.goto));
   });
@@ -1891,23 +2018,31 @@ function bind() {
   if ($('btn-check-update-versions')) {
     $('btn-check-update-versions').addEventListener('click', () => checkUpdateNow());
   }
-  const routeChip = $('versions-route-btn');
-  if (routeChip) {
-    routeChip.addEventListener('click', (event) => {
+  for (const [chipId, popId] of [
+    ['versions-route-btn', 'versions-route-pop'],
+    ['rail-route-btn', 'rail-route-pop'],
+  ]) {
+    const chip = $(chipId);
+    if (!chip) {
+      continue;
+    }
+    chip.addEventListener('click', (event) => {
       event.stopPropagation();
-      const pop = $('versions-route-pop');
-      routePopoverOpen(pop ? pop.hidden : false);
+      const pop = $(popId);
+      const opening = pop ? pop.hidden : false;
+      closeRoutePops();
+      setRoutePop(chip, pop, opening);
     });
   }
   document.addEventListener('click', (event) => {
-    const wrap = document.querySelector('.route-pop-wrap');
-    if (wrap && !wrap.contains(event.target)) {
-      routePopoverOpen(false);
-    }
+    const wrap = event.target && typeof event.target.closest === 'function'
+      ? event.target.closest('.route-pop-wrap')
+      : null;
+    closeRoutePops(wrap || undefined);
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
-      routePopoverOpen(false);
+      closeRoutePops();
     }
   });
   $('btn-skip').addEventListener('click', async () => {
@@ -2064,12 +2199,18 @@ function bind() {
   });
   const importRunBtn = $('btn-import');
   const importCancelBtn = $('btn-import-cancel');
+  let importOpSeq = 0;
   importRunBtn.addEventListener('click', async () => {
+    const opSeq = ++importOpSeq;
     importRunBtn.disabled = true;
     importCancelBtn.hidden = false;
     importCancelBtn.disabled = false;
     $('import-result').textContent = '正在导入…';
     try {
+      if (!api || typeof api.runImport !== 'function') {
+        $('import-result').textContent = '导入不可用：桌面桥接未连接。';
+        return;
+      }
       const result = await api?.runImport({
         ...scanOptions(),
         overwrite: $('import-overwrite').checked,
@@ -2081,18 +2222,31 @@ function bind() {
         selectedSettingIds: checkedValues('setting-id'),
         selectedPresetIds: checkedValues('preset-id'),
       });
-      $('import-result').textContent = summarizeImport(result);
+      if (opSeq === importOpSeq) {
+        $('import-result').textContent = summarizeImport(result);
+      }
+    } catch (error) {
+      if (opSeq === importOpSeq) {
+        $('import-result').textContent = `导入失败：${errText(error, '调用被拒绝')}`;
+      }
     } finally {
-      importRunBtn.disabled = false;
-      importCancelBtn.hidden = true;
+      if (opSeq === importOpSeq) {
+        importRunBtn.disabled = false;
+        importCancelBtn.hidden = true;
+      }
     }
   });
   importCancelBtn.addEventListener('click', () => {
     importCancelBtn.disabled = true;
-    void api?.cancelImport?.();
+    void api?.cancelImport?.().catch?.(() => {});
   });
   if (typeof api?.onImportProgress === 'function') {
     api.onImportProgress((payload) => {
+      // Late events from an earlier operation must not overwrite a terminal
+      // summary; only accept progress while the run is still in flight.
+      if (importRunBtn.disabled === false) {
+        return;
+      }
       const text = importProgressText(payload);
       if (text) {
         $('import-result').textContent = text;
@@ -2135,6 +2289,22 @@ function bind() {
         renderUpdateCheck(payload?.check);
       }
       void refreshStatus();
+    });
+  }
+  // Main-process confirmations (unverified installer, update asks) render on
+  // this same app-confirm card instead of a native messagebox.
+  if (api?.onAppConfirm) {
+    api.onAppConfirm((payload) => {
+      const id = payload && payload.id;
+      void appConfirm({
+        title: payload?.title,
+        body: payload?.body,
+        confirmText: payload?.confirmText || undefined,
+        cancelText: payload?.cancelText || undefined,
+        danger: payload?.danger === true,
+      }).then((ok) => {
+        void api.respondAppConfirm?.({ id, ok });
+      });
     });
   }
   if (api?.onUpdateProgress) {

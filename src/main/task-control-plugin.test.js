@@ -14,11 +14,15 @@ const load = (file) => import(pathToFileURL(path.join(PLUGIN, file)).href);
 test('admit accepts while unlocked and rejects while locked', async () => {
   const { createControlState, admit, acquireLock } = await load('state.js');
   const state = createControlState();
-  const first = admit(state);
+  const first = admit(state, 'upgrade /api/remote.mux');
   assert.equal(first.accepted, true);
   const acquired = await acquireLock(state, { owner: 'desktop-quit', drainTimeoutMs: 50 });
   assert.equal(acquired.ok, false);
   assert.equal(acquired.code, 'dshd/drain-timeout');
+  // Timed-out drain reports what was still open — the label is how a stuck
+  // transport is identified without Host-side logging.
+  assert.equal(acquired.pendingCount, 1);
+  assert.deepEqual(acquired.pendingLabels, ['upgrade /api/remote.mux']);
   // Timed-out drain released the lock — admission works again.
   const second = admit(state);
   assert.equal(second.accepted, true);
@@ -83,6 +87,7 @@ test('inspection aggregates agents, jobs, sockets, and pending requests', async 
   const { createControlState, admit } = await load('state.js');
   const { collectInspection } = await load('inspection.js');
   const state = createControlState();
+  process.env.DSHD_SCHEDULE_ENABLED = '1';
   const ctx = {
     get: (name) => ({
       agents: {
@@ -123,6 +128,7 @@ test('inspection aggregates agents, jobs, sockets, and pending requests', async 
   assert.equal(inspection.scheduledWork.find((w) => w.id === 's2').due, true);
   assert.equal(inspection.scheduledWork.find((w) => w.id === 's1').recurring, true);
   pending.done();
+  delete process.env.DSHD_SCHEDULE_ENABLED;
 });
 
 test('inspection reports missing producers as unavailable', async () => {
@@ -132,8 +138,30 @@ test('inspection reports missing producers as unavailable', async () => {
   const inspection = await collectInspection({ get: () => undefined }, state);
   assert.equal(inspection.coverage.agents, 'unavailable');
   assert.equal(inspection.coverage.jobs, 'unavailable');
-  // Schedule is a built-in of the web bundle: absent means runtime damage.
-  assert.equal(inspection.coverage.schedule, 'unavailable');
+  // Schedule coverage follows the declared flag: unset means the desktop
+  // turned it off, so absence is `intentional-disabled`, not damage.
+  assert.equal(inspection.coverage.schedule, 'intentional-disabled');
+});
+
+test('schedule coverage honors the declared enabled flag', async () => {
+  const { createControlState } = await load('state.js');
+  const { collectInspection } = await load('inspection.js');
+  const state = createControlState();
+  process.env.DSHD_SCHEDULE_ENABLED = '1';
+  try {
+    // Declared on but the service is missing: runtime damage, not opt-out.
+    const missing = await collectInspection({ get: () => undefined }, state);
+    assert.equal(missing.coverage.schedule, 'unavailable');
+    // Declared on with a healthy catalog: full coverage.
+    const ctx = {
+      get: (name) => (name === 'schedule' ? { catalog: async () => [] } : undefined),
+      waterfall: async () => [],
+    };
+    const healthy = await collectInspection(ctx, state);
+    assert.equal(healthy.coverage.schedule, 'ok');
+  } finally {
+    delete process.env.DSHD_SCHEDULE_ENABLED;
+  }
 });
 
 function fakeRes() {
@@ -220,6 +248,32 @@ test('gated http handler returns 503 while locked and drains on finish', async (
   await webServer.exact.get('/api/x').handler({}, ok);
   assert.equal(ok.body, 'ok');
   assert.ok(calls.length === 0);
+});
+
+test('an open upgrade socket does not block drain; new upgrades 503 while locked', async () => {
+  const { createControlState, acquireLock } = await load('state.js');
+  const { wrapWebServer } = await load('wrap.js');
+  const state = createControlState();
+  const webServer = {
+    upgrades: new Map(),
+    register() { return () => {}; },
+    registerUpgrade(route) { this.upgrades.set(route.path, route); return () => {}; },
+    registerFallback() { return () => {}; },
+  };
+  wrapWebServer(state, webServer);
+  webServer.registerUpgrade({ path: '/api/remote.mux', handler: () => {} });
+  // Two long-lived transports stay open for the whole session — they must
+  // never land in the drain set, or every protected operation times out.
+  const openSocket = () => ({ written: '', write(s) { this.written += s; }, destroy() { this.destroyed = true; }, once() {} });
+  webServer.upgrades.get('/api/remote.mux').handler({ url: '/api/remote.mux' }, openSocket(), Buffer.alloc(0));
+  webServer.upgrades.get('/api/remote.mux').handler({ url: '/api/remote.mux' }, openSocket(), Buffer.alloc(0));
+  assert.equal(state.pending.size, 0);
+  const acquired = await acquireLock(state, { owner: 'desktop-quit', drainTimeoutMs: 500 });
+  assert.equal(acquired.ok, true);
+  const refused = openSocket();
+  webServer.upgrades.get('/api/remote.mux').handler({ url: '/api/remote.mux' }, refused, Buffer.alloc(0));
+  assert.ok(refused.written.includes('503'));
+  assert.equal(refused.destroyed, true);
 });
 
 test('resolveAgent and jobs.start refuse while locked', async () => {

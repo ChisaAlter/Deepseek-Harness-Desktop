@@ -7,6 +7,7 @@ const zlib = require('zlib');
 const { getDesktopDshHome, tryGetDesktopDshHome } = require('../shared/dsh-home');
 const { DROPPED, OFFICIAL_TEMPLATE_BUNDLES, listInstalledPlugins } = require('./plugins');
 const { isValidGithubSpec, isValidPackageName } = require('../host/install-dsh-plugin-client');
+const { replaceDirJournaled, commitStagedDir, recoverImportTransactions, overlayDir, nextOpId } = require('./import-transaction');
 
 // Harness now persists current sessions as session.v3.jsonl(.zstd); keep the
 // legacy name for older official homes and imported desktop sessions.
@@ -684,6 +685,23 @@ function collectSkills({ source, extraSkillDirs, agentsSkillsRoot, destSkills })
       });
     }
   }
+  // Cross-root same-destination collision: `home:foo` and `agents:foo` both
+  // write `destSkills/foo`. Tag every member of a colliding group so the UI
+  // can require an explicit single-source choice instead of silently
+  // overwriting one root's package with another's.
+  const byDest = new Map();
+  for (const row of skills) {
+    const key = process.platform === 'win32' ? row.destName.toLowerCase() : row.destName;
+    if (!byDest.has(key)) byDest.set(key, []);
+    byDest.get(key).push(row);
+  }
+  for (const group of byDest.values()) {
+    if (group.length > 1) {
+      for (const row of group) {
+        row.sourceCollision = group.map((peer) => peer.id);
+      }
+    }
+  }
   return { skills, skillRoots: roots.map((row) => path.resolve(row.dir)) };
 }
 
@@ -1233,34 +1251,85 @@ function recoverInterruptedImport({ userDataDir, destHome: dest } = {}) {
   if (!samePath(journal.destHome, target)) {
     return { recovered: false, removedTmp: [] };
   }
-  const removedTmp = [
-    ...removeImportTmpDirs(path.join(target, 'sessions')),
-    ...removeImportTmpDirs(path.join(target, 'skills')),
-    ...removeImportTmpDirs(path.join(target, AGENT_PRESETS_DIR)),
-  ];
-  const staleTmp = [
-    path.join(target, 'attachments.import-tmp'),
-    path.join(target, `${SETTINGS_FILE}.import-tmp`),
-    path.join(target, `${CREDENTIALS_FILE}.import-tmp`),
-    path.join(target, `${AGENTS_DOC}.import-tmp`),
-  ];
-  for (const tmp of staleTmp) {
-    if (fs.existsSync(tmp)) {
+  // Reconcile per-operation transaction journals: they carry the
+  // authoritative state for staged/replacing/committed swaps. Legacy bare
+  // `.import-tmp`/`.import-bak` dirs without a journal are preserved, not
+  // deleted — they may be the only surviving copy of the user's data.
+  const outcome = reconcileImportTransactionsSync(target);
+  const blocked = outcome.pending.length > 0;
+  writeJournal(journalPath(journalDir), {
+    ...journal,
+    phase: blocked ? 'blocked' : 'recovered',
+    recoveredAt: new Date().toISOString(),
+    removedTmp: outcome.removedTmp,
+    pendingTxns: outcome.pending,
+  });
+  return { recovered: true, removedTmp: outcome.removedTmp, pendingTxns: outcome.pending, blocked };
+}
+
+/**
+ * Synchronous sweep for per-operation transaction journals left by
+ * `replaceDirJournaled`/`commitStagedDir`. Legacy unjournaled
+ * `.import-tmp`/`.import-bak` entries are preserved and reported as pending
+ * rather than deleted.
+ */
+function reconcileImportTransactionsSync(root) {
+  const removedTmp = [];
+  const pending = [];
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        const stagingMatch = entry.name.match(/^(.*)\.import-(tmp|bak)(?:-(.+))?$/);
+        if (stagingMatch) {
+          const opId = stagingMatch[3];
+          const hasTxn = opId && entries.some((e2) => e2.isFile()
+            && e2.name === `${stagingMatch[1]}.import-txn-${opId}`);
+          if (!hasTxn) pending.push(abs);
+          continue;
+        }
+        stack.push(abs);
+        continue;
+      }
+      if (!entry.isFile() || !entry.name.includes('.import-txn-')) continue;
+      const journal = (() => { try { return JSON.parse(fs.readFileSync(abs, 'utf8')); } catch { return null; } })();
+      if (!journal || journal.version !== 1) { pending.push(abs); continue; }
+      const { dest, tmp, bak, state } = journal;
       try {
-        fs.rmSync(tmp, { recursive: true, force: true });
-        removedTmp.push(tmp);
+        if (state === 'staging' || state === 'staged') {
+          if (fs.existsSync(tmp)) { fs.rmSync(tmp, { recursive: true, force: true }); removedTmp.push(tmp); }
+          fs.rmSync(abs, { force: true });
+        } else if (state === 'replacing') {
+          const destThere = fs.existsSync(dest);
+          const tmpThere = fs.existsSync(tmp);
+          const bakThere = fs.existsSync(bak);
+          if (!destThere && tmpThere) {
+            fs.renameSync(tmp, dest);
+            if (bakThere) fs.rmSync(bak, { recursive: true, force: true });
+          } else if (!destThere && bakThere) {
+            fs.renameSync(bak, dest);
+            if (tmpThere) { fs.rmSync(tmp, { recursive: true, force: true }); removedTmp.push(tmp); }
+          } else if (destThere && bakThere) {
+            fs.rmSync(bak, { recursive: true, force: true });
+            if (tmpThere) { fs.rmSync(tmp, { recursive: true, force: true }); removedTmp.push(tmp); }
+          }
+          fs.rmSync(abs, { force: true });
+        } else if (state === 'committed') {
+          if (fs.existsSync(bak)) fs.rmSync(bak, { recursive: true, force: true });
+          fs.rmSync(abs, { force: true });
+        } else {
+          pending.push(abs);
+        }
       } catch {
-        // Same as above: a stuck staging entry does not block the re-run.
+        pending.push(abs);
       }
     }
   }
-  writeJournal(journalPath(journalDir), {
-    ...journal,
-    phase: 'recovered',
-    recoveredAt: new Date().toISOString(),
-    removedTmp,
-  });
-  return { recovered: true, removedTmp };
+  return { removedTmp, pending };
 }
 
 function importIsCancelled(signal) {
@@ -1280,14 +1349,50 @@ function emitImportProgress(onProgress, event) {
 
 // Async so each copy yields the event loop: large session dirs and the
 // attachments tree no longer stall every main-process IPC, and a cancel
-// request can be observed between items.
+// request can be observed between items. The actual swap is a journaled
+// transaction so a crash mid-replace keeps at least one intact copy.
 async function copyDirAtomic(from, to) {
-  await fs.promises.mkdir(path.dirname(to), { recursive: true });
-  const tmp = `${to}.import-tmp`;
+  const result = await replaceDirJournaled(from, to);
+  if (!result.ok) {
+    const error = new Error(result.error || 'replace-failed');
+    error.needsRecovery = result.needsRecovery === true;
+    throw error;
+  }
+}
+
+/**
+ * Merge `sourceDir` into the tree at `destDir` without deleting files that
+ * exist only at the destination. `overwrite` controls whether a source file
+ * replaces a same-path destination file; destination-only entries always
+ * survive. The merge is staged and published through the same journaled
+ * transaction used for plain replaces.
+ */
+async function mergeDirJournaled(sourceDir, destDir, { overwrite }) {
+  const opId = nextOpId();
+  const tmp = `${destDir}.import-tmp-${opId}`;
+  const parent = path.dirname(destDir);
+  await fs.promises.mkdir(parent, { recursive: true });
   await fs.promises.rm(tmp, { recursive: true, force: true });
-  await fs.promises.cp(from, tmp, { recursive: true });
-  await fs.promises.rm(to, { recursive: true, force: true });
-  await fs.promises.rename(tmp, to);
+  try {
+    // Stage the union: destination first, then overlay source files.
+    if (fs.existsSync(destDir)) {
+      await fs.promises.cp(destDir, tmp, { recursive: true });
+    } else {
+      await fs.promises.mkdir(tmp, { recursive: true });
+    }
+    if (fs.existsSync(sourceDir)) {
+      await overlayDir(sourceDir, tmp, { overwrite });
+    }
+  } catch (error) {
+    await fs.promises.rm(tmp, { recursive: true, force: true });
+    throw error;
+  }
+  const result = await commitStagedDir(tmp, destDir, { opId });
+  if (!result.ok) {
+    const error = new Error(result.error || 'replace-failed');
+    error.needsRecovery = result.needsRecovery === true;
+    throw error;
+  }
 }
 
 async function importSessions({
@@ -1357,7 +1462,7 @@ async function importSessions({
   if (shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
     emitImportProgress(onProgress, { phase: 'attachments', done: 0, total: 1 });
     try {
-      await copyDirAtomic(sourceAttachments, path.join(scan.destHome, 'attachments'));
+      await mergeDirJournaled(sourceAttachments, path.join(scan.destHome, 'attachments'), { overwrite });
       attachments = 'copied';
     } catch (error) {
       attachments = `failed:${error.message || String(error)}`;
@@ -1376,7 +1481,9 @@ async function importSessions({
       attachments,
     });
   }
-  return { ok: results.every((row) => row.status !== 'failed'), sessions: results, attachments, journal: journalFile };
+  const attachmentsFailed = typeof attachments === 'string' && attachments.startsWith('failed:');
+  const ok = results.every((row) => row.status !== 'failed') && !attachmentsFailed;
+  return { ok, sessions: results, attachments, journal: journalFile };
 }
 
 async function importPlugins({
@@ -1451,6 +1558,27 @@ async function importSkills({ scan, selectedIds, overwrite, signal, onProgress }
   const byId = new Map((scan.skills || []).map((row) => [row.id, row]));
   const results = [];
   let done = 0;
+  // Reject ambiguous selections before any write: two distinct source roots
+  // may not target the same destName in one run regardless of `overwrite`.
+  {
+    const byDest = new Map();
+    for (const id of chosen) {
+      const row = byId.get(id);
+      if (!row) continue;
+      const key = process.platform === 'win32' ? row.destName.toLowerCase() : row.destName;
+      if (!byDest.has(key)) byDest.set(key, []);
+      byDest.get(key).push(id);
+    }
+    const ambiguous = [...byDest.entries()].filter(([, ids]) => new Set(ids).size > 1);
+    if (ambiguous.length) {
+      for (const [, ids] of ambiguous) {
+        for (const id of ids) {
+          results.push({ id, status: 'rejected', error: 'ambiguous-destination', peers: ids });
+        }
+      }
+      return results;
+    }
+  }
   for (const id of chosen) {
     if (importIsCancelled(signal)) {
       break;

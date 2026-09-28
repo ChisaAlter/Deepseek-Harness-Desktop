@@ -48,7 +48,7 @@ body {
   overflow: hidden;
   border-radius: 20px;
   background: var(--dsw-alias-bg-base);
-  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l1);
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2);
 }
 
 html[data-window-maximized] .shell {
@@ -210,6 +210,44 @@ html[data-window-maximized] .shell {
   font-weight: 500;
 }
 
+/* The rail-footer route chip is a real switcher — same popover grammar as the
+   Versions header, opening upward inside the rail. */
+.route-pop-wrap.rail-route-wrap {
+  display: block;
+}
+
+.line-chip-btn {
+  width: 100%;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.line-chip-btn:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.line-chip-btn:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.line-chip-btn .route-chip-chev {
+  margin-left: auto;
+}
+
+.route-pop.route-pop-up {
+  top: auto;
+  bottom: calc(100% + 6px);
+  right: auto;
+  left: 0;
+}
+
 .stage {
   position: relative;
   z-index: 1;
@@ -254,7 +292,7 @@ html[data-window-maximized] .shell {
   padding: 18px 20px 14px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
-  background: var(--dsw-alias-layer-fill-2);
+  background: var(--dsw-alias-bg-layer-2);
   box-shadow: 0 18px 48px color-mix(in srgb, var(--dsw-alias-label-primary) 30%, transparent);
 }
 
@@ -1144,7 +1182,7 @@ body[data-launcher-state="downloading"] #route-picker {
   padding: 6px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 10px;
-  background: var(--dsw-alias-layer-fill-2);
+  background: var(--dsw-alias-bg-layer-2);
   box-shadow: 0 10px 32px color-mix(in srgb, var(--dsw-alias-label-primary) 22%, transparent);
 }
 
@@ -1262,16 +1300,22 @@ body[data-launcher-state="downloading"] #route-picker {
   display: inline-block;
   color: var(--dsw-alias-state-business-primary);
   cursor: pointer;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .import-scope-detail p {
   margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .import-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .import-toolbar .ghost,
@@ -1408,6 +1452,10 @@ body[data-launcher-state="downloading"] #route-picker {
 
 .import-cluster .row-title {
   font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .import-item {
@@ -1430,6 +1478,8 @@ body[data-launcher-state="downloading"] #route-picker {
   flex-wrap: wrap;
   gap: 16px;
   min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .switch-row.compact {
@@ -1446,6 +1496,8 @@ body[data-launcher-state="downloading"] #route-picker {
   gap: 12px;
   align-items: center;
   margin-left: auto;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .import-summary {

@@ -64,6 +64,11 @@ function loadWindowModule() {
       }
       return Promise.resolve(true);
     }
+
+    insertCSS(css) {
+      this.injectedCss = (this.injectedCss || []).concat(css);
+      return Promise.resolve(css);
+    }
   }
 
   class FakeBrowserView {
