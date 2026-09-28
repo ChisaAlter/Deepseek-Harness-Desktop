@@ -344,8 +344,12 @@ test('dshbot catalog scope reads/writes through the volatile Config namespace', 
   for (const listener of next.listeners['loader/volatile-update'] ?? []) {
     listener([['items'], ['sections'], ['tasks']]);
   }
-  for (let i = 0; i < 50 && restored.get().items.length === 0; i++) {
-    await new Promise((resolve) => setImmediate(resolve));
+  // The re-seed rides a real fs.readFile — under full-suite load the poll
+  // phase can lag many event-loop turns, so wait on a deadline, not a fixed
+  // number of setImmediate spins.
+  const deadline = Date.now() + 5000;
+  while (restored.get().items.length === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
   assert.equal(restored.get().items[0].id, 'b1');
   assert.equal(next.entry.options.config.items.length, 1);

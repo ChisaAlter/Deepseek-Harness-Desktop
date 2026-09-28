@@ -112,6 +112,12 @@ function makeCtx(slots) {
       }),
       describe: () => ({ acceptView: () => {} }),
     },
+    // dshbot injects configForms (bot catalog store); the test ctx has no
+    // catalog backend, so an empty store is enough.
+    configForms: {
+      get: () => ({ getSnapshot: () => ({}), subscribe: () => () => {} }),
+      describe: () => ({ acceptView: () => {} }),
+    },
     effect: (fn) => fn(),
     get: () => undefined,
   };

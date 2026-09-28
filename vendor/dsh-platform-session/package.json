@@ -1,0 +1,20 @@
+{
+  "name": "dsh-platform-session",
+  "description": "Desktop-owned Harness plugin: publishes the DeepSeek Platform embedded-session snapshot behind a Bearer-gated loopback route so the Electron shell can open credential-injected Platform documents.",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "platform-session"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  }
+}

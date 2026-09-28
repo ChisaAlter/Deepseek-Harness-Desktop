@@ -1,0 +1,47 @@
+/**
+ * Loopback session route for embedded Platform documents. The Electron shell
+ * fetches the current PlatformSession with the per-boot Bearer token from
+ * DSHD_PLATFORM_TOKEN; an empty token keeps the route closed.
+ */
+
+export const PLATFORM_PREFIX = '/dshd-platform';
+
+function sendJson(res, status, body) {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(payload),
+  });
+  res.end(payload);
+}
+
+function authorized(req, token) {
+  if (!token) return false;
+  return (req.headers.authorization || '') === `Bearer ${token}`;
+}
+
+/**
+ * @param {object} options
+ * @param {string} options.token - per-boot credential; empty keeps closed.
+ * @param {() => Promise<object|null>} options.read - PlatformSession reader.
+ * @returns route handler for webServer.register.
+ */
+export function createPlatformHandler({ token, read }) {
+  return async (req, res) => {
+    const url = new URL(req.url || '/', 'http://127.0.0.1');
+    if (req.method !== 'GET' || url.pathname !== `${PLATFORM_PREFIX}/session`) {
+      sendJson(res, 404, { error: 'not-found' });
+      return;
+    }
+    if (!authorized(req, token)) {
+      sendJson(res, 401, { error: 'unauthorized' });
+      return;
+    }
+    try {
+      const session = await read();
+      sendJson(res, 200, { session });
+    } catch (error) {
+      sendJson(res, 500, { error: 'platform-session-failed' });
+    }
+  };
+}

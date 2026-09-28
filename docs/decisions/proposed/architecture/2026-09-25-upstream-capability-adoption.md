@@ -16,7 +16,7 @@ Status: proposed
 | --- | --- | --- |
 | [0.1.7 桌面适配](../../implemented/architecture/2026-09-23-harness-017-desktop-adaptation.md) | 部分重叠 | 延续上游接口优先、桌面功能保真；本提案不重新同步 vendor |
 | [Launcher 独立分发](2026-09-24-launcher-standalone-distribution.md) | 部分重叠 | 保留 full/slim 及跨进程边界，只增加实际中断前的协调；不认定该提案全部已完成 |
-| [单一可见右栏提案](2026-09-22-single-visible-right-sidebar.md) | 过时方向、部分重叠 | 其官方右栏所有权方案不作为现状；采用当前工作环卡的 ui-surfaces 所有权及互斥要求；不在本批处置旧提案 |
+| [单一可见右栏提案](../../rejected/architecture/2026-09-22-single-visible-right-sidebar.md) | 过时方向、部分重叠 | 其官方右栏所有权方案不作为现状；采用当前工作环卡的 ui-surfaces 所有权及互斥要求；旧提案已被验收否决转 rejected |
 | [性能测量](../testing/2026-09-20-desktop-performance-measurement.md) | 部分重叠 | 沿用先登记测量、保留原始样本；新增 Diff 呈现测量不改旧 C1 探针结论 |
 | [预览权限](../bug-fix/2026-09-19-preview-permission-origin-scope.md) | 部分重叠 | Office 不能扩大路径、frame 或资源 owner 权限；继续遵守现有授权实现 |
 | [打包插件复用](../process/2026-09-22-packaging-plugin-reuse.md) | 部分重叠 | 复用必须证明闭包；Office 增加实际 importer、归档后和解包后的检查 |
