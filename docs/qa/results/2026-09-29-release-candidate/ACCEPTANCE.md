@@ -2,12 +2,12 @@
 
 本表按生产验收规范的用例标题生成，只记录本次候选。未执行不是 Pass；源码测试、旧版本报告、隔离 smoke 不替代本表。
 
-- 候选源提交：`ef501689388b1aac1fb57a4de609fd4f1a78a89c`
-- 构建：[release.yml / 36602013284](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36602013284)
-- 同提交测试：[test.yml / 36601994891](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36601994891)
+- 候选源提交：`0a828d5dcabcd3ee560e98def49a810d3d57959b`
+- 构建：[release.yml / 36604075860](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36604075860)
+- 同提交测试：[test.yml / 36604044587](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36604044587)
 - 资产：`Whale-Isle-windows-x64` / `Whale-Isle-Setup-0.3.3.exe`
 - 已测 Setup SHA256：待构建完成、下载校验及安装后记录。
-- 结论：首轮构建及 Windows 测试失败，拒绝晋级；本表未执行，未签字、未豁免。须在修复后的新候选上更新身份再执行。
+- 结论：本轮构建与测试已取消，待补齐生成目录后的新候选；本表未执行，未签字、未豁免。首轮候选已拒绝，不沿用其结果。
 
 ## 用例
 
