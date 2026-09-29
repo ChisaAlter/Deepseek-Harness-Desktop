@@ -48,7 +48,7 @@ test('boot page silhouette layers use the shared radius and zero out maximized',
 
 test('launcher shell uses the shared radius, the l2 edge ring, and zeroes out maximized', () => {
   assert.match(launcher, /\.shell\s*\{[^}]*border-radius:\s*20px/);
-  assert.match(launcher, /\.shell\s*\{[^}]*box-shadow:\s*inset 0 0 0 1px var\(--dsw-alias-border-l2\)/);
+  assert.match(launcher, /\.shell\s*\{[^}]*box-shadow:\s*inset 0 0 0 var\(--dsh-window-hairline, 1px\) var\(--dsw-alias-border-l2\)/);
   assert.match(launcher, /html\[data-window-maximized\]\s*\.shell\s*\{[^}]*border-radius:\s*0/);
 });
 
@@ -70,9 +70,9 @@ test('dialog scrim and AppFrame carry the shared radius into their own planes', 
   assert.match(frameModule, /--dsh-windows-content-radius:\s*20px/);
 });
 
-test('native Windows edges opt out of page silhouette without changing inner content corners', () => {
-  assert.match(boot, /html\[data-native-window-frame\] \.scene\s*\{\s*border-radius: 0/);
-  assert.match(launcher, /html\[data-native-window-frame\] \.shell\s*\{\s*border-radius: 0;\s*box-shadow: none/);
-  assert.match(inject, /html\[data-native-window-frame\] \[data-titlebar-density\]\s*\{\s*border-radius: 0 !important/);
-  assert.match(inject, /html\[data-native-window-frame\] #\$\{FRAME_RING_ID\}\s*\{\s*display: none/);
+test('native animation support never disables the 20px page silhouette or its ring', () => {
+  for (const source of [boot, launcher, inject]) {
+    assert.doesNotMatch(source, /data-native-window-frame/);
+  }
+  assert.match(chrome, /enableNativeWindowMotion\(win\)/);
 });

@@ -50,7 +50,7 @@ test('injected silhouette keeps a hairline ring element that maximization remove
   // a real element (not body::after) so the self-heal observer can watch it
   // and no client stylesheet can collide with body's pseudo-elements.
   assert.match(injectSource, /FRAME_RING_ID = 'dshd-frame-ring'/);
-  assert.match(injectSource, /box-shadow: inset 0 0 0 1px var\(--dsw-alias-border-l2/);
+  assert.match(injectSource, /box-shadow: inset 0 0 0 var\(--dsh-window-hairline, 1px\) var\(--dsw-alias-border-l2/);
   assert.match(injectSource, /html\[data-window-maximized\] #\$\{FRAME_RING_ID\} \{\s*display: none;/);
   // The ring must live inside body: --dsw-alias-* tokens are declared on
   // body, so a sibling element would only ever resolve the fallback color.

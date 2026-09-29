@@ -1,0 +1,111 @@
+{
+  "original": [
+    true,
+    false,
+    false
+  ],
+  "combinations": [
+    {
+      "checked": [
+        false,
+        false,
+        false
+      ],
+      "stats": "hidden",
+      "cost": false,
+      "phase": false,
+      "text": ""
+    },
+    {
+      "checked": [
+        true,
+        false,
+        false
+      ],
+      "stats": "full",
+      "cost": false,
+      "phase": false,
+      "text": ""
+    },
+    {
+      "checked": [
+        true,
+        true,
+        false
+      ],
+      "stats": "full",
+      "cost": true,
+      "phase": true,
+      "text": "空闲时段距离切换剩余时间：12:36:17·没有设置当前模型价格"
+    },
+    {
+      "checked": [
+        false,
+        true,
+        false
+      ],
+      "stats": "hidden",
+      "cost": true,
+      "phase": true,
+      "text": "空闲时段距离切换剩余时间：12:36:17·没有设置当前模型价格"
+    },
+    {
+      "checked": [
+        false,
+        true,
+        true
+      ],
+      "stats": "hidden",
+      "cost": true,
+      "phase": true,
+      "text": "空闲时段距离切换剩余时间：12:36:17·没有设置当前模型价格"
+    },
+    {
+      "checked": [
+        true,
+        true,
+        true
+      ],
+      "stats": "full",
+      "cost": true,
+      "phase": true,
+      "text": "空闲时段距离切换剩余时间：12:36:16·没有设置当前模型价格"
+    },
+    {
+      "checked": [
+        true,
+        false,
+        true
+      ],
+      "stats": "full",
+      "cost": false,
+      "phase": false,
+      "text": ""
+    },
+    {
+      "checked": [
+        false,
+        false,
+        true
+      ],
+      "stats": "hidden",
+      "cost": false,
+      "phase": false,
+      "text": ""
+    }
+  ],
+  "rapidTransitions": 24,
+  "violations": [],
+  "restored": {
+    "checked": [
+      true,
+      false,
+      false
+    ],
+    "stats": "full",
+    "cost": false,
+    "phase": false,
+    "text": ""
+  },
+  "pass": true
+}

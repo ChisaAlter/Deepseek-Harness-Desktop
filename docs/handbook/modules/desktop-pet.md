@@ -40,6 +40,7 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 - 窗口是独立 `BrowserWindow`：`transparent / frame:false / alwaysOnTop('screen-saver') / skipTaskbar / focusable:false / resizable:false`，`backgroundColor:'#00000000'`。
 - **窗口永不移动**。`setPosition` 会让 Windows 分层透明窗表面变空白（拖拽闪烁/消失根因）；overlay 覆盖宠物所在的**一整块显示器**，角色只是画布内 `drawPos` 处的一帧重绘。跨屏靠整套 `setBounds` 跳到目标显示器——跳屏去抖要求光标连续两次 relocate 轮询都在目标屏上（快速甩出的擦边不跳屏），轮询间隔 >400ms 视为新拖拽会话、streak 清零。`drag-commit` 落点不在任何显示器内时 clamp 回 overlay 所在屏再持久化；渲染器对 `live2d-move` 推送一律 `clampDrawPos`。
 - 混合 DPI 多屏不取虚拟屏 union——左上角落在显示器间隙死区会被 OS 静默搬迁，坐标系全乱。
+- Windows/Linux 用 `setShape` 将原生窗口区域裁到各绘制源、卡片及菜单阴影；整屏只保留为绘图坐标系，透明空隙不属于窗口。交互命中逐块判断，几何变化才更新区域；显示/恢复使用 `showInactive`。macOS 继续使用穿透开关。
 
 ### `pet://` 特权协议
 

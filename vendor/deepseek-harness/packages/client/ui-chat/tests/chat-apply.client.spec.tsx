@@ -25,6 +25,9 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { QuotaNoticeInjected } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PerformanceUsageRowInjected } from '../src/client/settings/PerformanceUsageRow.tsx'
+import type { SlotMap } from '@deepseek-ai/dsh-client-ui-slots'
+import type { StatsLineRowInjected } from '../../ui-conversation/src/client/settings/StatsLineRow.tsx'
+import type { ConversationSettings } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../src/chat-settings.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
@@ -40,11 +43,12 @@ const SID = 'session-1' as SessionId
 async function bench() {
   const runtime = await SlotTestRuntime.create()
   const chatSettings = stubConfigForm<ChatSettings>()
+  const conversationSettings = stubConfigForm<ConversationSettings>()
   runtime.ctx.provide('configForms', {
     developerTools: { enabled: createSnapshotStore(true) },
     get: (namespace: string) => namespace === CHAT_SETTINGS_NAMESPACE
       ? chatSettings.scope
-      : stubConfigForm().scope,
+      : conversationSettings.scope,
   } as never)
   runtime.ctx.provide('layout', { openRightbar: vi.fn(), closeRightbar: vi.fn() } as never)
   runtime.ctx.provide('sidebarRight', { openResource: vi.fn(), openTab: vi.fn() } as never)
@@ -73,6 +77,7 @@ async function bench() {
     'shell.overlay': { kind: 'list', scope: 'root' },
     'conversation.approval.detail': { kind: 'single', scope: 'session' },
     'settings.general.item': { kind: 'list', scope: 'root' },
+    'settings.interface.item': { kind: 'list', scope: 'root' },
   }, (_props: { renderSlot?: unknown }) => null)
   const conversation = await runtime.mount({
     inject: [...injectConversation],
@@ -82,7 +87,7 @@ async function bench() {
   const chat = await runtime.mount({ inject: [...injectChat], apply: applyChat })
   const sourceDescriptor = provide.mock.calls[0]?.[0]
   if (sourceDescriptor === undefined) throw new Error('ui-chat did not provide its standard source')
-  return { runtime, conversation, chat, chatSettings, sourceDescriptor }
+  return { runtime, conversation, chat, chatSettings, conversationSettings, sourceDescriptor }
 }
 
 function storeOf(runtime: SlotTestRuntime, key: 'conversation.session' | 'conversation.session.header' | 'conversation.view') {
@@ -90,6 +95,27 @@ function storeOf(runtime: SlotTestRuntime, key: 'conversation.session' | 'conver
 }
 
 describe('Chat apply wiring', () => {
+  it('updates composer stats immediately when the interface switch changes before Host settlement', async () => {
+    const b = await bench()
+    try {
+      const setting = b.runtime.slots.entries('settings.interface.item').find(entry => entry.options.id === 'stats-line')!
+      const settingFace = setting.inject!() as StatsLineRowInjected & Record<string, unknown>
+      const dock = b.runtime.slots.spec('conversation.composer.dock') as SlotMap['conversation.composer.dock']
+      const statsFace = dock.inject
+      expect(statsFace.hooks.statsLine).toBe(settingFace.hooks.statsLine)
+      expect(statsFace.hooks.statsLine.getSnapshot()).toBe(true)
+
+      settingFace.setStatsLine(false)
+      expect(b.conversationSettings.set).toHaveBeenCalledWith('statsLine', false)
+      expect(statsFace.hooks.statsLine.getSnapshot()).toBe(false)
+
+      settingFace.setStatsLine(true)
+      expect(statsFace.hooks.statsLine.getSnapshot()).toBe(true)
+    } finally {
+      await b.runtime.dispose()
+    }
+  })
+
   it('keeps presentation-policy helpers out of the public browser entry', async () => {
     const entry = await import('../src/client/index.ts')
     expect(entry).not.toHaveProperty('derivePresentationPolicy')

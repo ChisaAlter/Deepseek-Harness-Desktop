@@ -4,6 +4,7 @@ const path = require('path');
 const { loadConfig } = require('./config');
 const { resolveTheme, officialShellBackground, windowBackgroundForShell } = require('../shared/themes');
 const { IPC_ROLES, assertIpcSender } = require('./ipc-authorization');
+const { enableNativeWindowMotion, hasNativeWindowMotion, isNativeWindowMaximized, toggleNativeMaximize } = require('./native-window-motion');
 
 const TITLEBAR_HEIGHT = 48;
 const injectScript = fs.readFileSync(path.join(__dirname, 'harness-chrome-inject.js'), 'utf8');
@@ -49,16 +50,15 @@ function windowChrome(overrides = {}) {
   };
 }
 
-// Feature: window-motion. Alpha shell windows lose Win32 caption/thick-frame
-// styles and DWM transitions. Keep this policy separate from pet/overlay chrome.
+// Feature: window-motion. Keep 20px alpha corners; attachIntegratedChrome
+// restores the native animation styles before either shell window is shown.
 function shellWindowChrome(overrides = {}) {
-  const native = process.platform === 'win32';
   return windowChrome({
     ...overrides,
-    transparent: !native,
+    transparent: true,
     thickFrame: true,
-    roundedCorners: native,
-    backgroundColor: native ? currentTheme().bg : '#00000000',
+    roundedCorners: false,
+    backgroundColor: '#00000000',
   });
 }
 
@@ -107,6 +107,8 @@ function windowFromEvent(event, role) {
  * @param {Electron.BrowserWindow} win
  */
 function isEffectivelyMaximized(win) {
+  const nativeMaximized = isNativeWindowMaximized(win);
+  if (typeof nativeMaximized === 'boolean') return nativeMaximized;
   if (!win || win.isDestroyed() || win.isMinimized()) {
     return false;
   }
@@ -114,7 +116,7 @@ function isEffectivelyMaximized(win) {
     return true;
   }
   // An opaque native window can fill the work area without being maximized.
-  if (!transparentWindows.has(win)) return false;
+  if (!transparentWindows.has(win) || hasNativeWindowMotion(win)) return false;
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
   return coversWorkArea(bounds, area);
@@ -156,7 +158,6 @@ function sendWindowState(win) {
     return;
   }
   const payload = {
-    nativeFrame: process.platform === 'win32' && !transparentWindows.has(win),
     maximized: isEffectivelyMaximized(win),
     minimizable: win.minimizable,
     maximizable: win.maximizable,
@@ -201,6 +202,7 @@ function bindChromeIpc() {
         if (win.isDestroyed() || !win.maximizable) {
           return;
         }
+        if (toggleNativeMaximize(win)) return;
         if (win.isMaximized()) {
           win.unmaximize();
         } else if (isEffectivelyMaximized(win)) {
@@ -225,7 +227,6 @@ function bindChromeIpc() {
       return { maximized: false, minimizable: true, maximizable: true };
     }
     return {
-      nativeFrame: process.platform === 'win32' && !transparentWindows.has(win),
       maximized: isEffectivelyMaximized(win),
       minimizable: win.minimizable,
       maximizable: win.maximizable,
@@ -325,6 +326,7 @@ function watchSystemTheme({ theme = nativeTheme, apply = applyAppTheme } = {}) {
 }
 
 function attachIntegratedChrome(win, options = {}) {
+  enableNativeWindowMotion(win);
   if (options.role) {
     chromeRoles.set(win, options.role);
   }

@@ -878,12 +878,16 @@ function installPhaseText(payload) {
     resolve: '正在获取版本信息…',
     verify: '正在校验安装包…',
     install: '正在启动安装程序…',
-    'install-wait': payload?.installerDone ? '等待安装完成…' : '安装程序运行中…',
+    'install-wait': `${payload?.installerDone ? '正在确认安装结果' : '请在安装向导中完成安装，并留意系统授权提示'}${payload?.elapsedMs ? `（已等待 ${Math.floor(payload.elapsedMs / 1000)} 秒）` : ''}…`,
     done: '安装完成',
     cancelled: '已取消',
   };
   if (payload?.phase === 'download') {
-    return `${payload.differential ? '增量下载' : '下载'} ${payload.percent || 0}%`;
+    if (payload.retrying) return `下载中断，正在重试（${payload.attempt}/${payload.maxAttempts}）…`;
+    const size = Number.isFinite(payload.received) ? ` · ${(payload.received / 1048576).toFixed(1)} MB${payload.total > 0 ? ` / ${(payload.total / 1048576).toFixed(1)} MB` : ''}` : '';
+    const speed = payload.bytesPerSecond > 0 ? ` · ${(payload.bytesPerSecond / 1048576).toFixed(2)} MB/s` : '';
+    const percent = Number.isFinite(payload.percent) ? ` ${payload.percent}%` : '';
+    return `${payload.differential ? '增量下载' : '下载'}${percent}${size}${speed}`;
   }
   return phases[payload?.phase] || payload?.phase || '处理中';
 }
@@ -894,7 +898,7 @@ const PHASE_LABELS = {
   download: '下载',
   verify: '校验',
   install: '安装',
-  'install-wait': '完成',
+  'install-wait': '确认结果',
 };
 const PHASE_FILL = {
   resolve: 8,
@@ -905,6 +909,7 @@ const PHASE_FILL = {
 };
 
 function phaseRank(phase) {
+  if (phase === 'done') return PHASE_STEPS.length;
   const index = PHASE_STEPS.indexOf(phase);
   return index === -1 ? 0 : index;
 }
@@ -918,7 +923,10 @@ function paintProgress(prefix, payload) {
   }
   card.hidden = false;
   const phase = payload?.phase || '';
-  const percent = phase === 'download' && Number.isFinite(Number(payload?.percent))
+  const terminalTitle = { waiting: '安装结果待确认', error: '安装未完成', cancelled: '操作已取消', done: '安装完成' }[phase];
+  if (terminalTitle && $(`${prefix}-title`)) $(`${prefix}-title`).textContent = terminalTitle;
+  const unsettled = ['waiting', 'error', 'cancelled'].includes(phase);
+  const percent = phase === 'download' && Number.isFinite(payload?.percent)
     ? Math.max(0, Math.min(100, Number(payload.percent)))
     : null;
   const pct = $(`${prefix}-pct`);
@@ -927,7 +935,8 @@ function paintProgress(prefix, payload) {
   }
   const bar = $(`${prefix}-bar`);
   if (bar) {
-    const fill = percent === null ? (PHASE_FILL[phase] ?? null) : percent;
+    bar.parentElement.hidden = unsettled;
+    const fill = percent === null ? (phase === 'download' ? 0 : PHASE_FILL[phase] ?? null) : percent;
     if (fill !== null) {
       bar.style.width = `${fill}%`;
     }
@@ -938,6 +947,7 @@ function paintProgress(prefix, payload) {
   }
   const host = $(`${prefix}-phases`);
   if (host) {
+    host.hidden = unsettled;
     const now = phaseRank(phase);
     host.innerHTML = PHASE_STEPS.map((step, index) => {
       const cls = index < now ? ' done' : (index === now ? ' now' : '');
@@ -977,11 +987,14 @@ async function installRuntime() {
       setHint('桌面端已安装，可启动。', { fade: true });
       void refreshStatus();
     } else if (result?.cancelled) {
+      paintProgress('install-progress', { phase: result.status === 'waiting' ? 'waiting' : 'cancelled' });
       progress.textContent = result.message || '已取消';
     } else {
+      paintProgress('install-progress', { phase: result?.status === 'waiting' ? 'waiting' : 'error' });
       progress.textContent = errText(result, '安装失败');
     }
   } catch (error) {
+    paintProgress('install-progress', { phase: 'error' });
     progress.textContent = errText(error, '安装失败');
   } finally {
     installBusy = false;
@@ -2015,12 +2028,22 @@ async function installTag(tag, kind) {
       return;
     }
     if (result?.cancelled) {
+      paintProgress('update-progress', { phase: result.status === 'waiting' ? 'waiting' : 'cancelled' });
       $('update-progress').textContent = result.message || '已取消';
       return;
     }
+    if (result?.status === 'waiting' || result?.launched) {
+      paintProgress('update-progress', { phase: 'waiting' });
+      $('update-progress').textContent = result.message || '安装向导已启动。请完成向导并留意系统授权提示，完成后刷新状态。';
+      return;
+    }
     if (result && (result.status === 'error' || result.ok === false)) {
+      paintProgress('update-progress', { phase: 'error' });
       $('update-progress').textContent = errText(result, '安装失败');
     }
+  } catch (error) {
+    paintProgress('update-progress', { phase: 'error' });
+    $('update-progress').textContent = errText(error, '安装失败');
   } finally {
     updateBusy = false;
   }
@@ -2487,5 +2510,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 if (typeof module === 'object' && module.exports) {
-  module.exports = { renderReleases, radioNextIndex, issueRouteSave };
+  module.exports = { renderReleases, radioNextIndex, issueRouteSave, installPhaseText, paintProgress };
 }

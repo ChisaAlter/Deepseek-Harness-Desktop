@@ -14,7 +14,36 @@ global.document = {
   activeElement: null,
 };
 
-const { radioNextIndex, issueRouteSave } = require('./launcher');
+const { radioNextIndex, issueRouteSave, installPhaseText, paintProgress } = require('./launcher');
+
+test('installation feedback distinguishes unknown length, retry and waiting for the wizard', () => {
+  const text = installPhaseText({ phase: 'download', percent: null, received: 1048576, total: 0 });
+  assert.match(text, /1\.0 MB/);
+  assert.doesNotMatch(text, /%/);
+  assert.match(installPhaseText({ phase: 'download', retrying: true, attempt: 2, maxAttempts: 3 }), /重试（2\/3）/);
+  assert.match(installPhaseText({ phase: 'install-wait', elapsedMs: 7000 }), /安装向导.*7 秒/);
+});
+
+test('unconfirmed installation clears activity and a retry restores the progress surface', () => {
+  const elements = new Map();
+  for (const id of ['card', 'title', 'pct', 'bar', 'phases', 'kind']) {
+    elements.set(`test-${id}`, { hidden: false, textContent: '', style: {}, parentElement: { hidden: false } });
+  }
+  const old = document.getElementById;
+  document.getElementById = (id) => elements.get(id);
+  try {
+    paintProgress('test', { phase: 'download', percent: 80 });
+    paintProgress('test', { phase: 'waiting' });
+    assert.equal(elements.get('test-title').textContent, '安装结果待确认');
+    assert.equal(elements.get('test-pct').textContent, '');
+    assert.equal(elements.get('test-bar').parentElement.hidden, true);
+    assert.equal(elements.get('test-phases').hidden, true);
+    paintProgress('test', { phase: 'download', percent: null });
+    assert.equal(elements.get('test-bar').parentElement.hidden, false);
+    assert.equal(elements.get('test-bar').style.width, '0%');
+    assert.equal(elements.get('test-phases').hidden, false);
+  } finally { document.getElementById = old; }
+});
 
 function buttons(n, disabled = []) {
   return Array.from({ length: n }, (_, i) => ({ disabled: disabled.includes(i), idx: i }));

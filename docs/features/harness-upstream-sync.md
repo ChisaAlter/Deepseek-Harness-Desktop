@@ -14,7 +14,7 @@
 
 ## Invariants
 
-- Windows 壳窗遵循 [window-motion](window-motion.md)，保留原生动画与系统外框；同步后运行 `node scripts/run-window-motion-qa.mjs`，不能以几何状态检查替代原生样式及可见过渡验收。
+- Windows 壳窗遵循 [window-motion](window-motion.md)，同时保留原生动画与 20px 自绘外框；同步后运行 `node scripts/run-window-motion-qa.mjs`，不能以几何状态检查替代原生样式及可见过渡验收。
 
 - 使用以旧 pin 为共同祖先的三方合并，禁止整树覆盖桌面定制。
 - 上游契约优先、桌面特性保真；不弱化断言或 fork 标记来掩盖回归。

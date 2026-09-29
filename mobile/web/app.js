@@ -101,6 +101,7 @@ import {
   slashQuery,
 } from './chisacode/commands.js';
 import { parseMarkdown } from './conversation/markdown.js';
+import { isNativeBootstrapEpoch, nativeSessionTitle, projectNativeSnapshot, validateNativeAction } from './native-bridge.js?v=20260929-native-chat-epoch-v2';
 
 /** Lazy-loaded ChisaCode protocol client (DaemonClient + offer v2). */
 let chisacodeApi = null;
@@ -216,6 +217,29 @@ function persistPhoneStore(key, value) {
 const store = readPhoneStore();
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const nativeAndroidApp = isNativeAndroidApp(navigator.userAgent);
+
+let nativeSnapshotQueued = false;
+let nativeSnapshotSeq = 0;
+let nativeSnapshotEpoch = '';
+function scheduleNativeSnapshot() {
+  if (!nativeAndroidApp || !nativeSnapshotEpoch || nativeSnapshotQueued) return;
+  nativeSnapshotQueued = true;
+  queueMicrotask(() => {
+    nativeSnapshotQueued = false;
+    const bridge = window.DshdNativeBridge;
+    if (!nativeSnapshotEpoch || typeof bridge?.postMessage !== 'function') return;
+    try {
+      const rows = groupTurns(foldEvents(state.events), { running: state.running === true ? true : null });
+      bridge.postMessage(JSON.stringify(projectNativeSnapshot({
+        state, rows, title: currentRow() ? nativeSessionTitle(currentRow()) : '新会话',
+        draft: draft.value, model: currentModelState().label,
+        permission: currentModeState().currentLabel, readOnly: currentReadOnlyReason(),
+        sessionReadOnly: isReadOnlyRow, permissionOptions: DEFAULT_PRESETS,
+        seq: ++nativeSnapshotSeq, epoch: nativeSnapshotEpoch,
+      })));
+    } catch { /* A missing native receiver must never break the E2EE client. */ }
+  });
+}
 
 const HISTORY_POLL_MS = 1500;
 
@@ -548,6 +572,7 @@ function showBanner(message) {
   state.banner = message || '';
   bannerEl.textContent = state.banner;
   bannerEl.classList.toggle('hidden', !state.banner);
+  scheduleNativeSnapshot();
 }
 
 function renderConnBanner() {
@@ -560,6 +585,7 @@ function renderConnBanner() {
     delete connBanner.dataset.phase;
     connBanner.textContent = '';
   }
+  scheduleNativeSnapshot();
 }
 
 function composerOffline() {
@@ -595,6 +621,7 @@ function renderScreen() {
   settings.classList.toggle('hidden', !(name === 'chat' && state.settingsOpen));
   sessionsPage.classList.toggle('hidden', !(name === 'chat' && state.sessionsOpen));
   renderBlankHero();
+  scheduleNativeSnapshot();
 }
 
 function openSessionsPage() {
@@ -669,7 +696,7 @@ function currentReadOnlyReason() {
   return '子智能体会话（只读）。由父会话驱动，不能直接发消息。';
 }
 
-function renderComposer() {
+function renderComposer({ nativeSnapshot = true } = {}) {
   composerBehavior.refresh();
   const canSend = Boolean(draft.value.trim()) || state.attachments.length > 0;
   sendBtn.disabled = !canSend || composerOffline() || state.sendBusy;
@@ -713,6 +740,7 @@ function renderComposer() {
     wrap.append(img, remove);
     return wrap;
   }));
+  if (nativeSnapshot) scheduleNativeSnapshot();
 }
 
 function headerHostLabel() {
@@ -741,6 +769,7 @@ function renderHeader() {
     gitPillCount.textContent = hasRef && state.gitStatus.aheadCount > 0 ? `↑${state.gitStatus.aheadCount}` : '';
   }
   syncRunning();
+  scheduleNativeSnapshot();
 }
 
 function sessionRowNode(row, { child = false, subagentTag = false } = {}) {
@@ -890,6 +919,7 @@ function renderSessions() {
     }));
     sessionList.replaceChildren(...nodes);
     renderDrawer(rows);
+    scheduleNativeSnapshot();
     return;
   }
   // On the full-screen sessions page each group's rows live inside one card;
@@ -952,6 +982,7 @@ function renderSessions() {
   }
   sessionList.replaceChildren(...nodes);
   renderDrawer(rows);
+  scheduleNativeSnapshot();
 }
 
 /** Drawer: status rows, 「最近」single-line sessions, nav count, account avatar. */
@@ -1589,6 +1620,7 @@ function renderLog({ anchor = 'auto' } = {}) {
   }
   logEl.replaceChildren(...nodes);
   renderBlankHero();
+  scheduleNativeSnapshot();
   if (!rows.length) return;
   if (resolved === 'preserve') {
     logEl.scrollTop = prevTop + (logEl.scrollHeight - prevHeight);
@@ -1648,6 +1680,7 @@ function renderApproval() {
   // Always re-render the slash popup: it must hide itself when an approval
   // arrives mid-typing and may return once the approval resolves.
   renderSlashPop();
+  scheduleNativeSnapshot();
   if (!pending) return;
   approvalTitle.textContent = pending.title || '需要审批';
   approvalCommand.textContent = pending.command || '';
@@ -6064,6 +6097,81 @@ gitPill.addEventListener('click', () => {
 window.addEventListener('hashchange', () => {
   if (hasOfferFragment(location.hash)) void connect(location.href);
 });
+
+if (nativeAndroidApp) {
+  let nativeCreateBusy = false;
+  window.__dshdNativeBootstrap = (epoch) => {
+    if (!isNativeBootstrapEpoch(epoch)) return false;
+    if (nativeSnapshotEpoch !== epoch) nativeSnapshotSeq = 0;
+    nativeSnapshotEpoch = epoch;
+    scheduleNativeSnapshot();
+    return true;
+  };
+  // This entry point exists only in the packaged Android client. Android
+  // verifies the calling frame's asset origin before exposing its receiver;
+  // the browser path neither publishes this function nor emits snapshots.
+  window.__dshdNativeAction = (raw) => {
+    if (!nativeSnapshotEpoch) return false;
+    const pending = state.pendingApprovals[0] || null;
+    const action = validateNativeAction(raw, {
+      connected: state.connected, offline: composerOffline(),
+      sessions: state.heldSession ? [...state.sessions, state.heldSession] : state.sessions,
+      sessionId: state.sessionId, readOnly: Boolean(currentReadOnlyReason()),
+      running: currentRow()?.running === true, sendBusy: state.sendBusy,
+      pending: Boolean(pending), approval: pending,
+      hasOlder: state.timelinePage.hasOlder, olderLoading: state.timelineLoadingOlder,
+      error: state.timelineError,
+      modelOptions: state.modelCatalog.rows, permissionOptions: DEFAULT_PRESETS,
+      modelBusy: state.modelBusy, modeBusy: state.modeBusy, planOn: state.permission.planOn,
+    });
+    if (!action) return false;
+    const execute = async () => {
+      switch (action.type) {
+        case 'open': await openSession(action.sessionId); break;
+        case 'new':
+          if (nativeCreateBusy) return;
+          nativeCreateBusy = true;
+          try { await createWorkspaceSession(null); } finally { nativeCreateBusy = false; }
+          break;
+        case 'draft':
+          draft.value = action.text;
+          draft.dataset.draftSession = action.sessionId;
+          draftStore?.save(action.sessionId, action.text);
+          renderComposer({ nativeSnapshot: false });
+          break;
+        case 'send':
+          draft.value = action.text;
+          draft.dataset.draftSession = action.sessionId;
+          draftStore?.save(action.sessionId, action.text);
+          await sendPrompt();
+          break;
+        case 'cancel': await cancelRun(); break;
+        case 'model': await changeAgentModel(action.provider, action.model, action.reasoningEffort); break;
+        case 'permission': await changeAgentMode(action.id); break;
+        case 'planOff': await runHostCommand('/plan off'); break;
+        case 'slash': await runHostCommand(action.line.trim()); break;
+        case 'approve': {
+          const selected = pending.actions?.find((item) => item.id === action.actionId);
+          if (pending.legacy) await answerLegacyApproval(action.actionId);
+          else await respondToPendingApproval(pending, selected
+            ? (selected.behavior ? responseForAction(selected) : { selectedActionId: selected.id })
+            : genericResponse(action.actionId));
+          break;
+        }
+        case 'older': await loadOlderMessages(); break;
+        case 'retry': await openSession(action.sessionId); break;
+        case 'refresh':
+          if (state.connected && composerOffline()) await resumeRemoteConnection();
+          else if (state.connected) await runReconnectResync();
+          else if (listStickyServerIds().length) await connectSaved(getMostRecentStickyServerId());
+          break;
+      }
+    };
+    void execute().catch((error) => showBanner(error?.message || '电脑没有响应'));
+    if (action.type !== 'draft') scheduleNativeSnapshot();
+    return true;
+  };
+}
 
 for (const input of [fileCamera, fileGallery]) {
   input.addEventListener('click', () => { fileSelectionOwner = sessionOwner(state); });

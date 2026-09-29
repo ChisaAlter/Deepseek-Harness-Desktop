@@ -364,6 +364,7 @@ var usagePanelSchema = z.object({
   firstTime: z.number().nullable(),
   lastTime: z.number().nullable(),
   seedEnd: z.number().nullable(),
+  explicitSeedBoundary: z.boolean(),
   currentModel: z.string(),
   currentProvider: z.string(),
   stepStart: stepStartSchema.nullable(),
@@ -372,7 +373,7 @@ var usagePanelSchema = z.object({
 });
 var USAGE_PANEL_KEY = "usagePanel";
 var EMPTY = Object.freeze({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
-function initState() {
+function initState(_header, inheritedEventCount) {
   return {
     totals: { ...EMPTY },
     byModel: {},
@@ -387,7 +388,8 @@ function initState() {
     compactionTokens: 0,
     firstTime: null,
     lastTime: null,
-    seedEnd: null,
+    seedEnd: inheritedEventCount ?? null,
+    explicitSeedBoundary: inheritedEventCount !== void 0,
     currentModel: "unknown",
     currentProvider: "unknown",
     stepStart: null,
@@ -487,6 +489,7 @@ function samplePeak(state, turn, step, eventTime) {
 function applyEvent(state, event) {
   switch (event.type) {
     case "session/end-seed": {
+      if (state.explicitSeedBoundary) return state;
       if (state.seedEnd !== null && event.seq <= state.seedEnd) return state;
       return { ...state, seedEnd: event.seq };
     }
@@ -929,7 +932,7 @@ function emptyOverview(now) {
 }
 
 // src/host/projection-unit.ts
-var PROJECTION_STATE_VERSION = 2;
+var PROJECTION_STATE_VERSION = 3;
 var usagePanelProjectionDefinition = {
   key: USAGE_PANEL_KEY,
   stateVersion: PROJECTION_STATE_VERSION,
@@ -1062,7 +1065,7 @@ async function scanFallback(deps, now) {
       if (event.type === "session/end-seed") seedEnd = event.seq;
     }
     if (seedEnd === 0 && seedLength > 0) seedEnd = seedLength + 1;
-    let state = { ...initState(), seedEnd };
+    let state = snapshot?.inheritedEventCount !== void 0 ? initState(header, snapshot.inheritedEventCount) : { ...initState(), seedEnd };
     let title = null;
     for (const event of events) {
       if (event.type === "session/title") {
@@ -1935,8 +1938,6 @@ function apply(ctx) {
   let inflight = null;
   let disposed = false;
   let sessionIndex = [];
-  let aggregate = null;
-  let ledgerIds = /* @__PURE__ */ new Set();
   let failedSessionIds = [];
   const reportedCostFailures = /* @__PURE__ */ new Set();
   let statsCache = null;
@@ -1984,7 +1985,6 @@ function apply(ctx) {
     }
     const pacer = scanPacer((message) => console.log(tag, message));
     const failed = [];
-    const ledgerPuts = [];
     for (let i = 0; i < sessions.length; i += 1) {
       const rec = sessions[i];
       const header = rec && rec.header;
@@ -2012,20 +2012,12 @@ function apply(ctx) {
         }
         a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null);
         sessionsOk += 1;
-        ledgerPuts.push({ id, asOfSeq: snap.asOfSeq });
       } catch (err) {
         sessionsFailed += 1;
         if (!isSessionGone(err) && failed.length < 50) failed.push(id);
         if (failures.length < 3) failures.push(String(err?.message ?? err));
       }
       await pacer.beat(i + 1, sessions.length);
-    }
-    aggregate = a;
-    ledgerIds = new Set(ledgerPuts.map((p) => p.id));
-    if (statsCache !== null) {
-      void (async () => {
-        for (const put of ledgerPuts) await statsCache.ledgerPut(put.id, put.asOfSeq);
-      })();
     }
     failedSessionIds = failed;
     if (failures.length > 0) {
@@ -2088,107 +2080,12 @@ function apply(ctx) {
       console.log(tag, "stats cache hit \u2014 serving snapshot, refreshing in background");
     }
   }
-  async function deltaScan(now) {
-    if (aggregate === null) return scan(now);
-    let sessions = [];
-    try {
-      sessions = await sq.listSessions();
-    } catch (err) {
-      logFailure("delta listSessions failed: " + String(err?.message ?? err));
-      return cache ? cache.payload : emptyOverview(now);
-    }
-    let a = aggregate;
-    const seen = /* @__PURE__ */ new Set();
-    const changed = [];
-    let deleteDetected = false;
-    const pacer = scanPacer((message) => console.log(tag, message));
-    const failed = [];
-    for (let i = 0; i < sessions.length; i += 1) {
-      const rec = sessions[i];
-      const header = rec && rec.header;
-      if (!header) continue;
-      const id = header.id;
-      seen.add(id);
-      let asOf;
-      try {
-        asOf = statsCache === null ? void 0 : projCache.cachedSnapshot(header, 0)?.asOfSeq;
-      } catch (err) {
-        logFailure("delta probe failed for " + id + ": " + String(err?.message ?? err));
-        asOf = void 0;
-      }
-      if (asOf !== void 0) {
-        const led = statsCache === null ? null : await statsCache.ledgerGet(id);
-        if (led === asOf) {
-          await pacer.beat(i + 1, sessions.length);
-          continue;
-        }
-      }
-      try {
-        const log = await sq.readSession(id);
-        const snap = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events);
-        const value = snap.values.usagePanel;
-        if (!value) {
-          await pacer.beat(i + 1, sessions.length);
-          continue;
-        }
-        a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null);
-        changed.push(id);
-        if (statsCache !== null) {
-          await statsCache.ledgerPut(id, snap.asOfSeq);
-          ledgerIds.add(id);
-        }
-        failedSessionIds = failedSessionIds.filter((f) => f !== id);
-      } catch (err) {
-        if (!isSessionGone(err) && failed.length < 50) failed.push(id);
-        logFailure("delta read failed for " + id + ": " + String(err?.message ?? err));
-      }
-      await pacer.beat(i + 1, sessions.length);
-    }
-    for (const id of ledgerIds) {
-      if (!seen.has(id)) deleteDetected = true;
-    }
-    if (deleteDetected) {
-      logFailure(tag + " session deleted since last scan \u2014 falling back to a full rescan");
-      return scan(now);
-    }
-    if (changed.length === 0 && cache !== null) {
-      return cache.payload;
-    }
-    aggregate = a;
-    sessionIndex = rankSessions(a.sessions, Number.MAX_SAFE_INTEGER);
-    if (failed.length > 0) failedSessionIds = [.../* @__PURE__ */ new Set([...failedSessionIds, ...failed])].slice(0, 50);
-    const titles = /* @__PURE__ */ new Map();
-    await Promise.all(
-      rankSessions(a.sessions, 10).map(async (s) => {
-        try {
-          const t = await sq.readTitle(s.id);
-          titles.set(s.id, t ? t.title : null);
-        } catch {
-          titles.set(s.id, null);
-        }
-      })
-    );
-    const pending = sessions.filter((rec) => !(rec && rec.persisted)).length;
-    return finalizeOverview({
-      aggregate: a,
-      now,
-      mode: "projection",
-      sessionsTotal: sessions.length,
-      sessionsOk: sessions.length - failedSessionIds.length - pending,
-      sessionsFailed: failedSessionIds.length,
-      sessionsPending: pending,
-      eventsCounted: 0,
-      titles,
-      providerNames,
-      failedSessionIds
-    });
-  }
   function startScan() {
     if (disposed) return Promise.resolve(cache ? cache.payload : emptyOverview(Date.now()));
     if (inflight) return inflight;
     const run = (async () => {
       await hydrateFromCache();
-      const payload = aggregate === null ? await scan(Date.now()) : await deltaScan(Date.now());
+      const payload = await scan(Date.now());
       if (payload !== null && !disposed) {
         cache = { at: Date.now(), payload };
         if (statsCache !== null) {
@@ -2317,11 +2214,6 @@ function apply(ctx) {
     const outcome = await repairSessionLog(resolveDshHome(), sessionId, decodeStorageRecord);
     failedSessionIds = failedSessionIds.filter((id) => id !== sessionId);
     cache = null;
-    aggregate = null;
-    ledgerIds = /* @__PURE__ */ new Set();
-    if (statsCache !== null) {
-      await statsCache.ledgerDelete(sessionId);
-    }
     return outcome;
   }
   async function billingModels() {

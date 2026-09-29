@@ -589,7 +589,10 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       'conversation.input.model': { kind: 'single', scope: 'session' },
       'conversation.input.managed': { kind: 'single', scope: 'session' },
       'conversation.input.activity': { kind: 'single', scope: 'session' },
-      'conversation.composer.dock': { kind: 'list', scope: 'session' },
+      'conversation.composer.dock': {
+        kind: 'list', scope: 'session',
+        inject: { hooks: { statsLine: submissionPolicy.statsLine } },
+      },
     },
     inject: (sessionId: SessionId | undefined): ComposerBarInjected => {
       if (sessionId === undefined) {

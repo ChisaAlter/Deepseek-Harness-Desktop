@@ -4,7 +4,7 @@
 
 This is the full contract for the「Mobile remote interaction」section of [design-language.en.md](design-language.en.md); the token tables, mandatory rules and exceptions live in the parent document.
 
-The paired page structure of remote Web and the Android bundled SPA follows the
+The paired page structure of remote Web and Android native chat follows the
 Claude mobile app; colors, font stack and light/dark still come only from the
 same-value token tables — no warm paper surface or second product skin;
 the desktop is unaffected. Canvas `--dsw-specific-sidebar-fill`, cards and the
@@ -93,7 +93,32 @@ task; dismissing approval details is not a rejection. Reading may collapse a
 long draft without losing its contents or selection. Use baseline transform and
 opacity motion tokens, with no animation under reduced motion.
 
-Android keeps the stable asset origin and shared Web sources. Native code owns
-only navigation hosting, scanning/media capture, keyboard and lifecycle duties.
-Web and Android have separate acceptance evidence; historical exclusions are not
-passing results for the new delivery.
+## Android native chat migration
+
+After pairing, Kotlin + Jetpack Compose renders the Android session list, message
+timeline, approval strip and resident composer; a visible WebView is not native
+chat. Browsers retain the Web SPA. During migration the bundled same-origin Web
+client serves only as the background E2EE/host RPC transport adapter. It retains
+existing sticky device secrets and one-time offer consumption, without inventing
+a second authentication flow or changing the origin. The bridge is exposed only
+to the trusted `appassets.androidplatform.net` main document, checks request and
+session ownership, and sends Compose a minimal safe view without device secrets,
+raw credentials or executable HTML. The WebView cannot load an external main
+document. Load or renderer failure shows a retryable native error, never fake
+online state.
+
+The first end-to-end path is pairing/saved-device reconnect → sessions → history
+and incremental replies → send/stop → approval. Read-only child sessions cannot
+send; offline drafts survive. Model, permission and slash actions must reach the
+real host. Until advanced workspace/Git/files functions are ported, an explicit
+“Open legacy workspace page” transition exposes them; no inert native controls.
+The composer is a 20dp card using semantic `DshTokens`, 16sp editing text and
+48dp minimum hit areas. Its multiline body grows within bounds; the tool row and
+send/stop stay above the IME, with distinct empty, disabled, running and failure
+states. Do not carry the connection horizon palette or brand serif into chat.
+Back first closes the IME, then the picker or session list. Drafts are isolated
+per session and late history/send callbacks cannot overwrite the current one.
+
+Web and Android have separate acceptance evidence. Builds, unit tests and static
+screenshots do not prove a live device connection or streaming exchange, and
+historical untested paths do not become passing results for this delivery.

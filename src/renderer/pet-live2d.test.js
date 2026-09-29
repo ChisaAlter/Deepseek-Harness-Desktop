@@ -17,6 +17,35 @@ const DIALOGUE_SOURCE = fs.readFileSync(DIALOGUE_JS, 'utf8');
 const WANDER_SOURCE = fs.readFileSync(WANDER_JS, 'utf8');
 const DIALOGUE_STORE = JSON.parse(fs.readFileSync(DIALOGUE_JSON, 'utf8'));
 
+test('transparent gap between pet and chat card stays click-through', () => {
+  const pet = loadPet();
+  pet.run(`
+    drawPos = { x: 50, y: 50 };
+    chatRect = { x: 500, y: 50, w: 200, h: 200 };
+  `);
+  assert.equal(pet.run('overPet(600, 150)'), true, 'chat card is interactive');
+  assert.equal(pet.run('overPet(400, 150)'), false, 'empty space between surfaces is not a giant hit box');
+});
+
+test('native surface reports preserve separate ink rectangles and deduplicate frames', () => {
+  const pet = loadPet();
+  pet.run(`
+    globalThis.reports = [];
+    petShell.setInteractive = value => reports.push(value);
+    lastPaintRect = { x: 10.5, y: 20.5, w: 40, h: 50 };
+    lastBubbleRect = { x: 10, y: 1, w: 50, h: 10 };
+    chatRect = { x: 300, y: 100, w: 200, h: 180 };
+    reportSurfaceRegions(); reportSurfaceRegions();
+  `);
+  assert.deepEqual(JSON.parse(pet.run('JSON.stringify(reports)')), [{ regions: [
+    { x: 10, y: 20, width: 41, height: 51 },
+    { x: 10, y: 1, width: 50, height: 10 },
+    { x: 300, y: 100, width: 200, height: 180 },
+  ] }]);
+  pet.run('chatRect = null; reportSurfaceRegions()');
+  assert.equal(pet.run('reports.at(-1).regions.length'), 2, 'closed card region is removed');
+});
+
 const TOKEN_STYLE = {
   '--dsw-font-family': 'TestFamily, sans-serif',
   '--dsw-alias-bg-layer-1': 'rgb(255, 255, 255)',
@@ -59,6 +88,7 @@ function makeCtx(canvas) {
     clearRect(x, y, w, h) { this.ops.push(['clearRect', x, y, w, h]); },
     drawImage(...args) { this.ops.push(['drawImage', ...args]); },
     translate() {}, rotate() {}, scale() {},
+    setTransform(...args) { this.ops.push(['setTransform', ...args]); },
     putImageData() {},
     createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; },
     getImageData(x, y, w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; },
@@ -94,6 +124,7 @@ function loadPet() {
       innerWidth: 800,
       innerHeight: 600,
       addEventListener: () => {},
+      matchMedia: () => ({ addEventListener() {}, removeEventListener() {} }),
       shell: {},
     },
     performance: { now: () => now },
@@ -131,6 +162,40 @@ function pathOps(ops) {
   const end = ops.findIndex((op, i) => i > start && op[0] === 'closePath');
   return ops.slice(start, end + 1);
 }
+
+test('display density changes keep panel geometry and hits in CSS pixels', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 560, y: 310 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    globalThis.queries = [];
+    window.matchMedia = (query) => {
+      const q = { query, listener: null,
+        addEventListener(type, listener) { this.listener = listener; },
+        removeEventListener() { this.listener = null; } };
+      queries.push(q); return q;
+    };
+    resizeCanvas(); openPanel();`);
+  const originalPanel = pet.run('JSON.stringify(panel)');
+  for (const density of [1.25, 1.5, 2, 1]) {
+    pet.run(`closePanel(); window.devicePixelRatio = ${density}; queries.at(-1).listener(); openPanel();`);
+    assert.equal(pet.canvas.width, 800 * density);
+    assert.equal(pet.canvas.height, 600 * density);
+    assert.deepEqual(pet.canvas.ctx.ops.filter(op => op[0] === 'setTransform').at(-1),
+      ['setTransform', density, 0, 0, density, 0, 0]);
+    assert.equal(pet.run('queries.at(-2).listener'), null, 'old DPI listener is removed');
+    assert.equal(pet.run('JSON.stringify(panel)'), originalPanel, 'edge placement stays within CSS viewport');
+    assert.equal(pet.run('panelCellAt(panel.x + PANEL_PAD + 10, panel.y + PANEL_GRID_TOP + 10)'), 0);
+    pet.canvas.ctx.ops.length = 0;
+    pet.run('drawPanel()');
+    const button = pet.canvas.ctx.ops.find(op => op[0] === 'roundRect' && op[4] === 20 && op[5] === 10);
+    assert.ok(button);
+    const [, x, y, w, h] = button;
+    const rowCenter = pet.run('panel.y + PANEL_PAD + PANEL_HEAD_H + 8 + 52');
+    assert.equal(y - (rowCenter + 6), 12, 'statistics line has 12px breathing room');
+    assert.equal(pet.run(`feedButtonHit(${x + w / 2}, ${y + h / 2})`), true);
+    assert.equal(pet.run(`feedButtonHit(${x + w / 2}, ${y - 4})`), false, 'gap is not clickable');
+  }
+});
 
 test('chat state reuses its catalog during short polling intervals', async () => {
   const pet = loadPet();

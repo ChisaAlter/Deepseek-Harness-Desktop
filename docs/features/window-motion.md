@@ -1,10 +1,10 @@
-# Feature: Windows 原生窗口动画
+# Feature: 20px 项目圆角与 Windows 原生窗口动画
 
 | Field | Value |
 | --- | --- |
 | **id** | `window-motion` |
 | **status** | `active` |
-| **last verified** | 2026-09-29 — 定向测试 54/54、两工厂 HWND/IPC 门禁通过；8 份逐帧图确认四种原生过渡，重启后的 Harness 原生最大化/还原与外缘已验证；全量 2815 通过/2 跳过/1 既有远程文案失败；见验证记录 |
+| **last verified** | 2026-09-29 — 44 定向通过；全量 2823 通过/2 跳过。真实工厂四角桌面像素（激活/失焦/resize/还原）、DWM 非客户区关闭、Win32 IsZoomed 与实际 IPC 通过；1px 物理描边与 alpha AA；100%/125%/150%/200% Electron 缩放检查通过。slim 打包/ASAR 原生桥通过；真实多屏和系统动画关闭矩阵未重跑 |
 
 ## User paths
 
@@ -13,14 +13,16 @@
 
 ## Invariants
 
-- Windows 两个壳窗必须是不透明原生窗口：`transparent: false`、`thickFrame: true`、`roundedCorners: true`。不以透明分层窗换取自绘外框圆角。
-- 外轮廓、阴影和窗口动画归 Windows；页面绘制到原生裁切边缘，内部 20px 圆角、壁纸与透明主题不变。透明主题指页面表面，不代表操作系统窗口透明。
-- 最大化与还原必须改变原生 `isMaximized()`，不得仅以 `setBounds()` 或几何覆盖充当 Windows 壳窗最大化。
+- 主窗口与启动器保持 `transparent: true`、`roundedCorners: false`，20px 页面圆角、round 角形和缘线不变；最大化收为 0。不得为了修动画改为系统小圆角或不透明背板。
+- Windows 在显示前经 `native-window-motion` 补回 `WS_CAPTION` / `WS_THICKFRAME`，系统负责动画。原生桥只改指定 HWND 的样式并刷新非客户区，不改位置/尺寸/焦点/Z 序，不改系统偏好。
+- DWM 非客户区绘制必须关闭，透明角外不能有系统矩形描边、填充或阴影；保留 caption/thick-frame 和过渡策略。Harness/启动器缘线宽为一个物理像素，按 DPR 换算，保留 alpha 抗锯齿。交互桌面检查四角，在激活、失焦、resize、还原后均必须通过。
+- 最大化/还原必须经 `ShowWindowAsync(SW_MAXIMIZE / SW_RESTORE)`，状态以 Windows `IsZoomed` 为准；Electron `isMaximized()` 可能只是工作区几何判定，不得仅以 `setBounds()` 或几何覆盖充当 Windows 壳窗最大化。
 - 桌宠及透明覆盖层保留自己的窗口类型；非 Windows 保留现有剪影路径。不得改系统动画偏好。
 - 上游同步、圆角/启动页重构和 Electron 升级都必须运行本卡门禁；状态测试不替代真实动画播放验收。
 
 ## Allowed touch
 
+- `src/main/native-window-motion.js` 及对应测试；`package.json`、`package-lock.json`、`electron-builder.launcher.yml`、`src/main/package-contract.test.js` — 窄 Win32 桥与生产打包闭包。
 - `src/main/window.js`、`src/main/chrome.js`、`src/main/harness-chrome-inject.js` 及对应窗口测试。
 - `src/renderer/boot.css`、`src/renderer/launcher.css`、`src/renderer/window-controls.js` — 原生外缘适配。
 - `scripts/` — 独立 Electron 窗控回归；`.github/workflows/test.yml` — Windows 门禁。
@@ -34,13 +36,13 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `node --test src/main/chrome-theme.test.js src/main/window-marketplace.test.js src/main/shell-silhouette-radius.test.js`；Windows：`node scripts/run-window-motion-qa.mjs`；`npm test` |
+| Automated | `node --test src/main/native-window-motion.test.js src/main/chrome-theme.test.js src/main/window-marketplace.test.js src/main/shell-silhouette-radius.test.js src/main/package-contract.test.js`；Windows：`node scripts/run-window-motion-qa.mjs`（含 DWM 非客户区状态）；交互桌面：`node scripts/run-window-motion-qa.mjs --composed`（四角合成像素）；`npm test` |
 | Manual / QA | 主窗口与启动器最大化/还原、最小化/任务栏恢复；浅深色、壁纸、系统动画开关；见 [QA](../qa/production-acceptance-test-cases.md) |
 
 ## Sources
 
-- Decision: [原生窗口动画与防复发](../decisions/implemented/bug-fix/2026-09-29-native-window-motion.md)
+- Decision: [圆角与动画同时保留](../decisions/implemented/bug-fix/2026-09-29-rounded-window-motion.md)
 - Design: [设计语言](../design-language.md)
 - Handbook: [窗口与 Chrome](../handbook/modules/window-chrome.md)
-- QA: [2026-09-29 验证记录](../qa/results/2026-09-29-window-motion/README.md)
+- QA: [2026-09-29 纠正验证](../qa/results/2026-09-29-corner-motion/README.md)
 - Implementation entry: `src/main/window.js`、`src/main/chrome.js`

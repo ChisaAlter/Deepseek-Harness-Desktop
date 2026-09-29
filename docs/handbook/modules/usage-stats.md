@@ -12,7 +12,7 @@
 ## 架构要点
 
 - 桌面内置模块：`usage-panel-preset.js`（`ensureDesktopUsagePanel`，dsh-im 模式）+ `vendor/dsh-usage-panel`。
-- Host：`ctx.sessionProjections` key `usagePanel`（stateVersion 2,含峰谷桶）；RPC `/usage-stats` loopback（overview / session.cost / billing.get|set|models）；价格经 `ctx.settings.get('ui-conversation')` 读取、经 `settings.update` 写回（`settings/updated` 订阅刷新缓存），遗留的插件自有域 `dsh_usage_panel_billing` 在分节已注册且域处于 durable 模式时**一次性并入**（分节优先，先写成功再清退役记录），失败留待下次重试。
+- Host：`ctx.sessionProjections` key `usagePanel`（stateVersion 3,含峰谷桶）；投影初始化与回退扫描均优先宿主 `inheritedEventCount` 排除 fork 前缀，恢复追加的 end-seed 不影响已有用量。RPC `/usage-stats` loopback（overview / session.cost / billing.get|set|models）；价格经 `ctx.settings.describe()` 的 `ui-conversation` 值读取、经 `settings.update` 写回（`settings/document-updated` 订阅后重读），遗留的插件自有域 `dsh_usage_panel_billing` 在分节已注册且域处于 durable 模式时**一次性并入**（分节优先，先写成功再清退役记录），失败留待下次重试。
 - Client：只注册 `settings.section` id `usage-stats`（不注册 `conversation.composer.dock`）；`ui-primitives` + token；零 DOM 探测；不注入任何 harness 客户端服务。
 - Feature card：[../../features/usage-stats.md](../../features/usage-stats.md)、[../../features/session-cost-display.md](../../features/session-cost-display.md)
 

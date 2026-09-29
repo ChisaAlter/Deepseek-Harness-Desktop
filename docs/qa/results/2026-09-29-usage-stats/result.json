@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "samples": [
+    {
+      "total": 52146,
+      "sessions": 2,
+      "originalTokens": 14284
+    },
+    {
+      "total": 52146,
+      "sessions": 2,
+      "originalTokens": 14284
+    },
+    {
+      "total": 52146,
+      "sessions": 2,
+      "originalTokens": 14284
+    }
+  ]
+}

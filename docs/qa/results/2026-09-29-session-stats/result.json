@@ -1,0 +1,19 @@
+{
+  "original": true,
+  "off": {
+    "ms": 9,
+    "checked": false,
+    "state": "hidden",
+    "text": "",
+    "height": 24
+  },
+  "reloadOff": true,
+  "on": {
+    "ms": 13,
+    "checked": true,
+    "state": "full",
+    "text": "1 轮 1 步·200 tok/s14.3K tok·缓存命中 4%",
+    "height": 22
+  },
+  "reloadOn": true
+}

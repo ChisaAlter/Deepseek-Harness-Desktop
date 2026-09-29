@@ -4,11 +4,13 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-29 — 连接前 Web／Android 入口改为鲸屿海平线明暗画布，并修正保存电脑把 `serverId` 当名称的问题：新连接优先保存 `server_info.hostname`，自动重连刷新名称，历史 sticky 直接回退「我的电脑」且不清数据；可选名称落盘失败不影响已建立的连接。Web 307/307、连接 QA 320／390／1280px、Android `:protocol:test :app:testDebugUnitTest :app:assembleDebug` 均通过；APK 内 48 个 Web 资源与源码逐字节一致，`missing`／`changed`／`unexpected` 均为空。debug APK 以 `adb install -r` 覆盖安装到设备 `23124RN87C`（序列号 `9TUCYX8TBI6DLRMZ`），保留数据后冷启动；真机浅色、深色、WebView → 原生扫码、扫码页粘贴返回，以及旧 `srv_*` 记录显示「我的电脑」均通过。旧中继本轮连接超时，真机未取得实时 hostname；该升级路径由连接测试覆盖。证据见 [2026-09-29-mobile-connect-horizon](../qa/results/2026-09-29-mobile-connect-horizon/README.md)。本轮未复测公网 relay、完整已配对聊天或正式签名升级。此前 2026-09-24 — 手机 Web 与 Android 连接／权限／扫码页改为 Claude 式结构；Web 302/302、资源测试 20/20、Android 构建与 fake host 十态截图通过，当时未做真机。此前 2026-09-08 — 公网链路迁移到 `https://ayase.cn/dshd/` + `ayase.cn:443`，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。 |
+| **last verified** | 2026-09-29 — Android 原生聊天 debug APK 已保留数据覆盖安装到 `23124RN87C`；冷启动 sticky 重连、Compose 会话列表/历史、IME 返回、旧版页往返草稿及后台 WebView 无障碍隔离在该机通过。Web 315/315、Android `:protocol:test :app:testDebugUnitTest :app:assembleDebug`、49 项 APK 资源审计通过，APK SHA-256 `cf3f0363a1c9e3950a67b6fa7b7398e4e68c561fa8c7b09fcef81a5f33db81ef`。发送/流式/审批、新配对与正式签名升级未验收；见 [原生聊天阶段 QA](../qa/results/2026-09-29-mobile-native-chat/README.md)。此前 2026-09-29 — 连接前 Web／Android 入口改为鲸屿海平线明暗画布，并修正保存电脑把 `serverId` 当名称的问题：新连接优先保存 `server_info.hostname`，自动重连刷新名称，历史 sticky 直接回退「我的电脑」且不清数据；可选名称落盘失败不影响已建立的连接。Web 307/307、连接 QA 320／390／1280px、Android `:protocol:test :app:testDebugUnitTest :app:assembleDebug` 均通过；APK 内 48 个 Web 资源与源码逐字节一致，`missing`／`changed`／`unexpected` 均为空。debug APK 以 `adb install -r` 覆盖安装到设备 `23124RN87C`（序列号 `9TUCYX8TBI6DLRMZ`），保留数据后冷启动；真机浅色、深色、WebView → 原生扫码、扫码页粘贴返回，以及旧 `srv_*` 记录显示「我的电脑」均通过。旧中继本轮连接超时，真机未取得实时 hostname；该升级路径由连接测试覆盖。证据见 [2026-09-29-mobile-connect-horizon](../qa/results/2026-09-29-mobile-connect-horizon/README.md)。本轮未复测公网 relay、完整已配对聊天或正式签名升级。此前 2026-09-24 — 手机 Web 与 Android 连接／权限／扫码页改为 Claude 式结构；Web 302/302、资源测试 20/20、Android 构建与 fake host 十态截图通过，当时未做真机。此前 2026-09-08 — 公网链路迁移到 `https://ayase.cn/dshd/` + `ayase.cn:443`，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。 |
 
 ## 当前改造轮次（2026-09-06）
 
-用户已批准[Web 与 Android 交互改造计划](../superpowers/plans/2026-09-06-mobile-web-android-interaction.md)。本轮已生成 Web 与 Android 本地候选，T1 公网 Web、适用 T2 LAN、T3 真机整体验收未完成；历史“Android 不签 / Deferred”不作为本轮豁免。[分轨证据](../../tools/mobile-web-qa/results/2026-09-06-interaction/README.md)不继承历史 Pass。短面板、全屏任务、统一返回与触控命中区按设计语言手机节执行；共享网页仍为唯一聊天实现。
+**2026-09-29 原生聊天迁移进行中：** 用户明确要求 Android 已配对聊天从可见 WebView 改为 Kotlin + Compose，并精修输入卡。本轮覆盖连接后会话列表、历史与增量回复、审批、发送／停止；APK 内置同源 JS 客户端暂作为不可见 E2EE 传输适配器，浏览器 Web 路径不变。Git／文件／高级工作区沿用标明的旧版工作页入口，不得把本轮构建验证冒充真机在线链路验收。见 [设计语言手机节](../design-language-mobile.md#android-原生聊天迁移) 与 [迁移决策](../decisions/implemented/product/2026-09-29-mobile-native-chat.md)。
+
+用户已批准[Web 与 Android 交互改造计划](../superpowers/plans/2026-09-06-mobile-web-android-interaction.md)。该轮的 Web 与 Android 本地候选及「共享网页为唯一聊天实现」属于历史基线；T1 公网 Web、适用 T2 LAN、T3 真机整体验收未完成，历史“Android 不签 / Deferred”不作为原生迁移豁免。[分轨证据](../../tools/mobile-web-qa/results/2026-09-06-interaction/README.md)不继承历史 Pass。浏览器仍用 Web SPA，Android 已配对聊天改由 Compose 绘制；短面板、全屏任务、返回与触控命中区按设计语言手机节执行。
 
 ## User paths
 
@@ -16,7 +18,7 @@
 
 1. 桌面开启配对且中继已连接 → 账户菜单「远程」打开 `#offer=` v2 二维码弹窗（账户入口未注册时从原侧栏「远程」行打开；局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `https://ayase.cn/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经 `ayase.cn:443` TLS 中继完成 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
 2. 再次打开手机 SPA（无 hash）：用最近一台已存 `deviceSecret` sticky 重连。「已保存的电脑」点选 / 忘记。跨 origin（公网 `/dshd`、LAN `:3180`、APK asset）不互通 sticky。
-3. Android：原生扫码或粘贴完整配对 URL → 应用内 WebView 打开 **同一份** SPA。聊天 / 会话列表 / Git / composer **不得**再做一套 Compose。
+3. Android：原生扫码或粘贴完整配对 URL → 同源内置客户端完成握手、保留 sticky → Compose 绘制聊天、会话列表、审批与输入卡；高级工作页通过显式入口暂用内置 SPA。浏览器继续使用同一份 SPA。
 4. 配对之后 SPA 是正在跑的 `dsh web` 第二客户端（与桌面 BrowserView 同一进程）。LAN 与外出都走隧道（公网页碰不到 loopback）。Harness 未就绪：抽屉明示「桌面端未启动」，禁止画空的「新会话」假装已对齐。
 5. 抽屉对齐桌面侧栏：`session.list` + `workspace.list`；按工作区分组 / 一个列表；搜索 `session.search`（snippet）；行 ⋯ 重命名 / Fork / 上移下移 / 归档；活会话 **没有删除**；已归档取消归档或删除；子智能体只读。
 6. 新会话：已有工作区、无工作区文件夹、浏览本机目录（`host.listDirectory` / `host.createDirectory` / `workspace.create` / `session.create`）。禁止 `host.pickDirectory`、禁止 `createAgent`。
@@ -104,7 +106,7 @@
 - 开放 `/api/*` 代理、恢复 HTTP offer v1、把 `:8411` 当 SPA、官方 `dsh web` 整页当手机 UI
 - 给 daemon 注入 `DSH_HOME`、双写 `dsh-home`
 - PTY 终端、Browser 预览、壁纸图库、市场安装、窗口外观、关闭窗口策略
-- Android 原生 Chat / Bearer `/api`；为 Git/模型/会话列表写 Compose 平行实现
+- Android Bearer `/api`、复制 E2EE 密钥库或独立设备凭证格式；未接真实 host 的原生假 Git／模型控件
 - 把 `fetchAgents` / `createAgent` 当产品目录或新会话
 
 ## Invariants
@@ -119,7 +121,7 @@
 - **一码两入口**：同一张 QR——Android App 内扫＝链接设备；相机 / 浏览器扫＝打开落地页自动连入 web 端。
 - Offer v1 / `POST /__remote__/login` / RemoteGateway 配对 **退役**。
 - 远程弹窗 QR 闸门只认 `[data-dsh-remote-qr]`；仅 `enabled && relayConnected && pairingUrl` 时提供二维码、复制与刷新。
-- Android Compose 只负责扫码/粘贴；会话走 APK 内置同一 Web SPA。
+- Android Compose 接管已配对聊天主路径；同源内置 SPA 的 JS 协议层暂为不可见后台传输适配器，浏览器 SPA 和 sticky 密钥仍为原契约。原生桥接只暴露最小会话视图与白名单操作，校验可信 asset origin、请求序号和会话归属，不向 UI 传凭证或 HTML。
 - 助手 Markdown 禁止 `innerHTML` 注入：结构化 block → createElement；链接仅 http/https。
 - 时间线向上分页按 seq 去重并保持滚动锚点。打开会话失败必须清掉上一会话 rows。
 - 「已保存的电脑」是纯本地 sticky；「忘记」只清本机 secret。用户可见名称优先使用握手 `server_info.hostname` 并以可选 `computerName` 增量保存；历史 sticky 无名称时显示「我的电脑」，内部 `serverId` 只作连接键且不得显示为电脑名。
@@ -136,9 +138,9 @@
 - `mobile/web/`（含 `host/`、`chisacode/`、`conversation/`、`git/`）、`scripts/bundle-chisacode-mobile-client.mjs`、`scripts/prepare-dshd-remote.mjs`
 - `src/main/dshd-remote.js`、`src/main/dshd-daemon-runner.mjs`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/main/dshd-git-tunnel.js`、`src/main/mobile-web-server.js`、`src/shared/dshd-host-tunnel.js`、`src/shared/dshd-mux-sse.js`、`src/shared/lan.js`
 - `vendor/chisacode-remote/`（线协议 `dshd.host.rpc.*` / `dshd.git.rpc.*` / `dshd.host.mux.*`）、`ui-settings-remote`、本卡、QA 远程条
-- `vendor/deepseek-harness/packages/client/ui-settings/src/client/contract/slots.ts`、`ui-settings-account`、`docs/design-language*`、`docs/handbook/modules/settings.md`、`docs/decisions/` — 账户菜单远程入口与缺席回退
+- `vendor/deepseek-harness/packages/client/ui-settings/src/client/contract/slots.ts`、`ui-settings-account`、`docs/design-language*`、`docs/handbook/modules/settings.md`、`docs/handbook/modules/mobile-remote.md`、`docs/decisions/` — 账户菜单远程入口、手机视觉合同与原生迁移决策
 - `tools/mobile-web-qa/`、`tools/remote-web-qa/`
-- `mobile/android/`（扫码 handoff、同源 WebView 生命周期、内置 SPA 打包与回归；2026-09-05 用户明确要求同步 Android 修复）
+- `mobile/android/`（原生聊天、扫码 handoff、同源后台 WebView 生命周期、内置 SPA 打包与回归；2026-09-29 用户明确要求 Kotlin + Compose 聊天）
 
 ## Do not touch
 
@@ -154,12 +156,13 @@
 | --- | --- |
 | Automated | `mobile/web/**/*.test.js`（含 `app-cutover.test.js` 零 `fetchAgents`/`createAgent`；`host/*.test.js`；`git/stack.test.js` 的 `commit_push` 顺序；`git/bridge.test.js` 的 `gitCreateBranch`）；`src/shared/dshd-host-tunnel.test.js`（白名单外 403、非 loopback 拒转发）；`src/main/dshd-git-dispatch.test.js`（不转发 stage/pty/writeFile）；`src/main/dshd-remote.test.js`（运行时裁剪、`DSHD_HARNESS_ORIGIN`、不设 `DSH_HOME`）；Android JVM tests（`:protocol:test` PairingIntent；`:app:testDebugUnitTest` VIEW handoff） |
 | Browser | `node tools/mobile-web-qa/run-qa.mjs`（fake **host** 会话，不单靠 fake ACP agents）；`node tools/remote-web-qa/run-e2e.mjs --relay <endpoint>`；`npm run qa:remote` |
-| Manual | **全功能执行表：** [docs/qa/mobile-remote-full-web-cases.md](../qa/mobile-remote-full-web-cases.md)（P0 缺一行未填 = 未测完）。细则：[docs/qa/mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) **§S + §0.10（T1，T3 Deferred）**。Android App 本轮不签。 |
+| Manual | **全功能执行表：** [docs/qa/mobile-remote-full-web-cases.md](../qa/mobile-remote-full-web-cases.md)（P0 缺一行未填 = 未测完）。原生 Android 必须独立真机验收配对／保存设备重连、列表、历史／增量、发送／停止、审批、IME/Back、草稿隔离与错误恢复；旧 [T3 Deferred](../qa/mobile-remote-live-acceptance.md) 只是历史状态，不构成本轮签收。 |
 
 ## Sources
 
 - Decision: [远程入口收束到账户菜单](../decisions/implemented/product/2026-09-23-remote-account-menu.md)
 - Decision: [手机远程改用 Claude 式页面结构](../decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)
+- Decision: [Android 聊天主界面改为原生 Compose](../decisions/implemented/product/2026-09-29-mobile-native-chat.md)
 
 - 2026-09-08 新域名部署与公网 E2E：[远程服务器迁移记录](../qa/results/2026-09-08/remote-ayase-deployment.md)。
 

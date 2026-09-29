@@ -1,0 +1,35 @@
+{
+  "before": {
+    "state": {
+      "maximized": false,
+      "minimizable": true,
+      "maximizable": true
+    },
+    "radius": "20px",
+    "ring": "block",
+    "hairline": 1,
+    "dpi": 1.5
+  },
+  "maximized": {
+    "state": {
+      "maximized": true,
+      "minimizable": true,
+      "maximizable": true
+    },
+    "radius": "0px",
+    "ring": "none",
+    "hairline": 1,
+    "dpi": 1.5
+  },
+  "restored": {
+    "state": {
+      "maximized": false,
+      "minimizable": true,
+      "maximizable": true
+    },
+    "radius": "20px",
+    "ring": "block",
+    "hairline": 1,
+    "dpi": 1.5
+  }
+}

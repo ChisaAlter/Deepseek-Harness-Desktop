@@ -10,9 +10,9 @@
 
 ### 0.1 产物：必须是 CI windows job
 
-合法对象只有 [`.github/workflows/release.yml`](../../.github/workflows/release.yml) **windows** job 上传的 artifact `DeepSeek-Harness-windows-x64` 里的 `Deepseek-Harness-Desktop-Setup-*.exe`（及 `.blockmap`）。
+合法对象只有 [`.github/workflows/release.yml`](../../.github/workflows/release.yml) **windows** job 上传的 artifact `Whale-Isle-windows-x64` 里的 `Whale-Isle-Setup-*.exe`（及 `.blockmap`）。
 
-该 job 步骤为：`actions/checkout` → `actions/setup-node` **`node-version: 22`** → `npm ci` → `node node_modules/electron/install.js` → `node scripts/setup-harness.js` → `npm run dist`。`afterPack` 把当时的 `process.execPath` 打进安装目录 `resources/node.exe`，所以本机 Node 24 打的包与 CI **不是同一份**。
+该 job 步骤为：`actions/checkout` → `actions/setup-node` **`node-version-file: .nvmrc`**（当前 24.21.0）→ `npm ci` → `node node_modules/electron/install.js` → `node scripts/setup-harness.js` → `npm run dist`。`afterPack` 把当时的 `process.execPath` 打进安装目录 `resources/node.exe`；即使本机使用相同 Node 版本，本机包与 CI 包仍**不是同一份产物**。
 
 | 项 | 要求 |
 | --- | --- |
@@ -1302,6 +1302,6 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-WS-008 — Windows 原生窗口动画防复发
 
-关联：[window-motion](../features/window-motion.md)。分别验证启动器、boot、Harness；在系统动画开启时录制最大化→还原、最小化→任务栏恢复，必须有系统过渡，恢复正常尺寸，图标与外框状态同步。浅色、深色、壁纸及透明主题下外缘无第二层圆角缺口/黑边，内部 20px 内容角保留。系统禁用动画时应直接切换且操作正确，应用不得修改系统设置。覆盖多显示器/DPI 与最大化状态下最小化后恢复。
+关联：[window-motion](../features/window-motion.md)。分别验证启动器、boot、Harness；在系统动画开启时录制最大化→还原、最小化→任务栏恢复，必须有系统过渡，恢复正常尺寸，图标与外框状态同步。浅色、深色、壁纸及透明主题下外缘保持项目 20px 圆角和透明角外像素，不缩成系统小圆角、不出现白边或角外矩形描边/填充。描边为一个物理像素，圆弧保留 alpha 抗锯齿；必须检查桌面合成后的完整四角，覆盖激活、失焦、resize、还原，页面 capturePage 不能替代。最大化时 Windows IsZoomed 必须为 true，录制由真实窗控 IPC 触发；内部 20px 内容角保留。系统禁用动画时应直接切换且操作正确，应用不得修改系统设置。覆盖多显示器/DPI 与最大化状态下最小化后恢复。
 
 运行 `node scripts/run-window-motion-qa.mjs` 保存 HWND 样式与真实 IPC 结果；该自动检查不认证可见插值。上游同步、圆角/启动页修改和 Electron 升级均重跑。

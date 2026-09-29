@@ -2,9 +2,9 @@
 
 ## 职责与非目标
 
-**职责：** LAN / 中继远程、ChisaCode 配对、已配对后把 `mobile/web` SPA（Web 与 Android WebView 同一份）接到正在跑的 `dsh web` 与桌面 Git 标题栏。  
+**职责：** LAN / 中继远程、ChisaCode 配对、已配对后将浏览器 `mobile/web` SPA 与 Android 原生 Compose 聊天接到正在跑的 `dsh web`。Android 暂使用内置同源 Web 客户端作后台 E2EE 传输适配器。
 **入口已开放：** `REMOTE_FEATURE_ENABLED=true`，默认关闭配对；远程服务只在用户开启后启动。
-**非目标：** 不把启动页仪器风或官方 CSS Modules 整树嵌进手机 SPA；不把 PTY、Browser、`writeFile`、`host.pickDirectory` 暴露给手机；不为 Git / 会话列表 / composer 写 Android Compose 平行实现。
+**非目标：** 不把启动页仪器风或官方 CSS Modules 整树嵌进手机；不把 PTY、Browser、`writeFile`、`host.pickDirectory` 暴露给手机；不重写 ChisaCode 认证和 E2EE 协议，不为 Git／文件画无效原生控件。
 
 ## 用户路径
 
@@ -18,16 +18,16 @@
 - 已配对 Git：daemon 回调 Electron `git.js`（`dshd-git-dispatch.js`），同一套 `workspace-authority.js`。不在 daemon 里再实现一套 git CLI。
 - Git 用户路径：分支搜索/切换/远端跟踪、创建并检出分支、Commit/Push/PR 组合动作与 Publish 均走 `shell:git-*` 白名单；不是「创建分支请到电脑端」。修复已进入当前本地候选，构建通过不代替整轨行为验收。
 - Web：`mobile/web` + `--dsw-alias-*` tokens。短面板与全屏任务复用 `ui/surfaces.js` 的头部/正文和焦点范围；`ui/navigation.js` 协调网页与原生返回。Files / Diff / MCP / 技能仍为冻结条。
-- Android：`mobile/android` 原生层负责扫码 / 粘贴、可信 asset 页返回、系统媒体选择和 WebView 生命周期。聊天仍只有共享 SPA，不保留 Bearer `/api/*` 原生 Chat。IME 打开时先收键盘，后续返回才退网页层；恢复通知共享 SPA 检查连接，不重放一次性 offer。
+- Android：`mobile/android` 原生层负责扫码／粘贴、Compose 会话列表／时间线／审批／输入卡、系统键盘与后台 WebView 生命周期。桥接只接可信 asset 主文档，Web 协议客户端保留 sticky 与 E2EE，不保留 Bearer `/api/*` 原生 Chat。IME 打开时先收键盘，后续返回才退当前原生层；恢复通知后台客户端检查连接，不重放一次性 offer。尚未原生迁移的高级工作页有明确的旧版入口。
 - 打包：`stageMobileWebAssets` 在 Android `preBuild` 前验证 ESM/CSS 依赖并生成运行资源清单；APK 不携带测试、开发入口和 sourcemap。`tools/mobile-web-qa/runtime-assets.mjs` 解包比较源码哈希与内嵌清单，debug 构建不建立生产签名/升级兼容性。
 
 ## 实现入口
 
 - `src/main/dshd-remote.js`、`dshd-daemon-runner.mjs`、`dshd-daemon-hooks.mjs`、`dshd-git-tunnel.js`、`mobile-web-server.js`
 - `src/shared/dshd-host-tunnel.js`、`src/main/dshd-git-dispatch.js`
-- `mobile/web/app.js`、`mobile/web/host/`、`mobile/web/git/`
+- `mobile/web/app.js`、`mobile/web/native-bridge.js`、`mobile/web/host/`、`mobile/web/git/`
 - `mobile/web/ui/navigation.js`、`mobile/web/ui/surfaces.js`；交互动效见 [motion 手机 inventory](../../motion.md#手机交互-inventory)
-- `mobile/android/app/src/main/java/ai/deepseek/harness/mobile/` 下的 `ui/RemoteWebScreen.kt`、`ui/RemoteWebBack.kt`、`WebFileChooser.kt`；`mobile/android/app/build.gradle.kts`
+- `mobile/android/app/src/main/java/ai/deepseek/harness/mobile/` 下的 `ui/RemoteWebScreen.kt`、`ui/NativeChatScreen.kt`、`ui/NativeChatState.kt`、`ui/RemoteWebBack.kt`、`WebFileChooser.kt`；`mobile/android/app/build.gradle.kts`
 - `tools/mobile-web-qa/server.mjs`（支持动态端口与 `/dshd/` 的本地 fixture）、`runtime-assets.mjs`（资源清单/审计）
 - 全量启动内容搜索 overlay：`src/main/session-search-overlay.js`（`--patch`，产品契约见 desktop-launcher）
 - [mobile/README.md](../../../mobile/README.md)

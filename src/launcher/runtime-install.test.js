@@ -432,6 +432,28 @@ test('same-version install with an advanced stamp but a FAILED installer does no
   const result = await runtimeInstall.installRuntime({ route: 'github' }, null, deps);
   assert.notEqual(result.status, 'installed', 'a failed installer must not be promoted by a touched timestamp');
   assert.equal(result.ok, false);
+  assert.equal(result.status, 'error');
+  assert.match(result.message, /spawn-fail/);
+});
+
+test('same-version repair exits promptly as unconfirmed, never installed', async () => {
+  const result = await runtimeInstall.waitForInstall(null,
+    { registeredInstall: true, version: '2.0.0' }, null, null, {
+      waitMs: 80, pollMs: 5,
+      installedInfo: () => ({ registeredInstall: true, installPath: 'C:\\Apps\\DSHD', version: '2.0.0' }),
+      existsSync: () => true,
+    }, '2.0.0', { fired: true, code: 0, failed: false });
+  assert.equal(result, 'unconfirmed');
+});
+
+test('installer failure wins over even a newly observed target registration', async () => {
+  const result = await runtimeInstall.waitForInstall(null,
+    { registeredInstall: false, version: '' }, null, null, {
+      waitMs: 80, pollMs: 5,
+      installedInfo: () => ({ registeredInstall: true, installPath: 'C:\\Apps\\DSHD', version: '2.0.0' }),
+      existsSync: () => true,
+    }, '2.0.0', { fired: true, code: 2, failed: true });
+  assert.equal(result, 'installer-failed');
 });
 
 test('an empty/unbound target version is refused before installFromAsset runs', async () => {

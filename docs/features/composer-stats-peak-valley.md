@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `composer-stats-peak-valley` |
 | **status** | `active` |
-| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1`：峰谷 dock/settings 行与注入保持（chat-apply host spec 4/4，其 bench 需按 rc.1 keyed `'main'` 槽声明）；统计行引用随 StatsPills 更名更新。Desktop tests 1450 全绿。此前 2026-09-01 — 「会话累计费用」关闭时整条峰谷行（含空闲/高峰时段）隐藏；官方峰谷时只在费用开启后决定始终显示 vs DeepSeek 检测。此前同日：峰谷/费用 dock 改在 `slots.inject('conversation')` 内注册。 |
+| **last verified** | 2026-09-29 — 三开关并发修复：144 项定向测试、正式构建通过；实机全部 8 组合 / 24 次连续交错切换无回跳，保存重载一致（[连续切换](../qa/results/2026-09-29-session-stats/three-switch-stress.json)、[重载](../qa/results/2026-09-29-session-stats/three-switch-reload.json)）。此前同日即时开关修复：109 项定向测试通过，正式构建（含类型检查）通过；桌面重启后关闭 9ms / 开启 13ms，重新加载分别保留关闭 / 开启状态（[实机结果](../qa/results/2026-09-29-session-stats/result.json)）。此前 2026-09-10 — 同步 `dsh-v0.1.5-rc.1`：峰谷 dock/settings 行与注入保持（chat-apply host spec 4/4，其 bench 需按 rc.1 keyed `'main'` 槽声明）；统计行引用随 StatsPills 更名更新。Desktop tests 1450 全绿。此前 2026-09-01 — 「会话累计费用」关闭时整条峰谷行（含空闲/高峰时段）隐藏；官方峰谷时只在费用开启后决定始终显示 vs DeepSeek 检测。此前同日：峰谷/费用 dock 改在 `slots.inject('conversation')` 内注册。 |
 
 ## User paths
 
@@ -15,6 +15,8 @@
 
 ## Invariants
 
+- 「会话统计」开关与 StatsPills 共享 `ComposerSubmissionPolicy.statsLine`，由 `conversation.composer.dock` 槽位注入传递；切换立即隐藏/恢复数字，不等待 Host 写回，关闭保留行间隔。
+- 三个底栏偏好分别保护最新未确认选择，旧配置与旧请求不能回滚；Host 接受且镜像确认后解除保护，最新失败恢复已确认值，销毁后不发布。
 - 峰谷规则：高峰 = 北京时间（UTC+8，Asia/Shanghai 无夏令时）工作日 09:00–12:00 与 14:00–18:00；其余全部时间（含周末）为空闲时段，按各自公布的时段价格计费（两段价格互不推导）。时段计算在 `peak-valley.ts` 纯函数内（Host 侧计费折算的孪生体在 `token-meter/src/billing-window.ts`，两处一起改）。
 - 倒计时与整秒对齐、每秒更新；归零后按重算状态翻转，不显示负值。
 - 宽度同步走 seat 发布的 `--dsh-composer-resized-width`（拖拽提交期间存在）+ `--dsh-composer-card-max-width` 回退，内容在盒内居中；纯 CSS，无 JS 测量。对齐契约由 [行居中 note](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-29-composer-row-centering.md) 持有。
@@ -28,6 +30,7 @@
 
 - `vendor/deepseek-harness/packages/client/ui-conversation/`（PeakValley 行、settings 行、submission-settings、policy、apply、locales、service、model-facts）
 - `vendor/deepseek-harness/packages/client/ui-chat/src/client/chat/StatsPills.tsx`（会话统计药丸行；rc.1 由 StatsLine 重构而来，桌面契约随迁移）
+- `vendor/deepseek-harness/packages/client/ui-chat/src/client/apply.ts`（统计条消费 dock 提供的即时开关状态；2026-09-29 用户授权扩展）
 - `vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts`（推送事实）
 - `vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-29-composer-peak-valley-status.*`
 - 两包相关测试与本卡、README 双语段
@@ -47,7 +50,7 @@
 
 ## Sources
 
-- Decision: none
+- Decision: [会话统计即时开关](../decisions/implemented/bug-fix/2026-09-29-session-stats-live-toggle.md)
 
 - Agent Note：[vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-29-composer-peak-valley-status.md](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-29-composer-peak-valley-status.md)
 - Implementation entry：`ui-conversation/src/client/chat/PeakValleyRow.tsx`、`chat/peak-valley.ts`、`input/model-facts.ts`、`apply.ts`（settings 行 order 75 / dock 条目 order 1）；`ui-chat/src/client/chat/StatsPills.tsx`

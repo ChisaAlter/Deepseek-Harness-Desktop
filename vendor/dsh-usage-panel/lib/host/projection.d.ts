@@ -110,6 +110,7 @@ export declare const usagePanelSchema: z.ZodObject<{
     firstTime: z.ZodNullable<z.ZodNumber>;
     lastTime: z.ZodNullable<z.ZodNumber>;
     seedEnd: z.ZodNullable<z.ZodNumber>;
+    explicitSeedBoundary: z.ZodBoolean;
     currentModel: z.ZodString;
     currentProvider: z.ZodString;
     stepStart: z.ZodNullable<z.ZodObject<{
@@ -147,7 +148,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
         usagePanel: UsagePanelState;
     }
 }
-export declare function initState(): UsagePanelState;
+export declare function initState(_header?: unknown, inheritedEventCount?: number): UsagePanelState;
 /**
  * Pure transition: previous state + one committed session event → next state.
  * Returns the SAME reference for unrelated events (zero downstream work, per

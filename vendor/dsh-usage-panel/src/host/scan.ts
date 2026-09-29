@@ -2,9 +2,8 @@
 //
 // Used when the sessionProjections / sessionProjectionCache services are
 // unavailable: replays every session log through the SAME pure reducer as the
-// projection path (single accounting core), with the v0.1.0 fork boundary
-// (header.seedLength) synthesized as a virtual session/end-seed when the log
-// lacks the marker. Coverage counters replace the old silent `continue`.
+// projection path (single accounting core), using the read snapshot's exact
+// inherited prefix. Marker/seedLength fallback is only for legacy snapshots.
 import type { SessionRecord } from '@deepseek-ai/dsh-session-query'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 // Type-only imports that load the event-map augmentations for merged types.
@@ -94,7 +93,7 @@ export async function scanFallback(deps: ScanFallbackDeps, now: number): Promise
       await pacer.beat(index, sessions.length)
       continue
     }
-    let snapshot: { events?: SessionEvent[] } | null = null
+    let snapshot: { events?: SessionEvent[]; inheritedEventCount?: number } | null = null
     try {
       snapshot = await sq.readSession(header.id)
     } catch (err) {
@@ -121,7 +120,9 @@ export async function scanFallback(deps: ScanFallbackDeps, now: number): Promise
       if (event.type === 'session/end-seed') seedEnd = event.seq
     }
     if (seedEnd === 0 && seedLength > 0) seedEnd = seedLength + 1
-    let state: UsagePanelState = { ...initState(), seedEnd }
+    let state: UsagePanelState = snapshot?.inheritedEventCount !== undefined
+      ? initState(header, snapshot.inheritedEventCount)
+      : { ...initState(), seedEnd }
 
     let title: string | null = null
     for (const event of events) {

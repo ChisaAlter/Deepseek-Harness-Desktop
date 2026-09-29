@@ -90,6 +90,12 @@ export function resolveSubmitMode(
   return preferred === 'queue' ? 'steer' : 'queue'
 }
 
+type DockPreferenceField = typeof STATS_LINE_FIELD | typeof SESSION_COST_FIELD | typeof OFFICIAL_PEAK_VALLEY_FIELD
+interface DockPreferenceWrite {
+  readonly value: boolean
+  accepted: boolean
+}
+
 /**
  * Busy-Enter preference shared by the composer bar inject face and its
  * Settings row: one live store the bar's submission gestures and Send label
@@ -135,6 +141,8 @@ export class ComposerSubmissionPolicy {
   /** Text queued for or crossing the wire; adoptions leave it alone so keystrokes are never reverted. */
   private pendingCustomInstructions: string | undefined
   private customInstructionsTimer: ReturnType<typeof setTimeout> | undefined
+  private readonly dockPreferenceWrites = new Map<DockPreferenceField, DockPreferenceWrite>()
+  private disposed = false
 
   /**
    * @param host - durable preference scope owned by the providing plugin;
@@ -152,6 +160,8 @@ export class ComposerSubmissionPolicy {
   }
 
   dispose(): void {
+    this.disposed = true
+    this.dockPreferenceWrites.clear()
     this.unsubscribe?.()
     if (this.customInstructionsTimer !== undefined) clearTimeout(this.customInstructionsTimer)
   }
@@ -319,9 +329,7 @@ export class ComposerSubmissionPolicy {
    * @param value - true paints StatsLine figures; false hides them and keeps the row gap.
    */
   setStatsLine(value: boolean): void {
-    if (this.statsLine.getSnapshot() === value) return
-    this.statsLine.set(value)
-    void this.host?.set(STATS_LINE_FIELD, value)
+    this.setDockPreference(STATS_LINE_FIELD, value)
   }
 
   /**
@@ -332,22 +340,44 @@ export class ComposerSubmissionPolicy {
    * @param value - true force-paints the row; false leaves detection in charge.
    */
   setOfficialPeakValley(value: boolean): void {
-    if (this.officialPeakValley.getSnapshot() === value) return
-    this.officialPeakValley.set(value)
-    void this.host?.set(OFFICIAL_PEAK_VALLEY_FIELD, value)
+    this.setDockPreference(OFFICIAL_PEAK_VALLEY_FIELD, value)
   }
 
   /**
    * Change whether the composer dock paints the session cost figure; the live
-   * value publishes before the durable write starts. The figure also requires
-   * a detected DeepSeek API route, so off means "never", on means "when the
-   * route is DeepSeek".
-   * @param value - true paints the cost figure while a DeepSeek route is known.
+   * value publishes before the durable write starts. This gates the complete
+   * cost and peak/valley row; cost figures also need the billed-usage projection.
+   * @param value - true enables the cost and peak/valley row.
    */
   setSessionCost(value: boolean): void {
-    if (this.sessionCost.getSnapshot() === value) return
-    this.sessionCost.set(value)
-    void this.host?.set(SESSION_COST_FIELD, value)
+    this.setDockPreference(SESSION_COST_FIELD, value)
+  }
+
+  private setDockPreference(field: DockPreferenceField, value: boolean): void {
+    if (this.disposed || this[field].getSnapshot() === value) return
+    const host = this.host
+    const write: DockPreferenceWrite = { value, accepted: false }
+    if (host !== undefined) this.dockPreferenceWrites.set(field, write)
+    this[field].set(value)
+    if (host === undefined) return
+    const settle = (accepted: boolean): void => {
+      if (this.disposed || this.dockPreferenceWrites.get(field) !== write) return
+      if (accepted) write.accepted = true
+      else this.dockPreferenceWrites.delete(field)
+      this.adopt(host)
+    }
+    void host.set(field, value).then(settle, () => { settle(false) })
+  }
+
+  private adoptDockPreference(field: DockPreferenceField, value: boolean): void {
+    const pending = this.dockPreferenceWrites.get(field)
+    // A superseded ConfigForm write can resolve before the namespace mirror
+    // publishes. Keep its intent until both acceptance and reflection arrive.
+    if (pending !== undefined) {
+      if (!pending.accepted || value !== pending.value) return
+      this.dockPreferenceWrites.delete(field)
+    }
+    if (this[field].getSnapshot() !== value) this[field].set(value)
   }
 
   /**
@@ -399,12 +429,9 @@ export class ComposerSubmissionPolicy {
     if (this.composerResizeHeight.getSnapshot() !== nextHeight) this.composerResizeHeight.set(nextHeight)
     const nextWidth = typeof section.composerResizeWidth === 'number' ? section.composerResizeWidth : null
     if (this.composerResizeWidth.getSnapshot() !== nextWidth) this.composerResizeWidth.set(nextWidth)
-    const nextStats = section.statsLine !== false
-    if (this.statsLine.getSnapshot() !== nextStats) this.statsLine.set(nextStats)
-    const nextPeakValley = section.officialPeakValley === true
-    if (this.officialPeakValley.getSnapshot() !== nextPeakValley) this.officialPeakValley.set(nextPeakValley)
-    const nextSessionCost = section.sessionCost === true
-    if (this.sessionCost.getSnapshot() !== nextSessionCost) this.sessionCost.set(nextSessionCost)
+    this.adoptDockPreference(STATS_LINE_FIELD, section.statsLine !== false)
+    this.adoptDockPreference(OFFICIAL_PEAK_VALLEY_FIELD, section.officialPeakValley === true)
+    this.adoptDockPreference(SESSION_COST_FIELD, section.sessionCost === true)
     // Sanitize the loosely schema'd record at the durable boundary: only a
     // plain string-keyed object adopts; anything else reads as "no custom
     // prices" instead of leaking into price lookups.

@@ -211,7 +211,7 @@ function createMainWindow() {
     },
   });
 
-  if (process.platform !== 'win32') markWindowTransparent(mainWindow);
+  markWindowTransparent(mainWindow);
   attachIntegratedChrome(mainWindow);
   mainWindow.once('ready-to-show', () => {
     hideNativeMenu(mainWindow);
@@ -848,7 +848,7 @@ function createLauncherWindow() {
       spellcheck: false,
     },
   });
-  if (process.platform !== 'win32') markWindowTransparent(launcherWindow);
+  markWindowTransparent(launcherWindow);
   attachIntegratedChrome(launcherWindow, { role: 'launcher' });
   launcherWindow.once('ready-to-show', () => {
     hideNativeMenu(launcherWindow);

@@ -6,6 +6,8 @@ const { spawn } = require('child_process');
 const { app, shell } = require('electron');
 const { installLatestViaUpdater } = require('./update-updater');
 const { UpdateJournal } = require('./update-journal');
+const { checkInstallSpace } = require('./install-space');
+const { setTimeout: delay } = require('node:timers/promises');
 const installDetect = require('../launcher/install-detect');
 const { currentVersion, getInstalledAppInfo } = installDetect;
 
@@ -18,7 +20,7 @@ const REPO_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
 /** API check budget: a hung GitHub must not stall the cold-start gate. */
 const CHECK_TIMEOUT_MS = 10_000;
 /** Whole-download budget for one Setup asset (hundreds of MB on slow links). */
-const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
+const DOWNLOAD_TIMEOUT_MS = 2 * 60 * 60_000;
 /**
  * Release asset with `sha512sum` lines for every installer. Releases that
  * carry it get mandatory post-download verification; older releases without
@@ -129,10 +131,10 @@ function parseSha512Sums(text) {
   return sums;
 }
 
-function sha512HexOfFile(file) {
+function sha512HexOfFile(file, signal) {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha512');
-    const stream = fs.createReadStream(file);
+    const stream = fs.createReadStream(file, { signal });
     stream.on('error', reject);
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('end', () => resolve(hash.digest('hex')));
@@ -147,14 +149,16 @@ function sha512HexOfFile(file) {
  * @param {string} assetName - original release asset name (manifest key).
  * @param {string} checksumUrl - browser_download_url of SHA512SUMS.txt.
  */
-async function verifyAssetChecksum(dest, assetName, checksumUrl) {
+async function verifyAssetChecksum(dest, assetName, checksumUrl, { signal } = {}) {
+  if (signal?.aborted) throw cancelledError();
   let response;
   try {
     response = await fetch(checksumUrl, {
       headers: downloadHeaders(true, checksumUrl),
-      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(CHECK_TIMEOUT_MS)]) : AbortSignal.timeout(CHECK_TIMEOUT_MS),
     });
   } catch (error) {
+    if (signal?.aborted) throw cancelledError();
     if (isTimeoutError(error)) {
       throw new Error('校验清单下载超时');
     }
@@ -168,9 +172,9 @@ async function verifyAssetChecksum(dest, assetName, checksumUrl) {
   if (!expected) {
     throw new Error(`校验清单缺少 ${assetName} 的条目`);
   }
-  const actual = await sha512HexOfFile(dest);
+  const actual = await sha512HexOfFile(dest, signal);
   if (actual !== expected) {
-    throw new Error('安装包校验失败（sha512 不匹配），已删除下载文件');
+    throw Object.assign(new Error('安装包校验失败（sha512 不匹配）'), { code: 'ERR_UPDATER_CHECKSUM_MISMATCH' });
   }
 }
 
@@ -334,7 +338,30 @@ function cancelledError() {
   return error;
 }
 
-function downloadFile(url, dest, onProgress, { timeoutMs = DOWNLOAD_TIMEOUT_MS, signal } = {}) {
+async function downloadFile(url, dest, onProgress, options = {}) {
+  const { timeoutMs = DOWNLOAD_TIMEOUT_MS, signal, maxAttempts = 3, retryDelayMs = 1000 } = options;
+  const deadline = Date.now() + timeoutMs;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (signal?.aborted) throw cancelledError();
+    try {
+      return await downloadFileOnce(url, dest,
+        (progress) => onProgress?.({ ...progress, attempt, maxAttempts }),
+        { ...options, signal, timeoutMs: Math.max(1, deadline - Date.now()) });
+    } catch (error) {
+      if (signal?.aborted) throw cancelledError();
+      if (!error.retryable || attempt === maxAttempts || Date.now() >= deadline) throw error;
+      onProgress?.({ phase: 'download', retrying: true, attempt: attempt + 1, maxAttempts, percent: null });
+      try {
+        await delay(Math.min(retryDelayMs * attempt, Math.max(1, deadline - Date.now())), undefined, { signal });
+      } catch { throw cancelledError(); }
+    }
+  }
+  throw new Error('下载重试次数无效');
+}
+
+function downloadFileOnce(url, dest, onProgress, {
+  timeoutMs = DOWNLOAD_TIMEOUT_MS, signal, idleTimeoutMs = 45_000, connectionTimeoutMs = 20_000,
+} = {}) {
   if (signal?.aborted) {
     return Promise.reject(cancelledError());
   }
@@ -342,6 +369,13 @@ function downloadFile(url, dest, onProgress, { timeoutMs = DOWNLOAD_TIMEOUT_MS, 
     const file = fs.createWriteStream(dest);
     let settled = false;
     let activeRequest = null;
+    let activeResponse = null;
+    let inactivityTimer;
+    const started = Date.now();
+    const armInactivity = (ms, message) => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => fail(Object.assign(new Error(message), { retryable: true, code: 'ETIMEDOUT' })), ms);
+    };
     const onAbort = () => fail(cancelledError());
     const releaseSignal = () => {
       if (signal) {
@@ -354,14 +388,18 @@ function downloadFile(url, dest, onProgress, { timeoutMs = DOWNLOAD_TIMEOUT_MS, 
       }
       settled = true;
       clearTimeout(deadline);
+      clearTimeout(inactivityTimer);
       releaseSignal();
+      activeResponse?.unpipe?.(file);
+      activeResponse?.destroy?.();
       if (activeRequest) {
         activeRequest.destroy();
       }
-      file.close(() => {
+      file.once('close', () => {
         cleanupPartial(dest);
         reject(error);
       });
+      file.destroy();
     };
     if (signal) {
       signal.addEventListener('abort', onAbort, { once: true });
@@ -372,62 +410,80 @@ function downloadFile(url, dest, onProgress, { timeoutMs = DOWNLOAD_TIMEOUT_MS, 
       fail(new Error(`下载超时（${Math.round(timeoutMs / 60_000)} 分钟）`));
     }, timeoutMs);
     const visit = (target, hops) => {
+      if (settled) return;
       if (hops > 8) {
         fail(new Error('Too many redirects'));
         return;
       }
-      const request = https.get(target, {
+      armInactivity(connectionTimeoutMs, '下载连接超时，请检查网络或切换下载线路');
+      let request;
+      try { request = https.get(target, {
         headers: downloadHeaders(hops === 0, target),
       }, (response) => {
+        if (settled) { response.resume(); return; }
+        activeResponse = response;
+        response.on('error', (error) => {
+          fail(Object.assign(new Error(`下载连接中断：${error.message || String(error)}`), { retryable: true }));
+        });
+        response.on('aborted', () => {
+          fail(Object.assign(new Error('下载连接中断（服务器提前断开）'), { retryable: true }));
+        });
         const location = response.headers.location;
         if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && location) {
           response.resume();
-          visit(location, hops + 1);
+          try { visit(new URL(location, target).href, hops + 1); } catch (error) { fail(error); }
           return;
         }
         if (response.statusCode !== 200) {
           response.resume();
-          fail(new Error(`Download ${response.statusCode}`));
+          fail(Object.assign(new Error(`下载失败（HTTP ${response.statusCode}）`), {
+            retryable: [408, 429, 500, 502, 503, 504].includes(response.statusCode),
+          }));
           return;
         }
         const total = Number(response.headers['content-length']) || 0;
+        try { if (total > 0) checkInstallSpace(path.dirname(dest), total); } catch (error) { fail(error); return; }
+        armInactivity(idleTimeoutMs, '下载连接长时间无数据，请检查网络或切换下载线路');
         let received = 0;
+        let lastProgressAt = 0;
         response.on('data', (chunk) => {
+          if (settled) return;
+          armInactivity(idleTimeoutMs, '下载连接长时间无数据，请检查网络或切换下载线路');
           received += chunk.length;
-          if (total > 0 && typeof onProgress === 'function') {
+          const now = Date.now();
+          if (typeof onProgress === 'function' && (now - lastProgressAt >= 250 || received === total)) {
+            lastProgressAt = now;
             onProgress({
               phase: 'download',
-              percent: Math.min(99, Math.round((received / total) * 100)),
+              percent: total > 0 ? Math.min(99, Math.round((received / total) * 100)) : null,
               received,
               total,
+              bytesPerSecond: received / Math.max(1, (Date.now() - started) / 1000),
             });
           }
         });
-        // A reset or aborted body would otherwise just end the pipe and look
-        // like a completed download; fail it and drop the partial file.
-        response.on('error', (error) => {
-          fail(new Error(`下载连接中断：${error && error.message ? error.message : String(error)}`));
-        });
-        response.on('aborted', () => {
-          fail(new Error('下载连接中断（服务器提前断开）'));
-        });
+        response.once('end', () => clearTimeout(inactivityTimer));
         response.pipe(file);
         file.on('finish', () => {
           if (settled) {
             return;
           }
           if (total > 0 && received !== total) {
-            fail(new Error(`下载不完整（${received}/${total} 字节），已删除未完成文件`));
+            fail(Object.assign(new Error(`下载不完整（${received}/${total} 字节），已删除未完成文件`), { retryable: true }));
             return;
           }
           settled = true;
           clearTimeout(deadline);
+          clearTimeout(inactivityTimer);
           releaseSignal();
           file.close(() => resolve(dest));
         });
-      });
+      }); } catch (error) { fail(error); return; }
       activeRequest = request;
-      request.on('error', fail);
+      request.on('error', (error) => {
+        error.retryable = ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'ENOTFOUND'].includes(error.code);
+        fail(error);
+      });
     };
     file.on('error', fail);
     visit(url, 0);
@@ -513,7 +569,7 @@ async function installFromAsset(info, onProgress, options = {}) {
   if (options.preferUpdater) {
     try {
       const outcome = await installLatestViaUpdater(
-        { timeoutMs: DOWNLOAD_TIMEOUT_MS },
+        { timeoutMs: 15 * 60_000 },
         onProgress,
         { ...options.updaterDeps, taskProtection: options.taskProtection },
       );
@@ -561,18 +617,36 @@ async function installFromAsset(info, onProgress, options = {}) {
     } catch { /* evidence only */ }
     if (typeof onProgress === 'function') onProgress(progress);
   };
-  await downloadFile(info.assetUrl, dest, journalProgress, { signal: options.signal });
-  if (info.checksumUrl) {
-    journalProgress({ phase: 'verify' });
-    try {
-      await verifyAssetChecksum(dest, info.assetName, info.checksumUrl);
-    } catch (error) {
-      cleanupPartial(dest);
-      throw error;
+  // Completed downloads survive a cancelled wizard. Reuse only after checking
+  // this release's current manifest again; file name/existence is not trust.
+  let cached = false;
+  const partial = `${dest}.part`;
+  try {
+    if (info.checksumUrl && fs.existsSync(dest)) {
+      journalProgress({ phase: 'verify', cached: true });
+      try {
+        await verifyAssetChecksum(dest, info.assetName, info.checksumUrl, options);
+        cached = true;
+      } catch (error) {
+        if (error.code !== 'ERR_UPDATER_CHECKSUM_MISMATCH') throw error;
+        cleanupPartial(dest);
+      }
     }
+    if (!cached) {
+      await downloadFile(info.assetUrl, partial, journalProgress, { signal: options.signal });
+      if (info.checksumUrl) {
+        journalProgress({ phase: 'verify' });
+        await verifyAssetChecksum(partial, info.assetName, info.checksumUrl, options);
+      }
+      if (options.signal?.aborted) throw cancelledError();
+      fs.renameSync(partial, dest);
+    }
+  } catch (error) {
+    cleanupPartial(partial);
+    try { journal()?.state({ phase: 'error', version: info.version, failedOperation: 'download-or-verify', message: `${error.code || ''} ${error.message}` }); } catch { /* evidence only */ }
+    throw error;
   }
   if (options.signal?.aborted) {
-    cleanupPartial(dest);
     throw cancelledError();
   }
   journalProgress({ phase: 'install', percent: 100 });
@@ -592,36 +666,37 @@ async function installFromAsset(info, onProgress, options = {}) {
     }
   }
   const protection = options.taskProtection;
+  const quitAfterInstall = options.quitAfterInstall !== undefined
+    ? Boolean(options.quitAfterInstall)
+    : app.isPackaged;
+  const launch = async () => {
+    if (options.signal?.aborted) throw cancelledError();
+    const child = launchInstaller(dest);
+    // Wire lifecycle observation at launch; the UAC parent can exit early.
+    if (typeof options.onInstallerLaunch === 'function') {
+      try { options.onInstallerLaunch(child); } catch { /* evidence only */ }
+    }
+    await new Promise((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.once('error', reject);
+    });
+    try { journal()?.action('install-confirmed'); } catch { /* evidence only */ }
+  };
   if (protection && typeof protection.coordinate === 'function') {
-    const willQuit = options.quitAfterInstall !== undefined
-      ? Boolean(options.quitAfterInstall)
-      : app.isPackaged;
     // Every entry into this lane is already an explicit user action (update
     // ask, version-install card, 「在线安装」 button), so the inspect/
     // acquire/drain sequencing stays but the confirm gate is skipped —
     // asking again would double-prompt one click.
-    const result = await protection.coordinate('update', { terminal: willQuit, preConfirmed: true });
+    // The launch belongs inside commit so a rejected spawn releases Host
+    // admission and never latches the coordinator into a shutdown state.
+    const result = await protection.coordinate('update', { terminal: quitAfterInstall, preConfirmed: true, commit: launch });
     if (!result.proceeded) {
       return { ...info, launched: false, cancelled: true, code: result.code || 'cancelled' };
     }
-  }
-  try { journal()?.action('install-confirmed'); } catch { /* evidence only */ }
-  const child = launchInstaller(dest);
-  // The child handle lets a surviving caller (runtime install) observe the
-  // installer's exit; it is consumed in-process and never crosses IPC.
-  if (typeof options.onInstallerLaunch === 'function') {
-    try {
-      options.onInstallerLaunch(child);
-    } catch {
-      // observability hook only
-    }
-  }
+  } else await launch();
   // Self-update semantics quit the packaged app so the installer can replace
   // it. A runtime install (slim launcher → desktop) must keep the launcher
   // alive to report progress, so callers opt out explicitly.
-  const quitAfterInstall = options.quitAfterInstall !== undefined
-    ? Boolean(options.quitAfterInstall)
-    : app.isPackaged;
   if (quitAfterInstall) {
     setTimeout(() => app.quit(), 800);
   }

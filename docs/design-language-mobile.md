@@ -4,7 +4,7 @@
 
 本文是 [design-language.md](design-language.md)「手机远程交互」节的完整契约；token 总表、强制规则与例外以母文档为准。
 
-已配对的远程 Web 与 Android 内置 SPA 页面结构参照 Claude 移动端，颜色、字体栈与明暗仍只取同值 token 表，不引入暖色纸面或第二套产品皮肤；桌面端不受影响。画布 `--dsw-specific-sidebar-fill`，卡片与浮动输入卡 `--dsw-alias-bg-layer-1`，圆钮与胶囊 `--dsw-specific-sidebar-nav-item-hover`，选中与勾选 `--dsw-alias-state-business-primary`，用户气泡仍为 `--dsw-specific-bubble`，输入卡只加 `lv2` 轻阴影。决策见[手机远程 Claude 式结构](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)。
+已配对的远程 Web 与 Android 原生聊天页面结构参照 Claude 移动端，颜色、字体栈与明暗仍只取同值 token 表，不引入暖色纸面或第二套产品皮肤；桌面端不受影响。画布 `--dsw-specific-sidebar-fill`，卡片与浮动输入卡 `--dsw-alias-bg-layer-1`，圆钮与胶囊 `--dsw-specific-sidebar-nav-item-hover`，选中与勾选 `--dsw-alias-state-business-primary`，用户气泡仍为 `--dsw-specific-bubble`，输入卡只加 `lv2` 轻阴影。决策见[手机远程 Claude 式结构](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)。
 
 ## 连接前海平线画布
 
@@ -22,4 +22,10 @@
 
 屏幕返回、浏览器返回和 Android 返回使用同一导航层级；软键盘出现时系统返回先收键盘，再退当前层。关闭恢复触发器但不强制唤起编辑键盘；背景层不可点击或聚焦。history 不写入凭证或草稿，不在返回时重放业务写请求。普通成功原位反馈，失败原位可重试；审批关闭详情不等于拒绝请求。长草稿阅读时可收起，恢复编辑保留草稿与选区。动画只使用已有 transform/opacity token，减弱动效直接落位。
 
-Android 保持稳定 asset origin 与同一 Web 源码，不平行实现聊天；原生只补返回、扫码、拍照/选择、键盘和生命周期。新一轮 Web 与 Android 分轨验收，不继承历史未测结论为 Pass。
+## Android 原生聊天迁移
+
+Android 配对后的主路径由 Kotlin + Jetpack Compose 绘制会话列表、消息时间线、审批条与常驻输入框；不得把可见 WebView 当成原生聊天。浏览器继续使用现有 Web SPA。迁移期间 APK 内置同源 Web 客户端只充当后台 E2EE/host RPC 传输适配器，沿用原有 sticky 设备密钥与一次性 offer 消费规则，不复制一套不兼容的认证或更改 origin。桥接仅对可信 `appassets.androidplatform.net` 主文档开放、校验请求序号和会话归属，传给 Compose 的是最小安全视图，不传 deviceSecret、原始凭证或可执行 HTML；WebView 不加载外部主文档。后台传输页的加载或渲染进程失败时，原生页给出可重试错误，不画假在线状态。
+
+先保证「配对／保存设备重连 → 会话列表 → 打开历史和增量回复 → 发送／停止 → 审批」闭环；只读子会话不可发送，离线草稿保留。模型、权限和斜杠动作必须接真实 host，未接通的高级工作区／Git／文件功能以明确的「打开旧版工作页」过渡入口访问，不能在原生页画无效按钮。输入卡 20dp 圆角、语义色 `DshTokens`、16sp 编辑文字与 48dp 最小命中区；正文多行自适应高度，工具行与发送／停止不会被软键盘遮挡，空白、禁用、运行和失败态均需可辨。原生输入框不得借用连接页的海平线品牌衬线和色板。返回先收 IME，再退选择层／会话列表；切会话时草稿按会话隔离，迟到的历史或发送回调不得覆盖当前会话。
+
+新一轮 Web 与 Android 分轨验收；构建、单测与静态截图不等于真机连接和流式对话通过，不继承历史未测结论为 Pass。

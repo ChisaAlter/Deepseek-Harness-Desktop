@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `desktop-launcher` |
 | **status** | `active` |
+| **last verified (installation recovery)** | 2026-09-29 — 下载断流/重试/取消、完整缓存校验、安装失败优先与同版本待确认回归通过；真实 Electron 明暗 × 两种宽度共 20 场景通过，源码重启与冒烟通过。未构建或验收新的 CI Setup。证据：[安装恢复 QA](../qa/results/2026-09-29-installation-recovery/README.md)。 |
 | **last verified (home state)** | 2026-09-29 — 可选导入不抢占冷启动；首页、门禁与恢复定向 95/95。隐藏 Electron 真实页面覆盖双击只调用一次、延迟/失败/异常/恢复启动/关闭，860×560 下 100%/200% 主操作可达。同批实机复测：`autoStartDesktop:false` 的真实启动器首页只有单一启动入口、诊断默认折叠，点击后进入锁定进行态并显示真实等待秒数。证据见 `docs/qa/results/2026-09-29-four-fix-live/` 与 `docs/qa/results/2026-09-29-boot-reveal/LOCAL-INSTALL.md`；未更新安装版首页，用户要求不操作其桌面。 |
 | **last verified (audit closeout)** | 2026-09-28 — 真实 Electron 回归验证恢复标题 16/24、明暗主题与 100%–200% 缩放下导入列表至少 120px、逐项选择/导入按钮可达、展开说明可滚动，以及 600 字符/超长确认正文不挤出按钮。 |
 | **last verified (slim package)** | 2026-09-24 — B-β 落地：`src/main-launcher/index.js` 独立 slim 入口（不加载 harness/vendor 栈）；`src/main-launcher/ipc.js` 仅注册启动器通道面（经 `src/main/ipc-launcher.js` 共享表，ipc.js 同表调用，防漂移）；`electron-builder.launcher.yml` 独立 appId `ai.deepseek.harness.launcher` / productName `Deepseek-Harness-Launcher` / `dshdPackage:'launcher'` extraMetadata / 零 extraResources。**userData 分离（替代早先共享方案）**：Electron 单实例锁以 userData 路径为 mutex 且 app.name 取自打包 package.json `productName`——`extraMetadata.productName` 使 slim 落到自己的 `%APPDATA%/Deepseek-Harness-Launcher`（独立 config + 独立锁）；dsh-home/导入 journal/last-desktop-start 经 `product.js` `desktopStateDir`/`desktopUserDataDir` 显式指向 `%APPDATA%/Deepseek-Harness-Desktop`。`startExternalDesktop` 带 12s 存活宽限（spawn 成功≠存活：运行时单实例竞争败北即秒退——`tasklist` 轮询判死让门落回可见启动器）。共存实测：打包 slim 与 dev 桌面实例并行无锁冲突；已装 0.3.2 运行时（不识 `--dshd-from-launcher`）spawn 后存活→slim 隐藏、其内嵌启动器出现（优雅降级）；占锁时桌面秒退→slim 正确落回显示窗口。`npm run pack:launcher` 产物 321.5MB（对照完整包 3759.3MB），slim 入口 `logs/main.log` 记录 fatal。全量 2326/2326、治理 6/6、doc-sync 8/8。**2026-09-25 续（QA 收口）**：slim 托盘落地——`src/main-launcher/tray.js`（显示窗口/退出），关窗经 `bindLauncherClose`+`hideOnClose` 隐藏驻留（托盘创建失败则退回默认关闭，绝不滞留无窗进程），真机验证关窗后 4 进程全存活、`visibilityState` hidden→二次实例重开 visible、组件 pid 不变且 HTTP 持续应答；`before-quit` 真退出仍回收组件。slim 明确"桌面专属"边界：`shell:remove-plugin` 与导入页插件重装在 slim 下返回 `{ok:false,error:'desktop-only'}`（无 vendored `dsh plugin` CLI），UI 相应行显示「需在桌面端内移除/重装」并禁用勾选；插件禁用/启用写运行时 config 仍可用（写盘后运行时下轮启动生效）。`removePluginOp` 修复为卸载成功后才清 `disabledPlugins`（失败不再静默重新启用崩溃插件）。版本行携带 `delta` 字段（release 资产含 `*-delta-<installed>-<to>.zip` 时渲染「增量更新」按钮）。遗留：携带 flag 的 runtime 真实 handoff（需先发版）、签名清单（C 批）。 |
@@ -27,6 +28,8 @@
 
 ## Invariants
 
+- 下载与安装恢复：整包下载分别限制连接（20s）、无数据（45s）及总耗时（2h），暂态错误最多三次尝试；取消覆盖传输与重试等待。完整缓存每次重新校验 SHA512 后才能复用，`.part` 不可执行。下载目标盘做空间预检，未知总大小只显示字节/速度。安装启动失败及时返回；父进程退出不足以证明 UAC 安装完成，同版本修复返回「待确认」，失败优先于注册表变化。终止或未确认状态收起活动进度，版本安装 IPC 拒绝也必须显示失败原因。
+
 - 启动器对外显示 Whale Isle Launcher，桌面运行时显示 Whale Isle；两个 appId 与各自旧版 userData 路径保持稳定，启动器继续识别旧版 Deepseek-Harness-Desktop 的注册表与可执行文件。
 
 - 更新确认必须使用确认框展示的 release 快照；冷启动确认路径下载该快照的完整 Setup，不再二次读取 latest 或使用可移动目标的 `latest.yml`。窗口代际失效导致的放弃重新停放结果；自动启动失败后可见启动器消费迟到的新版本提示。
@@ -44,7 +47,7 @@
 - 换版本只下载该 tag 的 Setup 并拉起安装器，不单独切 `vendor/dsh` pin。
 - 「更新到最新版」优先走 electron-updater 差量通道（`installFromAsset` → `installLatestViaUpdater`，仅 packaged 且 Windows）：`latest.yml` 元数据 + 新旧 Setup `.blockmap` 分块比对，COPY 源为 updater 缓存目录里安装时自拷贝的 `installer.exe`，差异分块经 HTTP Range 拉取、本地拼出新安装器后静默安装并重启；无旧块图 / 缓存缺失 / 校验或下载失败一律自动回退既有全量下载 + sha512 校验路径（同一 `installFromAsset` 语义）。「切换到指定版本」的 `installRelease` **不走**该通道——electron-updater 只认 `latest.yml` 指向的版本；dev / 源码运行不启用。差量生效时进度载荷带 `differential` 标记，启动器文案显示「增量下载」；更新完整性由 `latest.yml` 内嵌 sha512 兜底，feed 来自 `build.publish` GitHub 配置（electron-builder 生成 `resources/app-update.yml`）。
 - 更新检查请求 10s 超时、单次下载整体 15 分钟超时；正文中断（error/aborted）或落盘字节与 content-length 不符视为失败并删除半成品；失败不阻塞手动「启动桌面端」。
-- **运行时装与自更新分层（2026-09-24，重构计划 B 批）**：完整包保持自更新语义（packaged 起安装器后 `app.quit`）；slim 包（`dshdPackage:'launcher'` / `DSHD_LAUNCHER_PACKAGE=1`）把同一 IPC 面重定向到受管桌面运行时——`quitAfterInstall:false`，经 `onInstallerLaunch` 拿到安装器子进程句柄后按「注册表记录 + 主 exe 存在 + 版本/mtime 相对基线变化」轮询落定（NSIS 经 UAC 再拉起，子进程退出≠装完；同版修复以子进程结束+注册表已填为落定），8 分钟封顶或取消即回「等待中」而非丢窗。下载链路 `signal` 可中止，半成品必删。
+- **运行时装与自更新分层**：完整包在操作系统接受安装器 spawn 后退出；slim 包保持存活，以注册表、主 exe 和目标版本匹配观察首次安装或版本切换。同版本修复不能用 mtime 或父进程结束证明完成，父进程结束后返回「待确认」；安装错误立即报告，其余等待八分钟封顶或用户取消后回未确认状态。具体恢复边界见本卡下载不变量。
 - **下载线路枚举与镜像权威（2026-09-24）**：`release-source.js` 是唯一线路表（github/gitee）；`downloadRoute` 是 launcher 可写字段（`''` 未选）；选 gitee 的每一次取数（latest/list/tag 元数据、安装包、校验单）只走 gitee 主机。未验证线路在 UI 可见但禁选（「未启用」标注），不得以 GitHub 静默顶替。
 - **slim 形态的目标重定向（2026-09-24）**：`product.isLauncherPackage()` 为真时 `status`/`checkUpdate`/`listReleases`/`installRelease`/`installUpdate`/`startDesktop`/`stopDesktop`/`uninstallApp` 全部指向桌面产品身份（`install-detect` `deps.target={appId,productName}`），启动/停止走 spawn exe + tasklist/taskkill 探测（控制通道属后续批次）；renderer 不换通道只看 `launcherPackage`/`installed`/`running-external`。`--dshd-from-launcher` 让被拉起的桌面端跳过自身冷启动门直接进桌面。
 - **slim 包 userData 分离 + 桌面状态显式指向（2026-09-24，B-β 修正）**：slim 进程保有**自己的** userData（`%APPDATA%/Deepseek-Harness-Launcher`，独立 config 与单实例锁——锁 mutex 由 userData 路径派生，共享目录会让启动器与运行时互斥）；桌面侧状态（dsh-home、插件清单、last-desktop-start、import journal）经 `product.js` `desktopStateDir`/`desktopUserDataDir` 显式落到运行时目录 `%APPDATA%/Deepseek-Harness-Desktop`，导入与插件归因因此不需要跨进程通道。注意：对外 `productName` 已改为 Whale Isle；两个 Electron 入口在申请单实例锁前通过 `src/shared/product-identity.js` 显式固定旧版 userData 路径，因此显示名变化不会移动配置和锁。slim 入口（`src/main-launcher/index.js`）不实例化 HarnessController、不起远程/PTY/预览；启动器通道面经 `ipc-launcher.js` 共享表注册，与完整包同一实现。`startExternalDesktop` spawn 后按存活宽限（默认 12s `tasklist` 轮询）裁决——进程出现过又消失或始终未出现都返回失败，保证「不留隐藏无窗进程」。
@@ -53,7 +56,7 @@
 - `last-desktop-start.json` 写入方唯一集合：启动器 `startDesktopFromLauncher`、boot 页 `shell:restart` / boot `shell:retry-full-plugins`、菜单/托盘/插件对齐 `restartWithCleanup`（经 `recordLastDesktopStart`）。成功写 `{ok:true}`，失败写 `{ok:false, error}`；launcher 角色 `shell:retry-full-plugins`/`shell:start-desktop` 由 `startDesktopFromLauncher` 代写，不双写。
 - sticky skip 判定唯一实现 `launcher-gate.stickySkipActive({pluginRecovery, appVersion})`；ipc 与 `HarnessController.shouldSkipUserPlugins` 共用（后者负责清掉跨版本的陈旧标记）。
 - OS 浅深色切换经 `chrome.watchSystemTheme`（`nativeTheme updated` → `applyAppTheme`）即时重绘窗口背景。
-- 窗控注入保持自愈：eval retry、导航/focus/show 重断言与按节点 id 的 MutationObserver。Windows 主窗口/启动器的外框与状态遵循 [window-motion](window-motion.md)：不透明原生窗口、系统圆角与动画，以原生 `isMaximized()`/`unmaximize()` 往返；几何回退和自绘缘线只用于非 Windows 的透明剪影路径。
+- 窗控注入保持自愈：eval retry、导航/focus/show 重断言与按节点 id 的 MutationObserver。Windows 主窗口/启动器的外框与状态遵循 [window-motion](window-motion.md)：透明自绘 20px 圆角、原生桥恢复系统动画样式，以原生 `isMaximized()`/`unmaximize()` 往返；几何回退只用于未启用原生样式的透明窗；自绘缘线在普通窗口持续保留。
 - Release 若带 `SHA512SUMS.txt`，下载后强制 sha512 校验（失败即删除并报错）；无清单的 Release **不静默直装**——必须经用户确认（`confirmUnverified`，默认 fail-closed 拒绝即不开始下载），确认后安装但不做校验。
 - **启动器归属确认一律渲染在启动器窗内（2026-09-27）**：主进程发起的确认（更新询问、无校验清单安装）经 `src/launcher/launcher-confirm.js` 桥——`shell:app-confirm` 事件发给启动器渲染层走既有 `app-confirm` 卡，应答走 `shell:app-confirm:response`（经 `registerLauncherChannels` extraChannels 挂载，LAUNCHER_ONLY 授权）；桥得 `null`（无窗/渲染层销毁）才回退原生 messagebox，绝不允许静默放行。完整包与 slim 包同一实现（各自进程建 `createLauncherConfirm({getWindow:getLauncherWindow})`）。
 - 卸载与「设置 → 应用」回退绝不经 shell 执行注册表命令串：只 spawn 已验证存在的卸载 exe 路径（`extractUninstallExe`），提取失败落「设置 → 应用」。
@@ -76,6 +79,8 @@
 - 导入重新扫描保留 session-rel / skill-id / plugin-name / mcp-id 勾选与会话分组折叠；扫描完成展示计数与时间戳。
 
 ## Allowed touch
+
+- `src/main/install-space.js` 与测试、`src/main/update.test.js`、`src/renderer/launcher-behavior.test.js` — 2026-09-29 用户授权全面优化安装链路的空间预检、故障恢复与反馈回归。
 
 - `src/main/window.js` 启动器窗、`src/renderer/launcher.*`
 - `src/renderer/theme.js`、`src/main/chrome.js`、`src/main/harness-chrome-inject.js`、`src/shared/themes.js`
@@ -102,6 +107,8 @@
 | Manual / QA | `TC-LAUNCH-001`…`008` |
 
 ## Sources
+
+- Decision: [安装恢复边界](../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)
 
 - Decision: [首页单一操作与诊断](../decisions/implemented/bug-fix/2026-09-29-launcher-home-state.md)、[可选导入不抢占冷启动](../decisions/implemented/bug-fix/2026-09-29-optional-import-startup.md)
 

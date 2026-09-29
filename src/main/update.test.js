@@ -12,6 +12,7 @@ const {
   summarizeRelease,
   installRelease,
   installUpdate,
+  installFromAsset,
   checkUpdate,
   listReleases,
   getInstalledAppInfo,
@@ -308,6 +309,66 @@ function fakeDownloadResponse({ contentLength = 100 } = {}) {
   return response;
 }
 
+test('download detects an idle body before the overall deadline and cleans up', async (t) => {
+  const previous = https.get;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-idle-'));
+  let destroyed = false;
+  https.get = (_url, _options, respond) => {
+    const request = new EventEmitter();
+    request.destroy = () => { destroyed = true; };
+    setImmediate(() => respond(fakeDownloadResponse()));
+    return request;
+  };
+  t.after(() => { https.get = previous; fs.rmSync(dir, { recursive: true, force: true }); });
+  await assert.rejects(downloadFile('https://example.test/setup.exe', path.join(dir, 'setup.exe'), null,
+    { timeoutMs: 500, idleTimeoutMs: 20, maxAttempts: 1 }), /无数据/);
+  assert.equal(destroyed, true);
+  assert.deepEqual(fs.readdirSync(dir), []);
+});
+
+test('download retries a reset from scratch and reports bytes even without content-length', async (t) => {
+  const previous = https.get;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-retry-'));
+  const dest = path.join(dir, 'setup.exe');
+  let attempts = 0;
+  const progress = [];
+  https.get = (_url, _options, respond) => {
+    const request = new EventEmitter(); request.destroy = () => {};
+    const attempt = ++attempts;
+    setImmediate(() => {
+      const response = fakeDownloadResponse({ contentLength: 0 });
+      respond(response);
+      response.write(attempt === 1 ? 'partial' : 'complete');
+      if (attempt === 1) setImmediate(() => response.emit('error', Object.assign(new Error('reset'), { code: 'ECONNRESET' })));
+      else response.end();
+    });
+    return request;
+  };
+  t.after(() => { https.get = previous; fs.rmSync(dir, { recursive: true, force: true }); });
+  await downloadFile('https://example.test/setup.exe', dest, (p) => progress.push(p),
+    { timeoutMs: 1000, maxAttempts: 2, retryDelayMs: 1 });
+  assert.equal(attempts, 2);
+  assert.equal(fs.readFileSync(dest, 'utf8'), 'complete');
+  assert.ok(progress.some((p) => p.retrying && p.attempt === 2));
+  assert.ok(progress.some((p) => p.received === 8 && p.total === 0 && p.percent === null));
+});
+
+test('download does not retry permanent HTTP failure', async (t) => {
+  const previous = https.get;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-http-'));
+  let attempts = 0;
+  https.get = (_url, _options, respond) => {
+    attempts++;
+    const request = new EventEmitter(); request.destroy = () => {};
+    setImmediate(() => { const response = fakeDownloadResponse(); response.statusCode = 404; respond(response); });
+    return request;
+  };
+  t.after(() => { https.get = previous; fs.rmSync(dir, { recursive: true, force: true }); });
+  await assert.rejects(downloadFile('https://example.test/setup.exe', path.join(dir, 'setup.exe'), null,
+    { maxAttempts: 3, retryDelayMs: 1 }), /404/);
+  assert.equal(attempts, 1);
+});
+
 test('downloadFile fails without crashing and removes the partial when the body errors mid-stream', async () => {
   const previousGet = https.get;
   let destroyed = false;
@@ -457,6 +518,105 @@ test('verifyAssetChecksum passes a good digest and rejects mismatch or missing e
     global.fetch = previousFetch;
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('installer reuses a freshly verified cache, but never launches a corrupt replacement', async (t) => {
+  const previousFetch = global.fetch;
+  const previousGet = https.get;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cache-'));
+  fs.mkdirSync(path.join(dir, 'updates'));
+  const file = path.join(dir, 'updates', 'Setup.exe');
+  fs.writeFileSync(file, 'valid');
+  const digest = crypto.createHash('sha512').update('valid').digest('hex');
+  let downloads = 0;
+  let installs = 0;
+  global.fetch = async () => ({ ok: true, text: async () => `${digest}  Setup.exe\n` });
+  https.get = (_url, _options, respond) => {
+    downloads++;
+    const request = new EventEmitter(); request.destroy = () => {};
+    setImmediate(() => {
+      const response = fakeDownloadResponse({ contentLength: 7 }); respond(response); response.end('corrupt');
+    });
+    return request;
+  };
+  t.after(() => { global.fetch = previousFetch; https.get = previousGet; fs.rmSync(dir, { recursive: true, force: true }); });
+  const info = { assetUrl: 'https://example.test/setup.exe', assetName: 'Setup.exe', checksumUrl: 'https://example.test/sums' };
+  const options = { userDataDir: dir, beforeInstall: () => { installs++; return { ok: false, cancelled: true }; } };
+  const result = await installFromAsset(info, null, options);
+  assert.equal(result.cancelled, true);
+  assert.equal(downloads, 0);
+  assert.equal(installs, 1);
+  fs.writeFileSync(file, 'damaged-cache');
+  await assert.rejects(installFromAsset(info, null, options), /sha512 不匹配/);
+  assert.equal(downloads, 1);
+  assert.equal(installs, 1, 'a failed hash must never reach the installer gate');
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'updates')), []);
+});
+
+test('download cancellation during retry backoff never starts another request', async (t) => {
+  const previous = https.get;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-backoff-'));
+  const controller = new AbortController();
+  let requests = 0;
+  https.get = () => {
+    requests++;
+    const request = new EventEmitter(); request.destroy = () => {};
+    setImmediate(() => request.emit('error', Object.assign(new Error('reset'), { code: 'ECONNRESET' })));
+    return request;
+  };
+  t.after(() => { https.get = previous; fs.rmSync(dir, { recursive: true, force: true }); });
+  await assert.rejects(downloadFile('https://example.test/setup.exe', path.join(dir, 'setup.exe'),
+    (p) => { if (p.retrying) controller.abort(); }, { signal: controller.signal, retryDelayMs: 100 }), { name: 'AbortError' });
+  assert.equal(requests, 1);
+  assert.deepEqual(fs.readdirSync(dir), []);
+});
+
+test('cancel after the pre-install gate cannot launch a verified installer', async (t) => {
+  const previous = global.fetch;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-install-cancel-'));
+  fs.mkdirSync(path.join(dir, 'updates'));
+  const file = path.join(dir, 'updates', 'Setup.exe');
+  fs.writeFileSync(file, 'fixture');
+  const digest = crypto.createHash('sha512').update('fixture').digest('hex');
+  global.fetch = async () => ({ ok: true, text: async () => `${digest}  Setup.exe` });
+  t.after(() => { global.fetch = previous; fs.rmSync(dir, { recursive: true, force: true }); });
+  const controller = new AbortController();
+  let launches = 0;
+  await assert.rejects(installFromAsset({ assetUrl: 'https://example.test/Setup.exe', assetName: 'Setup.exe', checksumUrl: 'https://example.test/sums' }, null, {
+    userDataDir: dir, signal: controller.signal, quitAfterInstall: false,
+    beforeInstall: async () => { controller.abort(); return { ok: true }; },
+    onInstallerLaunch: () => { launches++; },
+  }), { name: 'AbortError' });
+  assert.equal(launches, 0);
+  assert.equal(fs.readFileSync(file, 'utf8'), 'fixture', 'verified cache survives cancellation');
+});
+
+test('an installer removed after verification rejects spawn instead of claiming launched', async (t) => {
+  const { createTaskProtection } = require('./task-protection');
+  const calls = [];
+  const protection = createTaskProtection({
+    hostRunning: () => true, getBaseUrl: () => 'http://127.0.0.1:9',
+    fetchImpl: async (url) => {
+      const op = url.split('/').at(-1); calls.push(op);
+      return { ok: true, json: async () => op === 'inspect'
+        ? { ok: true, activeWork: [], scheduledWork: [], coverage: { agents: 'ok' } }
+        : { ok: true, lockId: 'qa-lock', owner: 'qa' } };
+    },
+  });
+  const previous = global.fetch;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-install-missing-'));
+  fs.mkdirSync(path.join(dir, 'updates'));
+  const file = path.join(dir, 'updates', 'Setup.exe');
+  fs.writeFileSync(file, 'fixture');
+  const digest = crypto.createHash('sha512').update('fixture').digest('hex');
+  global.fetch = async () => ({ ok: true, text: async () => `${digest}  Setup.exe` });
+  t.after(() => { global.fetch = previous; fs.rmSync(dir, { recursive: true, force: true }); });
+  await assert.rejects(installFromAsset({ assetUrl: 'https://example.test/Setup.exe', assetName: 'Setup.exe', checksumUrl: 'https://example.test/sums' }, null, {
+    userDataDir: dir, quitAfterInstall: true, taskProtection: protection,
+    beforeInstall: async () => { fs.unlinkSync(file); return { ok: true }; },
+  }), { code: 'ENOENT' });
+  assert.equal(protection.isCommitted(), false);
+  assert.deepEqual(calls, ['inspect', 'acquire', 'inspect', 'release']);
 });
 
 test('installRelease refuses a tag with no Setup.exe', async () => {
@@ -830,7 +990,7 @@ test('installUpdate falls back to the verified whole-file path when the updater 
         updaterDeps: { isPackaged: true, platform: 'win32', autoUpdater: fake },
         userDataDir: os.tmpdir(),
       }),
-      /Download 500/,
+      /HTTP 500/,
       'fallback must surface the legacy download error',
     );
     assert.equal(fake.calls.checkForUpdates, 1, 'updater channel was attempted first');

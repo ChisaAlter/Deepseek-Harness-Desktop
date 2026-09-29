@@ -61,7 +61,7 @@ The host half aggregates persisted session logs:
 
 Accounting rules: `request/header` and `request/context` events record the model (context base, header override); the step's `assistant/message` usage replaces streamed provisional usage (a retried same-step message never double-counts); `llm/retry` events are counted as retries, not tokens; `compaction/summary` usage is attributed to its own model and reported separately (and never enters the cost buckets); reasoning tokens are already inside output and are never added again.
 
-**Fork dedup**: events that precede the last `session/end-seed` marker (fork/resume/replay seed history) are never counted, so forked sessions do not double-bill their parents' usage.
+**Fork dedup**: the host's `inheritedEventCount` excludes the exact inherited prefix, so forks do not double-bill their parents. Later restore-time `session/end-seed` markers cannot hide owned usage. Legacy callers without this metadata retain marker-based boundaries.
 
 **Timezone declaration**: day buckets and exports use **UTC** calendar days (`YYYY-MM-DD`); the heatmap subtitle declares the selected month and UTC (e.g. "Aug 2026 · UTC"). Billing phases use **Beijing wall time** (UTC+8, DST-free) — see [Costs and pricing](#costs-and-pricing).
 

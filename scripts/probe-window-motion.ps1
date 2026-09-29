@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 public static class WindowMotionProbe {
  [DllImport("user32.dll", EntryPoint="GetWindowLongW")] public static extern int GetWindowLong(IntPtr h, int n);
  [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint p, ref ANIMATIONINFO info, uint f);
+ [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, uint a, out int value, uint size);
+ [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr h);
  [StructLayout(LayoutKind.Sequential)] public struct ANIMATIONINFO { public uint cbSize; public int iMinAnimate; }
 }
 "@
@@ -13,4 +15,6 @@ $motionExStyle = [WindowMotionProbe]::GetWindowLong([IntPtr]$WindowHandle, -20)
 $info = New-Object WindowMotionProbe+ANIMATIONINFO
 $info.cbSize = 8
 $ok = [WindowMotionProbe]::SystemParametersInfo(72, 8, [ref]$info, 0)
-@{ caption = (($motionStyle -band 0x00c00000) -eq 0x00c00000); thickFrame = [bool]($motionStyle -band 0x40000); layered = [bool]($motionExStyle -band 0x80000); systemAnimations = $info.iMinAnimate; systemReadOk = $ok } | ConvertTo-Json -Compress
+$motionNcEnabled = 0
+$motionDwmResult = [WindowMotionProbe]::DwmGetWindowAttribute([IntPtr]$WindowHandle, 1, [ref]$motionNcEnabled, 4)
+@{ caption = (($motionStyle -band 0x00c00000) -eq 0x00c00000); thickFrame = [bool]($motionStyle -band 0x40000); layered = [bool]($motionExStyle -band 0x80000); nativeZoomed = [WindowMotionProbe]::IsZoomed([IntPtr]$WindowHandle); nonClientRendering = [bool]$motionNcEnabled; dwmReadOk = ($motionDwmResult -eq 0); systemAnimations = $info.iMinAnimate; systemReadOk = $ok } | ConvertTo-Json -Compress

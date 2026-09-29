@@ -4,7 +4,7 @@ Status: implemented
 
 [中文](2026-09-27-transparent-window-os-corner-mask.md) | English
 
-> Windows main/launcher transparency and outer-silhouette requirements are superseded by [native window motion](2026-09-29-native-window-motion.en.md); non-Windows, inner content corners and unrelated decisions remain valid.
+> The 20px alpha silhouette remains required. [Rounded window motion](2026-09-29-rounded-window-motion.en.md) adds native animation styles on Windows; the earlier opaque-window tradeoff is withdrawn. Geometry fallback is limited to windows without the native bridge.
 
 ## Problem
 

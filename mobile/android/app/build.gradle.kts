@@ -48,9 +48,10 @@ android {
     }
     sourceSets {
         getByName("main") {
-            // Package the repaired mobile/web SPA as the single Android chat
-            // implementation. WebViewAssetLoader serves these files from its
-            // secure HTTPS origin, so sticky relay reconnect does not depend
+            // Package mobile/web as Android's background E2EE/host-RPC adapter
+            // and explicit legacy work page; Compose owns paired chat.
+            // WebViewAssetLoader serves these files from its secure HTTPS
+            // origin, so sticky relay reconnect does not depend
             // on the desktop's LAN :3180 server after initial pairing.
             assets.srcDir(files(mobileWebAssets).builtBy(stageMobileWebAssets))
         }
@@ -82,4 +83,5 @@ dependencies {
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

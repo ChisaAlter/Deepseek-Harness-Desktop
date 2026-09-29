@@ -8,8 +8,7 @@ import { memo, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IconDatabaseOutlineRegular, IconGaugeOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { UseProjection } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { InjectFace, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsRuntime, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: merges the sessionStats key into SessionProjectionMap for useProjection.
 import type {} from '@deepseek-ai/dsh-session-stats/client'
 import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
@@ -121,21 +120,12 @@ export function billedInputTokens(usage: TokenUsageProjection): number {
 }
 
 /** Props: the conversation-snapshot selector plus the projection read seat. */
-export interface StatsPillsProps extends InjectFace<PerformanceUsageInjected & StatsPillsInjected> {
+export interface StatsPillsProps extends InjectFace<PerformanceUsageInjected>,
+  Pick<PropsRuntime<'conversation.composer.dock'>, 'useStatsLine'> {
   useChat: SnapshotSelectorHook<ChatSnapshot>
   useProjection: UseProjection
-  /** Interface Settings preference: false hides figures and keeps the row gap. */
-  useStatsLine: SnapshotSelectorHook<boolean>
   /** The owning dock's locale seat. */
   t: ChatViewSlotProps['t']
-}
-
-/** Registration-side preference face for the composer-dock stats entry. */
-export interface StatsPillsInjected {
-  hooks: {
-    /** Persisted stats-strip preference bound as useStatsLine. */
-    statsLine: SnapshotStore<boolean>
-  }
 }
 
 function exactCount(value: number, t: ChatViewSlotProps['t']): string {

@@ -208,4 +208,4 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 
 ## Windows 原生窗口过渡
 
-主窗口和启动器最大化、最小化与还原由 Windows DWM 执行，服从系统动画设置，不套页面 recipe。壳窗必须保持原生不透明窗口与 caption/thick-frame 样式；外缘交给系统，不能为固定 20px 圆角恢复透明分层窗。页面内部动效不变。门禁与实机验收见 [window-motion](features/window-motion.md)。
+主窗口和启动器最大化、最小化与还原由 Windows DWM 执行，服从系统动画设置，不套页面 recipe。壳窗保留透明自绘 20px 圆角，由窄 Win32 桥补回 caption/thick-frame 样式；圆角与原生动画同时验收，不能互相牺牲。页面内部动效不变。门禁与实机验收见 [window-motion](features/window-motion.md)。

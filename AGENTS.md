@@ -17,7 +17,7 @@ Harness-internal work also follows [vendor/deepseek-harness/AGENTS.md](vendor/de
 
 ## Native window motion
 
-Windows main/launcher windows must preserve native DWM transitions. Follow [window-motion](docs/features/window-motion.md): opaque shell windows, native outer corners, no transparent-window workaround for a fixed radius. Pets/overlays are separate. After window styling, Electron upgrades or upstream integration, run `node scripts/run-window-motion-qa.mjs` on Windows; state-only checks do not certify visible animation.
+Windows main/launcher windows must preserve native DWM transitions. Follow [window-motion](docs/features/window-motion.md): 20px transparent page-painted corners AND native animation styles; never trade away either. Pets/overlays are separate. After window styling, Electron upgrades or upstream integration, run `node scripts/run-window-motion-qa.mjs` on Windows; state-only checks do not certify visible animation. On an interactive desktop also run with `--composed`: all four corners must remain transparent after activation, blur, resize and restore; page alpha alone misses DWM rectangular borders.
 
 ## Surfaces and terminal (work loops)
 

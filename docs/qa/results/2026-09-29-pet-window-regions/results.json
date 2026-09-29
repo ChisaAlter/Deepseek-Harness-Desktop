@@ -1,0 +1,69 @@
+{
+  "results": [
+    {
+      "stage": "idle",
+      "kind": 2,
+      "box": {
+        "left": 723,
+        "top": 273,
+        "right": 1119,
+        "bottom": 699
+      }
+    },
+    {
+      "stage": "panel",
+      "kind": 3,
+      "box": {
+        "left": 408,
+        "top": 165,
+        "right": 1037,
+        "bottom": 699
+      }
+    },
+    {
+      "stage": "chat",
+      "kind": 3,
+      "box": {
+        "left": 604,
+        "top": 220,
+        "right": 1037,
+        "bottom": 699
+      }
+    },
+    {
+      "stage": "closed-chat",
+      "kind": 2,
+      "box": {
+        "left": 604,
+        "top": 363,
+        "right": 1037,
+        "bottom": 699
+      }
+    },
+    {
+      "stage": "disjoint-interactive",
+      "kind": 3,
+      "box": {
+        "left": 150,
+        "top": 150,
+        "right": 720,
+        "bottom": 270
+      }
+    },
+    {
+      "stage": "empty",
+      "kind": 1,
+      "box": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0
+      }
+    }
+  ],
+  "underlyingFrames": 3066,
+  "dragBefore": 506,
+  "dragAfter": 427,
+  "nativeGapClick": true,
+  "scale": 1.5
+}

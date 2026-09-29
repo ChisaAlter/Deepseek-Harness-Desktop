@@ -4,6 +4,10 @@
 | --- | --- |
 | **id** | `desktop-build-runtime` |
 | **status** | `proposed` |
+| **last verified (release preflight)** | 2026-09-29 — Node 24.21.0 桌面 2863 通过/2 跳过；治理 6/6、文档 7/7；主窗与启动器四角合成检查通过。新候选与正式验收状态见 [发布记录](../qa/results/2026-09-29-release-candidate/README.md)。 |
+| **last verified (async links)** | 2026-09-29 — 启动链接操作改为异步 I/O；慢盘取消、路径边界、最终链接失败回滚与装配定向测试 148/148。数千链接响应性演练及全量结果见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，不代表 WER 根因已确认或新包已发布。 |
+| **last verified (extraction recovery)** | 2026-09-29 — 临时解压、空间预检、最终路径 junction 重建与中断替换恢复回归通过；本地旧归档真实提取/复用成功，未改装配内容或重建发行包，见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)。 |
+| **last verified (window bridge)** | 2026-09-29 — Koffi 生产闭包/双方解包契约通过全量测试；slim 启动器打包成功，ASAR 内 Koffi + win32 模块解析及真实 HWND 样式桥通过。见 [QA](../qa/results/2026-09-29-corner-motion/README.md)；不代替完整桌面发布验收 |
 | **last verified** | 2026-09-29 — Node 24.21.0 LTS 全量构建和本地 NSIS 成功，包内 Node 版本核实；桌面 2809 通过/2 跳过，打包 P0（界面、Git/PTY、Ghostty、旧运行时替换）通过。CI 同 SHA 正式验收仍未完成。此前 2026-09-28 — 一源一目录装配通过 747 包 / 3602 边验证；tar 搬迁、循环与严格身份回归通过。桌面 2765 通过/2 跳过；源码与安装树冒烟、NSIS 与资产校验通过。ws 与平台会话资源已随包。当前仅本地演练，CI 同 SHA 候选与正式生产验收未完成。 |
 
 ## User paths
@@ -13,6 +17,11 @@
 3. 应用更新读取 `build.publish` 的 GitHub 元数据与 `dependencies.electron-updater`，与安装器 artifact 命名保持一致。
 
 ## Invariants
+
+- 提取运行时使用同卷临时树，验证后替换；Windows junction 不随临时目录原样搬迁，正式路径重新构造成功后才写戳。旧运行时通过 `.previous` 保留至切换完成，启动时先恢复中断替换，再清理遗留临时树；空间不足或归档损坏不提前删除旧树。
+- 启动时批量链接校验/修复/清理使用异步文件 I/O，仍逐次验证路径边界；准备阶段可取消，正式目录切换须完成重建或回滚。构建期同步 API 和链接清单格式不变。
+
+- 窗口圆角/动画桥 `koffi@3.3.2` 是生产依赖，锁文件保留平台闭包；桌面包与 slim 启动器解包 Koffi 及其 `@koromix` 原生模块，Windows 不得缺桥静默改为不透明窗口。见 [window-motion](window-motion.md)。
 
 - 桌面构建与随包 Harness Node 以 `.nvmrc` 为唯一版本源，当前选用 Node 24.21.0 LTS；跨主版本后重新执行构建、桌面测试和打包启动验证。Electron 内置 Node 与 Office 锁定运行时各自独立。
 
@@ -28,6 +37,8 @@
 - **装配期复用已验证的插件依赖树（2026-09-22）**：`dsh-im` 的依赖是否重装由 `missingPluginRuntimeClosure()`（自身入口 + 深度 3 的依赖闭包）决定，不再由 `skipIfComplete: false` 无条件删除重装。检查不通过时仍走 `defaultNpmInstall()`；`skipIfComplete` 的浅语义对其余插件不变。复用前提是这些依赖为纯 JS；引入原生依赖前必须把平台与 ABI 纳入判定。
 
 ## Allowed touch
+
+- `package.json`、`package-lock.json`、`electron-builder.launcher.yml`、`src/main/package-contract.test.js` — 2026-09-29 圆角与动画修复所需 Koffi 生产闭包/原生模块解包。
 
 - `.nvmrc` — 2026-09-29 用户授权重选合适的 Node 构建版本。
 
@@ -48,7 +59,7 @@
 
 ## Do not touch
 
-- `package-lock.json` 的其他解析结果与已锁定依赖版本（上述 ws 补齐授权除外）
+- `package-lock.json` 的其他解析结果与已锁定依赖版本（上述 ws 补齐、窗口桥 Koffi 生产闭包除外）
 - `SHA512SUMS.txt` 生成与更新器校验流；发行资产名称按 `windows-installer` 卡同步
 - 真实发布、签名与 mac DMG 上传策略
 
@@ -62,6 +73,8 @@
 | Manual / QA | 打包冒烟 `npm run smoke:packaged`（真实产物）；安装器实机项见 `windows-installer` 卡的 `TC-INST-*` |
 
 ## Sources
+
+- Decision: [安装恢复边界](../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)
 
 - Decision: [发布构建使用 Node 24 LTS](../decisions/implemented/process/2026-09-29-node24-release-runtime.md)
 

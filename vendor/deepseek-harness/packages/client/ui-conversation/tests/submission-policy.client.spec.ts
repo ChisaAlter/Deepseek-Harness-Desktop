@@ -43,6 +43,29 @@ describe('resolveSubmitMode', () => {
 })
 
 describe('ComposerSubmissionPolicy', () => {
+  it.each([
+    ['statsLine', 'setStatsLine', false],
+    ['sessionCost', 'setSessionCost', true],
+    ['officialPeakValley', 'setOfficialPeakValley', true],
+  ] as const)('keeps the latest %s choice while an older Host snapshot arrives during its write', async (field, setter, value) => {
+    const host = stubConfigForm<ConversationSettings>()
+    host.publish({ status: 'ready', value: chrome({ sessionCost: false }), revision: 1, writable: true })
+    const write = Promise.withResolvers<boolean>()
+    host.set.mockReturnValue(write.promise)
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    const changes: boolean[] = []
+    policy[field].subscribe(() => { changes.push(policy[field].getSnapshot()) })
+    policy[setter](value)
+    host.publish({ value: chrome({ sessionCost: false }), revision: 2 })
+    expect(policy[field].getSnapshot()).toBe(value)
+    expect(changes).toEqual([value])
+    host.publish({ value: chrome({ sessionCost: false, [field]: value }), revision: 3 })
+    write.resolve(true)
+    await write.promise
+    expect(policy[field].getSnapshot()).toBe(value)
+    policy.dispose()
+  })
+
   it('defaults to Queue and publishes preference changes', () => {
     const policy = new ComposerSubmissionPolicy()
     expect(policy.busyEnter.getSnapshot()).toBe(DEFAULT_BUSY_ENTER_BEHAVIOR)
@@ -52,6 +75,71 @@ describe('ComposerSubmissionPolicy', () => {
     policy.setBusyEnter('steer')
     expect(changed).toHaveBeenCalledTimes(1)
     expect(policy.busyEnter.getSnapshot()).toBe('steer')
+  })
+
+  it('keeps all three latest choices across partial namespace publications and superseded settlements', async () => {
+    const host = stubConfigForm<ConversationSettings>()
+    host.publish({ value: chrome({ sessionCost: false }), revision: 1 })
+    const writes = Array.from({ length: 5 }, () => Promise.withResolvers<boolean>())
+    for (const write of writes) host.set.mockReturnValueOnce(write.promise)
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    const snapshot = () => [policy.statsLine.getSnapshot(), policy.sessionCost.getSnapshot(), policy.officialPeakValley.getSnapshot()]
+    policy.setStatsLine(false)
+    policy.setSessionCost(true)
+    policy.setOfficialPeakValley(true)
+    policy.setStatsLine(true)
+    policy.setStatsLine(false)
+    expect(snapshot()).toEqual([false, true, true])
+    host.publish({ value: chrome({ statsLine: false, sessionCost: false }), revision: 2 })
+    writes[0]!.resolve(true)
+    writes[1]!.resolve(true)
+    writes[3]!.resolve(false)
+    await Promise.all([writes[0]!.promise, writes[1]!.promise, writes[3]!.promise])
+    // The accepted cost write has not reached the shared namespace mirror yet.
+    host.publish({ value: chrome({ statsLine: true, sessionCost: false }), revision: 3 })
+    expect(snapshot()).toEqual([false, true, true])
+    host.publish({ value: chrome({ statsLine: false, sessionCost: true, officialPeakValley: true }), revision: 4 })
+    writes[2]!.resolve(true)
+    writes[4]!.resolve(true)
+    await Promise.all(writes.map(write => write.promise))
+    expect(snapshot()).toEqual([false, true, true])
+    // After confirmation, genuine external changes are adopted again.
+    host.publish({ value: chrome({ sessionCost: false }), revision: 5 })
+    expect(snapshot()).toEqual([true, false, false])
+    policy.dispose()
+  })
+
+  it.each(['refused', 'rejected'] as const)('restores confirmed values when the latest dock write is %s', async failure => {
+    const host = stubConfigForm<ConversationSettings>()
+    host.publish({ value: chrome({ sessionCost: false }), revision: 1 })
+    const write = Promise.withResolvers<boolean>()
+    host.set.mockReturnValue(write.promise)
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    policy.setSessionCost(true)
+    host.publish({ value: chrome({ sessionCost: false }), revision: 2 })
+    expect(policy.sessionCost.getSnapshot()).toBe(true)
+    if (failure === 'refused') write.resolve(false)
+    else write.reject(new Error('transport disconnected'))
+    await write.promise.catch(() => {})
+    expect(policy.sessionCost.getSnapshot()).toBe(false)
+    policy.setSessionCost(true)
+    expect(host.set).toHaveBeenCalledTimes(2)
+    policy.dispose()
+  })
+
+  it('does not publish a pending dock write settlement after disposal', async () => {
+    const host = stubConfigForm<ConversationSettings>()
+    host.publish({ value: chrome({ sessionCost: false }), revision: 1 })
+    const write = Promise.withResolvers<boolean>()
+    host.set.mockReturnValue(write.promise)
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    policy.setSessionCost(true)
+    const changed = vi.fn()
+    policy.sessionCost.subscribe(changed)
+    policy.dispose()
+    write.resolve(false)
+    await write.promise
+    expect(changed).not.toHaveBeenCalled()
   })
 
   it('writes an explicit change through the scope after publishing it locally', () => {
@@ -312,9 +400,8 @@ describe('ComposerSubmissionPolicy', () => {
 
   it('treats missing statsLine and viewTabs fields as shown', () => {
     const host = stubConfigForm<ConversationSettings>()
+    host.publish({ value: chrome({ statsLine: false, viewTabs: false }) })
     const policy = new ComposerSubmissionPolicy(host.scope)
-    policy.setStatsLine(false)
-    policy.setViewTabs(false)
     host.publish({
       status: 'ready',
       value: { busyEnter: 'queue' } as ConversationSettings,
@@ -347,8 +434,8 @@ describe('ComposerSubmissionPolicy', () => {
 
   it('treats a missing officialPeakValley field as detection-only', () => {
     const host = stubConfigForm<ConversationSettings>()
+    host.publish({ value: chrome({ officialPeakValley: true }) })
     const policy = new ComposerSubmissionPolicy(host.scope)
-    policy.setOfficialPeakValley(true)
     host.publish({
       status: 'ready',
       value: { busyEnter: 'queue' } as ConversationSettings,

@@ -1,0 +1,205 @@
+{
+  "ok": true,
+  "cases": [
+    {
+      "theme": "light",
+      "width": 1024,
+      "text": "下载 17% · 128.0 MB / 768.0 MB · 1.00 MB/s",
+      "percent": "17%",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "text": "下载 · 128.0 MB",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "text": "下载中断，正在重试（2/3）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "text": "请在安装向导中完成安装，并留意系统授权提示（已等待 95 秒）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "install-wait"
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "text": "已检测到同版本桌面端，但无法确认本次修复是否完成。请完成安装向导（可能需要系统授权），再刷新状态；不要重复启动安装。",
+      "percent": "",
+      "title": "安装结果待确认",
+      "barHidden": true,
+      "fits": true,
+      "phase": "waiting"
+    },
+    {
+      "theme": "light",
+      "width": 720,
+      "text": "下载 17% · 128.0 MB / 768.0 MB · 1.00 MB/s",
+      "percent": "17%",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "light",
+      "width": 720,
+      "text": "下载 · 128.0 MB",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "light",
+      "width": 720,
+      "text": "下载中断，正在重试（2/3）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "light",
+      "width": 720,
+      "text": "请在安装向导中完成安装，并留意系统授权提示（已等待 95 秒）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "install-wait"
+    },
+    {
+      "theme": "light",
+      "width": 720,
+      "text": "已检测到同版本桌面端，但无法确认本次修复是否完成。请完成安装向导（可能需要系统授权），再刷新状态；不要重复启动安装。",
+      "percent": "",
+      "title": "安装结果待确认",
+      "barHidden": true,
+      "fits": true,
+      "phase": "waiting"
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "text": "下载 17% · 128.0 MB / 768.0 MB · 1.00 MB/s",
+      "percent": "17%",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "text": "下载 · 128.0 MB",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "text": "下载中断，正在重试（2/3）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "text": "请在安装向导中完成安装，并留意系统授权提示（已等待 95 秒）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "install-wait"
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "text": "已检测到同版本桌面端，但无法确认本次修复是否完成。请完成安装向导（可能需要系统授权），再刷新状态；不要重复启动安装。",
+      "percent": "",
+      "title": "安装结果待确认",
+      "barHidden": true,
+      "fits": true,
+      "phase": "waiting"
+    },
+    {
+      "theme": "dark",
+      "width": 720,
+      "text": "下载 17% · 128.0 MB / 768.0 MB · 1.00 MB/s",
+      "percent": "17%",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "dark",
+      "width": 720,
+      "text": "下载 · 128.0 MB",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "dark",
+      "width": 720,
+      "text": "下载中断，正在重试（2/3）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "download"
+    },
+    {
+      "theme": "dark",
+      "width": 720,
+      "text": "请在安装向导中完成安装，并留意系统授权提示（已等待 95 秒）…",
+      "percent": "",
+      "title": "正在安装桌面端",
+      "barHidden": false,
+      "fits": true,
+      "phase": "install-wait"
+    },
+    {
+      "theme": "dark",
+      "width": 720,
+      "text": "已检测到同版本桌面端，但无法确认本次修复是否完成。请完成安装向导（可能需要系统授权），再刷新状态；不要重复启动安装。",
+      "percent": "",
+      "title": "安装结果待确认",
+      "barHidden": true,
+      "fits": true,
+      "phase": "waiting"
+    }
+  ]
+}

@@ -59,6 +59,9 @@ function stubWindow() {
     show() {
       this.shown = true;
     },
+    showInactive() {
+      this.shown = true;
+    },
     close() {
       this.closed = true;
     },
@@ -103,6 +106,41 @@ function authorizedEvent(deps, url = PET_PAGE_URL) {
   const frame = { url };
   return { sender: deps.win.webContents, senderFrame: deps.win.webContents.mainFrame = frame && frame, frame };
 }
+
+test('native pet region excludes the desktop even when renderer interactivity is stale', { skip: process.platform === 'darwin' }, (t) => {
+  const shapes = [];
+  const deps = live2dDeps();
+  deps.win.setShape = (rects) => shapes.push(rects);
+  deps.win.getBounds = () => ({ x: 0, y: 0, width: 800, height: 600 });
+  const manager = createLive2dPetManager(deps);
+  t.after(() => manager.dispose());
+  manager.show();
+  const handler = deps.electron.ipcMain.handlers.get('shell:live2d-interactive');
+  const regions = [{ x: 10, y: 20, width: 60, height: 80 }, { x: 200, y: 20, width: 80, height: 90 }];
+  handler(authorizedEvent(deps), { interactive: true, regions });
+  assert.deepEqual(shapes.at(-1), regions, 'native hit area has two separate islands, even before renderer exit');
+  const count = shapes.length;
+  handler(authorizedEvent(deps), { interactive: true, regions });
+  assert.equal(shapes.length, count, 'unchanged geometry does not rebuild the native region');
+  handler(authorizedEvent(deps), { regions: [] });
+  assert.deepEqual(shapes.at(-1), [{ x: 0, y: 0, width: 0, height: 0 }], 'empty surface is never setShape([]), which restores full-screen');
+  handler(authorizedEvent(deps), { regions: [
+    { x: -3.2, y: 590.5, width: 20, height: 100 },
+    { x: NaN, y: 0, width: 20, height: 20 },
+    { x: 0, y: 0, width: -1, height: 20 },
+  ] });
+  assert.deepEqual(shapes.at(-1), [{ x: 0, y: 590, width: 17, height: 10 }]);
+});
+
+test('showing a hidden pet uses inactive presentation', (t) => {
+  const deps = live2dDeps();
+  deps.win.show = () => assert.fail('show would activate the overlay');
+  const manager = createLive2dPetManager(deps);
+  t.after(() => manager.dispose());
+  manager.show();
+  manager.show();
+  assert.equal(deps.win.shown, true);
+});
 
 test('theme changes preserve the pet overlay transparency, including recreated windows', (t) => {
   const windows = [];

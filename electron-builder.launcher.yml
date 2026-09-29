@@ -5,6 +5,9 @@ appId: ai.deepseek.harness.launcher
 productName: Whale Isle Launcher
 copyright: MIT
 npmRebuild: false
+asarUnpack:
+  - node_modules/koffi/**/*
+  - node_modules/@koromix/koffi-*/**/*
 
 directories:
   output: dist-launcher

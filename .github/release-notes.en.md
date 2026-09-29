@@ -12,6 +12,9 @@
 - **Launcher and data preservation**: Failed imports preserve existing data, and failed plugin replacements restore the previous installation. Stopping or cancelling startup invalidates older recovery tasks. Import lists and long confirmations remain scrollable in small windows and at high zoom levels.
 - **Account sign-in**: The system browser opens automatically when a desktop account authorization link becomes available; the dialog still offers a copyable link.
 - **Interface fixes**: The Jobs popover avoids clipping under the conversation header. The browser mini preview has slimmer chrome and improved dragging, resizing, and title display. The whale pet's interaction area follows the character more closely.
+- **Installation and startup recovery**: Interrupted downloads retry within a bounded limit, and installation failures show a recoverable state. The runtime is validated in a temporary directory before replacement, and startup checks dependency links asynchronously to reduce long UI stalls.
+- **Accurate statistics and responsive switches**: Fixed missing usage in restored sessions and totals doubling on repeated refreshes. Session statistics, cost, and peak/off-peak switches respond immediately and retain the latest choice during rapid changes.
+- **Windows windows and desktop pet**: The main window and launcher retain both 20px transparent corners and native window animations. The pet adapts to screen density, and clicks pass through the gap between the character and chat card.
 - **Harness baseline**: Updated to `dsh-v0.1.7-rc.2` while retaining desktop work loops and plugin capabilities.
 
 ## Technical contract

@@ -44,7 +44,7 @@ import {
   type SessionPage,
 } from '../shared/contract.ts'
 import { DEEPSEEK_OFFICIAL_PRICES, isDeepSeekProvider } from '../shared/pricing.ts'
-import { emptyAggregate, emptyOverview, finalizeOverview, mergeSessionValue, pageOf, projectRowsOf, rankSessions, rankSessionsBy, sessionModels, type Aggregate, type SessionAgg } from './aggregate.ts'
+import { emptyAggregate, emptyOverview, finalizeOverview, mergeSessionValue, pageOf, projectRowsOf, rankSessions, rankSessionsBy, sessionModels, type SessionAgg } from './aggregate.ts'
 import { usagePanelProjectionDefinition } from './projection-unit.ts'
 import { USAGE_PANEL_KEY, type UsagePanelState } from './projection.ts'
 import { scanFallback } from './scan.ts'
@@ -135,10 +135,6 @@ export function apply(ctx: Context): void {
   // Full ranked session index (all-time, no title) rebuilt each scan — the
   // "显示更多" paging endpoints slice it on demand.
   let sessionIndex: SessionAgg[] = []
-  // In-memory carried aggregate: the delta scan merges ONLY changes into it.
-  let aggregate: Aggregate | null = null
-  // Ledger ids seen in the last full scan (deleted-session detection).
-  let ledgerIds = new Set<string>()
   // Failed-session ids (repair candidates) discovered by the last scan.
   let failedSessionIds: string[] = []
   // Sessions whose `session.cost` read already failed once (log dedupe).
@@ -217,7 +213,6 @@ export function apply(ctx: Context): void {
     // first pass) must not stall the host event loop.
     const pacer = scanPacer((message) => console.log(tag, message))
     const failed: string[] = []
-    const ledgerPuts: Array<{ id: string; asOfSeq: number }> = []
     for (let i = 0; i < sessions.length; i += 1) {
       const rec = sessions[i]
       const header = rec && rec.header
@@ -249,7 +244,6 @@ export function apply(ctx: Context): void {
         }
         a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null)
         sessionsOk += 1
-        ledgerPuts.push({ id, asOfSeq: snap.asOfSeq })
       } catch (err) {
         sessionsFailed += 1
         // A session deleted between list and read is neither usage nor a
@@ -258,14 +252,6 @@ export function apply(ctx: Context): void {
         if (failures.length < 3) failures.push(String((err as Error)?.message ?? err))
       }
       await pacer.beat(i + 1, sessions.length)
-    }
-    // Full scan refreshes the persistent delta baseline (watermark ledger).
-    aggregate = a
-    ledgerIds = new Set(ledgerPuts.map((p) => p.id))
-    if (statsCache !== null) {
-      void (async () => {
-        for (const put of ledgerPuts) await statsCache!.ledgerPut(put.id, put.asOfSeq)
-      })()
     }
     failedSessionIds = failed
     if (failures.length > 0) {
@@ -331,125 +317,14 @@ export function apply(ctx: Context): void {
     }
   }
 
-  /**
-   * AGGREGATE-LEVEL INCREMENTAL scan: only sessions whose checkpoint watermark
-   * moved (new/changed) are folded via coldSnapshot (tail-only) and merged;
-   * unchanged sessions are skipped with ZERO log I/O (`cachedSnapshot` reads
-   * the in-memory row watermark only). The in-memory aggregate carries over.
-   * Rare consistency events (session deleted, ledger mismatch) fall back to a
-   * full scan.
-   */
-  async function deltaScan(now: number): Promise<Overview> {
-    if (aggregate === null) return scan(now)
-    let sessions: SessionRecord[] = []
-    try {
-      sessions = await sq.listSessions()
-    } catch (err) {
-      logFailure('delta listSessions failed: ' + String((err as Error)?.message ?? err))
-      return cache ? cache.payload : emptyOverview(now)
-    }
-    let a = aggregate
-    const seen = new Set<string>()
-    const changed: string[] = []
-    let deleteDetected = false
-    const pacer = scanPacer((message) => console.log(tag, message))
-    const failed: string[] = []
-    for (let i = 0; i < sessions.length; i += 1) {
-      const rec = sessions[i]
-      const header = rec && rec.header
-      if (!header) continue
-      const id = header.id
-      seen.add(id)
-      let asOf: number | undefined
-      try {
-        // Zero-I/O probe against the checkpoint table. Unseeded sessions carry
-        // inheritedEventCount 0 (the harness's own listing read does the
-        // same); a seeded (forked) identity then mismatches and re-reads
-        // below. A throwing probe degrades to a re-read — it must never fail
-        // the whole scan.
-        asOf = statsCache === null ? undefined : projCache.cachedSnapshot(header, 0)?.asOfSeq
-      } catch (err) {
-        logFailure('delta probe failed for ' + id + ': ' + String((err as Error)?.message ?? err))
-        asOf = undefined
-      }
-      if (asOf !== undefined) {
-        const led = statsCache === null ? null : await statsCache.ledgerGet(id)
-        if (led === asOf) {
-          await pacer.beat(i + 1, sessions.length)
-          continue // UNCHANGED — zero log reads
-        }
-      }
-      // New or changed session: full read + fold + merge into the carried aggregate.
-      try {
-        const log = await sq.readSession(id)
-        const snap = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events)
-        const value = snap.values.usagePanel as UsagePanelState | undefined
-        if (!value) {
-          await pacer.beat(i + 1, sessions.length)
-          continue
-        }
-        a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null)
-        changed.push(id)
-        if (statsCache !== null) {
-          await statsCache.ledgerPut(id, snap.asOfSeq)
-          ledgerIds.add(id)
-        }
-        failedSessionIds = failedSessionIds.filter((f) => f !== id)
-      } catch (err) {
-        if (!isSessionGone(err) && failed.length < 50) failed.push(id)
-        logFailure('delta read failed for ' + id + ': ' + String((err as Error)?.message ?? err))
-      }
-      await pacer.beat(i + 1, sessions.length)
-    }
-    // Deleted sessions (in the ledger, not listed): the aggregate must be
-    // rebuilt from scratch — a rare path, correctness first.
-    for (const id of ledgerIds) {
-      if (!seen.has(id)) deleteDetected = true
-    }
-    if (deleteDetected) {
-      logFailure(tag + ' session deleted since last scan — falling back to a full rescan')
-      return scan(now)
-    }
-    if (changed.length === 0 && cache !== null) {
-      // Nothing moved: keep the existing payload (freshness refreshed later).
-      return cache.payload
-    }
-    aggregate = a
-    sessionIndex = rankSessions(a.sessions, Number.MAX_SAFE_INTEGER)
-    if (failed.length > 0) failedSessionIds = [...new Set([...failedSessionIds, ...failed])].slice(0, 50)
-    const titles = new Map<string, string | null>()
-    await Promise.all(
-      rankSessions(a.sessions, 10).map(async (s) => {
-        try {
-          const t = await sq.readTitle(s.id)
-          titles.set(s.id, t ? t.title : null)
-        } catch {
-          titles.set(s.id, null)
-        }
-      }),
-    )
-    const pending = sessions.filter((rec) => !(rec && rec.persisted)).length
-    return finalizeOverview({
-      aggregate: a,
-      now,
-      mode: 'projection',
-      sessionsTotal: sessions.length,
-      sessionsOk: sessions.length - failedSessionIds.length - pending,
-      sessionsFailed: failedSessionIds.length,
-      sessionsPending: pending,
-      eventsCounted: 0,
-      titles,
-      providerNames,
-      failedSessionIds,
-    })
-  }
-
   function startScan(): Promise<Overview> {
     if (disposed) return Promise.resolve(cache ? cache.payload : emptyOverview(Date.now()))
     if (inflight) return inflight
     const run = (async (): Promise<Overview> => {
       await hydrateFromCache()
-      const payload = aggregate === null ? await scan(Date.now()) : await deltaScan(Date.now())
+      // Each projection is a whole-session value, never an additive delta.
+      // Rebuild the aggregate; coldSnapshot still reuses per-session checkpoints.
+      const payload = await scan(Date.now())
       if (payload !== null && !disposed) {
         cache = { at: Date.now(), payload }
         // Cache write off the response path: serialize + SQLite round-trip is
@@ -619,16 +494,9 @@ export function apply(ctx: Context): void {
       throw new Error('invalid session id')
     }
     const outcome = await repairSessionLog(resolveDshHome(), sessionId, decodeStorageRecord)
-    // The repaired session must leave the failure set immediately; the cache
-    // and the carried aggregate are dropped so the next pass rebuilds from the
-    // fixed artifact (the old ledger watermark would otherwise hide the fold).
+    // Drop the overview so the next scan reads the repaired artifact.
     failedSessionIds = failedSessionIds.filter((id) => id !== sessionId)
     cache = null
-    aggregate = null
-    ledgerIds = new Set()
-    if (statsCache !== null) {
-      await statsCache.ledgerDelete(sessionId)
-    }
     return outcome
   }
 

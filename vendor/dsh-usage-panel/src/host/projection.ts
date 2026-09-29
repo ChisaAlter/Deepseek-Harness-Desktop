@@ -8,9 +8,8 @@
 //
 // Accounting rules (all deliberate, see iteration-strategy §4.6):
 //  - Four DISJOINT buckets per DSH TokenUsage: input is uncached only.
-//  - Fork dedup: events with seq < the LAST session/end-seed are seed history
-//    (fork/resume/replay) and are never counted — our v0.1.0 seedLength
-//    correctness wall, preserved inside the projection.
+//  - Fork dedup: the host's inheritedEventCount excludes the inherited prefix.
+//    Marker-based boundaries are only for legacy callers without that metadata.
 //  - Model attribution: request/context.model base, request/header.config.model
 //    overrides (v0.1.0 semantic); provider tracked the same way.
 //  - Per-step replacement: assistant/chunk provisional usage accumulates per
@@ -72,6 +71,7 @@ export const usagePanelSchema = z.object({
   firstTime: z.number().nullable(),
   lastTime: z.number().nullable(),
   seedEnd: z.number().nullable(),
+  explicitSeedBoundary: z.boolean(),
   currentModel: z.string(),
   currentProvider: z.string(),
   stepStart: stepStartSchema.nullable(),
@@ -96,7 +96,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
 
 const EMPTY: Buckets = Object.freeze({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })
 
-export function initState(): UsagePanelState {
+export function initState(_header?: unknown, inheritedEventCount?: number): UsagePanelState {
   return {
     totals: { ...EMPTY },
     byModel: {},
@@ -111,7 +111,8 @@ export function initState(): UsagePanelState {
     compactionTokens: 0,
     firstTime: null,
     lastTime: null,
-    seedEnd: null,
+    seedEnd: inheritedEventCount ?? null,
+    explicitSeedBoundary: inheritedEventCount !== undefined,
     currentModel: 'unknown',
     currentProvider: 'unknown',
     stepStart: null,
@@ -184,12 +185,8 @@ function addIntoDayPhase(
 }
 
 /**
- * Whether an event may be counted. The registry folds a cold log in ONE pass
- * (init + apply per event, no lookahead), so the unit arms itself: nothing is
- * counted until the LAST session/end-seed marker has been seen, and only
- * events at/after the marker's seq (live history) count. Seed events that
- * precede the marker in a cold fold are therefore never counted — the v0.1.0
- * seedLength correctness wall, preserved inside the projection.
+ * Current host logs are zero-indexed: seq >= inheritedEventCount is owned
+ * history. Legacy callers without an explicit boundary still arm at a marker.
  */
 function isCounted(state: UsagePanelState, event: SessionEvent): boolean {
   return state.seedEnd !== null && event.seq >= state.seedEnd
@@ -265,6 +262,9 @@ function samplePeak(state: UsagePanelState, turn: number, step: number, eventTim
 export function applyEvent(state: UsagePanelState, event: SessionEvent): UsagePanelState {
   switch (event.type) {
     case 'session/end-seed': {
+      // Restore-time markers may follow billed turns; they cannot override
+      // the exact inherited prefix supplied by the host at initialization.
+      if (state.explicitSeedBoundary) return state
       // Last marker wins: a preset (cold fold) or earlier marker must not be
       // overwritten by an older one.
       if (state.seedEnd !== null && event.seq <= state.seedEnd) return state

@@ -479,9 +479,11 @@ test('stop 取消 in-flight start：最后 idle，绝不被旧 catch 改 error�
 
 test('stop during runtime preparation cancels the stale generation before spawn', async (t) => {
   let releasePreparation;
+  let preparationSignal;
   const h = makeHarness({
     deps: {
-      ensurePackagedHarness: () => new Promise((resolve) => {
+      ensurePackagedHarness: (_log, { signal }) => new Promise((resolve) => {
+        preparationSignal = signal;
         releasePreparation = resolve;
       }),
     },
@@ -491,6 +493,7 @@ test('stop during runtime preparation cancels the stale generation before spawn'
   const outcome = settle(h.manager.start());
   await waitFor(() => typeof releasePreparation === 'function');
   await h.manager.stop();
+  assert.equal(preparationSignal.aborted, true, 'stop must signal the extractor to stop writing');
   releasePreparation();
 
   const result = await outcome;

@@ -27,7 +27,7 @@ function withMarker(events: SessionEvent[]): SessionEvent[] {
 }
 
 test('stateVersion bump invalidates old persisted rows (cold refold once)', () => {
-  assert.equal(PROJECTION_STATE_VERSION, 2)
+  assert.equal(PROJECTION_STATE_VERSION, 3)
 })
 
 test('a step straddling a phase boundary bills at its step/start instant', () => {

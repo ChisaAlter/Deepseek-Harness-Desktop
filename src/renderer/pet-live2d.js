@@ -1442,7 +1442,7 @@ function drawBubble(now) {
   ctx2d.save();
   ctx2d.globalAlpha = alpha;
   ctx2d.font = `12px ${bubbleStyle.getPropertyValue('--dsw-font-family')}`;
-  const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+  const host = homeRect || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
   const hostY = host.y ?? 0;
   const hostBottom = hostY + host.height;
   const maxW = Math.min(150, host.width - 32);
@@ -1566,6 +1566,8 @@ const PANEL_W = 214;
 const PANEL_PAD = 12;
 const PANEL_HEAD_H = 40;   // avatar + name + relation line
 const PANEL_GROWTH_H = 96; // label + bar + next-level + today + fed + feed button
+const PANEL_FEED_TOP = 70; // stats center 52 + half-line 6 + 12px gap
+const PANEL_FEED_H = 20;
 const PANEL_STAT_H = 20;   // per care-stat row
 const PANEL_CHIP_H = 28;
 const PANEL_CHIP_GAP = 6;
@@ -1622,7 +1624,7 @@ function panelCells() {
 
 function openPanel() {
   const b = petBounds();
-  const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+  const host = homeRect || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
   const hostY = host.y ?? 0;
   const h = PANEL_H;
   // Anchor beside her bounds, flipping left at the screen edge.
@@ -1744,8 +1746,8 @@ function feedButtonHit(x, y) {
   if (!panel) { return false; }
   const div1Y = panel.y + PANEL_PAD + PANEL_HEAD_H + 2;
   const gy = div1Y + 6;
-  const btnY = gy + 62;
-  const btnH = 20;
+  const btnY = gy + PANEL_FEED_TOP;
+  const btnH = PANEL_FEED_H;
   const btnX = panel.x + PANEL_PAD;
   const btnW = panel.w - PANEL_PAD * 2;
   return x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH;
@@ -1847,7 +1849,7 @@ function syncChatPos() {
   if (!chatOpen || !chatEl || typeof chatEl.offsetWidth !== 'number') {
     return;
   }
-  const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+  const host = homeRect || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
   const w = chatEl.offsetWidth || 248;
   const h = chatEl.offsetHeight || 120;
   const next = chatAnchor(petBodyBounds(), host, w, h);
@@ -2013,7 +2015,7 @@ function syncChatPickerPos() {
   const trigger = chatPart('#pc-model-trigger');
   if (!trigger) { return; }
   const anchor = trigger.getBoundingClientRect();
-  const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+  const host = homeRect || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
   const width = chatPickerEl.offsetWidth;
   const height = chatPickerEl.offsetHeight;
   const left = Math.round(Math.min(Math.max(anchor.right - width, host.x + 4), host.x + host.width - width - 4));
@@ -2719,8 +2721,8 @@ function drawPanel() {
   // hover brighten. Disabled state greys out.
   const feedable = Boolean(g && g.nextFeed > 0);
   const feedLabel = feedable ? `投喂 +${fmtTokens(g.nextFeed)}` : '无算力可喂';
-  const btnY = gy + 62;
-  const btnH = 20;
+  const btnY = gy + PANEL_FEED_TOP;
+  const btnH = PANEL_FEED_H;
   const btnX = padL;
   const btnW = p.w - PANEL_PAD * 2;
   const btnHover = p.feedHover && feedable;
@@ -3060,7 +3062,7 @@ function tickPhysics(now) {
     const s = ch / Math.max(1, b.bottom - b.y);
     const w = (b.right - b.x) * s;
     const h = (b.bottom - b.y) * s;
-    const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+    const host = homeRect || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
     const floor = host.y + host.height - h;
     const r = PetPhysics.throwStep(physPoint.x, physPoint.y, physVel.x, physVel.y, dt,
       host.x + w / 2, host.y, host.x + host.width - w / 2, floor);
@@ -3287,7 +3289,7 @@ function tickStill(now) {
     if (!wander.nextAt) { scheduleWander(); }
     if (!wander.glide && now > wander.nextAt && settings.wander
         && !panel) {
-      const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+      const host = homeRect || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
       const target = PetWander.pickTarget({
         x: drawPos.x, y: drawPos.y, w: petW(), h: petH(),
         bounds: host, facing, scale: settings.scale,
@@ -3388,7 +3390,7 @@ function paint() {
   if (rig.ready || nowMs - lastFullClear > 1500) {
     lastFullClear = nowMs;
     const clearStart = petPerf.enabled ? performance.now() : 0;
-    ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+    ctx2d.clearRect(0, 0, window.innerWidth, window.innerHeight);
     if (petPerf.enabled) { petPerf.record('fullClear', performance.now() - clearStart); }
   }
   // Clear the full draw region, not the measured alpha box: body morphing
@@ -3515,6 +3517,7 @@ function paint() {
   lastRigRect = rig.ready && stillCtl.entry && stillCtl.alpha > 0.01
     ? stillDrawRect()
     : null;
+  reportSurfaceRegions();
   if (petPerf.enabled) { petPerf.record('paint', performance.now() - perfStart); }
 }
 
@@ -3583,19 +3586,46 @@ async function renderFrame() {
   }
 }
 
+let canvasDensityQuery = null;
 function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  // Backing pixels follow display density; all geometry stays in CSS pixels.
+  // Re-arm the query because a DPI-only display move need not resize the page.
+  const density = window.devicePixelRatio || 1;
+  canvas.width = Math.round(window.innerWidth * density);
+  canvas.height = Math.round(window.innerHeight * density);
+  ctx2d.setTransform(density, 0, 0, density, 0, 0);
+  canvasDensityQuery?.removeEventListener('change', resizeCanvas);
+  canvasDensityQuery = window.matchMedia(`(resolution: ${density}dppx)`);
+  canvasDensityQuery.addEventListener('change', resizeCanvas);
   lastPaintRect = null;
   lastFeedRect = null;
   lastParticleRect = null;
   lastBubbleRect = null;
   lastPanelRect = null;
-  ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+  ctx2d.clearRect(0, 0, window.innerWidth, window.innerHeight);
   paint();
 }
 
 // ── click-through + drag ──
+let surfaceRegionKey = '';
+function reportSurfaceRegions() {
+  // Preserve the existing menu elevation outside its border box as well.
+  const pickerInk = chatPickerRect && { x: chatPickerRect.x - 24, y: chatPickerRect.y - 24,
+    w: chatPickerRect.w + 48, h: chatPickerRect.h + 56 };
+  const regions = [lastPaintRect, lastFeedRect, lastParticleRect, lastBubbleRect,
+    lastPanelRect, chatRect, pickerInk].filter(Boolean).map((r) => {
+    const x = Math.floor(r.x);
+    const y = Math.floor(r.y);
+    return { x, y, width: Math.ceil(r.x + r.w) - x, height: Math.ceil(r.y + r.h) - y };
+  });
+  const key = JSON.stringify(regions);
+  if (key === surfaceRegionKey) { return; }
+  surfaceRegionKey = key;
+  void Promise.resolve(petShell.setInteractive?.({ regions })).catch(() => {
+    if (surfaceRegionKey === key) { surfaceRegionKey = ''; }
+  });
+}
+
 function setInteractive(next) {
   if (next === interactive) {
     return;
@@ -3784,35 +3814,20 @@ function petBounds() {
   return b;
 }
 
-// Everything clickable: petBounds plus a pinned bubble's own rect. Kept
-// separate from petBounds because drawBubble anchors the bubble above the
-// head FROM that union — folding the bubble into it would self-feed the
-// anchor and the bubble would climb every frame.
-function interactiveBounds() {
-  let b = petBounds();
-  if (chatPickerRect) {
-    b = {
-      x: Math.min(b.x, chatPickerRect.x),
-      y: Math.min(b.y, chatPickerRect.y),
-      right: Math.max(b.right, chatPickerRect.x + chatPickerRect.w),
-      bottom: Math.max(b.bottom, chatPickerRect.y + chatPickerRect.h),
-    };
-  }
-  if (bubble?.pinned && lastBubbleRect) {
-    b = {
-      x: Math.min(b.x, lastBubbleRect.x),
-      y: Math.min(b.y, lastBubbleRect.y),
-      right: Math.max(b.right, lastBubbleRect.x + lastBubbleRect.w),
-      bottom: Math.max(b.bottom, lastBubbleRect.y + lastBubbleRect.h),
-    };
-  }
-  return b;
+function overPet(clientX, clientY) {
+  return distanceToInteractiveSurface(clientX, clientY) === 0;
 }
 
-function overPet(clientX, clientY) {
-  const bounds = interactiveBounds();
-  return clientX >= bounds.x && clientX <= bounds.right
-    && clientY >= bounds.y && clientY <= bounds.bottom;
+function distanceToInteractiveSurface(x, y) {
+  // Cards and pinned bubbles are separate islands; their empty gaps belong
+  // to the desktop. Geometry used to anchor bubbles is independent of this.
+  const body = petBodyBounds();
+  const rects = [body, ...[panel, chatRect, chatPickerRect,
+    bubble?.pinned ? lastBubbleRect : null].filter(Boolean).map(r => ({
+    x: r.x, y: r.y, right: r.x + r.w, bottom: r.y + r.h,
+  }))];
+  return Math.min(...rects.map(r => Math.hypot(
+    Math.max(r.x - x, x - r.right, 0), Math.max(r.y - y, y - r.bottom, 0))));
 }
 
 // Body-only hit test: the panel/chat rects are interaction surfaces, not
@@ -3859,10 +3874,8 @@ function onCursorMove(clientX, clientY, buttons) {
       paint();
     }
   }
-  const bounds = interactiveBounds();
-  const dx = Math.max(bounds.x - clientX, clientX - bounds.right, 0);
-  const dy = Math.max(bounds.y - clientY, clientY - bounds.bottom, 0);
-  const outside = Math.hypot(dx, dy);
+  const bounds = petBodyBounds();
+  const outside = distanceToInteractiveSurface(clientX, clientY);
   if (outside <= 0) {
     idle.lastInteract = performance.now();
     if (sleeping) { wake(); }
@@ -3925,7 +3938,7 @@ window.addEventListener('mousemove', (event) => onCursorMove(event.clientX, even
 // coordinates and coverage). Crossing to another display is handled by the
 // pointerleave -> relocate hop below.
 function clampDrawPos() {
-  const host = homeRect || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+  const host = homeRect || { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
   const box = charRect || { x: 0, y: 0, right: petW(), bottom: petH() };
   drawPos.x = Math.min(Math.max(drawPos.x, host.x - box.x), host.x + host.width - box.right);
   drawPos.y = Math.min(Math.max(drawPos.y, host.y - box.y), host.y + host.height - box.bottom);
@@ -4190,7 +4203,7 @@ window.addEventListener('resize', resizeCanvas);
 function startFeed(kind) {
   const now = performance.now();
   idle.lastInteract = now;
-  const host = homeRect || { x: 0, width: canvas.width };
+  const host = homeRect || { x: 0, width: window.innerWidth };
   const bowlX = Math.min(host.x + host.width - 60,
     Math.max(host.x + 60, drawPos.x + petW() / 2 + rng(-220, 220)));
   const groundY = drawPos.y + (charRect ? charRect.bottom : petH()) - 10;
@@ -4261,7 +4274,7 @@ function runAction(act) {
     }
   } else if (act === 'come' && !feed) {
     care('come');
-    const host = homeRect || { x: 0, width: canvas.width };
+    const host = homeRect || { x: 0, width: window.innerWidth };
     come = {
       targetX: Math.min(host.x + host.width - petW(),
         Math.max(host.x, pointer.x - petW() / 2)),

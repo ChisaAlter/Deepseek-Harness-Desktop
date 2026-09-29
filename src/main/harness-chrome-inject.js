@@ -176,7 +176,7 @@
         inset: 0;
         border-radius: ${FRAME_RADIUS}px;
         corner-shape: round;
-        box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.4));
+        box-shadow: inset 0 0 0 var(--dsh-window-hairline, 1px) var(--dsw-alias-border-l2, rgba(128, 128, 128, 0.4));
         pointer-events: none;
         z-index: 2147483646;
       }
@@ -186,17 +186,6 @@
         border-radius: 0;
       }
       html[data-window-maximized] #${FRAME_RING_ID} {
-        display: none;
-      }
-      /* Native Windows silhouette is clipped by DWM, not by page alpha.
-         Keep the inner content corner; only the full-window planes fill out. */
-      html[data-native-window-frame] body,
-      html[data-native-window-frame] #dsh-wallpaper,
-      html[data-native-window-frame] #${FRAME_CANVAS_ID},
-      html[data-native-window-frame] [data-titlebar-density] {
-        border-radius: 0 !important;
-      }
-      html[data-native-window-frame] #${FRAME_RING_ID} {
         display: none;
       }
     `;
@@ -295,11 +284,7 @@
   }
 
   function measure() {
-    if (window.__dshShellNativeFrame) {
-      document.documentElement.setAttribute('data-native-window-frame', '');
-    } else {
-      document.documentElement.removeAttribute('data-native-window-frame');
-    }
+    document.documentElement.style.setProperty('--dsh-window-hairline', `${1 / (window.devicePixelRatio || 1)}px`);
     ensureStyle();
     const host = ensureControls();
     placeControls(host);
@@ -343,7 +328,6 @@
     }
     if (window.shell && typeof window.shell.onWindowState === 'function') {
       window.shell.onWindowState((state) => {
-        window.__dshShellNativeFrame = Boolean(state && state.nativeFrame);
         window.__dshShellMaximized = Boolean(state && state.maximized);
         measure();
       });
@@ -353,7 +337,6 @@
     // silhouette until the next geometry event.
     if (window.shell && typeof window.shell.getWindowState === 'function') {
       Promise.resolve(window.shell.getWindowState()).then((state) => {
-        window.__dshShellNativeFrame = Boolean(state && state.nativeFrame);
         window.__dshShellMaximized = Boolean(state && state.maximized);
         measure();
       }).catch(() => {});

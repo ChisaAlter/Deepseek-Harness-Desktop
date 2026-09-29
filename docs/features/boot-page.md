@@ -4,6 +4,8 @@
 | --- | --- |
 | **id** | `boot-page` |
 | **status** | `active` |
+| **last verified (async links)** | 2026-09-29 — 链接恢复让出主线程，既有日志每五秒报告完成数/总数和耗时，取消不触发重新解压；定向 148/148，详见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)。 |
+| **last verified (extraction recovery)** | 2026-09-29 — 低空间、损坏归档、提取超时/取消、目录链接搬迁与中断替换恢复回归通过；本地 2.35 GB 归档冷提取 71.3s、复用 1ms，100ms 事件循环探针最大间隔 116ms；源码冒烟通过。不是 CI Setup 验收，见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)。 |
 | **last verified (desktop reveal)** | 2026-09-29 — boot 保持不透明垫底，桌面按双倍基础时长淡入并等待渲染完成；真实 Electron 明暗均有中间帧、减少动态效果无中间透明帧，最终 hold 解除。定向 75/75、隔离源码冒烟通过（标题栏命中、PTY、无页面错误）。新增实机复测：隔离源码实例的 boot 文档保持 `opacity:1` 直到真实 Harness 渲染器挂载，随后 `data-harness-covered:true`，无页面错误。见 `docs/qa/results/2026-09-29-four-fix-live/`；未构建安装包。 |
 | **last verified (window controls)** | 2026-09-29 — 窗控对齐主界面 32px / 8px 方钮、零间距与相同内边距；Electron 明暗最终样式及三个按钮命中检查通过。安装包构建暂停。 |
 | **last verified (A2 plugin recovery)** | 2026-09-28 — 插件恢复纳入取消世代与共享 import 维护准入；真实 controller + launcher service + task-protection + import guard 回归覆盖 stop、blocked/unreadable journal、恢复先持锁、延迟 start/Remote、异步准备成功/失败及旧 finally 不清新任务。定向 217/217；未修改的原外部 A2 回归在独立证据目录重跑 4/4，原审计证据未覆盖。未重启应用；统一文档门禁与重启由主代理负责。 |
@@ -22,6 +24,9 @@
 
 ## Invariants
 
+- 首次/更新后运行时解压先检查用户数据盘空间，在隔离临时目录解压，每 5 秒通过 ticker 报告耗时，15 分钟超时；停止操作中止提取，等待 tar 关闭后清理临时输出。新树验证前保留旧树，正式路径的 Windows junction 重建成功才写完成戳；中断替换从 `.previous` 恢复，不把临时目录当可启动运行时。
+- 链接检查、恢复与临时链接清理使用异步磁盘操作，超过五秒通过既有日志报告完成数/总数与耗时。准备阶段在文件操作之间响应取消；正式目录替换开始后先完成链接恢复或回滚，不因取消遗留半成品。
+
 - 启动页是整窗海平线画布例外；`--boot-*` **不得**扩散到启动器、设置、关闭遮罩、标题栏或官方 Web UI。
 - 窗控不属于画布视觉例外；尺寸、圆角和间距与主界面一致，保留共享交互色及动作。
 - 揭示不让两层同时变透明，不用固定主进程计时提前撤下 boot；关闭、重启或新一轮揭示后，旧回调不得遮盖当前加载页。注入失败仍须挂载全尺寸桌面并解除透明状态，不能只隐藏 boot。
@@ -37,6 +42,8 @@
 - 覆盖安装同一桌面版本时，`userData/runtime/<version>` 必须与安装包 Harness pin + 归档大小一致；无戳或戳不匹配则重新解压。不得只因 `bin.js` 存在而沿用旧 runtime。
 
 ## Allowed touch
+
+- `src/main/dsh.js`、`dsh.test.js`、`harness-extract.test.js`、`install-space.js` 及测试 — 2026-09-29 用户授权全面优化安装链路，接入解压取消、空间检查与替换恢复。
 
 - `src/renderer/boot.html` / `boot.css` / `boot.js` / `boot-tokens.css` / `boot-recovery.js` / `boot-recovery.test.js`
 - `docs/qa/results/` 下本卡的验收证据目录（截图 + report + 探针 JSON）
@@ -60,6 +67,8 @@
 | Manual / QA | 每次发布前 [production-acceptance](../qa/production-acceptance-test-cases.md)：`TC-INST-003`…`007`、`TC-INST-012`、`TC-INST-013`；对象=CI Setup |
 
 ## Sources
+
+- Decision: [安装恢复边界](../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)
 
 - Decision: [启动页窗控对齐主界面](../decisions/implemented/bug-fix/2026-09-29-boot-window-controls.md)
 

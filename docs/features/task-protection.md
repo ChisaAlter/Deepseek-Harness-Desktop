@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `task-protection` |
 | **status** | `active` |
+| **last verified (installer failure)** | 2026-09-29 — 实际 update 整包调用链 + 真实协调器 + 消失安装器回归验证：spawn ENOENT 拒绝、Host release 执行、committed 保持 false；取消在安装前异步准入后仍阻止 spawn。见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，未做 CI Setup 实机安装。 |
 | **last verified (plugin links)** | 2026-09-29 — 内置插件复用有效链接、保留读取错误，EEXIST 只接受复查为正确目标的链接；未知目录不删除。定向 95/95、真实 Electron 200 次准备（199 次复用）、隔离源码启动/PTY/标题栏通过。安装版未更新，原现场触发条件未完整复现。 |
 | **last verified (quit)** | 2026-09-29 — 本地连接误报修复，统一 quit 预确认；32 项定向回归及隔离源码冒烟通过，含真实 TCP socket、生产退出接线与 drain 失败无副作用。旧进程确认框待用户取消后正常重启；未打包。 |
 | **last verified** | 2026-09-27(续2) — `preConfirmed` 扩到全部 install/update 链（`update.js` 整包、`update-updater.js` electron-updater、peer `prepare-install` 的 `install`）：安装/更新入口本身即显式同意，链内任务保护不再二次确认；quit/restart/reload 三入口保留确认门。新增 `launcher-confirm` 桥把主进程确认渲染进启动器 app-confirm 卡。launcher-confirm/update/task-protection/ipc/runtime-install/launcher-gate/window-marketplace 定向 175 例绿。决策见 [update-install-preconfirmed](../decisions/implemented/product/2026-09-27-update-install-preconfirmed.md)。前次：2026-09-27(续) — launcher 发起停止（peer `stop-desktop` + 自带启动器 `stopOp`）改 `preConfirmed`：用户点击即同意，两道确认门跳过，消除桌面窗口全隐藏时的原生 messagebox 回退；`confirmTaskStop` 锚点改首个可见窗。task-protection/ipc/runtime-install 定向 102 例绿。决策见 [launcher-stop-preconfirmed](../decisions/implemented/product/2026-09-27-launcher-stop-preconfirmed.md)。前次：2026-09-27 — 修复停止链三层缺陷（token 查询吞控制路径 405 / 升级 socket 终身占 pending 致 drain 超时 / schedule 未按 flag 报 unavailable）+ 启动器控件互斥；实机停止全链路通过（acquire 即刻、commit 执行、Host 子进程退出、启动器回落仅「启动桌面端」），drain-timeout 响应新增 `pendingLabels` 观测面。`src/main/task-protection*` + `task-control-plugin` 23 例、全量 2537 绿。决策见 [launcher-stop-controls](../decisions/implemented/bug-fix/2026-09-27-launcher-stop-controls.md)。前次：2026-09-25 — `node --test` 协调器/插件/契约相关 352 例全过；打包态与实机验收待 C 阶段复跑。 |
@@ -16,6 +17,8 @@
 3. Launcher 侧的「停止桌面」与运行时装对**外部桌面**先走同义握手；旧桌面无握手时要求正常退出并确认进程结束，不回退直接 taskkill /F。launcher 发起的停止带 `preConfirmed`——点击即同意，inspect→acquire→commit 照跑但两道确认门整体跳过，永远零弹窗。
 
 ## Invariants
+
+- 整包更新把安装器 spawn 纳入协调器 commit；启动失败或 commit 前取消须释放 Host 接纳锁，不得提前锁定 committed 或退出当前界面。
 
 - 插件链接准备只将 ENOENT 视为缺失；已解析到同一目录的链接复用，EEXIST 需重新验证目标。普通占位内容不得递归删除，不得跳过任务保护继续启动。
 
@@ -53,6 +56,8 @@
 | Manual / QA | quit/安装/更新/启动器停止无工作清单二次确认；重启/重载活动任务确认；失败 drain 不提交 |
 
 ## Sources
+
+- Decision: [安装恢复边界](../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)
 
 - Decision: [内置插件链接的幂等准备](../decisions/implemented/bug-fix/2026-09-29-desktop-plugin-links.md)
 

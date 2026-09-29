@@ -143,8 +143,9 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVe
     // Lifecycle record. When the caller did not supply one (no child handle
     // was captured at launch), synthesize a "not fired" record — we must not
     // subscribe now or we'd miss events the child already emitted.
+    const observeChild = !childDone;
     childDone = childDone || { fired: false, code: null, failed: false };
-    if (child && typeof child.once === 'function') {
+    if (observeChild && child && typeof child.once === 'function') {
       // Attach only if the launch callback didn't already — attach-once so
       // late subscriptions don't double-handle, and an already-ended child
       // is reflected via its recorded state rather than a fresh listener.
@@ -154,15 +155,18 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVe
           childDone.code = typeof code === 'number' ? code : null;
           childDone.failed = code !== 0 && code !== null;
         });
-        child.once('error', () => {
+        child.once('error', (error) => {
           childDone.fired = true;
           childDone.failed = true;
+          childDone.message = error.message;
         });
       }
     }
     const cap = setTimeout(() => finish('timeout'), waitMs);
     const started = Date.now();
     const timer = setInterval(() => {
+      // A failed launch must win over registration left by a partial install.
+      if (childDone.failed) { finish('installer-failed'); return; }
       let info = null;
       try {
         info = installedInfo({ fresh: true, deps });
@@ -186,10 +190,7 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVe
       //   observed state may be accepted as success.
       // - Same-version request (repair/downgrade-to-equal): version match
       //   was already true before the installer ran, so it is no evidence.
-      //   Accept only a real transition: a fresh registration where none
-      //   existed at baseline, or the exe's mtime advancing past the
-      //   baseline stamp. A timestamp alone cannot pass — the binary must
-      //   actually have been rewritten.
+      //   Neither mtime nor the UAC parent's exit proves a completed repair.
       let settled = false;
       if (targetVersion !== '' && observedVersion === targetVersion) {
         const registered = Boolean(info?.registeredInstall && exe);
@@ -210,10 +211,10 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVe
           // elevated installer's initial child may exit before it finishes,
           // and a touched mtime only proves a file changed (a cancelled or
           // partially-failed rewrite also touches it). Without a trustworthy
-          // terminal signal this layer cannot prove completion, so the
-          // repair stays UNCONFIRMED: never auto-settle to success; keep
-          // polling to report observation, and let the wait time out into
-          // 'waiting' rather than fabricate a successful repair.
+          // terminal signal this layer cannot prove completion. Return an
+          // explicit unconfirmed result once the parent exits,
+          // rather than spinning for eight minutes with no possible success.
+          if (childDone.fired) { finish('unconfirmed'); return; }
           settled = false;
         }
       }
@@ -222,7 +223,7 @@ function waitForInstall(child, baseline, signal, onProgress, deps = {}, targetVe
         return;
       }
       if (typeof onProgress === 'function') {
-        onProgress({ phase: 'install-wait', installerDone: childDone.fired });
+        onProgress({ phase: 'install-wait', installerDone: childDone.fired, elapsedMs: Date.now() - started });
       }
     }, pollMs);
   });
@@ -332,9 +333,10 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
             installerChildDone.code = typeof code === 'number' ? code : null;
             installerChildDone.failed = code !== 0 && code !== null;
           });
-          child.once('error', () => {
+          child.once('error', (error) => {
             installerChildDone.fired = true;
             installerChildDone.failed = true;
+            installerChildDone.message = error.message;
           });
         }
       },
@@ -354,6 +356,18 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
     // activate a fallback that accepted any changed version as success.
     const found = await waitForInstall(installerChild, baseline, controller.signal, onProgress, deps, targetVersion, installerChildDone);
     invalidateInstalledCache();
+    if (found === 'installer-failed') {
+      return {
+        ok: false, route, status: 'error', error: 'installer-failed',
+        message: `安装程序未能完成：${installerChildDone.message || `退出码 ${installerChildDone.code}`}。请检查安装向导或系统安全提示后重试。`,
+      };
+    }
+    if (found === 'unconfirmed') {
+      return {
+        ok: false, route, status: 'waiting',
+        message: '已检测到同版本桌面端，但无法确认本次修复是否完成。请完成安装向导（可能需要系统授权），再刷新状态；不要重复启动安装。',
+      };
+    }
     if (found === 'aborted') {
       return {
         ok: false,
@@ -368,7 +382,7 @@ async function installRuntime(options = {}, onProgress, deps = {}) {
         ok: false,
         route,
         status: 'waiting',
-        message: '安装程序已启动；完成后将被自动识别，也可稍后手动刷新状态。',
+        message: '等待安装结果已超时，尚未确认安装完成。请检查安装向导、系统授权或安全提示，完成后刷新状态；不要重复启动安装。',
       };
     }
     return {

@@ -139,7 +139,7 @@ function loadWindowModule() {
     filename: chromePath,
     loaded: true,
     exports: {
-      shellWindowChrome: (options) => ({ ...options, transparent: process.platform !== 'win32', thickFrame: true, roundedCorners: process.platform === 'win32' }),
+      shellWindowChrome: (options) => ({ ...options, transparent: true, thickFrame: true, roundedCorners: false }),
       attachIntegratedChrome() {},
       hideNativeMenu() {},
       prepareHarnessChrome() {},
@@ -182,9 +182,9 @@ test('both shell factories retain native window policy after all constructor ove
     windowMod.createLauncherWindow();
     assert.equal(windows.length, 2);
     for (const win of windows) {
-      assert.equal(win.options.transparent, process.platform !== 'win32');
+      assert.equal(win.options.transparent, true);
       assert.equal(win.options.thickFrame, true);
-      assert.equal(win.options.roundedCorners, process.platform === 'win32');
+      assert.equal(win.options.roundedCorners, false);
     }
   } finally { restore(); }
 });

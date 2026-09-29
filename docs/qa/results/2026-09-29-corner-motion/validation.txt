@@ -1,0 +1,60 @@
+Final desktop unit tests:
+✔ resolveTheme falls back to legacy settings.yaml when no profile patch exists (7.2303ms)
+ℹ tests 2825
+ℹ suites 2
+ℹ pass 2823
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 138537.6128
+Focused window suites:
+✔ revealing Harness does not jump to marketplace unless a jump is pending (90.932ms)
+ℹ tests 44
+ℹ suites 0
+ℹ pass 44
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 644.1918
+Native/composed gate, including IsZoomed assertion during maximize:
+main: {"thickFrame":true,"nonClientRendering":false,"systemAnimations":1,"dwmReadOk":true,"systemReadOk":true,"nativeZoomed":false,"caption":true,"layered":false}
+PASS main-active: composed four-corner cutouts + visible interior
+PASS main-inactive: composed four-corner cutouts + visible interior
+PASS main-resized: composed four-corner cutouts + visible interior
+PASS main-restored: composed four-corner cutouts + visible interior
+PASS main: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+launcher: {"thickFrame":true,"nonClientRendering":false,"systemAnimations":1,"dwmReadOk":true,"systemReadOk":true,"nativeZoomed":false,"caption":true,"layered":false}
+PASS launcher-active: composed four-corner cutouts + visible interior
+PASS launcher-inactive: composed four-corner cutouts + visible interior
+PASS launcher-resized: composed four-corner cutouts + visible interior
+PASS launcher-restored: composed four-corner cutouts + visible interior
+PASS launcher: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+Native state verified; visible DWM interpolation still requires interactive Windows QA.
+100% scale:
+PASS main: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+PASS launcher: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+125% scale:
+PASS main: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+PASS launcher: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+200% scale:
+PASS main: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+PASS launcher: 20px alpha corners AND native maximize/unmaximize/minimize/restore through production factories + IPC
+Governance:
+verify-decision-tree: ok
+verify-decision-format: ok
+verify-archived-decisions: ok
+verify-feature-cards: ok
+verify-rules-sync: ok
+remote flag guard ok
+run-gates governance: 6/6 passed
+Documentation:
+verify-decision-tree: ok
+verify-decision-format: ok
+verify-archived-decisions: ok
+verify-feature-cards: ok
+verify-rules-sync: ok
+verify-md-links: ok
+verify-translation-pairing: ok
+run-gates doc-sync: 7/7 passed

@@ -1,0 +1,79 @@
+{
+  "kind": "local archive rehearsal, not CI Setup acceptance",
+  "archive": "C:\\Ai\\Deepseek-Harness-Desktop\\dist\\win-unpacked\\resources\\vendor\\deepseek-harness.tar",
+  "archiveBytes": 2351472640,
+  "events": [
+    {
+      "elapsedMs": 3,
+      "line": "正在准备运行时到 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-installation-qa-3evCma\\runtime\\qa（首次或更新后需要解压）…"
+    },
+    {
+      "elapsedMs": 5026,
+      "line": "正在解压运行时，已用时 5 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 10033,
+      "line": "正在解压运行时，已用时 10 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 15046,
+      "line": "正在解压运行时，已用时 15 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 20060,
+      "line": "正在解压运行时，已用时 20 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 25071,
+      "line": "正在解压运行时，已用时 25 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 30078,
+      "line": "正在解压运行时，已用时 30 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 35083,
+      "line": "正在解压运行时，已用时 35 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 40093,
+      "line": "正在解压运行时，已用时 40 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 45107,
+      "line": "正在解压运行时，已用时 45 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 50109,
+      "line": "正在解压运行时，已用时 50 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 55117,
+      "line": "正在解压运行时，已用时 55 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 60128,
+      "line": "正在解压运行时，已用时 60 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 65141,
+      "line": "正在解压运行时，已用时 65 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 70148,
+      "line": "正在解压运行时，已用时 70 秒；大量文件在慢速磁盘上可能需要数分钟…"
+    },
+    {
+      "elapsedMs": 71139,
+      "line": "解压完成，正在恢复运行时链接并校验文件…"
+    },
+    {
+      "elapsedMs": 71252,
+      "line": "运行时已解压到 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-installation-qa-3evCma\\runtime\\qa"
+    }
+  ],
+  "coldMs": 71253,
+  "maxTickGapMs": 116,
+  "warmMs": 1,
+  "ok": true
+}

@@ -59,7 +59,6 @@ function mountWindowControls(host) {
       return;
     }
     document.documentElement.toggleAttribute('data-window-maximized', Boolean(state.maximized));
-    document.documentElement.toggleAttribute('data-native-window-frame', Boolean(state.nativeFrame));
     if (!maxBtn) {
       return;
     }
@@ -75,4 +74,10 @@ function mountWindowControls(host) {
   }
 }
 
+// Keep the silhouette ring one physical pixel at fractional Windows scaling.
+function syncWindowHairline() {
+  document.documentElement.style.setProperty('--dsh-window-hairline', `${1 / (window.devicePixelRatio || 1)}px`);
+}
+syncWindowHairline();
+window.addEventListener('resize', syncWindowHairline);
 document.querySelectorAll('.window-controls').forEach(mountWindowControls);

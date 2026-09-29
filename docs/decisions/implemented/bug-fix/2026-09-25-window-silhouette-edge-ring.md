@@ -4,7 +4,7 @@ Status: implemented
 
 中文 | [English](2026-09-25-window-silhouette-edge-ring.en.md)
 
-> Windows 主窗口/启动器的透明性与自绘外轮廓要求已由[原生窗口动画](2026-09-29-native-window-motion.md)取代；非 Windows、内部内容圆角及其他决定保留。
+> 20px 透明剪影继续有效；[圆角与动画同时保留](2026-09-29-rounded-window-motion.md)在 Windows 补回原生动画样式，撤销先前不透明窗口取舍。几何回退仅用于未启用原生桥的窗口。
 
 ## Problem
 

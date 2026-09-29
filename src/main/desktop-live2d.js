@@ -143,6 +143,7 @@ function createLive2dPetManager(options = {}) {
   let win = null;
   let interactive = false;
   let chatFocusWanted = false;
+  let surfaceRegionKey = '';
   let handlersRegistered = false;
 
   function persist() {
@@ -598,6 +599,30 @@ function createLive2dPetManager(options = {}) {
     setInteractive(rendererInteractive || cursorInPetFrame);
   }
 
+  // A transparent desktop-sized HWND must never become a desktop-sized input
+  // shield while the renderer is busy. Native regions also bound its visible
+  // footprint; keep disjoint surfaces disjoint instead of enclosing their gaps.
+  function setSurfaceRegions(regions) {
+    if (!win || win.isDestroyed?.() || typeof win.setShape !== 'function'
+      || process.platform === 'darwin' || !Array.isArray(regions)) { return; }
+    const bounds = win.getBounds();
+    const clipped = regions.slice(0, 16).flatMap((r) => {
+      if (!r || ![r.x, r.y, r.width, r.height].every(Number.isFinite)
+        || r.width <= 0 || r.height <= 0) { return []; }
+      const x = Math.max(0, Math.floor(r.x));
+      const y = Math.max(0, Math.floor(r.y));
+      const right = Math.min(bounds.width, Math.ceil(r.x + r.width));
+      const bottom = Math.min(bounds.height, Math.ceil(r.y + r.height));
+      return right > x && bottom > y ? [{ x, y, width: right - x, height: bottom - y }] : [];
+    });
+    // Electron's [] removes the region and restores the entire window.
+    const shape = clipped.length ? clipped : [{ x: 0, y: 0, width: 0, height: 0 }];
+    const key = JSON.stringify(shape);
+    if (key === surfaceRegionKey) { return; }
+    win.setShape(shape);
+    surfaceRegionKey = key;
+  }
+
   function setInteractive(next) {
     interactive = next === true;
     if (!win || win.isDestroyed?.()) {
@@ -749,6 +774,8 @@ function createLive2dPetManager(options = {}) {
     try { dbg(`pet: actual bounds ${JSON.stringify(win.getBounds())}`); } catch {}
     win.setAlwaysOnTop(true, 'screen-saver');
     win.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true });
+    surfaceRegionKey = '';
+    setSurfaceRegions([]);
     setInteractive(false);
     win.webContents.setWindowOpenHandler?.(() => ({ action: 'deny' }));
     win.webContents.on?.('will-navigate', (event, url) => {
@@ -756,7 +783,7 @@ function createLive2dPetManager(options = {}) {
         event.preventDefault();
       }
     });
-    win.once('ready-to-show', () => { dbg('pet: ready-to-show'); win?.show(); });
+    win.once('ready-to-show', () => { dbg('pet: ready-to-show'); win?.showInactive(); });
     win.webContents.once?.('did-finish-load', () => {
       dbg('pet: did-finish-load');
       sendLayout();
@@ -854,7 +881,7 @@ function createLive2dPetManager(options = {}) {
       return createWindow();
     }
     if (!win.isVisible()) {
-      win.show();
+      win.showInactive();
     }
     return win;
   }
@@ -941,8 +968,11 @@ function createLive2dPetManager(options = {}) {
     } catch {}
     ipcMain.handle('shell:live2d-interactive', (event, payload) => {
       assertAuthorized(event);
-      rendererInteractive = payload?.interactive === true;
-      applyInteractive();
+      setSurfaceRegions(payload?.regions);
+      if (typeof payload?.interactive === 'boolean') {
+        rendererInteractive = payload.interactive;
+        applyInteractive();
+      }
       return null;
     });
     ipcMain.handle('shell:live2d-care', (event, payload) => {

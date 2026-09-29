@@ -911,8 +911,10 @@ class DshManager extends EventEmitter {
       throw new Error(`工作区不存在：${config.workspace || '(空)'}`);
     }
 
+    const preparationAbort = new AbortController();
+    this.preparationAbort = preparationAbort;
     try {
-      await this._ensurePackagedHarness((line) => this.log(line));
+      await this._ensurePackagedHarness((line) => { if (isCurrent()) this.log(line); }, { signal: preparationAbort.signal });
       if (!isCurrent()) {
         throw cancelledError();
       }
@@ -924,6 +926,8 @@ class DshManager extends EventEmitter {
         throw error;
       }
       throw new Error(`准备运行时失败：${error.message}`);
+    } finally {
+      if (this.preparationAbort === preparationAbort) this.preparationAbort = null;
     }
 
     const port = Number(options.port) || Number(config.port) || 3080;
@@ -1090,6 +1094,7 @@ class DshManager extends EventEmitter {
 
   async _doStop() {
     this.generation += 1; // 使 in-flight start 与旧 child 事件全部失效
+    this.preparationAbort?.abort();
     this.inFlight = null; // 下一次 start 从全新代开始
     this.attached = false;
     const child = this.child;
@@ -1127,8 +1132,8 @@ class DshManager extends EventEmitter {
     return this._deps.loadConfig();
   }
 
-  _ensurePackagedHarness(log) {
-    return this._deps.ensurePackagedHarness(log);
+  _ensurePackagedHarness(log, options) {
+    return this._deps.ensurePackagedHarness(log, options);
   }
 
   _spawnHarness(command, args, options) {

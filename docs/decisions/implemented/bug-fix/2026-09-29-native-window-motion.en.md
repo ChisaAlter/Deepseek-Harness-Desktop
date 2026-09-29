@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-09-29-native-window-motion.md) | English
 
+> The opaque-window/system-corner tradeoff was rejected by the user. That portion is superseded by [rounded window motion](2026-09-29-rounded-window-motion.en.md); HWND/IPC guards remain. Earlier acceptance verified motion but missed the loss of the required outer radius.
+
 ## Problem
 
 Maximize and minimize animations repeatedly disappeared. Git stash `3d22cd024d9` on September 15 already noted that transparent windows broke DWM animations; the September 23 pre-sync local snapshot `abe95b0dac3` introduced `transparent: true` again for main and launcher windows. Upstream did not delete an animation implementation. Existing gates checked page radii and geometry, not native window styles, while decisions required transparent silhouettes and made the regression look intentional.

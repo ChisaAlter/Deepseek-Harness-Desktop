@@ -5,7 +5,9 @@ const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { harnessHasGhosttyAssets } = require('../shared/ghostty-assets');
-const { materializeRuntimeLinks } = require('../shared/runtime-links');
+const { materializeRuntimeLinksAsync, removeRuntimeLinksAsync } = require('../shared/runtime-links');
+const { checkInstallSpace } = require('./install-space');
+const { randomUUID } = require('node:crypto');
 
 function looseHarnessRoot() {
   return path.join(process.resourcesPath, 'vendor', 'deepseek-harness');
@@ -19,6 +21,9 @@ const fsp = fs.promises;
 
 /** Suffix marker for a retired extract awaiting background deletion. */
 const STALE_SUFFIX = '.stale-';
+const EXTRACT_SUFFIX = '.extract-';
+const activeStaging = new Set();
+const extractions = new Map();
 
 /** Background deletions still running; tests drain them via settleBackgroundWork. */
 const backgroundWork = new Set();
@@ -83,8 +88,9 @@ async function sweepStaleExtracts(runtimeRoot, log = () => {}) {
     return [];
   }
   const stale = entries
-    .filter((entry) => entry.isDirectory() && entry.name.includes(STALE_SUFFIX))
-    .map((entry) => path.join(runtimeRoot, entry.name));
+    .filter((entry) => entry.isDirectory() && (entry.name.includes(STALE_SUFFIX) || entry.name.includes(EXTRACT_SUFFIX)))
+    .map((entry) => path.join(runtimeRoot, entry.name))
+    .filter((dir) => !activeStaging.has(dir));
   for (const dir of stale) {
     trackBackground(fsp.rm(dir, { recursive: true, force: true }).catch((error) => {
       log(`清理旧运行时残留失败：${error.message}`);
@@ -199,18 +205,41 @@ function tarCommand(platform = process.platform) {
   return fs.existsSync(systemTar) ? systemTar : 'tar';
 }
 
-function runTar(args) {
+function extractionCancelled() {
+  return Object.assign(new Error('已取消运行时准备'), { code: 'DSH_CANCELLED' });
+}
+
+function runTar(args, { signal, log = () => {}, spawn: spawnChild = spawn,
+  timeoutMs = 15 * 60_000, heartbeatMs = 5000 } = {}) {
+  if (signal?.aborted) return Promise.reject(extractionCancelled());
   return new Promise((resolve, reject) => {
-    const child = spawn(tarCommand(), args, {
+    const child = spawnChild(tarCommand(), args, {
       windowsHide: true,
       stdio: ['ignore', 'ignore', 'pipe'],
     });
     let stderr = '';
+    let failure;
+    const started = Date.now();
+    const stop = (error) => {
+      if (failure) return;
+      failure = error;
+      // tar has no children. Wait for close before removing its output tree.
+      child.kill('SIGKILL');
+    };
+    const onAbort = () => stop(extractionCancelled());
+    const deadline = setTimeout(() => stop(Object.assign(new Error('运行时解压超时。请检查磁盘空间和系统安全软件提示，再重试；现有运行时已保留。'), { code: 'ETIMEDOUT' })), timeoutMs);
+    const heartbeat = setInterval(() => log(`正在解压运行时，已用时 ${Math.floor((Date.now() - started) / 1000)} 秒；大量文件在慢速磁盘上可能需要数分钟…`), heartbeatMs);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
     child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString('utf8');
+      stderr = (stderr + chunk.toString('utf8')).slice(-8192);
     });
-    child.on('error', reject);
-    child.on('exit', (code) => {
+    child.on('error', (error) => { failure = failure || error; });
+    child.on('close', (code) => {
+      clearTimeout(deadline);
+      clearInterval(heartbeat);
+      signal?.removeEventListener('abort', onAbort);
+      if (failure) { reject(failure); return; }
       if (code === 0) {
         resolve();
         return;
@@ -220,16 +249,58 @@ function runTar(args) {
   });
 }
 
-async function ensurePackagedHarness(log = () => {}) {
+async function ensurePackagedHarness(log = () => {}, options = {}) {
+  if (!app.isPackaged) return null;
+  const dest = extractedHarnessRoot();
+  while (extractions.has(dest)) await extractions.get(dest).catch(() => {});
+  const work = preparePackagedHarness(log, options);
+  extractions.set(dest, work);
+  try { return await work; } finally {
+    if (extractions.get(dest) === work) extractions.delete(dest);
+  }
+}
+
+async function recoverRuntimeReplacement(dest, log) {
+  const previous = `${dest}.previous`;
+  if (!fs.existsSync(previous)) return;
+  // A crash between renames or before the completion stamp must retain the
+  // rollback tree. It never enters the generic stale-directory sweep.
+  if (hasBuiltHarness(dest) && readRuntimeStamp(dest)) {
+    await retireStaleExtract(previous, log);
+    return;
+  }
+  if (fs.existsSync(dest)) await retireStaleExtract(dest, log);
+  await fsp.rename(previous, dest);
+  log('已恢复上次中断替换前的运行时，正在重新检查安装包。');
+}
+
+async function prepareRuntimeLinks(root, { signal, log, remove = false }) {
+  let completed = 0;
+  let total = 0;
+  const started = Date.now();
+  const label = remove ? '正在清理临时运行时链接' : '正在检查并恢复运行时链接';
+  const heartbeat = setInterval(() => {
+    log(`${label}：${completed}/${total}，已用时 ${Math.floor((Date.now() - started) / 1000)} 秒…`);
+  }, 5000);
+  try {
+    const operation = remove ? removeRuntimeLinksAsync : materializeRuntimeLinksAsync;
+    await operation(root, { signal, onProgress: (done, count) => { completed = done; total = count; } });
+  } finally { clearInterval(heartbeat); }
+}
+
+async function preparePackagedHarness(log = () => {}, { signal } = {}) {
   if (!app.isPackaged) {
     return null;
   }
+  if (signal?.aborted) throw extractionCancelled();
   const dest = extractedHarnessRoot();
   const archive = harnessArchivePath();
   const loose = looseHarnessRoot();
+  await recoverRuntimeReplacement(dest, log);
   // Listing is cheap and must finish before any rename below so the sweep
   // and retireStaleExtract never race on the same directory.
   await sweepStaleExtracts(path.dirname(dest), log).catch(() => []);
+  if (signal?.aborted) throw extractionCancelled();
   const archiveExists = fs.existsSync(archive);
   // readPackagedPin throws on a missing/invalid pin before anything on disk
   // is deleted; a broken install must not destroy a usable runtime.
@@ -237,7 +308,8 @@ async function ensurePackagedHarness(log = () => {}) {
     ? packagedRuntimeIdentity(readPackagedPin(), fs.statSync(archive).size)
     : null;
   let linksReady = true;
-  try { materializeRuntimeLinks(dest); } catch (error) {
+  try { await prepareRuntimeLinks(dest, { signal, log }); } catch (error) {
+    if (signal?.aborted || error.code === 'DSH_CANCELLED') throw extractionCancelled();
     linksReady = false;
     log(`运行时链接需要重建：${error.message}`);
   }
@@ -256,25 +328,52 @@ async function ensurePackagedHarness(log = () => {}) {
     }
     throw new Error('安装包缺少运行时归档 deepseek-harness.tar');
   }
-  // The archive exists and the extract is stale or incomplete: only now is a
-  // re-extract guaranteed possible, so deleting dest is safe.
-  if (fs.existsSync(dest)) {
-    log(hasBuiltHarness(dest) ? '运行时与安装包不一致，正在重新解压…' : '运行时不完整，正在重新解压…');
-    await retireStaleExtract(dest, log);
-  }
   if (hasBuiltHarness(loose)) {
     return loose;
   }
-  log('正在解压运行时（仅首次，之后会变快）…');
-  fs.mkdirSync(dest, { recursive: true });
-  await runTar(['-xf', archive, '-C', dest]);
-  materializeRuntimeLinks(dest);
-  if (!hasBuiltHarness(dest)) {
-    throw new Error('运行时解压不完整，请重新安装');
+  // Uncompressed tar size + filesystem overhead + reserve; the existing
+  // runtime stays in place until a replacement has been validated.
+  const space = checkInstallSpace(path.dirname(dest), identity.archiveBytes * 1.15);
+  if (!space.checked) log('无法预先读取运行时磁盘空间；解压失败时请检查目标磁盘可用空间。');
+  log(`正在准备运行时到 ${dest}（首次或更新后需要解压）…`);
+  const staging = `${dest}${EXTRACT_SUFFIX}${randomUUID()}`;
+  activeStaging.add(staging);
+  try {
+    await fsp.mkdir(staging, { recursive: true });
+    await runTar(['-xf', archive, '-C', staging], { signal, log });
+    if (signal?.aborted) throw extractionCancelled();
+    log('解压完成，正在恢复运行时链接并校验文件…');
+    await prepareRuntimeLinks(staging, { signal, log });
+    if (!hasBuiltHarness(staging)) throw new Error('运行时解压不完整，请重新下载安装包');
+    // Windows junctions contain absolute paths: validate in staging, remove,
+    // then recreate at the final location before stamping the runtime.
+    await prepareRuntimeLinks(staging, { signal, log, remove: true });
+    if (signal?.aborted) throw extractionCancelled();
+    // Commit is non-cancellable, including final link recovery. Do not delete the old
+    // runtime before the new directory is in place; roll back a failed rename.
+    let retired;
+    if (fs.existsSync(dest)) {
+      retired = `${dest}.previous`;
+      await fsp.rename(dest, retired);
+    }
+    let promoted = false;
+    try {
+      await fsp.rename(staging, dest);
+      promoted = true;
+      await prepareRuntimeLinks(dest, { log });
+      writeRuntimeStamp(dest, identity);
+    } catch (error) {
+      if (promoted) await fsp.rename(dest, staging);
+      if (retired) await fsp.rename(retired, dest);
+      throw error;
+    }
+    if (retired) await retireStaleExtract(retired, log).catch((error) => log(`清理旧运行时失败：${error.message}`));
+    log(`运行时已解压到 ${dest}`);
+    return dest;
+  } finally {
+    activeStaging.delete(staging);
+    trackBackground(fsp.rm(staging, { recursive: true, force: true }).catch((error) => log(`清理未完成的运行时失败：${error.message}`)));
   }
-  writeRuntimeStamp(dest, identity);
-  log(`运行时已解压到 ${dest}`);
-  return dest;
 }
 
 module.exports = {
@@ -287,6 +386,8 @@ module.exports = {
   packagedRuntimeIdentity,
   writeRuntimeStamp,
   tarCommand,
+  runTar,
+  recoverRuntimeReplacement,
   retireStaleExtract,
   sweepStaleExtracts,
   settleBackgroundWork,

@@ -87,6 +87,18 @@ test('manifest keeps the packaging contract after-pack depends on', () => {
   assert.equal(build.publish?.[0]?.repo, 'Deepseek-Harness-Desktop');
 });
 
+test('rounded-window motion bridge is a production dependency unpacked in both packages', () => {
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  assert.equal(pkg.dependencies.koffi, '3.3.2');
+  assert.equal(lock.packages[''].dependencies.koffi, pkg.dependencies.koffi);
+  assert.notEqual(lock.packages['node_modules/koffi'].dev, true);
+  assert.ok(lock.packages['node_modules/@koromix/koffi-win32-x64']);
+  for (const pattern of ['node_modules/koffi/**/*', 'node_modules/@koromix/koffi-*/**/*']) {
+    assert.ok(pkg.build.asarUnpack.includes(pattern));
+    assert.ok(fs.readFileSync(path.join(ROOT, 'electron-builder.launcher.yml'), 'utf8').includes(pattern));
+  }
+});
+
 test('pet package excludes dormant assets without removing active fallbacks', () => {
   const files = pkg.build.files;
   for (const excluded of [

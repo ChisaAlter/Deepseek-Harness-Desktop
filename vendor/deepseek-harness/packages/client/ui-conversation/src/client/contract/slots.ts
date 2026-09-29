@@ -205,7 +205,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /** Floating entries rendered inside the resident composer card. */
     'conversation.input.overlay': { kind: 'list'; scope: 'session' }
     /** Ambient entries below the composer card. */
-    'conversation.composer.dock': { kind: 'list'; scope: 'session' }
+    'conversation.composer.dock': {
+      kind: 'list'
+      scope: 'session'
+      inject: { hooks: { statsLine: ObservableSnapshot<boolean> } }
+    }
     /** Compact controls at the left of the composer tool row. */
     'conversation.input.left': { kind: 'list'; scope: 'session' }
     /** Compact controls before the composer submit action. */

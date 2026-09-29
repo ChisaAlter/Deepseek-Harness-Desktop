@@ -1,5 +1,5 @@
 import { applyEvent, initState, type UsagePanelState } from './projection.ts';
-export declare const PROJECTION_STATE_VERSION = 2;
+export declare const PROJECTION_STATE_VERSION = 3;
 export declare const usagePanelProjectionDefinition: {
     key: string;
     stateVersion: number;
@@ -90,6 +90,7 @@ export declare const usagePanelProjectionDefinition: {
         firstTime: import("zod").ZodNullable<import("zod").ZodNumber>;
         lastTime: import("zod").ZodNullable<import("zod").ZodNumber>;
         seedEnd: import("zod").ZodNullable<import("zod").ZodNumber>;
+        explicitSeedBoundary: import("zod").ZodBoolean;
         currentModel: import("zod").ZodString;
         currentProvider: import("zod").ZodString;
         stepStart: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -205,6 +206,7 @@ export declare const usagePanelProjectionDefinition: {
             firstTime: import("zod").ZodNullable<import("zod").ZodNumber>;
             lastTime: import("zod").ZodNullable<import("zod").ZodNumber>;
             seedEnd: import("zod").ZodNullable<import("zod").ZodNumber>;
+            explicitSeedBoundary: import("zod").ZodBoolean;
             currentModel: import("zod").ZodString;
             currentProvider: import("zod").ZodString;
             stepStart: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -317,6 +319,7 @@ export declare const usagePanelProjectionDefinition: {
             firstTime: number | null;
             lastTime: number | null;
             seedEnd: number | null;
+            explicitSeedBoundary: boolean;
             currentModel: string;
             currentProvider: string;
             stepStart: {

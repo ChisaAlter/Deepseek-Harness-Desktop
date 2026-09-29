@@ -13,15 +13,18 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.view.View
 import android.webkit.WebViewClient
 import android.webkit.RenderProcessGoneDetail
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
@@ -29,16 +32,26 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.ByteArrayInputStream
+import java.util.UUID
+import org.json.JSONObject
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -61,6 +74,14 @@ fun RemoteWebScreen(
     val currentRequestScan by rememberUpdatedState(onRequestScan)
     val currentFatalLoadError by rememberUpdatedState(onFatalLoadError)
     val cancelFileChooser by rememberUpdatedState(onCancelFileChooser)
+    var nativeState by remember { mutableStateOf(NativeChatState()) }
+    val nativeDrafts = remember { mutableStateMapOf<String, String>() }
+    val nativeSubmitted = remember { mutableStateMapOf<String, NativeSubmittedDraft>() }
+    var legacyPage by remember { mutableStateOf(false) }
+    var documentRequestId by remember { mutableStateOf<Long?>(null) }
+    var documentEpoch by remember { mutableStateOf<String?>(null) }
+    val bridgeSupported = remember { WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) }
+    val nativeVisible = nativeState.route == "chat" && nativeState.connected && !legacyPage
     val assetLoader = remember {
         WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
@@ -80,7 +101,37 @@ fun RemoteWebScreen(
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             settings.userAgentString = "${settings.userAgentString} DshAndroid/2"
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
+            // Register before AndroidView's first loadUrl. A later effect can
+            // miss the initial document and leave paired chat in WebView.
+            if (bridgeSupported) {
+                WebViewCompat.addWebMessageListener(this, "DshdNativeBridge", setOf(appOrigin)) {
+                        view, message, sourceOrigin, isMainFrame, _ ->
+                    if (isMainFrame && sourceOrigin.toString() == appOrigin && isTrustedAssetPage(view.url)
+                        && documentRequestId != null && documentRequestId == readRequestId()) {
+                        val next = message.data?.let(NativeChatState::parse)
+                        if (next != null) {
+                            val receivedFor = documentRequestId
+                            val accept = {
+                                if (receivedFor != null && receivedFor == documentRequestId
+                                    && receivedFor == readRequestId() && next.epoch == documentEpoch
+                                    && next.seq > nativeState.seq) {
+                                    nativeState = next
+                                }
+                            }
+                            if (Looper.myLooper() == Looper.getMainLooper()) accept()
+                            else Handler(Looper.getMainLooper()).post { accept() }
+                        }
+                    }
+                }
+            }
         }
+    }
+    // Unlike addJavascriptInterface, the listener reports sender frame/origin.
+    DisposableEffect(bridgeSupported) {
+        if (!bridgeSupported) {
+            currentFatalLoadError("系统 WebView 不支持安全的原生聊天桥接；请更新 Android System WebView")
+        }
+        onDispose { }
     }
     val navigation = remember(webView) { RemoteWebNavigation() }
     val back = remember(webView) { RemoteWebBack() }
@@ -91,6 +142,12 @@ fun RemoteWebScreen(
         back.invalidate()
         recovery.dismiss()
         cancelFileChooser()
+        nativeState = NativeChatState()
+        nativeDrafts.clear()
+        nativeSubmitted.clear()
+        legacyPage = false
+        documentRequestId = null
+        documentEpoch = null
         onDispose {
             back.invalidate()
             backTimeouts.removeCallbacksAndMessages(null)
@@ -136,10 +193,31 @@ fun RemoteWebScreen(
         webView.webChromeClient = chromeClient
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                nativeState = NativeChatState()
+                legacyPage = false
+                documentRequestId = readRequestId().takeIf { isTrustedAssetPage(url) }
+                documentEpoch = documentRequestId?.let { UUID.randomUUID().toString() }
                 back.invalidate()
                 recovery.dismiss()
                 backTimeouts.removeCallbacksAndMessages(null)
                 cancelFileChooser()
+            }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                val epoch = documentEpoch ?: return
+                if (!isTrustedAssetPage(url) || documentRequestId != readRequestId()) return
+                fun bootstrap(attempt: Int) {
+                    if (documentEpoch != epoch || documentRequestId != readRequestId()
+                        || !isTrustedAssetPage(view.url)) return
+                    view.evaluateJavascript(
+                        "window.__dshdNativeBootstrap?.(${JSONObject.quote(epoch)})",
+                    ) { result ->
+                        if (result == "true" || documentEpoch != epoch) return@evaluateJavascript
+                        if (attempt < 3) Handler(Looper.getMainLooper()).postDelayed({ bootstrap(attempt + 1) }, 200)
+                        else currentFatalLoadError("原生聊天桥接未就绪，请重新打开")
+                    }
+                }
+                bootstrap(0)
             }
 
             override fun shouldInterceptRequest(
@@ -237,7 +315,15 @@ fun RemoteWebScreen(
         }
     }
 
-    BackHandler {
+    BackHandler(enabled = !nativeVisible) {
+        if (legacyPage) {
+            if (ViewCompat.getRootWindowInsets(webView)?.isVisible(WindowInsetsCompat.Type.ime()) == true) {
+                ViewCompat.getWindowInsetsController(webView)?.hide(WindowInsetsCompat.Type.ime())
+                return@BackHandler
+            }
+            legacyPage = false
+            return@BackHandler
+        }
         if (recovery.visible && ViewCompat.getRootWindowInsets(webView)?.isVisible(WindowInsetsCompat.Type.ime()) != true) {
             dismissRecovery()
         } else {
@@ -256,29 +342,91 @@ fun RemoteWebScreen(
                     modifier = Modifier.heightIn(max = recoveryMaxHeight),
                 )
             }
-            AndroidView(
-                factory = { webView },
-                update = { view ->
-                    // Only an explicit native request can load an offer; banner updates
-                    // and retries keep this WebView and its live document mounted.
-                    when (navigation.next(requestId, view.url, url)) {
-                        WebNavigationAction.Load -> {
-                            back.invalidate()
-                            cancelFileChooser()
-                            if (isTrustedAssetPage(url)) view.loadUrl(url)
-                            else currentFatalLoadError("无法打开内置手机页，请重新打开")
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                AndroidView(
+                    factory = { webView },
+                    update = { view ->
+                        // The transport document is never a second interactive
+                        // surface behind Compose, including for TalkBack.
+                        view.isEnabled = !nativeVisible
+                        // Alpha alone hides pixels, not WebView's virtual
+                        // accessibility nodes on Android. INVISIBLE keeps the
+                        // transport document alive without exposing its UI.
+                        view.visibility = if (nativeVisible) View.INVISIBLE else View.VISIBLE
+                        view.isFocusable = !nativeVisible
+                        view.isFocusableInTouchMode = !nativeVisible
+                        view.importantForAccessibility = if (nativeVisible)
+                            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                        else View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                        view.setOnTouchListener(if (nativeVisible) View.OnTouchListener { _, _ -> true } else null)
+                        if (nativeVisible && view.hasFocus()) view.clearFocus()
+                        // Only an explicit native request can load an offer; snapshots
+                        // and Compose recomposition keep the live document mounted.
+                        when (navigation.next(requestId, view.url, url)) {
+                            WebNavigationAction.Load -> {
+                                back.invalidate()
+                                cancelFileChooser()
+                                documentRequestId = null
+                                documentEpoch = null
+                                if (isTrustedAssetPage(url)) view.loadUrl(url)
+                                else currentFatalLoadError("无法打开内置手机页，请重新打开")
+                            }
+                            WebNavigationAction.Reload -> {
+                                back.invalidate()
+                                cancelFileChooser()
+                                documentRequestId = null
+                                documentEpoch = null
+                                if (isTrustedAssetPage(view.url)) view.reload()
+                                else currentFatalLoadError("无法打开内置手机页，请重新打开")
+                            }
+                            WebNavigationAction.None -> Unit
                         }
-                        WebNavigationAction.Reload -> {
-                            back.invalidate()
-                            cancelFileChooser()
-                            if (isTrustedAssetPage(view.url)) view.reload()
-                            else currentFatalLoadError("无法打开内置手机页，请重新打开")
+                    },
+                    modifier = if (nativeVisible) Modifier.fillMaxSize().alpha(0f)
+                        else Modifier.fillMaxSize(),
+                )
+                if (nativeVisible) NativeChatScreen(
+                    state = nativeState,
+                    drafts = nativeDrafts,
+                    submitted = nativeSubmitted,
+                    onAction = { action ->
+                        if (isTrustedAssetPage(webView.url) && readRequestId() == requestId
+                            && documentRequestId == requestId) {
+                            val payload = JSONObject().put("type", action.type)
+                            when (action.type) {
+                                "open", "cancel", "older", "retry" -> payload.put("sessionId", action.sessionId)
+                                "draft", "send" -> payload.put("sessionId", action.sessionId).put("text", action.text)
+                                "approve" -> payload.put("sessionId", action.sessionId)
+                                    .put("approvalId", action.approvalId).put("actionId", action.actionId)
+                                "model" -> {
+                                    payload.put("sessionId", action.sessionId).put("provider", action.provider)
+                                        .put("model", action.model)
+                                    if (action.reasoningEffort.isNotBlank()) payload.put("reasoningEffort", action.reasoningEffort)
+                                }
+                                "permission" -> payload.put("sessionId", action.sessionId).put("id", action.id)
+                                "planOff" -> payload.put("sessionId", action.sessionId)
+                                "slash" -> payload.put("sessionId", action.sessionId).put("line", action.line)
+                                "new", "refresh" -> Unit
+                                else -> return@NativeChatScreen
+                            }
+                            webView.evaluateJavascript(
+                                "window.__dshdNativeAction?.(${JSONObject.quote(payload.toString())})", null,
+                            )
                         }
-                        WebNavigationAction.None -> Unit
+                    },
+                    onLegacyPage = { legacyPage = true },
+                    onLeave = currentLeave,
+                )
+                if (legacyPage && nativeState.route == "chat") {
+                    androidx.compose.material3.Surface(
+                        onClick = { legacyPage = false },
+                        modifier = Modifier.align(Alignment.TopCenter).heightIn(min = 48.dp),
+                        color = ai.deepseek.harness.mobile.ui.theme.dsh().bgLayer1,
+                    ) {
+                        androidx.compose.material3.Text("‹ 返回原生聊天", Modifier.padding(horizontal = 18.dp, vertical = 12.dp))
                     }
-                },
-                modifier = Modifier.fillMaxWidth().weight(1f),
-            )
+                }
+            }
         }
     }
 }

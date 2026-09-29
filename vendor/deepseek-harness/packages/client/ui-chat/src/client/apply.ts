@@ -39,7 +39,6 @@ import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
 import { derivePresentationPolicy } from './presentation-policy.ts'
 import { CHAT_SETTINGS_NAMESPACE, DEFAULT_LINK_OPENING, type ChatSettings } from '../chat-settings.ts'
-import type { ConversationSettings } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { LinkOpeningRow, type LinkOpeningRowInjected } from './settings/LinkOpeningRow.tsx'
 import { PerformanceUsageRow, type PerformanceUsageRowInjected } from './settings/PerformanceUsageRow.tsx'
 import { PerformanceUsagePolicy } from './performance-usage.ts'
@@ -273,17 +272,6 @@ export function apply(ctx: Context): void {
     return disposeView
   })
 
-  const statsLine = createSnapshotStore(true)
-  const statsHost = ctx.configForms.get<ConversationSettings>('ui-conversation')
-  const adoptStatsLine = (): void => {
-    const section = statsHost.getSnapshot().value
-    if (section === undefined) return
-    const next = section.statsLine !== false
-    if (statsLine.getSnapshot() !== next) statsLine.set(next)
-  }
-  ctx.effect(() => statsHost.subscribe(adoptStatsLine))
-  adoptStatsLine()
-
   // The quota notice host lives in the frame-wide layer so a notice outlives
   // the Chat panel that reported it. Its chain child lets a package with a
   // billing surface claim the one live notice without importing Chat.
@@ -306,7 +294,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.composer.dock', () =>
     ctx.slots.register({
       name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS,
-      inject: () => ({ hooks: { performanceUsage, statsLine } }),
+      inject: () => ({ hooks: { performanceUsage } }),
     }, StatsPills))
 
   ctx.slots.inject('conversation.approval.detail', () =>

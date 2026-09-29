@@ -61,7 +61,7 @@ Host 半聚合持久化会话日志：
 
 记账规则：`request/header` 与 `request/context` 记录模型（context 打底、header 覆盖）；该步骤的 `assistant/message` 用量**替换**流式暂记用量（同一步重试的消息不会重复累计）；`llm/retry` 事件只计重试次数、不计 Token；`compaction/summary` 用量归属其自身模型并单独披露（且**绝不进入费用桶**）；reasoning token 已含于 output，绝不重复相加。
 
-**子会话（fork）去重**：最后一个 `session/end-seed` 标记之前的事件（fork / resume / replay 种子历史）一律不计数，fork 出的会话不会重复计算父会话的用量。
+**子会话（fork）去重**：宿主的 `inheritedEventCount` 精确排除继承前缀，fork 不会重复计算父会话用量。恢复时追加的 `session/end-seed` 不会遮掉本会话已有用量；缺少这份元数据的旧调用者保留标记边界规则。
 
 **时区声明**：日桶与导出一律用 **UTC** 自然日（`YYYY-MM-DD`），热力图副标题声明所选月份与 UTC。计费时段使用**北京时间**（UTC+8、无夏令时）——见「费用与计价」。
 

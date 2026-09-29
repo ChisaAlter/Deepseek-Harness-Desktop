@@ -14,7 +14,7 @@
 
 ## 架构要点
 
-- Windows 主窗口与启动器使用 `shellWindowChrome` 的不透明原生窗口策略，DWM 负责外框圆角、阴影和最大化/最小化/还原过渡。页面收到 `nativeFrame` 状态后铺满客户区，移除第二层外轮廓裁切与缘线；内部内容角和壁纸仍用原有 token。非 Windows 保留透明自绘剪影，只有登记过的透明窗使用几何最大化与 `_dshNormalBounds` 还原。详见 [window-motion](../../features/window-motion.md) 和 [恢复原生动画决策](../../decisions/implemented/bug-fix/2026-09-29-native-window-motion.md)。注入自愈继续覆盖 eval retry、导航/focus/show 与页面 MutationObserver。
+- 主窗口与启动器保持透明自绘 20px 圆角与缘线；Windows 在首次显示前经 `native-window-motion`（Koffi / N-API）补回 caption/thick-frame 样式，以 `ShowWindowAsync` 切换最大化/还原、`IsZoomed` 读取状态，保留 DWM 动画和原生最大化状态，不切换成系统小圆角。`roundedCorners:false` 禁止第二层 OS 圆角裁切；补样式后设置 `DWMWA_NCRENDERING_POLICY=DWMNCRP_DISABLED`，消除 DWM 在透明角外绘制的矩形表面。缘线使用 `--dsh-window-hairline=1/devicePixelRatio px`，保持一个物理像素，颜色沿用 border-l2。原生桥不碰桌宠；非 Windows 保持原路径。只有未启用原生窗控的透明窗使用几何最大化回退。详见 [window-motion](../../features/window-motion.md) 与[纠正决定](../../decisions/implemented/bug-fix/2026-09-29-rounded-window-motion.md)。注入自愈保持不变。
 - `window.js` 管理 Harness BrowserView bounds 与覆盖；`desktop-pet.js` + `desktop-pets.js` 管理 Codex 宠物发现（`${CODEX_HOME:-~/.codex}/pets`、v1/v2 图集）、约 80–96px 宠物 BrowserView、右键换肤菜单、归一化位置和生命周期，feature 默认关闭。
 - `desktop-live2d.js` 管理 Live2D 宠物：覆盖虚拟屏的透明 `alwaysOnTop` BrowserWindow，窗口本身永不 `setPosition`（分层透明窗移动会闪空）；默认 `setIgnoreMouseEvents` 穿透，主进程 ~30Hz 轮询 `screen.getCursorScreenPoint()` 推 `shell:live2d-cursor`，渲染器按角色 alpha bounds 决定交互。页面经特权 `pet://` scheme 加载，渲染进程内跑 onnxruntime-web（WebGPU→WASM 回落）。
 - `harness-chrome-inject.js` / `chrome.js` 把桌面 chrome 接到官方页。
@@ -33,7 +33,7 @@
 
 ## 门槛
 
-- Windows：`node scripts/run-window-motion-qa.mjs` 检查真实工厂 HWND 样式和 IPC；可见动画在交互桌面逐帧验收。
+- Windows：`node scripts/run-window-motion-qa.mjs` 检查真实工厂 HWND 样式和 IPC；交互桌面另运行 `--composed` 检查完整四角、失焦、resize、还原后的合成像素；可见动画另作逐帧验收。
 
 - QA：`TC-WS-002` … `TC-WS-004`；`TC-SURF-007`；`TC-DESK-010`（Codex 宠物）、`TC-DESK-011`（Live2D 宠物）
 

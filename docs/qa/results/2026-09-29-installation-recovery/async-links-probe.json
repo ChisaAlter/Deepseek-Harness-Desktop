@@ -1,0 +1,31 @@
+{
+  "kind": "synthetic local filesystem, not affected user reproduction or CI Setup acceptance",
+  "targets": 747,
+  "links": 3602,
+  "timerMs": 10,
+  "syncCold": {
+    "elapsedMs": 26070,
+    "maxTickGapMs": 26087,
+    "ticks": 3
+  },
+  "syncWarm": {
+    "elapsedMs": 11659,
+    "maxTickGapMs": 11674,
+    "ticks": 3
+  },
+  "asyncWarm": {
+    "elapsedMs": 4602,
+    "maxTickGapMs": 30,
+    "ticks": 459
+  },
+  "asyncRemove": {
+    "elapsedMs": 3689,
+    "maxTickGapMs": 38,
+    "ticks": 367
+  },
+  "asyncCold": {
+    "elapsedMs": 7205,
+    "maxTickGapMs": 42,
+    "ticks": 713
+  }
+}

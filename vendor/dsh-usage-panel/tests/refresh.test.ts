@@ -1,0 +1,69 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { Context } from '@deepseek-ai/cordis'
+import { apply } from '../src/host/index.ts'
+import { initState, applyEvent } from '../src/host/projection.ts'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { Overview, RpcResult } from '../src/shared/contract.ts'
+
+test('overview refresh replaces session totals, observes new usage and removes deleted sessions', async () => {
+  const previousHome = process.env.DSH_HOME
+  process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'usage-refresh-'))
+  const cleanups: Array<() => void> = []
+  let handler!: (endpoint: string, payload: unknown) => Promise<RpcResult<Overview>>
+  let tokens = 10
+  let deleted = false
+  const header = { id: 'session-test', createdAt: 1, isSeeded: false }
+  const services: Record<string, unknown> = {
+    settings: { describe: () => [{ ns: 'ui-conversation', value: {} }] },
+    sessionProjections: { register: () => () => {} },
+    sessionQuery: {
+      listSessions: async () => deleted ? [] : [{ header, persisted: true }],
+      readSession: async () => ({ session: header, inheritedEventCount: 0, events: [
+        { type: 'assistant/message', seq: 0, time: Date.now(), data: { turn: 1, step: 1, usage: { inputTokens: tokens } } },
+        { type: 'step/end', seq: 1, time: Date.now(), data: { turn: 1, step: 1 } },
+      ] }),
+      readTitle: async () => ({ title: 'test' }),
+    },
+    sessionProjectionCache: {
+      // A cache miss is legitimate for live sessions / unavailable storage.
+      cachedSnapshot: () => undefined,
+      coldSnapshot: (_header: unknown, inherited: number, events: SessionEvent[]) => ({
+        asOfSeq: 1,
+        values: { usagePanel: events.reduce(applyEvent, initState(undefined, inherited)) },
+      }),
+    },
+    connection: { rpc: { handle: (_channel: string, next: typeof handler) => { handler = next; return () => {} } } },
+  }
+  const ctx = {
+    get: (name: string) => services[name],
+    sessionProjections: services.sessionProjections,
+    on: () => () => {},
+    interval: () => () => {},
+    effect: (effect: () => () => void) => cleanups.push(effect()),
+  } as unknown as Context
+  try {
+    apply(ctx)
+    const read = async () => {
+      const result = await handler('overview', { force: true })
+      assert.equal(result.ok, true)
+      if (!result.ok) throw new Error(result.error.message)
+      return result.value
+    }
+    assert.equal((await read()).allTime.totals.total, 10)
+    const second = await read()
+    assert.equal(second.allTime.totals.total, 10)
+    assert.equal(second.topSessions.length, 1)
+    tokens = 17
+    assert.equal((await read()).allTime.totals.total, 17)
+    deleted = true
+    assert.equal((await read()).allTime.totals.total, 0)
+  } finally {
+    for (const cleanup of cleanups) cleanup()
+    if (previousHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previousHome
+  }
+})

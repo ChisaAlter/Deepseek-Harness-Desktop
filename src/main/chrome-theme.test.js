@@ -101,10 +101,10 @@ test('shell window policy cannot be overridden to disable native Windows transit
   const { chrome, restore } = loadChrome();
   try {
     const options = chrome.shellWindowChrome({ transparent: true, thickFrame: false, roundedCorners: false, backgroundColor: '#00000000' });
-    assert.equal(options.transparent, process.platform !== 'win32');
+    assert.equal(options.transparent, true, 'native motion must not replace the alpha silhouette');
     assert.equal(options.thickFrame, true);
-    assert.equal(options.roundedCorners, process.platform === 'win32');
-    if (process.platform === 'win32') assert.notEqual(options.backgroundColor, '#00000000');
+    assert.equal(options.roundedCorners, false, 'OS mask must not cut down the 20px page radius');
+    assert.equal(options.backgroundColor, '#00000000');
     assert.equal(chrome.windowChrome({ transparent: true }).transparent, true, 'pet/overlay transparency stays available');
   } finally { restore(); }
 });

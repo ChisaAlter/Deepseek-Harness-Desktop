@@ -42,7 +42,7 @@ Gate: <卡上 gates>
 
 | id | 一句话 | 主入口 | gates 摘要 |
 | --- | --- | --- | --- |
-| [window-motion](window-motion.md) | Windows 原生窗口动画与外缘；防透明窗回归 | `shellWindowChrome` / window factories | 参数单测 + HWND/IPC 实机 + 可见过渡 |
+| [window-motion](window-motion.md) | 20px 透明圆角与 Windows 原生动画同时验收 | `shellWindowChrome` / window factories | 参数单测 + HWND/IPC 实机 + 可见过渡 |
 | [desktop-branding](desktop-branding.md) | 桌面与 Web 侧栏「鲸屿 · Whale Isle」，保留 Harness 归属 | `ui-brand-official` 品牌槽位 | 定向测试、官方构建、深浅色复核 |
 | [vision-fallback](vision-fallback.md) | 识图路由的图片准入、描述与主请求重写 | llm-vision-fallback / agent-loop | 无密钥组合与图片准入 |
 | [core-regression-gates](core-regression-gates.md) | 核心会话、模型和工具回归阻断 CI | test.yml | 核心集合与 CI 契约 |

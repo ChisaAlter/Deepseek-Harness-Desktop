@@ -44,7 +44,7 @@ npm pack --dry-run   # 发布前人工确认清单
 
 ## 5. 正确性红线（本项目的壁垒，任何重构不得破坏）
 
-1. **fork 去重**：`header.seedLength` 之后的 `assistant/message` 才计数（竞品 dashboard 无此逻辑会重复计费）。
+1. **fork 去重**：宿主提供 `inheritedEventCount` 时只计零基 `seq >= inheritedEventCount` 的用量，后续 end-seed 不得移动边界；旧调用者才回退标记/seedLength（见 §6.11）。
 2. **双源模型归因**：`request/context.model` 打底，`request/header.config.model` 覆盖。
 3. **四桶记账**：input/output/cacheRead/cacheWrite 分开；v0.2.0 起升级为落盘投影后：流式 `assistant/chunk` 的 provisional usage 必须被最终 `assistant/message` 覆盖；`llm/retry` 独立计数；`compaction/summary` 独立归因；reasoning 已含于 output，不重复加。
 4. **日期口径 UTC**：dayKey 用 UTC 桶（v0.1.0 用本地时区，跨时区漂移），README 与 UI 必须显式声明口径。
@@ -165,6 +165,12 @@ npm pack --dry-run   # 发布前人工确认清单
 ### 6.10 "读取失败"可能是格式版本拒收，不是字节损坏（2026-09-25 实机发现）
 
 **症状**：扫描把 `session-whale-12d39638-…` 计为读取失败，但该 `session.v3.jsonl.zstd` 94 个 zstd 帧完好、seq 连续。**机理**：当前构建只通过迁移链读 v3；迁移对不在冻结 `RELEASED_V3_EVENT_TYPES` 且未带 `ignorable` 的事件类型硬拒（`format v3 contains unknown event type`）——该日志的 `session/presentation`（鲸鱼插件写入）与 `user-questions/asked` 都是现行词表正式成员却不在 v3 released 集合（冻结早于桌面写盘）。**规则**：`rebuildSessionLog` 按头部 `version` 分路——`===3` 时只做准入重写（非 released 类型补 `ignorable: true`，seq/打包行/引用逐字节保留，由 harness 自己的迁移管道完成升级），`>4` 显式拒绝；只有 4/缺失/0–2 走解码+重编号。**判定"失败会话"先跑真实 `open('read')` 看拒绝文案再定修法**，别想当然全是 seq gap。
+
+### 6.11 恢复时的 end-seed 不是继承边界（2026-09-29）
+
+真实会话已产生 14,284 token，恢复后日志尾追加 `session/end-seed`；旧 reducer 等这个标记才武装，投影与回退扫描都得零。现行宿主 `init(header, inheritedEventCount)` 与 `readSession().inheritedEventCount` 才是准确边界。显式前缀优先，忽略后续标记，旧调用者仍兼容标记语义。新增 `explicitSeedBoundary` 状态并升 stateVersion 3，同时失效 checkpoint 与聚合缓存；不得通过改健康日志来修插件的计数错误。回归必须包含「已有用量后才出现标记」和「fork 前缀排除、边界上的事件计入」。
+
+同轮发现 `deltaScan` 将整份投影再次加到上次聚合，刷新后数字翻倍。现每次扫描从空聚合开始，每会话合并一次（仍复用框架 checkpoint）；不能把 `mergeSessionValue` 当作替换接口。回归走实际 overview RPC，覆盖重复刷新、新用量和删除。
 
 ## 7. 文档同步义务
 
