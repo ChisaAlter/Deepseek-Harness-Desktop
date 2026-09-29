@@ -28,7 +28,8 @@ test('async links repair stale targets, reuse valid links and remove only links'
   assert.equal(await materializeRuntimeLinksAsync(root, { onProgress: (...args) => progress.push(args) }), 1);
   assert.deepEqual(progress, [[0, 1], [1, 1]]);
   assert.equal(await materializeRuntimeLinksAsync(root), 1);
-  assert.equal(fs.realpathSync(from), fs.realpathSync(path.join(root, 'physical')));
+  // Resolve Windows 8.3 aliases on both sides, as the async filesystem API does.
+  assert.equal(fs.realpathSync.native(from), fs.realpathSync.native(path.join(root, 'physical')));
   await removeRuntimeLinksAsync(root);
   await removeRuntimeLinksAsync(root);
   assert.equal(fs.existsSync(from), false);

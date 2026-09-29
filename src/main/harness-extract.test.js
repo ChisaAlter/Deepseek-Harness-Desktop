@@ -335,7 +335,8 @@ test('ensurePackagedHarness re-extracts a stale extract only when the archive ex
   );
   assert.equal(canReuseExtractedHarness(fixture.dest, identity), true);
   assert.equal(fs.readFileSync(path.join(fixture.dest, 'node_modules', 'proof', 'proof.txt'), 'utf8'), 'relocated');
-  assert.equal(fs.realpathSync(path.join(fixture.dest, 'node_modules', 'proof')), fs.realpathSync(path.join(fixture.dest, 'physical')));
+  // CI's TEMP may contain RUNNER~1 while the junction resolves to runneradmin.
+  assert.equal(fs.realpathSync.native(path.join(fixture.dest, 'node_modules', 'proof')), fs.realpathSync.native(path.join(fixture.dest, 'physical')));
   // The stale tree was retired by rename and deleted in the background, so
   // nothing but the fresh extract remains once that work settles.
   await settleBackgroundWork();

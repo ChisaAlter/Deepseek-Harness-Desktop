@@ -23,4 +23,12 @@
 
 ## 晋级门槛
 
+首轮源提交：`ef501689388b1aac1fb57a4de609fd4f1a78a89c`。Windows 构建：[36602013284](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36602013284)失败，未生成 Setup；同提交 Desktop tests：[36601994891](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36601994891)的 Windows 任务失败，macOS 任务通过。此候选拒绝晋级。126 项[安装版验收清单](ACCEPTANCE.md)已创建，全部未执行，须绑定修复后的新候选。
+
+## 首轮 CI 修复
+
+- 构建失败于 `prepare-dshd-remote.mjs` 的干净 `npm ci`：ChisaCode workspace 的根 `@types/node` override 解析到 22.20.4，锁文件仍为 22.20.1。本机 Node 24.21.0 / npm 11.19.0 在隔离 workspace 同样复现。仅同步该条目到 22.20.4 并补官方 registry 的 resolved/integrity；其它锁定包不变，不改 `npm ci` 或跳过校验。
+- Windows 的两项失败来自 `TEMP` 使用 `RUNNER~1`，而 junction 解析为 `runneradmin`；普通 `fs.realpathSync` 在非链接侧保留短名。两条断言均改用 `fs.realpathSync.native` 解析两侧，仍严格比较实际目标身份；运行时代码未变。定向提取与链接测试 30/30 通过。
+- 这是依赖补丁与测试路径规范化，不改变产品契约或测试策略；依照维护规则不新增机械修复决策记录。新 CI 必须重新验证全部门禁。
+
 新候选必须绑定源提交、成功的 `release.yml` run、同 SHA 成功的 `test.yml` run、原始 Setup SHA256 与资产校验结果。全部生产安装包验收仍须按[验收表](../../production-acceptance-test-cases.md)在同一 CI Setup 上完成；本地测试不能替代该表。未执行 `publish.yml`，公开 latest 仍为 v0.3.2。
