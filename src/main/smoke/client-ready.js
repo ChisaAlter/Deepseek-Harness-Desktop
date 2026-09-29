@@ -1,5 +1,7 @@
 'use strict';
 
+const { assertWelcomePresentation } = require('./welcome-presentation');
+
 /** The boot document is never a substitute for the asynchronously created Harness view. */
 async function waitForHarnessContents(getContents, owner, timeoutMs = 300_000, getWelcomeContents = () => null) {
   const deadline = Date.now() + timeoutMs;
@@ -11,6 +13,7 @@ async function waitForHarnessContents(getContents, owner, timeoutMs = 300_000, g
     if (welcome && !welcome.isDestroyed() && welcome !== skippedWelcome) {
       try {
         const action = await welcome.executeJavaScript(`(() => {
+          if (!(${assertWelcomePresentation.toString()})()) return 'waiting';
           const visible = element => element && !element.disabled && !element.closest('[hidden]');
           const key = document.getElementById('api-key');
           if (visible(key)) { key.click(); return 'key-page'; }

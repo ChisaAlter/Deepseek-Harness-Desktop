@@ -36,7 +36,7 @@ Release remediation follows the [regression contract](decisions/implemented/bug-
 
 New Session keeps the existing entry points, draft canvas, and composer, and reuses only ordinary blank drafts without a prior identity. Titled sessions, sessions previously managed by a plugin, and forks retain their identity and are not opened as new drafts. No controls or visual styling are added.
 
-The Harness 0.1.7-alpha.2 integration retains this document's visual contract. New upstream components reuse the same tokens and primitives; migrations of layout services, slots, or props must preserve the desktop title bar, work surfaces, transparent wallpaper, linked composer width, and typing effects. Surface tab close controls remain to the right of the title; the boot-page exception keeps its existing scope.
+Harness updates retain the visual contract and reuse existing tokens/primitives. Layout, slot or prop migrations preserve the title bar, work surfaces, transparent wallpaper, linked composer width and typing effects. Surface close controls stay right of the title; the boot exception does not expand.
 
 Window controls (`window-controls.css`) carry one deliberate system-color exception: minimize/maximize hover uses the `--dsw-alias-interactive-bg-hover` token, but the close button hover uses the Windows system semantic color `#e81123` (red) with a `#fff` foreground — a platform-level "danger/close" convention, not a theme color. This is intentional; do not convert it to a token.
 
@@ -268,6 +268,10 @@ same-value token tables, and the desktop is unaffected. The full contract lives
 in [design-language-mobile.en.md](design-language-mobile.en.md); the decision
 is in
 [Mobile remote Claude-style structure](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.en.md).
+
+## Desktop welcome window
+
+Welcome retains the complete pinned upstream layout, material, brand image and fonts; see the [contract](features/desktop-welcome.md).
 
 ## Desktop boot page
 

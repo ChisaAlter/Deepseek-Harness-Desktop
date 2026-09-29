@@ -36,7 +36,7 @@ UI 改动先读本文。工程细则（CSS Modules、token 分层、动效 recip
 
 「新会话」沿用现有入口、草稿画布和输入框，只复用没有历史身份的普通空草稿；已有标题、曾由插件管理或属于分叉的会话保留原身份，不作为新草稿打开。不新增控件或改变视觉样式。
 
-Harness 0.1.7-alpha.2 同步保留本页既有视觉合同。新增上游组件复用同一 token 与原语；布局服务、slot 或属性接口迁移不得移除桌面标题栏、工作表面、透明壁纸、输入框宽度联动及键入特效。Surface 页签关闭按钮仍在标题右侧；启动页例外范围不变。
+Harness 同步保持视觉合同；新增组件复用既有 token/原语。布局、slot 或属性迁移须保留标题栏、工作表面、透明壁纸、输入框联动与键入特效。Surface 关闭钮在标题右侧，启动页例外不扩散。
 
 窗口控件（`window-controls.css`）的系统色例外：最小化/最大化悬停走 `--dsw-alias-interactive-bg-hover` token；唯独关闭钮悬停用 Windows 系统语义色 `#e81123`（红）+ `#fff` 前景，这是平台级「危险/关闭」约定、非主题色，属有意例外，不得改为 token。
 
@@ -174,6 +174,10 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 ## 手机远程交互
 
 远程 Web 与 Android 内置 SPA 的页面结构参照 Claude 移动端，颜色、字体栈与明暗仍只取同值 token 表，不引入第二套色板；桌面端不受影响。完整契约见 [design-language-mobile.md](design-language-mobile.md)；决策见[手机远程 Claude 式结构](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)。
+
+## 桌面欢迎窗
+
+欢迎窗完整复用钉版上游布局、材质、品牌图与字体，见[契约](features/desktop-welcome.md)。
 
 ## 桌面启动页
 

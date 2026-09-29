@@ -18,6 +18,7 @@
 - `HarnessController` 拥有子进程与揭示时机；boot 只消费事件。  
 - 恢复与手动重启共享未完成的 boot 导航；新 Harness 揭示前必须等待旧导航完成，避免迟到的启动页覆盖新界面。
 - 插件装载进度留在 boot，不切官方加载页。  
+- 无账号和模型密钥时由原生欢迎窗持有工作区入口，登录、保存 API Key 或稍后设置后揭示工作区。欢迎页须带完整上游页面布局、材质与品牌图，真实渲染门禁在冒烟点击前检查，见 [desktop-welcome](../../features/desktop-welcome.md)。
 - 流程详述：[../flows/boot-to-ready.md](../flows/boot-to-ready.md)
 
 ## 实现入口

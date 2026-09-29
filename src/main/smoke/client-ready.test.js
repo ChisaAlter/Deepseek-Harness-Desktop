@@ -34,14 +34,28 @@ test('credential-free smoke follows the native welcome key-page and skip control
   let page = 'entry';
   let ready = false;
   const clicks = [];
-  const document = { getElementById: id => ({
+  const root = { getBoundingClientRect: () => ({ width: 600, height: 700 }) };
+  const surface = {};
+  const controls = Object.fromEntries(['api-key', 'skip-key'].map(id => [id, {
     disabled: false,
     closest: () => (id === 'api-key' ? page !== 'entry' : page !== 'key') ? {} : null,
+    getBoundingClientRect: () => ({ left: 20, top: 20, width: 200, height: 40 }),
+    contains: node => node === controls[id],
     click() { clicks.push(id); if (id === 'api-key') page = 'key'; else ready = true; },
-  }) };
+  }]));
+  const document = {
+    readyState: 'complete',
+    getElementById: id => id === 'root' ? root : controls[id],
+    querySelector: selector => selector === '.welcome' ? surface : { complete: true, naturalWidth: 472 },
+    querySelectorAll: () => [{ sheet: {} }],
+    elementFromPoint: () => controls[page === 'entry' ? 'api-key' : 'skip-key'],
+  };
   const welcome = {
     isDestroyed: () => false,
-    executeJavaScript: async script => runInNewContext(script, { document }),
+    executeJavaScript: async script => runInNewContext(script, {
+      document, innerWidth: 600, innerHeight: 700,
+      getComputedStyle: element => ({ display: element === root ? 'flex' : 'grid' }),
+    }),
   };
   const harness = { isDestroyed: () => false };
   const pending = waitForHarnessContents(() => ready ? harness : null, {}, 2000, () => welcome);
