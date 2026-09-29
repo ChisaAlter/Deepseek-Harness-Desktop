@@ -36,6 +36,12 @@ body {
   overflow: hidden;
 }
 
+/* Windows owns the outside radius and DWM transitions; paint to its edge. */
+html[data-native-window-frame] body,
+html[data-native-window-frame] .scene {
+  border-radius: 0;
+}
+
 .caption {
   position: fixed;
   top: 0;

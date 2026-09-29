@@ -139,7 +139,7 @@ function loadWindowModule() {
     filename: chromePath,
     loaded: true,
     exports: {
-      windowChrome: (options) => options,
+      shellWindowChrome: (options) => ({ ...options, transparent: process.platform !== 'win32', thickFrame: true, roundedCorners: process.platform === 'win32' }),
       attachIntegratedChrome() {},
       hideNativeMenu() {},
       prepareHarnessChrome() {},
@@ -174,6 +174,20 @@ function loadWindowModule() {
     },
   };
 }
+
+test('both shell factories retain native window policy after all constructor overrides', () => {
+  const { windowMod, windows, restore } = loadWindowModule();
+  try {
+    windowMod.createMainWindow();
+    windowMod.createLauncherWindow();
+    assert.equal(windows.length, 2);
+    for (const win of windows) {
+      assert.equal(win.options.transparent, process.platform !== 'win32');
+      assert.equal(win.options.thickFrame, true);
+      assert.equal(win.options.roundedCorners, process.platform === 'win32');
+    }
+  } finally { restore(); }
+});
 
 async function waitForHarness(showHarness) {
   const status = await showHarness('http://127.0.0.1:3080/');

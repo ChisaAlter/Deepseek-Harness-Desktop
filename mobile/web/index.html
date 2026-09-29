@@ -4,49 +4,96 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Whale Isle · 手机远程</title>
-    <link rel="stylesheet" href="./tokens.css?v=20260907-desktop-mobile" />
-    <link rel="stylesheet" href="./app.css?v=20260907-desktop-mobile" />
+    <link rel="stylesheet" href="./tokens.css?v=20260929-readable-computer-name-v3" />
+    <link rel="stylesheet" href="./app.css?v=20260929-readable-computer-name-v3" />
 </head>
 <body>
   <div class="phone" id="phone">
-    <section class="screen connect" id="screen-connect">
-      <div class="connect-hero">
-        <svg class="whale-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 27c0-8.3 7.6-15 17-15 7 0 12.5 3.6 15 9 2.3-.9 4.2-2.6 5.2-4.8.8 4-1 8-4.3 10.2C36.6 33.2 30.6 37 23 37 13.6 37 6 33.3 6 27Z" fill="currentColor"/><circle cx="16" cy="24" r="1.8" fill="var(--dsw-specific-sidebar-fill)"/></svg>
-        <h2>连接到这台电脑</h2>
-        <p class="lead">在电脑端账户菜单打开「远程」，扫描弹窗里的二维码。</p>
-        <div class="device" id="device-line"><span class="live"></span>等待配对</div>
-        <p class="error hidden" id="connect-error"></p>
+    <section class="screen connect connect-canvas" id="screen-connect">
+      <div class="connect-scene" aria-hidden="true">
+        <div class="connect-sky"><i class="star-field"></i><i class="sky-haze"></i></div>
+        <div class="connect-horizon"></div>
+        <div class="connect-sea"><i class="sea-light"></i><i class="sea-grain"></i></div>
       </div>
-      <div class="saved-computers hidden" id="saved-computers"></div>
-      <button class="primary-btn hidden" type="button" id="scan-open">扫描二维码</button>
-      <p class="row-desc hidden" id="scan-unavailable"></p>
-      <input class="paste" id="paste" type="url" placeholder="http://…/#offer=…" autocomplete="off" />
-      <button class="ghost-btn" type="button" id="paste-enter">用链接连接</button>
-      <div class="connect-notes">
-        <p class="row-desc" id="entry-split-hint">用相机 / 浏览器扫码打开本页＝web 端；装了 Android App 的话，在 App 内扫同一张码＝链接设备。</p>
-        <p class="row-desc">完整链接必须带 #offer=；微信 / QQ 打开会丢掉密钥，请改用系统相机或粘贴整段。</p>
+      <div class="connect-layout">
+        <header class="connect-brand">
+          <svg class="whale-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 27c0-8.3 7.6-15 17-15 7 0 12.5 3.6 15 9 2.3-.9 4.2-2.6 5.2-4.8.8 4-1 8-4.3 10.2C36.6 33.2 30.6 37 23 37 13.6 37 6 33.3 6 27Z" fill="currentColor"/><circle cx="16" cy="24" r="1.8" fill="var(--mobile-connect-mark-cutout)"/></svg>
+          <h1>Whale Isle</h1>
+          <p class="brand-lockup"><span></span>鲸屿 · MOBILE<span></span></p>
+          <p class="lead">扫一下，接着电脑上的工作。</p>
+        </header>
+        <div class="connect-dock">
+          <div class="connect-status" role="status">
+            <div class="device" id="device-line"><span class="live"></span>等待连接</div>
+            <p class="error hidden" id="connect-error"></p>
+          </div>
+          <div class="saved-computers hidden" id="saved-computers"></div>
+          <button class="primary-btn scan-primary hidden" type="button" id="scan-open">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7V4.5A1.5 1.5 0 0 1 4.5 3H7M13 3h2.5A1.5 1.5 0 0 1 17 4.5V7M17 13v2.5a1.5 1.5 0 0 1-1.5 1.5H13M7 17H4.5A1.5 1.5 0 0 1 3 15.5V13M6.5 10h7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            扫描二维码
+          </button>
+          <p class="row-desc hidden" id="scan-unavailable"></p>
+          <button class="ghost-btn paste-toggle" type="button" id="paste-toggle" aria-expanded="false" aria-controls="paste-panel">粘贴配对链接</button>
+          <div class="paste-panel hidden" id="paste-panel">
+            <input class="paste" id="paste" type="url" placeholder="粘贴含 #offer= 的完整链接" autocomplete="off" />
+            <button class="ghost-btn paste-submit" type="button" id="paste-enter">连接</button>
+            <p class="row-desc">微信 / QQ 会丢掉 #offer= 密钥，请粘贴完整链接。</p>
+          </div>
+          <p class="connect-trust">端到端加密，只连接你的电脑</p>
+          <p class="connect-entry-hint" id="entry-split-hint">系统相机打开 Web 端；在 Android App 内扫同一张码会链接设备。</p>
+        </div>
       </div>
     </section>
 
-    <section class="screen scan hidden" id="screen-scan">
-      <div class="scan-stage">
-        <video id="scan-video" playsinline muted autoplay></video>
-        <div class="scan-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <section class="screen scan connect-canvas hidden" id="screen-scan">
+      <div class="connect-scene" aria-hidden="true">
+        <div class="connect-sky"><i class="star-field"></i><i class="sky-haze"></i></div>
+        <div class="connect-horizon"></div>
+        <div class="connect-sea"><i class="sea-light"></i><i class="sea-grain"></i></div>
       </div>
-      <p class="scan-tip" id="scan-tip">将二维码放入框内</p>
-      <div class="scan-actions">
-        <button class="ghost-btn" type="button" id="scan-cancel">取消</button>
-        <button class="primary-btn hidden" type="button" id="scan-torch">手电筒</button>
+      <div class="scan-layout">
+        <header class="scan-header">
+          <button class="scan-back" type="button" id="scan-cancel" aria-label="返回连接页">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div>
+            <h2>扫描配对二维码</h2>
+            <p>Whale Isle · 鲸屿 MOBILE</p>
+          </div>
+          <span aria-hidden="true"></span>
+        </header>
+        <div class="scan-stage">
+          <video id="scan-video" playsinline muted autoplay></video>
+          <div class="scan-mask" aria-hidden="true"></div>
+          <div class="scan-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="connect-dock scan-dock">
+          <p class="scan-tip" id="scan-tip">将二维码完整放入取景框</p>
+          <button class="ghost-btn hidden" type="button" id="scan-torch">手电筒</button>
+          <p class="connect-trust">端到端加密，只连接你的电脑</p>
+        </div>
       </div>
     </section>
 
-    <section class="screen connect hidden" id="screen-permission">
-      <div class="connect-hero">
-        <svg class="whale-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 27c0-8.3 7.6-15 17-15 7 0 12.5 3.6 15 9 2.3-.9 4.2-2.6 5.2-4.8.8 4-1 8-4.3 10.2C36.6 33.2 30.6 37 23 37 13.6 37 6 33.3 6 27Z" fill="currentColor"/><circle cx="16" cy="24" r="1.8" fill="var(--dsw-specific-sidebar-fill)"/></svg>
-        <h2>需要相机权限</h2>
-        <p class="lead">扫码要用相机。浏览器拒绝了相机权限；请在浏览器的站点设置里允许本站使用相机，或改用粘贴配对链接。</p>
+    <section class="screen connect connect-canvas hidden" id="screen-permission">
+      <div class="connect-scene" aria-hidden="true">
+        <div class="connect-sky"><i class="star-field"></i><i class="sky-haze"></i></div>
+        <div class="connect-horizon"></div>
+        <div class="connect-sea"><i class="sea-light"></i><i class="sea-grain"></i></div>
       </div>
-      <button class="ghost-btn" type="button" id="permission-paste">改用粘贴链接</button>
+      <div class="connect-layout permission-layout">
+        <header class="connect-brand">
+          <svg class="whale-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M6 27c0-8.3 7.6-15 17-15 7 0 12.5 3.6 15 9 2.3-.9 4.2-2.6 5.2-4.8.8 4-1 8-4.3 10.2C36.6 33.2 30.6 37 23 37 13.6 37 6 33.3 6 27Z" fill="currentColor"/><circle cx="16" cy="24" r="1.8" fill="var(--mobile-connect-mark-cutout)"/></svg>
+          <h1>Whale Isle</h1>
+          <p class="brand-lockup"><span></span>鲸屿 · MOBILE<span></span></p>
+        </header>
+        <div class="connect-dock permission-dock">
+          <p class="dock-kicker">相机权限</p>
+          <h2>让鲸屿看见二维码</h2>
+          <p class="lead">在浏览器站点设置里允许相机，或改用完整配对链接。</p>
+          <button class="ghost-btn" type="button" id="permission-paste">粘贴配对链接</button>
+        </div>
+      </div>
     </section>
 
     <section class="screen chat hidden" id="screen-chat">
@@ -188,6 +235,6 @@
     <input type="file" accept="image/*" capture="environment" id="file-camera" hidden />
     <input type="file" accept="image/*" multiple id="file-gallery" hidden />
   </div>
-    <script type="module" src="./app.js?v=20260907-desktop-mobile"></script>
+    <script type="module" src="./app.js?v=20260929-readable-computer-name-v3"></script>
 </body>
 </html>

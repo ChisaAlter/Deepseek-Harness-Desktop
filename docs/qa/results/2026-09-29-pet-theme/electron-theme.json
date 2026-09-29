@@ -1,0 +1,110 @@
+{
+  "at": "2026-09-29T07:41:15.843Z",
+  "electron": "43.4.0",
+  "records": [
+    {
+      "recreated": false,
+      "source": "dark",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#151517"
+    },
+    {
+      "recreated": false,
+      "source": "light",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#FFFFFF"
+    },
+    {
+      "recreated": false,
+      "source": "system",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#FFFFFF"
+    },
+    {
+      "recreated": false,
+      "source": "dark",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#151517"
+    },
+    {
+      "recreated": true,
+      "source": "dark",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#151517"
+    },
+    {
+      "recreated": true,
+      "source": "light",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#FFFFFF"
+    },
+    {
+      "recreated": true,
+      "source": "system",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#FFFFFF"
+    },
+    {
+      "recreated": true,
+      "source": "dark",
+      "background": "#000000",
+      "css": {
+        "html": "rgba(0, 0, 0, 0)",
+        "body": "rgba(0, 0, 0, 0)"
+      },
+      "cornerAlpha": [
+        0
+      ],
+      "controlBackground": "#151517"
+    }
+  ]
+}

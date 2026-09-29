@@ -18,6 +18,10 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
         private set
     var webRequestId by mutableStateOf(0L)
         private set
+    var pasteExpanded by mutableStateOf(false)
+        private set
+    var pasteFocusRequestId by mutableStateOf(0L)
+        private set
     var scheme by mutableStateOf(store.scheme)
 
     val hasRememberedWebApp: Boolean
@@ -36,6 +40,16 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
         pair(paste)
     }
 
+    fun updatePasteExpanded(expanded: Boolean) {
+        pasteExpanded = expanded
+        if (expanded) pasteFocusRequestId += 1
+    }
+
+    fun openPasteEntry() {
+        updatePasteExpanded(true)
+        route = Route.Connect
+    }
+
     fun onScanned(raw: String) {
         pair(raw)
     }
@@ -45,6 +59,7 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
         val link = OfferCodec.parsePairingLink(text)
         if (link == null) {
             error = "无效的配对链接（需要完整的 dshd offer URL）"
+            pasteExpanded = true
             route = Route.Connect
             return
         }
@@ -96,6 +111,6 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
 
     companion object {
         internal const val WEB_APP_URL =
-            "https://appassets.androidplatform.net/assets/index.html?v=20260907-session-fork"
+            "https://appassets.androidplatform.net/assets/index.html?v=20260929-readable-computer-name-v3"
     }
 }

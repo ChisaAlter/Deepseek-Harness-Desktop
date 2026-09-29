@@ -205,3 +205,6 @@ The tree stays mounted for 200ms after logical close. Tests treat `aria-hidden` 
 - Presence: [`usePresence.ts`](../vendor/deepseek-harness/packages/client/ui-primitives/src/usePresence.ts)
 - Flip labels: [`FlipText.tsx`](../vendor/deepseek-harness/packages/client/ui-primitives/src/FlipText.tsx)
 - Desktop boot tokens: [`boot-tokens.css`](../src/renderer/boot-tokens.css), [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css)
+## Native Windows window transitions
+
+Main and launcher maximize, minimize and restore transitions are provided by Windows DWM, respecting system animation preferences without a page recipe. Shell windows must retain opaque native surfaces and caption/thick-frame styles. Windows owns the outside edge; never restore transparent layered windows for a fixed 20px radius. Inner page motion remains unchanged. Gates and interactive acceptance: [window-motion](features/window-motion.md).

@@ -131,12 +131,13 @@ async function main() {
 
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle0' });
   await check('配对：offer 链接进入 chat', async () => {
+    await clickId(page, 'paste-toggle');
     await page.type('#paste', `${BASE}/#offer=QAFAKE`);
-    await page.click('#paste-enter');
+    await clickId(page, 'paste-enter');
     await waitFor(page, () => !document.querySelector('#screen-chat').classList.contains('hidden'), 'chat visible');
   });
 
-  await page.click('#menu');
+  await openDrawer(page);
   await check('抽屉：全量 session.list，无 blank / dshbot / 加载更多', async () => {
     await waitFor(page, () => document.querySelectorAll('#session-list .session').length >= 3, 'sessions rendered');
     const view = await page.evaluate(() => ({
@@ -641,11 +642,13 @@ async function main() {
       all['qa-second'] = {
         deviceId: 'dev_qa2', deviceSecret: 'secret_qa2',
         daemonPublicKeyB64: 'pk2', relayEndpoint: '10.0.0.2:8411',
+        computerName: 'Whale Office',
         savedAt: Date.now() - 86400000,
       };
       all['qa-third'] = {
         deviceId: 'dev_qa3', deviceSecret: 'secret_qa3',
         daemonPublicKeyB64: 'pk3', relayEndpoint: '10.0.0.3:8411',
+        computerName: 'Whale Studio',
         savedAt: Date.now() - 1000,
       };
       localStorage.setItem(key, JSON.stringify(all));
@@ -658,14 +661,15 @@ async function main() {
     }));
     assert(!view.secrets.includes('qa-server'), 'disconnect must clear the active secret');
     assert(view.rows.length === 2, `saved rows: ${JSON.stringify(view.rows)}`);
-    assert(view.rows[0].includes('qa-third'), `newest first: ${view.rows[0]}`);
+    assert(view.rows[0].includes('Whale Studio'), `readable name + newest first: ${view.rows[0]}`);
+    assert(!view.rows.some((row) => row.includes('qa-second') || row.includes('qa-third')), `server ids stay hidden: ${JSON.stringify(view.rows)}`);
   });
   await shot('mobile-web-phase3-saved-computers');
 
   await check('已保存电脑：忘记移除该台', async () => {
     await page.evaluate(() => {
       const row = [...document.querySelectorAll('#saved-computers .saved-row')]
-        .find((node) => node.textContent.includes('qa-third'));
+        .find((node) => node.textContent.includes('Whale Studio'));
       row.querySelector('.saved-forget').click();
     });
     await waitFor(
@@ -679,7 +683,7 @@ async function main() {
     await page.evaluate(() => {
       window.__qa.calls = window.__qa.calls.filter((call) => call.method !== 'session.list');
       const row = [...document.querySelectorAll('#saved-computers .saved-row')]
-        .find((node) => node.textContent.includes('qa-second'));
+        .find((node) => node.textContent.includes('Whale Office'));
       row.querySelector('.saved-open').click();
     });
     await waitFor(page, () => !document.querySelector('#screen-chat').classList.contains('hidden'), 'chat visible');
@@ -701,10 +705,11 @@ async function main() {
       () => !document.querySelector('#screen-connect').classList.contains('hidden'),
       'connect screen',
     );
+    await clickId(page, 'paste-toggle');
     await page.type('#paste', `${BASE}/#offer=QAFAKE`);
     await clickId(page, 'paste-enter');
     await waitFor(page, () => !document.querySelector('#screen-chat').classList.contains('hidden'), 'chat visible');
-    await page.click('#menu');
+    await openDrawer(page);
     await waitFor(
       page,
       () => (document.querySelector('#session-list')?.textContent || '').includes('桌面端未启动'),

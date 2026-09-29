@@ -346,7 +346,6 @@ async function runColdStartGate({
   openLauncher,
   sendToLauncher,
   recoverInterruptedImport,
-  probeImportHold,
   readImportJournal,
   journalIsBlocked,
   startDesktop,
@@ -378,11 +377,9 @@ async function runColdStartGate({
   const recoveryBlocked = importRecovery.blocked === true
     || (typeof readImportJournal === 'function'
       && (journalIsBlocked || journalIsBlockedImpl)(readImportJournal(userDataDir)));
-  // Shallow probe only (feature card `data-import`): the gate needs the
-  // destEmpty && sourceHasData verdict, not session titles/cwd metadata —
-  // the full scanImport stays on the import page.
-  const holdForImport = probeImportHold().hold === true
-    || importRecovery.recovered === true
+  // Optional source data is not a startup blocker. Only an interrupted
+  // import or unresolved transaction may take over the cold-start route.
+  const holdForImport = importRecovery.recovered === true
     || recoveryBlocked;
   const lastStartFailed = readLastDesktopStart(userDataDir).ok === false;
   const stayAtLauncher = holdForImport || lastStartFailed;
@@ -400,7 +397,7 @@ async function runColdStartGate({
       importResume: { removedTmp: (importRecovery.removedTmp || []).length },
     });
   }
-  if (!holdForImport && lastStartFailed) {
+  if (!holdForImport && (lastStartFailed || !autoStart)) {
     sendToLauncher('shell:show-tab', { tab: 'home' });
   }
 

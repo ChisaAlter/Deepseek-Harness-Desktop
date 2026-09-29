@@ -44,6 +44,9 @@ export function whalePresetDefinition(homeDir) {
     name: '鲸鱼娘助理',
     description: '桌面鲸鱼娘助理会话用的内置预设',
     order: 90,
+    // Internal preset: usable by her own session and IM by id, never a
+    // user-selectable mode in the new-task roster.
+    hidden: true,
     plugins: [
       { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { includeRuntimeContext: false, prefix: '' } },
       { id: 'agent-instructions', name: '@deepseek-ai/dsh-agent-instructions', config: { maxBytes: 65536 } },

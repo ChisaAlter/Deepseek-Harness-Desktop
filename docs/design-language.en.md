@@ -48,7 +48,11 @@ After sending, the local echo hands off to the same durable user-message bubble.
 
 Submitting a draft moves the resident composer continuously into its conversation position without a bottom flash or rebound. Transcript, statistics, and input-size updates must not expose intermediate layouts. Reuse existing motion duration and easing; reduced motion settles immediately. Decoration and final geometry remain unchanged.
 
-The mobile remote connect screen reuses its device status and error lines: pairing and saved-device reconnect show a connecting state; failure shows a failed state and restores connection controls without deleting saved devices. Never leave the waiting-for-pairing label during a connection or disable controls indefinitely. Automatic recovery after an established connection remains unchanged.
+Workspace pickers follow the [remote workspace card](features/remote-workspace.md): Local / Remote tabs stay in place, with matching content insets and fixed action footers. Loading and failed states retain Cancel; errors offer retry.
+
+The mobile remote pre-connection entry is a narrow-screen relative of the desktop Whale Isle boot canvas: a horizon at 62%, pale skylight / blue water in light mode, restrained stars / deep water in dark mode, and a centered `Whale Isle` plus `鲸屿 · MOBILE` lockup. A compact bottom action dock owns scanning, paste, saved computers, and connection status. This treatment is limited to connect, camera permission, and scan entry; it never enters paired chat. Mobile restates the semantics as `--mobile-connect-*` / Compose `DshTokens`: it does not import `--boot-*` or copy desktop logs, state machines, or window controls.
+
+Pairing and saved-device reconnect show a connecting state; failure is one short status inside the dock, restores controls, and keeps saved devices rather than taking over the first screen with a long error. Never leave the waiting-for-pairing label during a connection or disable controls indefinitely. The Android bundled WebView primary action must reach native scanning and must not be treated as a generic browser with an unsupported-scan message. Automatic recovery after an established connection remains unchanged.
 
 Web and Android share recovery states: indicate catalog synchronization after authentication and offer Retry beneath the existing drawer error, never a false empty catalog. A new offer supersedes an older attempt; successful pairing removes the one-time fragment. Foreground recovery retains drafts and checks the connection before resynchronizing the catalog and open conversation. Reuse existing controls and status bars.
 
@@ -62,7 +66,7 @@ The plugin marketplace does not inject a first-party dshbot recommendation card.
 4. **The accent is not electric blue.** Default primary buttons are near-black (light) / near-white (dark): `--dsw-alias-button-primary-fill` (`rgb(15, 17, 21)` in light). Brand blue is `--dsw-static-deepseek-500` (`rgb(65, 118, 230)`) and its aliases (`--dsw-alias-button-info-fill`, `--dsw-alias-state-business-primary`) for info emphasis, user bubbles, and selection. Do not introduce `#2b5cff`, `#6ea8ff`, or `#3964fe`.
 5. **Borders are alpha, not solid gray.** Light `rgba(0,0,0,.04/.10/.12)`, dark `rgba(255,255,255,.06/.12/.16)` — `--dsw-alias-border-l1`–`l3`. Columns are separated by a 1px hairline, not a wall of shadowed cards.
 6. **Hover / active use the interactive tokens.** Light `rgba(38, 49, 72, .06 / .10)`, dark `rgba(255,255,255,.08 / .14)`: `--dsw-alias-interactive-bg-hover` / `active`. Do not mint a new solid gray wash.
-7. **Radius by role.** Primary capsule 18 (height 36) / compact 14 (height 28); input 8; menu 12; dialog 24; tooltip 8; icon hit-target 8. No 6px rectangles; no 999px except capsules and switches. Desktop shell outer frame (`.frame` edge and the Windows titlebar content corner `--dsh-windows-content-radius`) 20; launcher window frame 20. Both windows are `transparent`: the launcher's silhouette is drawn by its `.shell` card, and the desktop's by the page itself — the boot `.scene` rounded card, and in harness an injected `body` (`position:relative`) radius clip backed by the `#dshd-frame-canvas` base layer (zeroed while maximized) — absolute/fixed full-viewport layers escape body's rounded clip, so `#dsh-wallpaper` and `#dshd-frame-canvas` carry the same radius themselves. The window corner is a plain circular arc via `corner-shape: round` — the silhouette layers and `.frame` inside the harness page explicitly opt out of the client-wide superellipse(1.5), which would pull the frame corner too tight; inner controls keep their role values. Transparent silhouette windows also drop the OS corner mask (`roundedCorners: false` — `windowChrome` disables it automatically for `transparent` overrides): Windows 11's ~8px DWM mask is not alpha-blended and would stair-step the larger page-drawn arc; transparent windows that paint no silhouette (welcome) keep OS rounding.
+7. **Radius by role.** Primary capsule 18 (height 36) / compact 14 (height 28); input 8; menu 12; dialog 24; tooltip 8; icon hit-target 8. No 6px rectangles; no 999px except capsules and switches. Windows main (boot / Harness) and launcher windows use opaque native surfaces: `transparent: false`, `thickFrame: true`, `roundedCorners: true`. Windows owns the outer silhouette, shadow and maximize/minimize/restore transitions, respecting system animation preferences. Never restore transparent windows or geometry-only maximization for a fixed 20px outer radius. Page edges fill the native client area without a second 20px outer clip or ring. The inner Windows content corner `--dsh-windows-content-radius` remains 20; controls retain their role values, and wallpaper/transparent themes remain page effects. Non-Windows shells retain transparent page-painted 20px silhouettes with `corner-shape: round`, zeroed on maximization; transparent silhouette windows disable the OS corner mask. Pets, transparent overlays and welcome retain their window roles. Full contract: [window-motion](features/window-motion.md).
 8. **Font size always pairs with line-height.** Title 16/24, body 14/22, compact 12/18, tooltip 13/20. Weights 400 / 500 / 600 / 700; Figma 510 renders as 500. No `font-weight: 650`.
 9. **Spacing is a multiple of 4.** Padding, gap, and column gutters use 4 / 8 / 12 / 14 / 16 / 20 / 24.
 10. **Icons are 16px `currentColor`.** Use `ui-primitives` `ic_ds_*`. Dense title-bar chrome may use 14px. Do not add another icon pack or filled brand-color glyphs.
@@ -262,9 +266,10 @@ Button-hover metallic paint (`metallic-paint.css`, a CSS port of the ayase motio
 
 ## Mobile remote interaction
 
-The page structure of remote Web and the Android bundled SPA follows the
-Claude mobile app; colors, font stack and light/dark still come only from the
-same-value token tables, and the desktop is unaffected. The full contract lives
+The paired page structure of remote Web and the Android bundled SPA follows the
+Claude mobile app; the pre-connection entry uses the constrained Whale Isle
+sea-horizon canvas. Colors, font stack and light/dark still come only from the
+same-value semantic token tables, and the desktop is unaffected. The full contract lives
 in [design-language-mobile.en.md](design-language-mobile.en.md); the decision
 is in
 [Mobile remote Claude-style structure](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.en.md).
@@ -274,6 +279,8 @@ is in
 Startup enters the workspace without welcome or first-run setup; configuration remains in Settings. See the [contract](features/desktop-welcome.md).
 
 ## Desktop boot page
+
+After a built-in plugin toggle is cleared to restart, reveal this recovery canvas before asynchronously stopping the old service; do not leave the disconnected settings page as a frozen frame while waiting.
 
 The boot page is one sea-horizon canvas for the whole window. It is not a centered card, and logs do not sit permanently inside the scene. Sources: [`boot.html`](../src/renderer/boot.html), [`boot.css`](../src/renderer/boot.css), [`boot-tokens.css`](../src/renderer/boot-tokens.css), [`boot.js`](../src/renderer/boot.js).
 
@@ -298,7 +305,7 @@ The desktop pet is a constrained overlay owned by the Desktop shell — not a bo
 
 ### Live2D whale-girl dialogue bubble
 
-The Live2D pet paints on a full-screen transparent Canvas, separate from the small Codex pet view inside the main window.
+The Live2D pet paints on a full-screen transparent Canvas, separate from the small Codex pet view inside the main window. Its native full-screen backing stays transparent in light, dark, and system themes and after window recreation; global theme repainting must never give it an opaque fill.
 
 Expanded whale-girl animations use `pet-live2d/avatar/character.png` as the sole identity reference: preserve the proportions and rendering of blue hair, whale-fin ears, ahoge, white maid headband, navy dress, whale-marked white apron, blue shoes, and long whale tail. The target asset pack covers 24 body actions and 12 expressions, with transparent sequential frames for individual actions; curled sleeping, holding food, and hanging must have genuinely distinct poses. Bubbles, stars, and hearts only support the performance. Idle retains live breathing, blinking, and gaze; prolonged inactivity first makes her gradually drowsy before sleep, and any interaction interrupts dozing; autonomous expressions should suit her current mood and affection. Eating must visibly include holding food, chewing, and settling; a floating bowl covering the apron cannot stand in for hand motion. Airborne throwing and hanging need perceptibly different poses and expressions. New atlases must not overwrite the original reference. Each clip declares entry/loop/exit semantics, while interaction physics drives drag direction and throwing inertia. Let playback quality determine frame count; a sheet enters the approved set only after individual-frame identity and silhouette review plus continuous playback review. Save source sheets, manifest, generation prompts, and playable previews together; unverified assets must not be described as integrated.
 
@@ -314,11 +321,11 @@ The whale-girl dialogue bubble anchors to the character's head and shares her Ca
 
 ## Desktop launcher
 
-The Recovery Board heading uses the 16/24 title role. The import list keeps at least 120px of scrollable body height. When zoom reduces the effective viewport, the outer main content scrolls vertically so instructions, individual selection, and import actions remain reachable. Inline confirmation cards are capped at the viewport height minus 24px above and below; long body text scrolls independently without pushing the title or actions outside the window.
+Import is user-opened except for transaction recovery. Home shows only version, state and one start/close action (retry after failure). Busy state shows real elapsed time and locks conflicting actions. Errors and plugin recovery belong in initially collapsed startup diagnostics; omit empty lists.
 
-The Recovery Board distinguishes session projection-cache schema failures from user-plugin failures in its existing verdict text. Cache diagnostics take precedence over skip-mode status, add no panel or controls, and never recommend clearing original sessions.
+Diagnostics headings use 16/24. Import bodies keep at least 120px with outer scrolling at zoom. Confirmation cards leave 24px above and below, with scrolling text and non-shrinking headings/actions. Cache failures outrank skip status; do not blame plugins or clear sessions.
 
-The launcher is the cold-start gate window, not the sea-horizon canvas. Sources: [`launcher.html`](../src/renderer/launcher.html), [`launcher.css`](../src/renderer/launcher.css), [`launcher.js`](../src/renderer/launcher.js). Color comes from the baseline light `:root` and dark `html[data-ds-dark-theme]` tables in [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css). `html[data-shell-theme=official]` makes [`theme.js`](../src/renderer/theme.js) apply only the light/dark half of `theme.scheme` and skip Appearance wallpaper seeds on `--dsw-alias-*`. Do not use `--boot-*` or `data-boot-theme`, and do not add a second `[data-theme]` / `prefers-color-scheme` palette in `launcher.css`.
+Reuse shared light/dark tokens. Official mode changes only scheme, without wallpaper seeds. No boot tokens or second palette. Implementation: [boot lifecycle](handbook/modules/boot-lifecycle.md).
 
 ## Known drift (do not spread)
 

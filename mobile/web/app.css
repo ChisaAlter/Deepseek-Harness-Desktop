@@ -99,66 +99,129 @@ button { cursor: pointer; }
   background: var(--dsw-specific-sidebar-fill);
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
-.connect { overflow: auto; }
 .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.connect {
-  padding: 0 20px 20px;
-  gap: 12px;
+.connect-canvas {
+  position: relative; isolation: isolate; overflow: hidden; padding: 0;
+  color: var(--mobile-connect-ink); background: var(--mobile-connect-scene);
 }
-.connect-hero {
-  flex: 1; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 12px; text-align: center;
+.connect-scene, .connect-sky, .connect-sea,
+.star-field, .sky-haze, .sea-light, .sea-grain { position: absolute; inset: 0; pointer-events: none; }
+.connect-scene { z-index: -1; }
+.connect-sky { bottom: 38%; overflow: hidden; }
+.connect-sea { top: 62%; overflow: hidden; }
+.connect-horizon {
+  position: absolute; z-index: 1; top: 62%; left: 0; right: 0; height: 1px;
+  background: var(--mobile-connect-hairline);
 }
+.star-field { background: var(--mobile-connect-stars); opacity: 0.86; }
+.sky-haze { background: var(--mobile-connect-haze); }
+.sea-light { background: var(--mobile-connect-sea-light); }
+.sea-grain { background: var(--mobile-connect-grain); background-size: 160px 160px; opacity: 0.7; }
+.connect-layout {
+  min-height: 100%; position: relative; z-index: 2; display: flex; flex-direction: column;
+  gap: 18px; overflow-y: auto; overscroll-behavior: contain;
+  /* .phone already owns safe-area padding for every screen. */
+  padding: 20px 16px 16px;
+}
+.connect-brand {
+  flex: 1 0 280px; min-height: 280px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 30px 0 12px;
+}
+.connect-brand .whale-mark { width: 30px; height: 30px; margin-bottom: 14px; color: var(--mobile-connect-mark); }
+.connect-brand h1 {
+  margin: 0; font-family: Didot, 'Bodoni 72', 'Bodoni MT', 'Times New Roman', serif;
+  font-size: clamp(34px, 10vw, 44px); line-height: 1.12; font-weight: 400;
+  letter-spacing: 0.08em; color: var(--mobile-connect-ink);
+}
+.brand-lockup {
+  margin: 13px 0 0; display: flex; align-items: center; gap: 10px;
+  font-size: 10px; line-height: 16px; font-weight: 600; letter-spacing: 0.32em;
+  color: var(--mobile-connect-muted);
+}
+.brand-lockup span { width: 20px; height: 1px; background: var(--mobile-connect-hairline); }
+.connect-brand .lead { margin-top: 18px; font-size: 13px; line-height: 20px; color: var(--mobile-connect-muted); }
 .whale-mark { width: 36px; height: 36px; flex: none; color: var(--dsw-alias-state-business-primary); }
-.connect-hero h2 {
-  margin: 0; font-size: 22px; line-height: 30px; font-weight: 500;
-}
-.connect-hero .lead { font-size: 13px; line-height: 20px; max-width: 280px; }
 .blank h2 {
   margin: 0; font-size: 22px; line-height: 30px; font-weight: 500;
 }
 .lead { margin: 0; color: var(--dsw-alias-label-secondary); }
+.connect-dock {
+  flex: none; width: min(100%, 440px); margin: 0 auto; display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border: 1px solid var(--mobile-connect-panel-border); border-radius: 24px;
+  background: var(--mobile-connect-panel); box-shadow: var(--mobile-connect-panel-shadow);
+  -webkit-backdrop-filter: blur(22px) saturate(112%); backdrop-filter: blur(22px) saturate(112%);
+}
+.connect-status {
+  min-height: 30px; display: flex; flex-direction: column; justify-content: center;
+  padding: 5px 10px; border-radius: 12px; background: var(--mobile-connect-status-surface);
+}
 .device {
   display: flex; align-items: center; gap: 8px;
-  font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary);
+  font-size: 12px; line-height: 18px; color: var(--mobile-connect-muted);
 }
 .live {
-  width: 8px; height: 8px; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
   background: var(--dsw-alias-state-success-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-success-primary) 15%, transparent);
 }
 .error { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; }
+.connect-status .error { margin-top: 3px; overflow-wrap: anywhere; }
 .primary-btn, .ghost-btn {
   height: 32px; padding: 0 14px; border-radius: 16px;
   font-size: 13px; line-height: 20px; font-weight: 500;
 }
-.connect .primary-btn, .connect .ghost-btn {
-  width: 100%; height: 40px; border-radius: 20px;
+.connect-dock > .primary-btn, .connect-dock > .ghost-btn, .permission-dock > .ghost-btn {
+  width: 100%; height: 46px; border-radius: 16px;
   font-size: 14px; line-height: 22px;
 }
+.scan-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.scan-primary svg { width: 18px; height: 18px; }
 .primary-btn {
   border: 0;
   background: var(--dsw-alias-button-primary-fill);
   color: var(--dsw-alias-label-primary-foreground);
 }
+.connect-dock > .primary-btn {
+  background: var(--mobile-connect-primary); color: var(--mobile-connect-primary-ink);
+}
 .primary-btn:hover { background: var(--dsw-alias-button-primary-hover); }
+.connect-dock > .primary-btn:hover { filter: brightness(1.06); }
 .ghost-btn { border: 1px solid var(--dsw-alias-border-l2); background: transparent; }
+.connect-dock > .ghost-btn { border-color: var(--mobile-connect-panel-border); color: var(--mobile-connect-ink); }
 .ghost-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.primary-btn:disabled, .ghost-btn:disabled {
+  opacity: 0.48; cursor: not-allowed; filter: none;
+}
+.paste-panel {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px;
+  padding: 10px; border: 1px solid var(--mobile-connect-panel-border); border-radius: 16px;
+  background: var(--mobile-connect-row-surface);
+}
 .paste {
   width: 100%; height: 40px; padding: 0 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--mobile-connect-panel-border); outline: 0;
+  border-radius: 12px; color: var(--mobile-connect-ink); background: var(--mobile-connect-panel);
 }
 .paste::placeholder { color: var(--dsw-alias-label-caption); }
-/* 已保存的电脑（多台 sticky 选择）：一张分组卡片 + 行尾「忘记」。 */
+.paste:focus { border-color: var(--mobile-connect-muted); }
+.paste-submit { height: 40px; border-radius: 12px; border-color: var(--mobile-connect-panel-border); }
+.paste-panel .row-desc { grid-column: 1 / -1; margin: 0 2px; color: var(--mobile-connect-muted); }
+.connect-trust, .connect-entry-hint {
+  margin: 0; text-align: center; color: var(--mobile-connect-muted);
+}
+.connect-trust { font-size: 11px; line-height: 18px; letter-spacing: 0.04em; }
+.connect-entry-hint { font-size: 10px; line-height: 16px; opacity: 0.78; }
+.connect-dock > .row-desc { margin: 0; padding: 0 8px; text-align: center; color: var(--mobile-connect-muted); }
+/* 已保存的电脑：连接坞内的紧凑重连行。 */
 .saved-computers { display: flex; flex-direction: column; gap: 6px; }
 .saved-title {
-  margin: 0; font-size: 12px; line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
+  margin: 0 4px; font-size: 10px; line-height: 16px; letter-spacing: 0.12em;
+  color: var(--mobile-connect-muted);
 }
 .saved-row {
   display: flex; align-items: stretch;
-  border: 1px solid var(--dsw-alias-border-l1); border-radius: 14px;
-  background: var(--dsw-alias-bg-layer-1); overflow: hidden;
+  border: 1px solid var(--mobile-connect-panel-border); border-radius: 14px;
+  background: var(--mobile-connect-row-surface); overflow: hidden;
 }
 .saved-row + .saved-row { margin-top: 0; }
 .saved-computers > .saved-row { border-radius: 0; border-width: 0 0 1px; }
@@ -167,29 +230,43 @@ button { cursor: pointer; }
 .saved-computers > .saved-row:only-of-type { border-radius: 14px; border-width: 1px; }
 .saved-open {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px;
-  min-height: 48px; padding: 8px 14px; text-align: left;
-  border: 0; background: transparent; color: var(--dsw-alias-label-primary);
+  min-height: 52px; padding: 7px 10px; text-align: left;
+  border: 0; background: transparent; color: var(--mobile-connect-ink);
 }
 .saved-open:hover:not([disabled]) { background: var(--dsw-alias-interactive-bg-hover); }
 .saved-open[disabled] { color: var(--dsw-alias-label-caption); cursor: default; }
 .saved-open b {
-  font-size: 14px; line-height: 20px; font-weight: 500;
+  font-size: 13px; line-height: 19px; font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .saved-desc {
-  font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary);
+  font-size: 11px; line-height: 16px; color: var(--mobile-connect-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .saved-open .saved-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .saved-forget {
   flex: none; align-self: center; margin-right: 8px; padding: 0 10px; height: 28px;
   border: 0; border-radius: 14px;
-  background: transparent; color: var(--dsw-alias-label-tertiary);
+  background: transparent; color: var(--mobile-connect-muted);
   font-size: 12px; line-height: 18px;
 }
 .saved-forget:hover:not([disabled]) { background: var(--dsw-alias-interactive-bg-hover); }
 .saved-forget[disabled] { color: var(--dsw-alias-label-caption); cursor: default; }
-.connect-notes { display: flex; flex-direction: column; gap: 4px; text-align: center; }
+.permission-layout { justify-content: flex-end; }
+.permission-layout .connect-brand { flex-basis: 340px; }
+.permission-dock { text-align: left; }
+.dock-kicker {
+  margin: 0; color: var(--mobile-connect-muted); font-size: 10px; line-height: 16px;
+  font-weight: 600; letter-spacing: 0.16em;
+}
+.permission-dock h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.permission-dock .lead { color: var(--mobile-connect-muted); font-size: 13px; line-height: 20px; }
+@media (max-height: 700px), (orientation: landscape) {
+  .connect-layout { gap: 12px; }
+  .connect-brand { flex-basis: 190px; min-height: 190px; padding-top: 10px; }
+  .connect-brand .lead { margin-top: 10px; }
+  .connect-dock { border-radius: 20px; }
+}
 .chat { position: relative; }
 .topbar {
   flex: none; display: flex; align-items: center; height: 48px; padding: 0 6px;
@@ -832,31 +909,58 @@ button { cursor: pointer; }
 .group > .hair:last-child { border-bottom: 0; }
 .group > .hair .paste { width: auto; flex: 1; min-width: 0; max-width: 60%; height: 32px; padding: 0 10px; }
 .tag { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
-/* Camera is an instrument inside the Harness canvas, not a separate dark app. */
-.scan {
-  background: var(--dsw-specific-sidebar-fill); color: var(--dsw-alias-label-primary);
-  padding: 28px 24px 16px; gap: 12px;
+/* Camera stays high-contrast while its shell remains on the connection canvas. */
+.scan.connect-canvas { padding: 0; gap: 0; color: var(--mobile-connect-ink); }
+.scan-layout {
+  position: relative; z-index: 2; min-height: 100%; display: flex; flex-direction: column;
+  gap: 12px; padding: 8px 16px 16px; overflow-y: auto; overscroll-behavior: contain;
 }
+.scan-header {
+  flex: none; min-height: 48px; display: grid; grid-template-columns: 48px 1fr 48px;
+  align-items: center; border-bottom: 1px solid var(--mobile-connect-hairline);
+}
+.scan-header > div { min-width: 0; }
+.scan-header h2 {
+  margin: 0; color: var(--mobile-connect-ink); font-size: 16px; line-height: 22px; font-weight: 600;
+}
+.scan-header p {
+  margin: 0; color: var(--mobile-connect-muted); font-size: 11px; line-height: 16px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.scan-back {
+  width: 48px; height: 48px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 50%; color: var(--mobile-connect-ink); background: transparent;
+}
+.scan-back:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.scan-back svg { width: 20px; height: 20px; }
 .scan-stage {
-  position: relative; flex: none; width: 100%; aspect-ratio: 0.8;
-  max-height: min(62dvh, 480px); border-radius: 16px; overflow: hidden; background: rgb(31, 33, 36);
+  position: relative; flex: 1 1 420px; width: min(100%, 520px); min-height: 280px;
+  margin: 0 auto; border: 1px solid var(--mobile-connect-panel-border);
+  border-radius: 20px; overflow: hidden; background: var(--mobile-connect-camera-surface);
 }
 .scan-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scan-mask {
+  position: absolute; inset: 18%; pointer-events: none; border-radius: 8px;
+  box-shadow: 0 0 0 999px var(--mobile-connect-camera-scrim);
+}
 .scan-frame { position: absolute; inset: 18%; pointer-events: none; }
-.scan-frame i { position: absolute; width: 28px; height: 28px; border: 0 solid rgb(249, 250, 251); }
+.scan-frame i { position: absolute; width: 28px; height: 28px; border: 0 solid var(--mobile-connect-camera-ink); }
 .scan-frame i:nth-child(1) { top: 0; left: 0; border-top-width: 2px; border-left-width: 2px; }
 .scan-frame i:nth-child(2) { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
 .scan-frame i:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
 .scan-frame i:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
-.scan-tip { margin: 0; text-align: center; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
-.scan-actions { display: flex; justify-content: center; gap: 8px; }
-.scan-actions .ghost-btn {
-  min-width: 140px; height: 40px; border-radius: 20px;
-  color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l2);
+.scan-dock { width: min(100%, 520px); padding: 10px 14px; gap: 6px; border-radius: 20px; }
+.scan-tip { margin: 0; text-align: center; font-size: 12px; line-height: 18px; color: var(--mobile-connect-muted); }
+.scan-dock > .ghost-btn {
+  width: 100%; height: 40px; border-radius: 20px;
+  color: var(--mobile-connect-ink); border-color: var(--mobile-connect-panel-border);
 }
-.scan-actions .ghost-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.scan-actions .primary-btn {
-  min-width: 140px; height: 40px; border-radius: 20px;
+.scan-dock > .ghost-btn.is-on {
+  color: var(--mobile-connect-camera-ink); background: var(--mobile-connect-torch-surface);
+}
+@media (max-height: 620px), (orientation: landscape) {
+  .scan-layout { gap: 8px; padding-bottom: 8px; }
+  .scan-stage { flex-basis: 280px; min-height: 210px; }
 }
 
 /* Desktop Menu / Modal / full-screen task roles, reflowed for a phone. */

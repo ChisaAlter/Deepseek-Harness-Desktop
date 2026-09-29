@@ -43,6 +43,17 @@ light/dark colors.
 - Android native code only re-lays out the connect, camera-permission and
   scan screens; chat remains the same `mobile/web` sources, and protocol,
   pairing, navigation hierarchy and sticky behavior are unchanged.
+- The pre-connection entry composes rather than copies its references: its
+  information hierarchy follows ChisaCode Android (brand, concise explanation,
+  primary scan, secondary paste, saved-device reconnect) while its atmosphere
+  follows the Whale Isle desktop boot canvas (light/dark sky and sea). The
+  horizon is limited to connect / permission / scan and immediately yields to
+  Claude-style mobile chat after pairing. WebView invokes native scanning only
+  through a controlled `dshd://scan` navigation.
+- A saved computer's user-facing name comes from `server_info.hostname` and is
+  added to the existing sticky as optional `computerName`. Old records remain
+  readable and fall back to `My computer`; `serverId` remains only the pairing
+  and reconnect key and never occupies the name slot.
 
 ## Alternatives considered
 
@@ -59,6 +70,10 @@ light/dark colors.
 - **Keep the desktop narrow reflow and only retune sizes**: the smallest
   change, but it keeps the overloaded drawer and desktop-style menus and does
   not reach the mobile feel the user asked for, so this was rejected.
+- **Embed the desktop boot page unchanged in Android**: this would carry logs,
+  window state, and `--boot-*` into another runtime, creating a second state
+  machine and a brittle pixel copy. Only the sky/water relationship and brand
+  atmosphere are retained; mobile implements them with its own semantic tokens.
 
 ## Consequences
 
@@ -71,6 +86,9 @@ light/dark colors.
   「desktop geometry」test assertions are rewritten to the new contract.
 - The full session list moved from the drawer to a full-screen task, adding
   one layer to the back hierarchy that unified-Back handling must cover.
+- The first connection action is shorter and errors no longer occupy the whole
+  screen. The cost is one scan-only internal navigation between WebView and
+  native code, covered by Android unit tests and real-device return-path QA.
 - The reviewed prototype (fake data, including the rejected workbench variant)
   is kept as [mobile-claude-redesign.html](../../../superpowers/prototypes/mobile-claude-redesign.html);
   it does not ship in the APK and is not served by the phone server; the

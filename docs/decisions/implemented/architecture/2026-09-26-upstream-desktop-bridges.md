@@ -24,6 +24,8 @@ Status: implemented
 
 6. **`__DSH_HOST_PATHS__`**：`webUtils.getPathForFile` 窄桥使 composer 拖文件得真实路径，`ui-file-reference-local` 的 `@path` 引用激活（不传字节、内容最新）。
 
+Platform 会话路由在每次请求时从 Cordis 读取当前 `deepseekAccount`，不缓存路由安装时的服务引用。账户服务可晚于 WebServer 就绪，也可被替换或移除；捕获初始引用会让已登录用户的「查询用量」持续报 `Platform account unavailable`。回归测试覆盖晚启动、服务替换和移除，保留原 Bearer 鉴权与凭据边界。
+
 ## Alternatives considered
 
 - **整挂上游 apps/desktop**：换掉我们 Electron 壳/launcher/profile——与既定架构决策冲突，拒。

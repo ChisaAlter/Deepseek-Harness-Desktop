@@ -843,7 +843,7 @@ test('legacy RemoteGateway offer fixture remains contained while the production 
   assert.equal(spa.status, 200);
   assert.match(spa.body, /screen-scan/);
   assert.match(spa.body, /screen-permission/);
-  assert.match(spa.body, /等待配对/);
+  assert.match(spa.body, /等待连接/);
 
   // 5. Product app.js uses the ChisaCode v2 session path, not the legacy HTTP login helpers
   // exercised below for containment coverage.

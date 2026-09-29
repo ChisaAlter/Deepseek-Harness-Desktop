@@ -39,7 +39,7 @@ const { createUpdatesState } = require('./updates-state');
 const { BrowserGuests, installBrowserGuests } = require('./browser-guests');
 const { connectWelcome } = require('./welcome-backend');
 const { resolveDesktopStartupLocale } = require('./desktop-locale');
-const { probeImportHold, recoverInterruptedImport, readImportJournal, journalIsBlocked } = require('./data-import');
+const { recoverInterruptedImport, readImportJournal, journalIsBlocked } = require('./data-import');
 const { isLauncherPackage } = require('../launcher/product');
 const runtimeInstall = require('../launcher/runtime-install');
 const installDetect = require('../launcher/install-detect');
@@ -577,7 +577,6 @@ function runColdStartGate() {
     openLauncher,
     sendToLauncher,
     recoverInterruptedImport: () => recoverInterruptedImport({ userDataDir }),
-    probeImportHold,
     readImportJournal,
     journalIsBlocked,
     startDesktop: launcherPackage

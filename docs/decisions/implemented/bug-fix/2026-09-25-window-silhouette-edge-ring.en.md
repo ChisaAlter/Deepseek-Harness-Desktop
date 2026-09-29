@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-09-25-window-silhouette-edge-ring.md) | English
 
+> Windows main/launcher transparency and outer-silhouette requirements are superseded by [native window motion](2026-09-29-native-window-motion.en.md); non-Windows, inner content corners and unrelated decisions remain valid.
+
 ## Problem
 
 After the rounded corners and window controls were restored, the user still reported "the corners look very blurry". The main window is a `frame:false + transparent:true` layered window whose rounded silhouette is entirely a page-painted alpha edge (`harness-chrome-inject.js` gives `body` a 20px radius + `overflow:hidden` clip). Pixel measurements showed the straight/arc edge transition is only ~1.5–2 physical pixels (at 150% DPI) — close to normal antialiasing — but a bare alpha-AA edge has no anchoring line and reads as haze against the desktop wallpaper. The sibling launcher card gets a crisp outline from `.shell`'s `inset 0 0 0 1px var(--dsw-alias-border-l1)` hairline ring; the Harness silhouette lacked an equivalent.

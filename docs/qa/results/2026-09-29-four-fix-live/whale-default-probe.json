@@ -1,0 +1,73 @@
+{
+  "at": "2026-09-29T07:02:10.251Z",
+  "userData": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-verify-default-20260929-150041",
+  "resolvedEnabled": true,
+  "sidebar": {
+    "whale": [
+      {
+        "text": "鲸鱼娘",
+        "rect": {
+          "x": 14,
+          "y": 160,
+          "width": 252,
+          "height": 36,
+          "top": 160,
+          "right": 266,
+          "bottom": 196,
+          "left": 14
+        }
+      }
+    ],
+    "bodyHasWhale": true
+  },
+  "petTabFound": true,
+  "settings": {
+    "rows": [
+      {
+        "role": "switch",
+        "checked": "true",
+        "label": ""
+      },
+      {
+        "role": "switch",
+        "checked": "false",
+        "label": ""
+      },
+      {
+        "role": "switch",
+        "checked": "true",
+        "label": ""
+      },
+      {
+        "role": "switch",
+        "checked": "true",
+        "label": ""
+      },
+      {
+        "role": "switch",
+        "checked": "false",
+        "label": ""
+      },
+      {
+        "role": "switch",
+        "checked": "false",
+        "label": ""
+      },
+      {
+        "role": "switch",
+        "checked": "true",
+        "label": ""
+      }
+    ],
+    "hasAssistantText": true,
+    "bodyText": "assistant settings visible"
+  },
+  "checks": {
+    "resolvedDefaultTrue": true,
+    "sidebarEntryPresent": true,
+    "assistantSettingVisible": true,
+    "launchConfigOmittedKey": true
+  },
+  "launchConfigOmittedKey": true,
+  "configKeyPresentAfterRun": true
+}

@@ -13,6 +13,19 @@ const PRELOAD = path.join(__dirname, '..', 'preload', 'index.js');
 const results = { calls: [] };
 const pendingCancels = new Map();
 let importResolve = null;
+let startResolve = null;
+let startReject = null;
+let stopResolve = null;
+let startupState = 'idle';
+const startupError = "EEXIST: symlink C:\\fixture\\vendor\\dsh-im -> C:\\fixture\\profile\\dsh-im";
+ipcMain.handle('shell:start-desktop', () => {
+  results.calls.push({ op: 'start-desktop' });
+  return new Promise((resolve, reject) => { startResolve = resolve; startReject = reject; });
+});
+ipcMain.handle('shell:stop-desktop', () => {
+  results.calls.push({ op: 'stop-desktop' });
+  return new Promise(resolve => { stopResolve = resolve; });
+});
 
 ipcMain.handle('shell:save-launcher-config', (_e, patch) => {
   results.calls.push({ op: 'save-launcher-config', patch });
@@ -33,6 +46,11 @@ ipcMain.handle('shell:run-import', (_e, opts) => {
 ipcMain.handle('shell:scan-import', () => ({ ok: true, sessions: [], skills: [], plugins: [], mcp: [], settings: [], presets: [] }));
 ipcMain.handle('shell:launcher-status', () => ({
   ok: true,
+  ...(process.env.QA_STARTUP_FLOW === '1' ? {
+    version: '0.3.3', desktop: { state: startupState },
+    lastStart: { ok: startupState === 'ready', error: startupError },
+    forensics: { plugins: [], suspects: [] },
+  } : {}),
   state: 'idle',
   downloadRoute: 'stable',
   routes: [
@@ -63,6 +81,7 @@ app.whenReady().then(async () => {
     height: 800,
     show: false,
     webPreferences: {
+      backgroundThrottling: false,
       preload: PRELOAD,
       contextIsolation: true,
       nodeIntegration: false,
@@ -86,6 +105,84 @@ app.whenReady().then(async () => {
       routePicker: Boolean(document.getElementById('route-picker')),
       readyState: document.readyState,
     })`);
+
+    if (process.env.QA_STARTUP_FLOW === '1') {
+      const captureHome = async name => {
+        if (!process.env.QA_HOME_ARTIFACTS) return;
+        await new Promise(r => setTimeout(r, 180));
+        const fs = require('fs');
+        fs.mkdirSync(process.env.QA_HOME_ARTIFACTS, { recursive: true });
+        const screenshot = await win.webContents.capturePage();
+        fs.writeFileSync(path.join(process.env.QA_HOME_ARTIFACTS, name), screenshot.toPNG());
+      };
+      const readHome = () => win.webContents.executeJavaScript(`(() => {
+        const get = id => document.getElementById(id);
+        return {
+          duplicateRetry: Boolean(get('btn-recovery-retry')),
+          startText: get('btn-start').textContent, startDisabled: get('btn-start').disabled,
+          startHidden: get('btn-start').hidden, stopHidden: get('btn-stop').hidden,
+          stopDisabled: get('btn-stop').disabled, stopText: get('btn-stop').textContent,
+          skipDisabled: get('btn-skip').disabled, fullDisabled: get('btn-retry-full').disabled,
+          diagnosticsHidden: get('home-recovery').hidden, diagnosticsOpen: get('home-recovery').open === true,
+          visibleText: document.body.innerText,
+          status: get('home-status').textContent,
+          progress: get('home-start-progress')?.textContent || '',
+          detail: get('home-recovery-verdict').textContent,
+        };
+      })()`);
+      await new Promise(r => setTimeout(r, 100));
+      const initial = await readHome();
+      await captureHome('home-collapsed.png');
+      await win.webContents.executeJavaScript(`document.getElementById('btn-start').click(); document.getElementById('btn-start').click();`);
+      await new Promise(r => setTimeout(r, 1100));
+      const pending = await readHome();
+      await captureHome('home-starting.png');
+      const startsWhilePending = results.calls.filter(c => c.op === 'start-desktop').length;
+      startupState = 'error';
+      startResolve({ ok: false, error: startupError });
+      await new Promise(r => setTimeout(r, 120));
+      const failed = await readHome();
+      const layouts = [];
+      for (const zoom of [1, 2]) {
+        win.setSize(860, 560);
+        win.webContents.setZoomFactor(zoom);
+        await new Promise(r => setTimeout(r, 180));
+        await win.webContents.executeJavaScript(`document.getElementById('home-recovery').open = true`);
+        const layout = await win.webContents.executeJavaScript(`(() => {
+          const button = document.getElementById('btn-start');
+          button.scrollIntoView();
+          const r = button.getBoundingClientRect();
+          return { width: innerWidth, reachable: r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth,
+            rawErrorCount: document.body.innerText.split('EEXIST').length - 1 };
+        })()`);
+        layouts.push({ zoom, ...layout });
+        await captureHome(`home-failed-${zoom}x.png`);
+      }
+      win.webContents.setZoomFactor(1);
+      await new Promise(r => setTimeout(r, 180));
+      await win.webContents.executeJavaScript(`document.getElementById('btn-start').click()`);
+      await new Promise(r => setTimeout(r, 80));
+      startReject(new Error('fixture transport failure'));
+      await new Promise(r => setTimeout(r, 120));
+      const rejected = await readHome();
+      await win.webContents.executeJavaScript(`document.getElementById('btn-start').click()`);
+      await new Promise(r => setTimeout(r, 80));
+      startupState = 'ready';
+      startResolve({ ok: true });
+      await new Promise(r => setTimeout(r, 120));
+      const readyHome = await readHome();
+      await win.webContents.executeJavaScript(`document.getElementById('btn-stop').click(); document.getElementById('btn-stop').click()`);
+      await new Promise(r => setTimeout(r, 80));
+      const stopping = await readHome();
+      startupState = 'stopped';
+      stopResolve({ ok: true });
+      await new Promise(r => setTimeout(r, 120));
+      const stopped = await readHome();
+      process.stdout.write('BOUND_RESULT:' + JSON.stringify({ initial, pending, failed, rejected, readyHome,
+        stopping, stopped, layouts, startsWhilePending, stops: results.calls.filter(c => c.op === 'stop-desktop').length }));
+      app.exit(0);
+      return;
+    }
 
     // ---- Delayed cancel A -> B ----
     // Start import A (runs forever until we resolve). While A is in flight,

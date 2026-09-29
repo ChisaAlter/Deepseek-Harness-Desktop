@@ -1,0 +1,166 @@
+{
+  "at": "2026-09-29T07:04:28.419Z",
+  "harnessUrl": "http://127.0.0.1:3197/",
+  "baseline": {
+    "url": "http://127.0.0.1:3197/",
+    "title": "Whale Isle",
+    "text": "鲸\n屿\nWHALE ISLE\nBASED ON DEEPSEEK HARNESS\n新会话\nCtrl\n+\nN\n插件\n鲸鱼娘\n工作区\nDeep eek-Harne -De ktop\n新会话\n更多\n探索未至之境\n预览版\nDeep eek-Harne -De ktop\n标准模式\n描述你想要构建的内容, / 调用指令, @ 文件或对话\n工作区内修改\nDeepSeek-V41-Fla h\nHigh\n\n暂无终端会话\n\nmain\nCommit & pu h",
+    "hasWhaleString": true,
+    "presetChips": [
+      "标准模式"
+    ],
+    "buttons": [
+      "鲸屿WHALE ISLEBASED ON DEEPSEEK HARNESS",
+      "新会话Ctrl+N",
+      "插件",
+      "鲸鱼娘",
+      "更多",
+      "Deep eek-Harne -De ktop",
+      "新建文件夹",
+      "取消",
+      "选用此目录",
+      "标准模式",
+      "工作区内修改",
+      "DeepSeek-V41-Fla hHigh",
+      "main",
+      "Commit & pu h"
+    ],
+    "dataAttrs": [
+      "data-dsh-gradient",
+      "data-dsh-motion",
+      "data-dsh-motion-part",
+      "data-dsh-settings-trigger"
+    ]
+  },
+  "presetPicker": {
+    "found": true,
+    "before": {
+      "chipText": "标准模式",
+      "chipRect": {
+        "x": 707.96875,
+        "y": 409,
+        "width": 106,
+        "height": 28,
+        "top": 409,
+        "right": 813.96875,
+        "bottom": 437,
+        "left": 707.96875
+      }
+    },
+    "items": [
+      "标准模式处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。",
+      "PTC 模式包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。",
+      "极简模式Agent 仅使用终端工具完成任务，适合测试和对比其基础表现。",
+      "创造模式用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。"
+    ],
+    "menuText": "标准模式处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。PTC 模式包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。极简模式Agent 仅使用终端工具完成任务，适合测试和对比其基础表现。创造模式用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。",
+    "whaleVisible": false
+  },
+  "workspacePicker": {
+    "found": true,
+    "triggerText": "Deepseek-Harness-Desktop",
+    "remoteTabClicked": true,
+    "root": {
+      "rect": {
+        "x": 380,
+        "y": 250.6666717529297,
+        "width": 680,
+        "height": 447.3333435058594,
+        "top": 250.6666717529297,
+        "right": 1060,
+        "bottom": 698.0000152587891,
+        "left": 380
+      },
+      "padding": "0px",
+      "overflow": "visible",
+      "display": "flex"
+    },
+    "content": {
+      "rect": {
+        "x": 380,
+        "y": 250.6666717529297,
+        "width": 680,
+        "height": 378.66668701171875,
+        "top": 250.6666717529297,
+        "right": 1060,
+        "bottom": 629.3333587646484,
+        "left": 380
+      },
+      "padding": "16px 24px",
+      "overflow": "auto",
+      "display": "flex"
+    },
+    "footer": {
+      "rect": {
+        "x": 380,
+        "y": 629.3333740234375,
+        "width": 680,
+        "height": 68.66667175292969,
+        "top": 629.3333740234375,
+        "right": 1060,
+        "bottom": 698.0000457763672,
+        "left": 380
+      },
+      "padding": "16px 24px",
+      "overflow": "visible",
+      "display": "flex"
+    },
+    "cancel": {
+      "text": "取消",
+      "rect": {
+        "x": 858,
+        "y": 646,
+        "width": 72,
+        "height": 36,
+        "top": 646,
+        "right": 930,
+        "bottom": 682,
+        "left": 858
+      }
+    },
+    "tabRects": [
+      {
+        "text": "本机",
+        "rect": {
+          "x": 683,
+          "y": 218,
+          "width": 40,
+          "height": 24,
+          "top": 218,
+          "right": 723,
+          "bottom": 242,
+          "left": 683
+        }
+      },
+      {
+        "text": "远程",
+        "rect": {
+          "x": 727,
+          "y": 218,
+          "width": 40,
+          "height": 24,
+          "top": 218,
+          "right": 767,
+          "bottom": 242,
+          "left": 727
+        }
+      }
+    ],
+    "beforeRemote": {
+      "dialogVisible": true,
+      "dialogTabs": [
+        "本机",
+        "远程"
+      ]
+    },
+    "remoteErrorState": "HTTP 400 (live disconnected backend)"
+  },
+  "checks": {
+    "whalePresetHidden": true,
+    "remotePickerRendered": true,
+    "remotePickerCancelVisible": true,
+    "remoteContentPadded": true,
+    "remoteFooterSeparated": true
+  },
+  "notes": []
+}

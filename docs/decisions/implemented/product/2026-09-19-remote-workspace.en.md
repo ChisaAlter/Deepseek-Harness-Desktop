@@ -10,6 +10,8 @@ Users need SSH remote directories as Agent workspaces: multiple machines, creden
 
 ## Decision
 
+The remote directory picker reuses the local title and footer geometry: content has its own insets and scrolling, and Cancel remains available while loading, empty, or failed. Machine-registry failures show an error and retry; a failed current-machine selection does not continue listing the previous machine. Padding the entire pane alone is insufficient because short windows would still push actions out of view. Chromium component regression covers these states and narrow windows; real SSH availability is verified separately.
+
 Merge `dsh-remote` into the desktop at code level, landing in four layers:
 
 1. **Backend vendor**: snapshot the host half's 17 modules into `vendor/dsh-remote` (machine registry, ssh2 connection pool, bidirectional SFTP sync, 20 `rw_*` tools, port forwarding, audit, TOFU host-key verification, `/dsh-remote/*` routes); dependencies `ssh2`/`schemastery`/`iconv-lite` ship git-tracked under `vendor/dsh-remote/node_modules` (dshbot precedent); drop `update.js` self-update (the desktop owns updates).

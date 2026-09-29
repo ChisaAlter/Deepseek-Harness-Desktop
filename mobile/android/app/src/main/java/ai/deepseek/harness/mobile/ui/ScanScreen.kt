@@ -12,18 +12,18 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -37,7 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size as ComposeSize
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -107,137 +107,163 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit, onPaste: () -> Un
     }
     androidx.activity.compose.BackHandler(onBack = onClose)
     val palette = dsh()
-    val ink = Color(249, 250, 251)
-    val inkMuted = Color(173, 178, 184)
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(palette.sidebarFill)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(bottom = 16.dp),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier.width(48.dp).height(48.dp).then(dshClickable(onClick = onClose)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Canvas(Modifier.width(16.dp).height(16.dp)) {
-                    val stroke = Stroke(width = 1.4.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(palette.labelSecondary, Offset(size.width * 0.62f, 0f), Offset(size.width * 0.22f, size.height * 0.5f), stroke.width, StrokeCap.Round)
-                    drawLine(palette.labelSecondary, Offset(size.width * 0.22f, size.height * 0.5f), Offset(size.width * 0.62f, size.height), stroke.width, StrokeCap.Round)
-                }
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "连接 Whale Isle",
-                    color = palette.labelPrimary,
-                    fontSize = 16.sp,
-                    lineHeight = 22.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    "扫描桌面侧栏中的远程二维码",
-                    color = palette.labelTertiary,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                )
-            }
-            Box(
-                Modifier.height(48.dp).then(dshClickable(onClick = onPaste)).padding(horizontal = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("粘贴", color = palette.buttonInfoFill, fontSize = 13.sp, lineHeight = 20.sp)
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(palette.borderL1))
-        Box(
+    val connection = palette.connection
+    val ink = connection.cameraInk
+    val inkMuted = connection.cameraMuted
+    Box(Modifier.fillMaxSize()) {
+        ConnectionScene(Modifier.fillMaxSize())
+        Column(
             Modifier
-                .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 28.dp),
-            contentAlignment = Alignment.Center,
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(bottom = 12.dp),
         ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.8f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(31, 33, 36)),
+            Row(
+                Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-                if (torch) {
-                    Box(Modifier.fillMaxSize().background(Color(255, 255, 220, 0x28)))
-                }
-                Canvas(Modifier.fillMaxSize()) {
-                    val inset = size.width * 0.18f
-                    val arm = 28.dp.toPx()
-                    val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Square)
-                    val left = inset
-                    val top = inset
-                    val right = size.width - inset
-                    val bottom = size.height - inset
-                    drawLine(ink, Offset(left, top), Offset(left + arm, top), stroke.width, StrokeCap.Square)
-                    drawLine(ink, Offset(left, top), Offset(left, top + arm), stroke.width, StrokeCap.Square)
-                    drawLine(ink, Offset(right, top), Offset(right - arm, top), stroke.width, StrokeCap.Square)
-                    drawLine(ink, Offset(right, top), Offset(right, top + arm), stroke.width, StrokeCap.Square)
-                    drawLine(ink, Offset(left, bottom), Offset(left + arm, bottom), stroke.width, StrokeCap.Square)
-                    drawLine(ink, Offset(left, bottom), Offset(left, bottom - arm), stroke.width, StrokeCap.Square)
-                    drawLine(ink, Offset(right, bottom), Offset(right - arm, bottom), stroke.width, StrokeCap.Square)
-                    drawLine(ink, Offset(right, bottom), Offset(right, bottom - arm), stroke.width, StrokeCap.Square)
-                }
                 Box(
-                    Modifier.align(Alignment.TopEnd).padding(12.dp).height(32.dp)
-                        .clip(RoundedCornerShape(16.dp)).background(Color(15, 17, 21, 0xB8))
-                        .then(
-                            dshClickable {
-                                torch = !torch
-                                control.get()?.enableTorch(torch)
-                            },
-                        ).padding(horizontal = 12.dp),
+                    Modifier.width(48.dp).height(48.dp).then(dshClickable(onClick = onClose)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(if (torch) "关闭手电" else "手电筒", color = ink, fontSize = 12.sp, lineHeight = 18.sp)
+                    Canvas(Modifier.width(16.dp).height(16.dp)) {
+                        val stroke = Stroke(width = 1.4.dp.toPx(), cap = StrokeCap.Round)
+                        drawLine(connection.ink, Offset(size.width * 0.62f, 0f), Offset(size.width * 0.22f, size.height * 0.5f), stroke.width, StrokeCap.Round)
+                        drawLine(connection.ink, Offset(size.width * 0.22f, size.height * 0.5f), Offset(size.width * 0.62f, size.height), stroke.width, StrokeCap.Round)
+                    }
                 }
-                Text(
-                    "将二维码完整放入取景框",
-                    color = inkMuted,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 86.dp),
-                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "扫描配对二维码",
+                        color = connection.ink,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        "Whale Isle · 鲸屿 MOBILE",
+                        color = connection.muted,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                    )
+                }
+                Box(Modifier.width(48.dp).height(48.dp))
             }
-        }
-        Box(
-            Modifier.fillMaxWidth().padding(top = 20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            // 40dp outline pill inside a ≥48dp touch target.
+            Box(Modifier.fillMaxWidth().height(1.dp).background(connection.hairline))
             Box(
-                Modifier.height(48.dp).then(dshClickable(onClick = onPaste)),
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
                     Modifier
-                        .width(180.dp)
-                        .height(40.dp)
+                        .fillMaxSize()
+                        .widthIn(max = 520.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, palette.borderL2, RoundedCornerShape(20.dp)),
-                    contentAlignment = Alignment.Center,
+                        .background(connection.cameraSurface)
+                        .border(1.dp, connection.panelBorder, RoundedCornerShape(20.dp)),
                 ) {
-                    Text("粘贴配对链接", color = palette.labelPrimary, fontSize = 14.sp, lineHeight = 22.sp)
+                    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                    if (torch) {
+                        Box(Modifier.fillMaxSize().background(connection.torchTint))
+                    }
+                    Canvas(Modifier.fillMaxSize()) {
+                        val frame = size.minDimension * 0.62f
+                        val left = (size.width - frame) * 0.5f
+                        val top = (size.height - frame) * 0.5f
+                        val right = left + frame
+                        val bottom = top + frame
+                        val scrim = connection.cameraScrim
+                        drawRect(scrim, size = ComposeSize(size.width, top))
+                        drawRect(scrim, topLeft = Offset(0f, bottom), size = ComposeSize(size.width, size.height - bottom))
+                        drawRect(scrim, topLeft = Offset(0f, top), size = ComposeSize(left, frame))
+                        drawRect(scrim, topLeft = Offset(right, top), size = ComposeSize(size.width - right, frame))
+
+                        val arm = (frame * 0.16f).coerceAtMost(28.dp.toPx())
+                        val stroke = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Square)
+                        drawLine(ink, Offset(left, top), Offset(left + arm, top), stroke.width, StrokeCap.Square)
+                        drawLine(ink, Offset(left, top), Offset(left, top + arm), stroke.width, StrokeCap.Square)
+                        drawLine(ink, Offset(right, top), Offset(right - arm, top), stroke.width, StrokeCap.Square)
+                        drawLine(ink, Offset(right, top), Offset(right, top + arm), stroke.width, StrokeCap.Square)
+                        drawLine(ink, Offset(left, bottom), Offset(left + arm, bottom), stroke.width, StrokeCap.Square)
+                        drawLine(ink, Offset(left, bottom), Offset(left, bottom - arm), stroke.width, StrokeCap.Square)
+                        drawLine(ink, Offset(right, bottom), Offset(right - arm, bottom), stroke.width, StrokeCap.Square)
+                        drawLine(ink, Offset(right, bottom), Offset(right, bottom - arm), stroke.width, StrokeCap.Square)
+                    }
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .height(48.dp)
+                            .then(
+                                dshClickable {
+                                    torch = !torch
+                                    control.get()?.enableTorch(torch)
+                                },
+                            )
+                            .padding(horizontal = 4.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .height(32.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(connection.torchSurface)
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(if (torch) "关闭手电" else "手电筒", color = ink, fontSize = 12.sp, lineHeight = 18.sp)
+                        }
+                    }
+                    Text(
+                        "将二维码完整放入取景框",
+                        color = inkMuted,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                    )
                 }
             }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(connection.panel)
+                    .border(1.dp, connection.panelBorder, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .then(dshClickable(onClick = onPaste)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .border(1.dp, connection.panelBorder, RoundedCornerShape(20.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("粘贴配对链接", color = connection.ink, fontSize = 14.sp, lineHeight = 22.sp)
+                    }
+                }
+                Text(
+                    "端到端加密，只连接你的电脑",
+                    color = connection.muted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
-        Text(
-            "配对密钥仅用于连接这台电脑",
-            color = palette.labelTertiary,
-            fontSize = 12.sp,
-            lineHeight = 18.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-        )
-        Spacer(Modifier.weight(1f))
     }
 }

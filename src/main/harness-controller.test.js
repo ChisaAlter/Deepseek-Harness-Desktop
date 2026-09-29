@@ -826,6 +826,20 @@ test('cancel and manual restart prevent the scheduled timer from starting anothe
   assert.equal(f.controller.snapshot().recovery.status, 'inactive');
 });
 
+test('restart shows recovery before waiting for the old Harness to stop', async () => {
+  const f = fixture();
+  await f.controller.start();
+  let releaseStop;
+  const stopped = new Promise((resolve) => { releaseStop = resolve; });
+  f.dsh.stop = async () => { await stopped; f.dsh.setState('idle'); };
+  const restart = f.controller.restart();
+  await settle();
+  const visibleWhileStopping = f.window.url;
+  releaseStop();
+  await restart;
+  assert.equal(visibleWhileStopping, 'file:///boot.html', 'settings must not remain stranded while the backend stops');
+});
+
 test('stopDesktop cancels scheduled recovery and stops the kernel', async () => {
   const f = fixture();
   await f.controller.start();

@@ -12,7 +12,7 @@ This repository's executable governance system: rules are written for agents to 
 | Decision | [docs/decisions/](../decisions/README.en.md) | The why: motivation, rejected alternatives, cost; lifecycle encoded in the path | `verify-decision-tree`, `verify-decision-format`, `verify-archived-decisions` |
 | Narrative | [docs/postmortem/](../postmortem/README.md) | Incident narratives — the only tier allowed to tell stories | none (narrative is not gated) |
 | Locale | [docs/i18n/](../i18n/README.en.md) | Bilingual pairing: triplets, blob hashes, structural signature, pending ratchet | `verify-translation-pairing` |
-| Execution | `scripts/` + `.github/` | Gate aggregation, git hooks, merge driver, PR/issue templates, dependabot | `run-gates.mjs`, `verify-md-links`, `verify-doc-budgets` |
+| Execution | `scripts/` + `.github/` | Gate aggregation, git hooks, merge driver, PR/issue templates, dependabot | `run-gates.mjs`, `verify-md-links` |
 
 Agent entry points: root [AGENTS.md](../../AGENTS.md) holds the standing orders; `.devin/skills/` carries `dshd-maintenance` (decision-record operations) and `dshd-checks` (change surface → minimal check set) as executable procedures.
 
@@ -33,7 +33,7 @@ The reverse holds too: before a new decision, search `rejected/` and the active 
 
 ```sh
 npm run check:governance    # structural gates: decision tree/format/archive seal/cards/rules sync/remote flag
-npm run doc-sync            # full doc gates: the above + dead links/pairing/word budgets
+npm run doc-sync            # full doc gates: decision tree/format/archive seal/cards/rules sync/links/pairing
 node scripts/verify-translation-pairing.mjs --list          # state of every pair
 node scripts/verify-translation-pairing.mjs --write <path>  # re-record after editing either side
 node scripts/verify-archived-decisions.mjs --write          # re-seal when archiving
@@ -45,6 +45,8 @@ DSHD_GATE_FAIL_FAST=1 npm run doc-sync                      # stop at first red
 `npm install` runs `prepare`, which installs the git integrations: `core.hooksPath` points at `scripts/git-hooks/` (pre-commit runs the structural gates, pre-push runs doc-sync), and `*.i18n.yaml` merges through the `dshd-translation-pairing` driver.
 
 ## Boundaries
+
+Desktop repository documentation has no word-count ceiling; length follows the content required. See [removing documentation word-count gates](../decisions/implemented/process/2026-09-29-remove-doc-word-limits.en.md).
 
 - `docs/superpowers/` (process drafts), `docs/qa/results/` (historical acceptance records), and `vendor/` (upstream's own governance) are outside link and pairing checks.
 - External PRs and issues are welcome: see [CONTRIBUTING.en.md](../../CONTRIBUTING.en.md); cards and rules are maintainer-finished.

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Button, FileTypeIcon, Input, Modal, SettingsSelect, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, FileTypeIcon, IconChevronUpOutline14, IconFolderClose16, IconPlusOutline16, IconRefreshOutline16, Input, Modal, SettingsSelect, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import { parentRemotePath, remoteApi, remoteCrumbs } from './api.js'
 
 /**
@@ -17,6 +17,7 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
   const [items, setItems] = React.useState(null) // null = not loaded
   const [platform, setPlatform] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [loadingMachines, setLoadingMachines] = React.useState(false)
   const [choosing, setChoosing] = React.useState(false)
   const [err, setErr] = React.useState('')
   const [mkdirOpen, setMkdirOpen] = React.useState(false)
@@ -42,11 +43,8 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
       .finally(() => setLoading(false))
   }, [t])
 
-  // First activation inside an open dialog: pull the machine registry and
-  // enter the remembered (or first) machine's root view.
-  React.useEffect(() => {
-    if (!open || !active || loadedOnce.current) return
-    loadedOnce.current = true
+  const loadMachines = React.useCallback(() => {
+    setLoadingMachines(true); setErr('')
     remoteApi.machines()
       .then((r) => {
         const list0 = r.machines || []
@@ -54,19 +52,28 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
         const initial = r.currentId || (list0[0] && list0[0].id) || ''
         setMachineId(initial)
         if (initial) {
-          remoteApi.setCurrent(initial).catch(() => {})
-            .then(() => list(''))
+          setLoading(true)
+          return remoteApi.setCurrent(initial).then(() => list(''))
         }
       })
-      .catch((e) => setErr(String((e && e.message) || e)))
-  }, [open, active, list])
+      .catch((e) => { setLoading(false); setErr(t('picker.loadFail', { error: String((e && e.message) || e) })) })
+      .finally(() => setLoadingMachines(false))
+  }, [list, t])
+
+  // The keep-alive pane fetches once; failures remain explicitly retryable.
+  React.useEffect(() => {
+    if (!open || !active || loadedOnce.current) return
+    loadedOnce.current = true
+    loadMachines()
+  }, [open, active, loadMachines])
 
   const selectMachine = (id) => {
     if (!id || id === machineId && items !== null) return
     setMachineId(id)
-    setItems(null); setPath(''); setErr('')
-    remoteApi.setCurrent(id).catch(() => {})
+    setItems(null); setPath(''); setErr(''); setConnected(false); setLoading(true)
+    remoteApi.setCurrent(id)
       .then(() => list(''))
+      .catch((e) => { setLoading(false); setErr(t('picker.listFail', { error: String((e && e.message) || e) })) })
   }
 
   const enterDir = (it) => {
@@ -123,26 +130,28 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
   const crumbs = remoteCrumbs(path)
   const machineOptions = (machines || []).map((m) => ({ id: m.id, label: `${m.name || m.host} (${m.username}@${m.host}:${m.port})` }))
   const rootLabel = platform === 'windows' ? t('picker.rootPc') : '/'
+  const pending = busy || loading || loadingMachines || choosing
+  const unavailable = pending || !machineId
 
-  if (machines && machines.length === 0) {
-    return (
-      <div className="dshr-flow">
+  return (
+    <div className="dshr-flow">
+      <div className="dshr-flowContent">
+      {machines === null ? (
+        <div className="dshr-flowStatus">
+          {err ? <><div className="dshr-error" role="alert">{err}</div><Button variant="outline" onClick={loadMachines} disabled={pending}>{t('explorer.retry')}</Button></> : <div className="dshr-caption" role="status">{t('picker.loading')}</div>}
+        </div>
+      ) : machines.length === 0 ? (
         <div className="dshr-emptyState">
           <span>{t('picker.machineEmpty')}</span>
           <span className="dshr-caption">{t('picker.machineEmptyHint')}</span>
         </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="dshr-flow">
+      ) : <>
       <div className="dshr-row">
         <span className="dshr-formLabel" style={{ textAlign: 'left' }}>{t('picker.machine')}</span>
         <SettingsSelect
           variant="block" className="dshr-grow"
           value={machineId} options={machineOptions}
-          onChange={selectMachine} disabled={busy || loading}
+          onChange={selectMachine} disabled={pending}
           aria-label={t('picker.machine')}
         />
         <StateDot state={connected ? 'done' : (loading ? 'ongoing' : 'idle')} />
@@ -152,22 +161,23 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
         <Input
           value={path} onChange={(e) => { setPath(e.target.value); setErr('') }}
           placeholder={t('picker.pathPlaceholder')}
+          disabled={unavailable}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); list(path) } }}
           className="dshr-grow dshr-mono"
           aria-label={t('picker.pathPlaceholder')}
         />
-        <button type="button" className="dshr-iconBtn" title={t('picker.home')} aria-label={t('picker.home')} onClick={goHome} disabled={busy || loading}>~</button>
-        <button type="button" className="dshr-iconBtn" title={t('picker.up')} aria-label={t('picker.up')} onClick={goUp} disabled={busy || loading || !path}>↑</button>
-        <button type="button" className="dshr-iconBtn" title={t('picker.refresh')} aria-label={t('picker.refresh')} onClick={() => list(path)} disabled={busy || loading}>⟳</button>
+        <button type="button" className="dshr-iconBtn" title={t('picker.home')} aria-label={t('picker.home')} onClick={goHome} disabled={unavailable}>~</button>
+        <button type="button" className="dshr-iconBtn" title={t('picker.up')} aria-label={t('picker.up')} onClick={goUp} disabled={unavailable || !path}><IconChevronUpOutline14 /></button>
+        <button type="button" className="dshr-iconBtn" title={t('picker.refresh')} aria-label={t('picker.refresh')} onClick={() => list(path)} disabled={unavailable}><IconRefreshOutline16 /></button>
       </div>
 
       {path ? (
         <div className="dshr-crumbs">
-          <span className="dshr-crumb" onClick={() => list('')}>{rootLabel}</span>
+          <button type="button" className="dshr-crumb" disabled={unavailable} onClick={() => list('')}>{rootLabel}</button>
           {crumbs.parts && crumbs.parts.map((c, i) => (
             <React.Fragment key={c.path}>
               <span>{crumbs.sep === '\\' ? '\\' : '›'}</span>
-              <span className={'dshr-crumb' + (i === crumbs.parts.length - 1 ? ' dshr-crumbLast' : '')} onClick={() => list(c.path)}>{c.name}</span>
+              <button type="button" disabled={unavailable} className={'dshr-crumb' + (i === crumbs.parts.length - 1 ? ' dshr-crumbLast' : '')} onClick={() => list(c.path)}>{c.name}</button>
             </React.Fragment>
           ))}
         </div>
@@ -175,7 +185,7 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
 
       <div className="dshr-list">
         {loading && items === null ? <div className="dshr-listEmpty">{t('picker.loading')}</div> : null}
-        {!loading && items === null && err ? <div className="dshr-listEmpty">{err}</div> : null}
+        {!loading && items === null && err ? <div className="dshr-flowStatus"><div className="dshr-error" role="alert">{err}</div><Button variant="outline" onClick={() => selectMachine(machineId)} disabled={unavailable}>{t('explorer.retry')}</Button></div> : null}
         {items !== null && items.length === 0 ? <div className="dshr-listEmpty">{t('picker.noDirs')}</div> : null}
         {(items || []).map((it) => {
           const isDir = it.type === 'dir' || !!it.drive
@@ -184,10 +194,10 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
               key={it.path || it.name} type="button" className="dshr-listItem"
               data-kind={isDir ? 'dir' : 'file'}
               onClick={() => { if (isDir) enterDir(it) }}
-              disabled={!isDir}
+              disabled={!isDir || unavailable}
               title={it.path || it.name}
             >
-              {isDir ? <FileTypeIcon kind="folder" size={14} /> : <FileTypeIcon path={it.name} size={14} />}
+              {isDir ? <IconFolderClose16 size={14} /> : <FileTypeIcon path={it.name} size={14} />}
               <span className="dshr-treeName">{it.name}</span>
             </button>
           )
@@ -196,14 +206,19 @@ export function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError
 
       {err && items !== null ? <div className="dshr-error">{err}</div> : null}
       <div className="dshr-caption">{t('picker.mirrorHint')}</div>
+      </>}
+      </div>
 
-      <div className="dshr-rowBetween">
-        <Button variant="ghost" size="sm" onClick={() => { setMkdirName(''); setMkdirOpen(true) }} disabled={busy || loading || !path}>
+      <div className="dshr-flowFooter">
+        <Button variant="outline" icon={<IconPlusOutline16 size={14} />} onClick={() => { setMkdirName(''); setMkdirOpen(true) }} disabled={unavailable || !path || !connected}>
           {t('picker.mkdir')}
         </Button>
-        <Button variant="primary" size="sm" onClick={choose} disabled={busy || loading || choosing || !path}>
+        <div className="dshr-flowActions">
+        <Button variant="outline" onClick={onCancel} disabled={busy || choosing}>{t('form.cancel')}</Button>
+        <Button variant="primary" onClick={choose} disabled={unavailable || !path || !connected}>
           {choosing ? t('picker.choosing') : t('picker.choose')}
         </Button>
+        </div>
       </div>
 
       <Modal

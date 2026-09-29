@@ -67,17 +67,13 @@
           <header class="page-head">
             <h2>首页</h2>
           </header>
-          <p class="lede lede-block" id="lede">检查更新并启动桌面端。数据导入、版本管理与插件排查可在左侧分区完成。</p>
+          <p class="lede lede-block" id="lede">启动桌面端，或在左侧管理版本和导入数据。</p>
           <p class="status"><span id="home-status">正在读取状态…</span><span class="badge green" id="home-run-badge" hidden>运行中</span></p>
+          <p class="meta" id="home-start-progress" role="status" hidden></p>
           <div class="actions" id="home-actions">
             <button type="button" class="primary" id="btn-start">启动桌面端</button>
             <button type="button" class="danger" id="btn-stop" hidden>停止桌面端</button>
             <button type="button" class="ghost" id="btn-check-update">检查更新</button>
-          </div>
-          <div class="actions actions-recovery" id="home-recovery-actions" hidden>
-            <span class="actions-recovery-label">恢复操作</span>
-            <button type="button" class="ghost small" id="btn-skip">跳过用户插件启动</button>
-            <button type="button" class="ghost small" id="btn-retry-full">恢复完整插件并启动</button>
           </div>
           <p class="meta" id="home-running-note" hidden>关闭本窗口不影响运行中的桌面端；从托盘可重新打开启动器。</p>
           <div class="notice" id="home-update" hidden>
@@ -105,17 +101,19 @@
               <p class="progress" id="install-progress"></p>
             </div>
           </section>
-          <section id="home-recovery" class="recovery-board" hidden>
-            <header class="recovery-head">
-              <h3>恢复工作台</h3>
-              <p class="recovery-verdict" id="home-recovery-verdict"></p>
-            </header>
+          <details id="home-recovery" class="recovery-board" hidden>
+            <summary class="recovery-head"><h3>启动诊断</h3></summary>
+            <p class="recovery-verdict" id="home-recovery-verdict"></p>
+            <div class="actions actions-recovery" id="home-recovery-actions" hidden>
+              <span class="actions-recovery-label">插件恢复</span>
+              <button type="button" class="ghost small" id="btn-skip">跳过用户插件启动</button>
+              <button type="button" class="ghost small" id="btn-retry-full">恢复完整插件并启动</button>
+            </div>
             <div class="actions recovery-actions">
               <button type="button" class="ghost small" id="btn-disable-suspects">禁用全部可疑</button>
-              <button type="button" class="primary small" id="btn-recovery-retry">重试启动</button>
             </div>
             <ul id="home-recovery-list" class="list"></ul>
-          </section>
+          </details>
         </section>
         <section id="tab-components" class="panel" role="tabpanel" aria-labelledby="tab-components-btn" hidden></section>
         <section id="panel-versions" class="panel" role="tabpanel" aria-labelledby="tab-versions" hidden>

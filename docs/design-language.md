@@ -48,7 +48,11 @@ Harness 同步保持视觉合同；新增组件复用既有 token/原语。布�
 
 草稿发送转入会话时，常驻输入框连续到达会话位置，不得先贴底再回弹；消息区、统计行与输入框尺寸变化不能暴露中间布局。沿用已有动效时长与缓动，减少动态效果时直接稳定落位，不新增装饰或改变最终布局。
 
-手机远程连接页沿用既有设备状态行与错误行：首次连接及保存设备重连显示「正在连接电脑…」；失败显示「连接失败」，恢复连接按钮并保留已保存设备。不得在连接中继续显示「等待配对」，不得无期限禁用按钮；已连接后的断线自动重连保持不变。
+工作区选择器遵循[远程工作区卡](features/remote-workspace.md)：本机 / 远程页签不移位，统一内容留白与固定操作底栏；加载及失败可取消，错误可重试。
+
+手机远程的连接前入口是桌面鲸屿启动页的窄屏亲缘画布：62% 海平线分割，浅色为雾白天光／蓝海，深色为克制星空／深海，中央使用 `Whale Isle` 与「鲸屿 · MOBILE」锁定品牌；底部紧凑操作坞承载扫码、粘贴、已保存电脑与连接状态。它只覆盖连接、相机权限和扫码入口，不进入已配对聊天。手机端以 `--mobile-connect-*` / Compose `DshTokens` 复述同一语义，不直接导入 `--boot-*`，不复制桌面日志、状态机或窗口控件。
+
+首次连接及保存设备重连显示「正在连接电脑…」；失败在操作坞内显示一条短状态，恢复连接按钮并保留已保存设备，不将长错误独占首屏。不得在连接中继续显示「等待配对」，不得无期限禁用按钮；已连接后的断线自动重连保持不变。Android 内置 WebView 的首要动作必须能进入原生扫码，不得把它误判为普通浏览器并显示“不支持应用内扫码”。
 
 远程 Web 与 Android 共用连接恢复状态：认证后同步目录期间显示同步状态；目录失败在既有抽屉错误行下提供「重试」，不把失败画成空目录。新配对链接取代旧连接尝试，成功后移除 URL 中的一次性 offer；前后台恢复保留草稿并检查连接、重新同步目录与当前会话。沿用现有控件和状态条，不新增独立皮肤。
 
@@ -62,7 +66,7 @@ Harness 同步保持视觉合同；新增组件复用既有 token/原语。布�
 4. **主色不是电光蓝。** 默认主按钮是近黑（浅色）/ 近白（深色）：`--dsw-alias-button-primary-fill`（浅色即 `rgb(15, 17, 21)`）。品牌蓝是 `--dsw-static-deepseek-500`（`rgb(65, 118, 230)`）及其 alias（`--dsw-alias-button-info-fill`、`--dsw-alias-state-business-primary`），用于信息强调、用户气泡、选中态。禁止 `#2b5cff`、`#6ea8ff`、`#3964fe` 这类平行色板。
 5. **描边用透明度，不用实心灰。** 浅色 `rgba(0,0,0,.04/.10/.12)`，深色 `rgba(255,255,255,.06/.12/.16)`，对应 `--dsw-alias-border-l1`～`l3`。栏与栏之间是 1px 发丝线，不是投影卡片墙。
 6. **Hover / Active 用交互 token。** 浅色 `rgba(38, 49, 72, .06 / .10)`，深色 `rgba(255,255,255,.08 / .14)`：`--dsw-alias-interactive-bg-hover` / `active`。不要新造一层实心灰底。
-7. **圆角按角色。** 主按钮胶囊 18（高 36）/ 小按钮 14（高 28）；输入 8；菜单 12；对话框 24；Tooltip 8；图标点击区 8。不要 6px 方钮；999px 只给胶囊按钮和开关。桌面壳最外框（`.frame` 外缘与 Windows 标题栏内容角 `--dsh-windows-content-radius`）20；启动器窗口外框 20。两窗均为 `transparent` 窗口：启动器轮廓由 `.shell` 卡片自绘；桌面端剪影由页面自绘——boot 页 `.scene` 圆角卡、harness 页由注入层给 `body`（`position:relative`）圆角裁切并以 `#dshd-frame-canvas` 补底色（最大化归零）：absolute/fixed 全屏层逃逸 body 的圆角裁切，因此 `#dsh-wallpaper`、`#dshd-frame-canvas` 等层各自携带同径圆角（round 角形）。透明剪影窗在窗口层关闭 OS 圆角遮罩（`roundedCorners: false`，`windowChrome` 对 `transparent` 覆盖自动关闭）：Windows 11 的 DWM 遮罩约 8px 且不做 alpha 混合，会把页面自绘的更大圆弧裁成阶梯锯齿；不画剪影的透明窗（welcome）保留 OS 圆角。内部控件沿用各自角色值。
+7. **圆角按角色分配。** 主胶囊 18（高 36）/ 紧凑 14（高 28）；输入 8；菜单 12；对话框 24；tooltip 8；图标热区 8。禁止 6px 小方块，除胶囊与开关外不使用 999px。Windows 主窗口（boot / Harness）和启动器采用不透明原生窗口：`transparent: false`、`thickFrame: true`、`roundedCorners: true`；外轮廓、阴影与最大化/最小化/还原动画由系统负责，服从系统动画设置。不得为固定 20px 外框圆角切回透明窗口或几何模拟最大化。页面外缘铺满原生客户区，不叠加 20px 外轮廓裁切与描边；内部 `.frame` 的 Windows 内容圆角 `--dsh-windows-content-radius` 仍为 20，控件保持各角色值，壁纸/透明主题仍是页面内效果。非 Windows 壳窗保留透明自绘 20px 剪影，使用 `corner-shape: round`，最大化收为 0；透明剪影窗口禁用 OS 圆角遮罩。桌宠、透明覆盖层与 welcome 保留原窗口用途。完整契约见 [window-motion](features/window-motion.md)。
 8. **字号必须配行高。** 标题 16/24，正文 14/22，紧凑 12/18，Tooltip 13/20。字重 400 / 500 / 600 / 700；Figma 510 渲染为 500。禁止 `font-weight: 650`。
 9. **间距是 4 的倍数。** 控件内边距、gap、栏间距用 4 / 8 / 12 / 14 / 16 / 20 / 24。
 10. **图标 16px、`currentColor`。** 用 `ui-primitives` 的 `ic_ds_*`。密集标题栏可用 14px。不要引入另一套图标库或彩色填充图标。
@@ -173,13 +177,15 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 ## 手机远程交互
 
-远程 Web 与 Android 内置 SPA 的页面结构参照 Claude 移动端，颜色、字体栈与明暗仍只取同值 token 表，不引入第二套色板；桌面端不受影响。完整契约见 [design-language-mobile.md](design-language-mobile.md)；决策见[手机远程 Claude 式结构](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)。
+远程 Web 与 Android 内置 SPA 的已配对页面结构参照 Claude 移动端；连接前入口采用受控的鲸屿海平线画布。颜色、字体栈与明暗仍只取同值语义 token 表，不引入第二套产品皮肤；桌面端不受影响。完整契约见 [design-language-mobile.md](design-language-mobile.md)；决策见[手机远程 Claude 式结构](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)。
 
 ## 桌面欢迎窗
 
 启动直达工作区，不弹欢迎或引导；配置留在设置，见[契约](features/desktop-welcome.md)。
 
 ## 桌面启动页
+
+内置插件开关获准重启后，先切回本恢复画布，再异步停止旧服务；等待期间不得把失去后端的设置页留作静止画面。
 
 启动页是整窗一张海平线画布，不是中间再套卡片。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
 
@@ -204,7 +210,7 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 ### Live2D 鲸鱼娘对话气泡
 
-Live2D 桌宠以整窗透明 Canvas 绘制，独立于主窗内的小矩形 Codex 宠物视图。
+Live2D 桌宠以整窗透明 Canvas 绘制，独立于主窗内的小矩形 Codex 宠物视图。整屏窗口的原生背板在浅色、深色、跟随系统及窗口重建后始终透明；全局主题重绘不得给它填充不透明底色。
 
 鲸鱼娘扩展动画以 `pet-live2d/avatar/character.png` 为唯一身份母版：蓝发、鲸鳍耳、呆毛、白色女仆头饰、海军蓝裙、鲸纹白围裙、蓝鞋与长鲸尾的比例和笔触保持一致。目标资源包覆盖 24 种身体动作与 12 种表情，独立动作使用透明连续帧；蜷缩睡眠、抱食进食、悬挂等必须有真实姿态差异。泡泡、星星与爱心只辅助表达。待机保留实时呼吸、眨眼与视线；长时间无互动先逐渐困倦，再进入睡眠，任何互动立即打断困倦；自主表情需与当前心情和亲密度相符。进食必须看得出抱食、咀嚼与收尾，不能用浮动饭碗遮住围裙来冒充手部动作；甩出与悬挂需有可辨的姿态和表情差异。新图集不得覆盖原始母版。每段提供进入/循环/退出语义，拖拽方向与甩动惯性由交互物理驱动。帧数由实际播放效果决定；单帧身份和身形检查、连续播放检查通过后才进入正式素材。动画源图、清单、生成提示词与可播放预览同批保存，未经验收的素材不标为已接入。
 
@@ -222,11 +228,11 @@ Live2D 桌宠以整窗透明 Canvas 绘制，独立于主窗内的小矩形 Code
 
 ## 桌面启动器
 
-恢复标题 16/24；导入正文至少 120px，缩放时外层可滚动，勾选和操作可达。确认卡上下各留 24px，长正文独立滚动，标题和按钮不收缩。
+导入手动打开，事务恢复例外。首页只显版本、状态和启停（失败改重试）；忙碌显示真实耗时并锁住冲突操作。错误与插件恢复默认折叠于「启动诊断」，不显空列表。
 
-Recovery Board 归因区分投影缓存与插件失败；缓存错误优先于跳过状态，不增控件、不建议清空会话。
+诊断标题 16/24；导入正文至少 120px，缩放时外层滚动。确认框上下留 24px，正文滚动、标题按钮不收缩。缓存故障优先于跳过状态，不归咎插件、不清会话。
 
-启动器是冷启动闸门。源码：[`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。复用 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 浅色 `:root` / 深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 令 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme`，不写 Appearance 壁纸种子。禁用 `--boot-*`、`data-boot-theme` 及第二套 `[data-theme]` / `prefers-color-scheme` 色板。
+复用共享 token 浅/深表；official 模式只切 scheme，不写壁纸种子。禁用 boot 令牌及第二色板。实现见[启动生命周期](handbook/modules/boot-lifecycle.md)。
 
 ## 现有偏差（不要再扩散）
 

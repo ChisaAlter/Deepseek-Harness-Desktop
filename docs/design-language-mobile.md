@@ -4,7 +4,15 @@
 
 本文是 [design-language.md](design-language.md)「手机远程交互」节的完整契约；token 总表、强制规则与例外以母文档为准。
 
-远程 Web 与 Android 内置 SPA 的页面结构参照 Claude 移动端，颜色、字体栈与明暗仍只取同值 token 表，不引入暖色纸面、衬线或第二套色板；桌面端不受影响。画布 `--dsw-specific-sidebar-fill`，卡片与浮动输入卡 `--dsw-alias-bg-layer-1`，圆钮与胶囊 `--dsw-specific-sidebar-nav-item-hover`，选中与勾选 `--dsw-alias-state-business-primary`，用户气泡仍为 `--dsw-specific-bubble`，输入卡只加 `lv2` 轻阴影。决策见[手机远程 Claude 式结构](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)。
+已配对的远程 Web 与 Android 内置 SPA 页面结构参照 Claude 移动端，颜色、字体栈与明暗仍只取同值 token 表，不引入暖色纸面或第二套产品皮肤；桌面端不受影响。画布 `--dsw-specific-sidebar-fill`，卡片与浮动输入卡 `--dsw-alias-bg-layer-1`，圆钮与胶囊 `--dsw-specific-sidebar-nav-item-hover`，选中与勾选 `--dsw-alias-state-business-primary`，用户气泡仍为 `--dsw-specific-bubble`，输入卡只加 `lv2` 轻阴影。决策见[手机远程 Claude 式结构](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.md)。
+
+## 连接前海平线画布
+
+连接、相机权限和扫码入口从鲸屿桌面启动页继承气氛而非组件：画布以 62% 高度的 1px 线划分天空与海面；浅色是雾白天光、淡云和蓝海，深色是低密度星点、深空雾气和深海。中央 `Whale Isle` 使用 Didot／Bodoni 系展示衬线，副标固定为「鲸屿 · MOBILE」；这处品牌衬线是连接入口例外，不扩散到聊天正文或控件。不得复制桌面启动状态、日志、窗口按钮、亮带扫光或 `--boot-*` 名称。
+
+首屏下部使用一个半透明紧凑操作坞，而不是纵向技术表单：一个「扫描二维码」主按钮，一个「粘贴配对链接」次按钮；粘贴字段只在用户选择后展开。从权限页或原生扫码页选择粘贴时，返回连接页后必须立即展开并聚焦输入。共享 Web SPA 的已保存电脑以单张可重连行显示，名称为主、连接端点为次，「忘记」保持独立命中区；电脑名称优先取握手 `server_info.hostname` 并在配对或成功重连后增量写入本地 sticky，历史记录没有名称时显示「我的电脑」，协议内部 `serverId` 不得冒充用户可读名称。Compose 壳不复制设备库，只可提供「继续到已保存的手机页」入口。连接中和失败均在坞内短状态卡呈现，长协议说明收束为一句「端到端加密，只连接你的电脑」。Android 内置 WebView 通过受控原生导航进入扫码页；普通浏览器才按 BarcodeDetector／相机能力进入 Web 扫码页。画布必须适配安全区、320px 宽屏和横屏，操作坞内容可滚动但主操作不可被海平线装饰遮挡。
+
+浅深主题使用 `--mobile-connect-*` 与 Compose `DshTokens` 的同义表，色值从 DSHD 基线与鲸屿启动画布校准；不得读取桌面 `--boot-*`。首次打开且没有保存外观时默认跟随系统明暗，不得固定成浅色。原生与 Web 相机预览本身保持同一组高对比 camera token、遮罩和清晰取景框；普通浏览器的扫码页仍以海平线画布承载顶栏、相机容器和操作坞，不得回到旧灰色整页。配对成功进入聊天后，连接画布销毁，恢复下述移动端结构。
 
 结构：48px 顶栏（菜单／Git 胶囊或会话标题／新会话）；空白草稿居中为鲸标、按时段问候与工作区小胶囊；常驻输入为 20px 圆角浮动卡，工具行是 32px 附件圆钮、「模型 · 思考档」胶囊、计划胶囊、权限圆钮与发送／停止圆钮，运行态光束保留。抽屉宽 90%，含鲸标字标、会话／工作区／设置导航、「最近」单行会话（运行中、待审批用状态色点）、电脑首字头像（打开连接详情）与「新会话」主胶囊；完整会话列表是从「会话」进入的全屏任务。设置为无分组标题的卡片（14px 圆角、48px 行），顶部为电脑卡与工作区卡，「断开这台设备」单独成卡置底。
 

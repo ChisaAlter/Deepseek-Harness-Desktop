@@ -33,7 +33,8 @@
 }
 
 .titleRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(0, 1fr);
   align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
@@ -52,6 +53,8 @@
 }
 
 .homeJump {
+  grid-column: 3;
+  justify-self: end;
   flex: none;
   margin: 0;
   padding: 2px 8px;

@@ -1,0 +1,23 @@
+{
+  "at": "2026-09-29T07:00:20.326Z",
+  "userData": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-boot-live-2026-09-29T07-00-00",
+  "coveredMs": 19773,
+  "bootState": {
+    "url": "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/boot.html",
+    "covered": true,
+    "fade": null,
+    "opacity": "1"
+  },
+  "harnessState": {
+    "url": "http://127.0.0.1:3199/",
+    "opacity": "1",
+    "fadeAttr": null,
+    "hasApp": true,
+    "text": "鲸\n屿\nWHALE ISLE\nBASED ON DEEPSEEK HARNESS\n新会话\nCtrl\n+\nN\n插件\n鲸鱼娘\n工作区\nDeep eek-Harne -De ktop\n新会话\n更多\n探索未至之境\n预览版\nDeep eek-Harne -De ktop\n标准模式\n描述你想要构建的内容, / 调用指令, @ 文件或对话\n工作区内修改\nDeepSeek-V41-Fla h\nHigh\n\n暂无终端"
+  },
+  "checks": {
+    "bootCovered": true,
+    "harnessOpaque": true,
+    "harnessMounted": true
+  }
+}

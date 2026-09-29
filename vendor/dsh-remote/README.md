@@ -60,6 +60,8 @@ Real capture (host scrubbed to a placeholder):
 
 ## Install
 
+Desktop fork: the remote workspace picker shares the local dialog's title and footer geometry, keeps Cancel available during loading and errors, and offers retry when machine loading fails. Its content scrolls independently so actions stay reachable in short windows.
+
 ### Official Desktop compatibility (experimental, unreleased)
 
 This branch adds a compatibility path for the **official**

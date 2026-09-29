@@ -113,6 +113,7 @@ export const zh = {
   'picker.refresh': '刷新',
   'picker.mirrorHint': '将在本机创建镜像工作区并与远程目录同步。',
   'picker.listFail': '目录读取失败：{error}',
+  'picker.loadFail': '远程工作区加载失败：{error}',
 
   'explorer.tabTitle': '远程文件',
   'explorer.empty': '本会话不是远程工作区',
@@ -266,6 +267,7 @@ export const en = {
   'picker.refresh': 'Refresh',
   'picker.mirrorHint': 'A local mirror workspace will be created and synced with the remote directory.',
   'picker.listFail': 'Could not list directory: {error}',
+  'picker.loadFail': 'Failed to load remote workspace: {error}',
 
   'explorer.tabTitle': 'Remote Files',
   'explorer.empty': 'This session is not a remote workspace',

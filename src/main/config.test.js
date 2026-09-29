@@ -52,6 +52,16 @@ test('Live2D pet is opt-in through config defaults and persistence', () => {
   assert.equal(loadConfig().live2dPet.x, 12);
 });
 
+test('whale assistant defaults on while an explicit opt-out persists', () => {
+  assert.equal(DEFAULTS.whaleAssistantEnabled, true);
+  fs.writeFileSync(path.join(userData, 'config.json'), '{}');
+  assert.equal(loadConfig().whaleAssistantEnabled, true);
+  saveConfig({ whaleAssistantEnabled: false });
+  assert.equal(loadConfig().whaleAssistantEnabled, false);
+  saveConfig({ whaleAssistantEnabled: true });
+  assert.equal(loadConfig().whaleAssistantEnabled, true);
+});
+
 test('Harness recovery defaults are bounded and enabled', () => {
   assert.equal(DEFAULTS.harnessAutoRestart, true);
   assert.equal(DEFAULTS.harnessRestartMaxAttempts, 3);

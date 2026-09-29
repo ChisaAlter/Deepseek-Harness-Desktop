@@ -157,6 +157,9 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'tsconfig.host.json': '{"references":[{"path":"packages/host/mcp-servers"},{"path":"packages/host/skill-inventory"},{"path":"packages/llm/llm-vision-fallback"},{"path":"packages/mcp/mcp-servers-file"}]}\n',
       'tsconfig.base.json': '{"paths":{"@deepseek-ai/dsh-host-mcp-servers":[],"@deepseek-ai/dsh-host-skill-inventory":[],"@deepseek-ai/dsh-llm-vision-fallback":[],"@deepseek-ai/dsh-mcp-servers-file":[]}}\n',
       'apps/cli/tests/web-agent-presets.e2e.ts': "    { insert: [\n      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },\n    ] },\n",
+      'packages/preset/agent-preset-registry/src/definition.ts': 'export interface PresetDefinition { readonly hidden?: boolean }\n',
+      'packages/preset/agent-preset-registry/src/index.ts': "...(record.config.hidden === true ? { hidden: true } : {}),\n.filter(row => row.hidden !== true || row.broken !== undefined)\n",
+      'packages/preset/agent-preset-registry/tests/registry.spec.ts': "it('keeps a healthy hidden preset off the roster while resolving and mounting it by id', () => {})\n",
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
       'packages/client/ui-layout/src/client/index.ts': "surfaces: number\nsurfaces: { kind: 'single', scope: 'session-maybe' }\nshell.titlebar.trailing\nshell.terminalDrawer\n",
       'packages/client/ui-layout/src/client/AppFrame.tsx': "surfaces: 0 css.mainPanel data-main-panel\n",
@@ -308,6 +311,13 @@ test('assertDesktopForks throws when the header golden regains Session log', (t)
   const goldenPath = path.join(root, ...'apps/web/tests/snapshots/agent-preset-selection/header.expected.md'.split('/'));
   fs.writeFileSync(goldenPath, '- button "Session log"\n');
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /Session log/);
+});
+
+test('assertDesktopForks throws when hidden agent-preset support drops back out', (t) => {
+  const root = makeFixture(t);
+  const registryPath = path.join(root, ...'packages/preset/agent-preset-registry/src/index.ts'.split('/'));
+  fs.writeFileSync(registryPath, 'return { presets: await this.list() }\n');
+  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /hidden|roster/);
 });
 
 test('assertDesktopForks throws when the single right-panel contract regresses', (t) => {

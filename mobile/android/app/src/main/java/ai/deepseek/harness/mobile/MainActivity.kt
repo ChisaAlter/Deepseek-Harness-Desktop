@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
                     Route.Scan -> ScanScreen(
                         onFound = vm::onScanned,
                         onClose = { vm.route = Route.Connect },
-                        onPaste = { vm.route = Route.Connect },
+                        onPaste = vm::openPasteEntry,
                     )
                     Route.Web -> RemoteWebScreen(
                         url = vm.webUrl,
@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                         chromeClient = webChromeClient,
                         onCancelFileChooser = fileChooser::cancel,
                         onLeave = vm::leaveWebApp,
+                        onRequestScan = ::requestScan,
                         onFatalLoadError = {
                             vm.error = it
                             vm.leaveWebApp()

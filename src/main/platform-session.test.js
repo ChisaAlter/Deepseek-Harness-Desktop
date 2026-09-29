@@ -55,3 +55,35 @@ test('fetchPlatformSession returns session or null', async () => {
   const bad = await fetchPlatformSession('http://127.0.0.1:3080', async () => ({ ok: false }));
   assert.equal(bad, null);
 });
+
+test('publisher resolves the live account after late startup and service replacement', async (t) => {
+  const { apply } = await import(pathToFileURL(path.join(
+    __dirname, '..', '..', 'vendor', 'dsh-platform-session', 'lib', 'index.js')).href);
+  const previousToken = process.env.DSHD_PLATFORM_TOKEN;
+  process.env.DSHD_PLATFORM_TOKEN = 'publisher-test';
+  t.after(() => {
+    if (previousToken === undefined) delete process.env.DSHD_PLATFORM_TOKEN;
+    else process.env.DSHD_PLATFORM_TOKEN = previousToken;
+  });
+  let handler;
+  const services = new Map([['webServer', { register(route) { handler = route.handler; } }]]);
+  apply({ get: name => services.get(name), on() {} });
+  const read = async () => {
+    let result;
+    await handler({ method: 'GET', url: '/dshd-platform/session',
+      headers: { authorization: 'Bearer publisher-test' } }, {
+      writeHead(status) { assert.equal(status, 200); },
+      end(body) { result = JSON.parse(body).session; },
+    });
+    return result;
+  };
+  assert.equal(await read(), null);
+  const first = { token: 'first-test-token', origin: 'https://platform.deepseek.com' };
+  services.set('deepseekAccount', { getPlatformSession: async () => first });
+  assert.deepEqual(await read(), first, 'logged-in account must become available after route registration');
+  const replacement = { ...first, token: 'replacement-test-token' };
+  services.set('deepseekAccount', { getPlatformSession: async () => replacement });
+  assert.deepEqual(await read(), replacement);
+  services.delete('deepseekAccount');
+  assert.equal(await read(), null, 'removed account must not retain credentials');
+});

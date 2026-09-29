@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `boot-page` |
 | **status** | `active` |
-| **last verified (desktop reveal)** | 2026-09-29 — boot 保持不透明垫底，桌面按双倍基础时长淡入并等待渲染完成；真实 Electron 明暗均有中间帧、减少动态效果无中间透明帧，最终 hold 解除。定向 75/75、隔离源码冒烟通过（标题栏命中、PTY、无页面错误）。见 `docs/qa/results/2026-09-29-boot-reveal/REPORT.md`；未构建安装包。 |
+| **last verified (desktop reveal)** | 2026-09-29 — boot 保持不透明垫底，桌面按双倍基础时长淡入并等待渲染完成；真实 Electron 明暗均有中间帧、减少动态效果无中间透明帧，最终 hold 解除。定向 75/75、隔离源码冒烟通过（标题栏命中、PTY、无页面错误）。新增实机复测：隔离源码实例的 boot 文档保持 `opacity:1` 直到真实 Harness 渲染器挂载，随后 `data-harness-covered:true`，无页面错误。见 `docs/qa/results/2026-09-29-four-fix-live/`；未构建安装包。 |
 | **last verified (window controls)** | 2026-09-29 — 窗控对齐主界面 32px / 8px 方钮、零间距与相同内边距；Electron 明暗最终样式及三个按钮命中检查通过。安装包构建暂停。 |
 | **last verified (A2 plugin recovery)** | 2026-09-28 — 插件恢复纳入取消世代与共享 import 维护准入；真实 controller + launcher service + task-protection + import guard 回归覆盖 stop、blocked/unreadable journal、恢复先持锁、延迟 start/Remote、异步准备成功/失败及旧 finally 不清新任务。定向 217/217；未修改的原外部 A2 回归在独立证据目录重跑 4/4，原审计证据未覆盖。未重启应用；统一文档门禁与重启由主代理负责。 |
 | **last verified (restart)** | 2026-09-08 — 105 项 controller/window/IPC 检查通过；延迟 boot 导航回归及隔离 Electron 内置重启恢复可见 Bot 界面通过 |

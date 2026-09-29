@@ -59,6 +59,7 @@ function mountWindowControls(host) {
       return;
     }
     document.documentElement.toggleAttribute('data-window-maximized', Boolean(state.maximized));
+    document.documentElement.toggleAttribute('data-native-window-frame', Boolean(state.nativeFrame));
     if (!maxBtn) {
       return;
     }

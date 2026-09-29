@@ -4,6 +4,8 @@ Status: implemented
 
 中文 | [English](2026-09-25-window-chrome-self-heal.en.md)
 
+> Windows 主窗口/启动器的透明性与自绘外轮廓要求已由[原生窗口动画](2026-09-29-native-window-motion.md)取代；非 Windows、内部内容圆角及其他决定保留。
+
 ## Problem
 
 用户报告：修改插件并重启几次之后，主窗口圆角消失、右上角最小化/最大化/关闭按钮丢失、视口最右边出现一条黑线。主窗口是 `frame:false + transparent:true`，圆角剪影与窗控按钮全部由 `harness-chrome-inject.js` 注入 Harness BrowserView 页面绘制，三个症状同源——注入脚本没生效或注入后节点被抹掉。

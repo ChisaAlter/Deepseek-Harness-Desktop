@@ -49,6 +49,19 @@ function windowChrome(overrides = {}) {
   };
 }
 
+// Feature: window-motion. Alpha shell windows lose Win32 caption/thick-frame
+// styles and DWM transitions. Keep this policy separate from pet/overlay chrome.
+function shellWindowChrome(overrides = {}) {
+  const native = process.platform === 'win32';
+  return windowChrome({
+    ...overrides,
+    transparent: !native,
+    thickFrame: true,
+    roundedCorners: native,
+    backgroundColor: native ? currentTheme().bg : '#00000000',
+  });
+}
+
 function hideNativeMenu(win) {
   if (!win || win.isDestroyed()) {
     return;
@@ -100,6 +113,8 @@ function isEffectivelyMaximized(win) {
   if (win.isMaximized()) {
     return true;
   }
+  // An opaque native window can fill the work area without being maximized.
+  if (!transparentWindows.has(win)) return false;
   const bounds = win.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
   return coversWorkArea(bounds, area);
@@ -141,6 +156,7 @@ function sendWindowState(win) {
     return;
   }
   const payload = {
+    nativeFrame: process.platform === 'win32' && !transparentWindows.has(win),
     maximized: isEffectivelyMaximized(win),
     minimizable: win.minimizable,
     maximizable: win.maximizable,
@@ -209,6 +225,7 @@ function bindChromeIpc() {
       return { maximized: false, minimizable: true, maximizable: true };
     }
     return {
+      nativeFrame: process.platform === 'win32' && !transparentWindows.has(win),
       maximized: isEffectivelyMaximized(win),
       minimizable: win.minimizable,
       maximizable: win.maximizable,
@@ -356,6 +373,7 @@ function attachIntegratedChrome(win, options = {}) {
 module.exports = {
   TITLEBAR_HEIGHT,
   windowChrome,
+  shellWindowChrome,
   hideNativeMenu,
   attachIntegratedChrome,
   applyAppTheme,

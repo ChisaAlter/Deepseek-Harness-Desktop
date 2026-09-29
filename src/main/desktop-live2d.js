@@ -740,6 +740,9 @@ function createLive2dPetManager(options = {}) {
         spellcheck: false,
       },
     });
+    // Global theme updates repaint every BrowserWindow. Preserve the overlay's
+    // alpha backing on every creation, including renderer/GPU recovery.
+    require('./chrome').markWindowTransparent(win);
     // Creation clamps the window to the primary display's size; re-apply the
     // union bounds so the overlay really covers every monitor.
     try { win.setBounds(overlayBounds()); } catch {}

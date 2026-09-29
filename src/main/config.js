@@ -55,9 +55,8 @@ const DEFAULTS = {
   downloadRoute: '',
   disabledPlugins: [],
   dshbotEnabled: false,
-  // Whale assistant (R3) — off by default so it can never silently hijack
-  // IM routing or spawn a session before the feature card ships.
-  whaleAssistantEnabled: false,
+  // Built-in assistant is available on first launch; persisted opt-outs win.
+  whaleAssistantEnabled: true,
   // Remote workspaces (SSH) — on by default; toggling restarts Harness so
   // the dsh-remote overlay composes or drops on the next start. Distinct
   // from `remoteEnabled`, which gates the phone/LAN remote pairing daemon.

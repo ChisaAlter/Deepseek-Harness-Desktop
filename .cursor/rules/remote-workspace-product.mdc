@@ -6,4 +6,6 @@ Picker remote entry: `ui-directory-picker-browse` fork declares a new `single` r
 
 Remote context is session-scoped: system prompt injects only while session cwd is inside a mirror; 20 `rw_*` tools satisfy `[A-Za-z0-9_-]{1,64}`; writes/removes/moves/forwards land in `audit.log`; `rw_sync`/`rw_push` three-way conflicts never silently overwrite; TOFU `accept-new` rejects changed host keys. Credentials + known_hosts + mirrors stay under `$DSH_HOME/remote-workspaces` — never `~/.dsh`; plaintext passwords are upstream behavior, DPAPI encryption is deferred. New settings section「远程工作区」— do NOT merge into phone `remote` (`ui-settings-remote`/`dshd-remote`) or confuse with `dsh-api-remotes` / upstream `packages/ssh/*`.
 
+Picker tabs keep their title-row position; remote content scrolls independently of the footer. Loading, empty and failed states keep Cancel available; loading failures offer retry, and failed machine selection must not list the previous machine.
+
 Full card: [docs/features/remote-workspace.md](../../docs/features/remote-workspace.md)

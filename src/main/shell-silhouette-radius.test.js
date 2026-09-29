@@ -69,3 +69,10 @@ test('dialog scrim and AppFrame carry the shared radius into their own planes', 
   assert.match(frameModule, /corner-shape:\s*round/);
   assert.match(frameModule, /--dsh-windows-content-radius:\s*20px/);
 });
+
+test('native Windows edges opt out of page silhouette without changing inner content corners', () => {
+  assert.match(boot, /html\[data-native-window-frame\] \.scene\s*\{\s*border-radius: 0/);
+  assert.match(launcher, /html\[data-native-window-frame\] \.shell\s*\{\s*border-radius: 0;\s*box-shadow: none/);
+  assert.match(inject, /html\[data-native-window-frame\] \[data-titlebar-density\]\s*\{\s*border-radius: 0 !important/);
+  assert.match(inject, /html\[data-native-window-frame\] #\$\{FRAME_RING_ID\}\s*\{\s*display: none/);
+});

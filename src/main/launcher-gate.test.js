@@ -312,22 +312,58 @@ test('cold-start gate stays on the launcher after a source-run installer launch'
   }
 });
 
-test('cold-start gate holds at import and at a failed last start', async () => {
+test('available import data never redirects a normal cold start to import', async () => {
   const importCase = gateDeps({
     probeImportHold: () => ({ destEmpty: true, sourceHasData: true, hold: true }),
   });
   try {
     const result = await runColdStartGate(importCase.deps);
-    assert.equal(result.outcome, 'launcher');
-    assert.equal(result.holdForImport, true);
-    assert.equal(importCase.calls.startDesktop, 0);
+    assert.equal(result.outcome, 'desktop');
+    assert.equal(result.holdForImport, false);
+    assert.equal(importCase.calls.startDesktop, 1);
     const tab = importCase.calls.sent.find((row) => row.channel === 'shell:show-tab');
-    assert.deepEqual(tab.payload, { tab: 'import' });
+    assert.equal(tab, undefined);
   } finally {
     fs.rmSync(importCase.dir, { recursive: true, force: true });
   }
 
-  const failedCase = gateDeps();
+});
+
+test('manual-start mode opens home without reading optional import sources', async () => {
+  const fixture = gateDeps({
+    config: { askOnUpdate: true, autoStartDesktop: false },
+    probeImportHold: () => { throw new Error('optional source is unreadable'); },
+  });
+  try {
+    const result = await runColdStartGate(fixture.deps);
+    assert.equal(result.outcome, 'launcher');
+    assert.equal(fixture.calls.startDesktop, 0);
+    assert.deepEqual(fixture.calls.sent.find(row => row.channel === 'shell:show-tab').payload, { tab: 'home' });
+  } finally { fs.rmSync(fixture.dir, { recursive: true, force: true }); }
+});
+
+test('interrupted import recovery and unreadable journals still hold at import', async () => {
+  for (const overrides of [
+    { recoverInterruptedImport: () => ({ recovered: true, removedTmp: [] }) },
+    { recoverInterruptedImport: () => ({ blocked: true }) },
+    { recoverInterruptedImport: () => { throw new Error('recovery failed'); } },
+    { readImportJournal: () => ({ unreadable: true }) },
+  ]) {
+    const fixture = gateDeps(overrides);
+    try {
+      const result = await runColdStartGate(fixture.deps);
+      assert.equal(result.outcome, 'launcher');
+      assert.equal(result.holdForImport, true);
+      assert.equal(fixture.calls.startDesktop, 0);
+      assert.deepEqual(fixture.calls.sent.find(row => row.channel === 'shell:show-tab').payload, { tab: 'import' });
+    } finally { fs.rmSync(fixture.dir, { recursive: true, force: true }); }
+  }
+});
+
+test('failed last start opens home even when optional import data exists', async () => {
+  const failedCase = gateDeps({
+    probeImportHold: () => ({ destEmpty: true, sourceHasData: true, hold: true }),
+  });
   writeLastDesktopStart(failedCase.dir, { ok: false, error: 'plugin tree' });
   try {
     const result = await runColdStartGate(failedCase.deps);

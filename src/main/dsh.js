@@ -2,7 +2,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 const { createRequire } = require('module');
-const { spawn, execFileSync } = require('child_process');
+const { spawn, execFile, execFileSync } = require('child_process');
 const EventEmitter = require('events');
 const { loadConfig, configPath } = require('./config');
 const { DESKTOP_PACKAGES } = require('../shared/harness-desktop-forks');
@@ -219,41 +219,39 @@ function missingDesktopForkPackages(root) {
   return missing;
 }
 
-function execTimed(command, args, timeoutMs = 2500) {
-  try {
-    return execFileSync(command, args, {
+function execTimed(command, args, timeoutMs = 2500, run = execFile) {
+  return new Promise((resolve) => {
+    run(command, args, {
       timeout: timeoutMs,
       windowsHide: true,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
-    });
-  } catch (error) {
-    return error && error.stdout ? String(error.stdout) : '';
-  }
+    }, (_error, stdout) => resolve(stdout ? String(stdout) : ''));
+  });
 }
 
 function isSelfPid(pid) {
   return pid === process.pid || pid === process.ppid;
 }
 
-function isSafeToKill(pid) {
+async function isSafeToKill(pid, run = execFile) {
   if (!pid || isSelfPid(pid)) {
     return false;
   }
-  const name = processImageName(pid).toLowerCase();
+  const name = (await processImageName(pid, run)).toLowerCase();
   if (!name || name.includes('electron')) {
     return false;
   }
   return /^(node|dsh)(\.exe)?$/.test(name);
 }
 
-function killTree(pid) {
-  if (!pid || !isSafeToKill(pid)) {
+async function killTree(pid, run = execFile) {
+  if (!pid || !await isSafeToKill(pid, run)) {
     return;
   }
   try {
     if (process.platform === 'win32') {
-      execTimed('taskkill', ['/pid', String(pid), '/T', '/F'], 2500);
+      await execTimed('taskkill', ['/pid', String(pid), '/T', '/F'], 2500, run);
     } else {
       process.kill(-pid, 'SIGTERM');
     }
@@ -315,14 +313,14 @@ function processAlive(pid) {
   }
 }
 
-function processImageName(pid) {
+async function processImageName(pid, run = execFile) {
   try {
     if (process.platform === 'win32') {
-      const out = execTimed('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], 2000).trim();
+      const out = (await execTimed('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], 2000, run)).trim();
       const match = out.match(/^"([^"]+)"/);
       return match ? match[1] : '';
     }
-    return execTimed('ps', ['-p', String(pid), '-o', 'comm='], 2000).trim();
+    return (await execTimed('ps', ['-p', String(pid), '-o', 'comm='], 2000, run)).trim();
   } catch {
     return '';
   }
@@ -554,9 +552,9 @@ async function ensureOwnedPort(host, wantedPort, log = () => {}, deps = {}) {
   }
 
   const previous = readPidFile();
-  if (previous && processAlive(previous) && isSafeToKill(previous)) {
+  if (previous && processAlive(previous) && await isSafeToKill(previous)) {
     log(`停止上次残留的 dsh（pid ${previous}）`);
-    killTree(previous);
+    await killTree(previous);
     await sleep(400);
     probe = await probePort(host, wanted);
     if (!probe.inUse) {
@@ -898,7 +896,7 @@ class DshManager extends EventEmitter {
       const leftover = this.child.pid;
       this.log(`清理残留 dsh 进程（pid ${leftover}）`);
       this.child = null;
-      this._killTree(leftover);
+      await this._killTree(leftover);
       await this._sleep(300);
       if (!isCurrent()) {
         throw cancelledError();
@@ -984,7 +982,7 @@ class DshManager extends EventEmitter {
         if (stalePid && this.child === child) {
           this.child = null;
           this._clearPidFile();
-          this._killTree(stalePid);
+          await this._killTree(stalePid);
         }
         // 本代已被 stop/restart 取消：状态由 stop 收尾为 idle，这里绝不改写
         throw error;
@@ -1002,7 +1000,7 @@ class DshManager extends EventEmitter {
         });
       }
       if (pid) {
-        this._killTree(pid);
+        await this._killTree(pid);
       }
       throw error;
     }
@@ -1110,7 +1108,7 @@ class DshManager extends EventEmitter {
         }
         await this._sleep(800);
       }
-      this._killTree(pid);
+      await this._killTree(pid);
     }
     this._clearPidFile();
     if (this.state !== 'idle') {
@@ -1167,6 +1165,7 @@ class DshManager extends EventEmitter {
 }
 
 module.exports = {
+  killTree,
   DshManager,
   resolveNodeBin,
   resolveDshBin,

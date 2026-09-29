@@ -14,7 +14,7 @@ description: 按改动面选最小检查集：什么时候跑 npm test / doc-syn
 | 只改 `docs/decisions/**` | `npm run check:governance`（树/格式/归档/切换行由 pairing 覆盖则再 `--list`） |
 | 改任一双语侧（配对对） | `verify-translation-pairing --write <path>` 重录 → `npm run doc-sync` |
 | 改 feature 卡 / `.cursor/rules` | `npm run check:governance`（卡 schema + 同步） |
-| 改 `docs/**` 其他文档 | `npm run doc-sync`（死链 + 预算 + 配对） |
+| 改 `docs/**` 其他文档 | `npm run doc-sync`（死链 + 配对） |
 | 改 `scripts/verify-*` / `run-gates` | `node --test scripts/*.test.mjs`（门禁自己的 spec） |
 | 改产品代码 `src/**` / `mobile/**` | 该 feature 卡 `## Gates` 里的定向测试 → `npm test` → 重启应用实测 |
 | 改 vendored `vendor/**` | vendor 自带治理（`vendor/*/AGENTS.md`）+ `npm test`；本地分歧须记 vendor README |

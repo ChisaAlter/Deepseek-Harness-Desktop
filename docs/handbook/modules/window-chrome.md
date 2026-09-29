@@ -14,7 +14,7 @@
 
 ## 架构要点
 
-- shell 窗是 `transparent: true` 分层窗：剪影由页面自绘（boot 页圆角卡、harness 页注入 `body` 圆角裁切 + `#dshd-frame-canvas` 底色层 + `#dsh-wallpaper` 同径 + `#dshd-frame-ring` 嵌边发丝环锚定边缘），`paintBackground` 对透明窗跳过。代价是 Windows 分层表面语义：最大化只改 bounds、`isMaximized()` 恒假、`unmaximize()`/`restore()` 无效——有效最大化按「覆盖工作区」几何判定（`isEffectivelyMaximized`），还原用主进程跟踪的 `_dshNormalBounds` + `setBounds`（见 [2026-09-25 窗控自愈与几何最大化](../../decisions/implemented/bug-fix/2026-09-25-window-chrome-self-heal.md)、[2026-09-25 剪影嵌边环](../../decisions/implemented/bug-fix/2026-09-25-window-silhouette-edge-ring.md)）。注入丢失有三层兜底：eval 失败 retry、`did-navigate`/`focus`/`show` 重断言、页面 MutationObserver 自愈。
+- Windows 主窗口与启动器使用 `shellWindowChrome` 的不透明原生窗口策略，DWM 负责外框圆角、阴影和最大化/最小化/还原过渡。页面收到 `nativeFrame` 状态后铺满客户区，移除第二层外轮廓裁切与缘线；内部内容角和壁纸仍用原有 token。非 Windows 保留透明自绘剪影，只有登记过的透明窗使用几何最大化与 `_dshNormalBounds` 还原。详见 [window-motion](../../features/window-motion.md) 和 [恢复原生动画决策](../../decisions/implemented/bug-fix/2026-09-29-native-window-motion.md)。注入自愈继续覆盖 eval retry、导航/focus/show 与页面 MutationObserver。
 - `window.js` 管理 Harness BrowserView bounds 与覆盖；`desktop-pet.js` + `desktop-pets.js` 管理 Codex 宠物发现（`${CODEX_HOME:-~/.codex}/pets`、v1/v2 图集）、约 80–96px 宠物 BrowserView、右键换肤菜单、归一化位置和生命周期，feature 默认关闭。
 - `desktop-live2d.js` 管理 Live2D 宠物：覆盖虚拟屏的透明 `alwaysOnTop` BrowserWindow，窗口本身永不 `setPosition`（分层透明窗移动会闪空）；默认 `setIgnoreMouseEvents` 穿透，主进程 ~30Hz 轮询 `screen.getCursorScreenPoint()` 推 `shell:live2d-cursor`，渲染器按角色 alpha bounds 决定交互。页面经特权 `pet://` scheme 加载，渲染进程内跑 onnxruntime-web（WebGPU→WASM 回落）。
 - `harness-chrome-inject.js` / `chrome.js` 把桌面 chrome 接到官方页。
@@ -32,6 +32,8 @@
 - 两种宠物形态不得同时可见；宠物 preload/IPC 面收窄，不暴露 Harness workspace/Git/文件/远程/插件权限。
 
 ## 门槛
+
+- Windows：`node scripts/run-window-motion-qa.mjs` 检查真实工厂 HWND 样式和 IPC；可见动画在交互桌面逐帧验收。
 
 - QA：`TC-WS-002` … `TC-WS-004`；`TC-SURF-007`；`TC-DESK-010`（Codex 宠物）、`TC-DESK-011`（Live2D 宠物）
 

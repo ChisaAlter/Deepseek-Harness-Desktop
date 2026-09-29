@@ -449,9 +449,9 @@ class HarnessController extends EventEmitter {
       assertCurrent();
     };
     checkCurrent();
-    await this.dsh.stop();
-    checkCurrent();
     await this.ensureBootVisible(checkCurrent).catch(() => {});
+    checkCurrent();
+    await this.dsh.stop();
     checkCurrent();
     await previousOperation?.catch(() => {});
     checkCurrent();

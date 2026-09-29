@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-24 — 手机 Web 与 Android 连接／权限／扫码页改为 Claude 式结构（DSHD 浅色／深色 token 不变）。`mobile/web/**/*.test.js` 302/302、QA 服务与资源测试 20/20、Android `test :app:assembleDebug` 通过、`check:governance` 6/6；fake host 下真实 SPA 412×917 浅色／深色 10 个状态截图无控制台错误。未做真机、公网 relay 或 Android WebView 实机验收。此前 2026-09-23 — 远程弹窗收束到账户菜单；源码应用 CDP 确认旧侧栏入口为 0、菜单入口可打开原弹窗并由 Esc 关闭。相关测试 76/76、两个插件类型检查通过；未改动或复测移动端配对链路。此前 2026-09-08 — 外出默认链路已迁移并部署为 `https://ayase.cn/dshd/` + `ayase.cn:443` TLS relay；公网资源目录与本地 fixture 一致，真实 daemon + 公网 relay + 公网 SPA 的配对、进入会话、坏 offer、无 hash、断线与清理 E2E 10/10。服务器容器 `healthy` / 0 restart。此前 2026-09-07 Ardot `Desktop-aligned v2` 的 Web 292 项、资源/QA 20 项、Android `test assembleDebug`、APK 资源审计及 debug 覆盖安装结论不变；本轮未执行真机相机、Android WebView、正式签名或安装包保留数据升级。 |
+| **last verified** | 2026-09-29 — 连接前 Web／Android 入口改为鲸屿海平线明暗画布，并修正保存电脑把 `serverId` 当名称的问题：新连接优先保存 `server_info.hostname`，自动重连刷新名称，历史 sticky 直接回退「我的电脑」且不清数据；可选名称落盘失败不影响已建立的连接。Web 307/307、连接 QA 320／390／1280px、Android `:protocol:test :app:testDebugUnitTest :app:assembleDebug` 均通过；APK 内 48 个 Web 资源与源码逐字节一致，`missing`／`changed`／`unexpected` 均为空。debug APK 以 `adb install -r` 覆盖安装到设备 `23124RN87C`（序列号 `9TUCYX8TBI6DLRMZ`），保留数据后冷启动；真机浅色、深色、WebView → 原生扫码、扫码页粘贴返回，以及旧 `srv_*` 记录显示「我的电脑」均通过。旧中继本轮连接超时，真机未取得实时 hostname；该升级路径由连接测试覆盖。证据见 [2026-09-29-mobile-connect-horizon](../qa/results/2026-09-29-mobile-connect-horizon/README.md)。本轮未复测公网 relay、完整已配对聊天或正式签名升级。此前 2026-09-24 — 手机 Web 与 Android 连接／权限／扫码页改为 Claude 式结构；Web 302/302、资源测试 20/20、Android 构建与 fake host 十态截图通过，当时未做真机。此前 2026-09-08 — 公网链路迁移到 `https://ayase.cn/dshd/` + `ayase.cn:443`，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。 |
 
 ## 当前改造轮次（2026-09-06）
 
@@ -122,13 +122,13 @@
 - Android Compose 只负责扫码/粘贴；会话走 APK 内置同一 Web SPA。
 - 助手 Markdown 禁止 `innerHTML` 注入：结构化 block → createElement；链接仅 http/https。
 - 时间线向上分页按 seq 去重并保持滚动锚点。打开会话失败必须清掉上一会话 rows。
-- 「已保存的电脑」是纯本地 sticky；「忘记」只清本机 secret。
+- 「已保存的电脑」是纯本地 sticky；「忘记」只清本机 secret。用户可见名称优先使用握手 `server_info.hostname` 并以可选 `computerName` 增量保存；历史 sticky 无名称时显示「我的电脑」，内部 `serverId` 只作连接键且不得显示为电脑名。
 - 保存设备自动 / 手动重连与 offer 首连共用互斥连接入口；连接中显示状态，首次握手失败 / 超时关闭客户端并恢复按钮，不清 sticky。只有成功建立连接后才启用后台自动重连，避免初次失败永久占用选择器。
 - 新 offer 取消未完成的旧连接，旧连接结果不得覆盖新连接。配对认证成功后，当前客户端立即改用 deviceSecret，自动重连不得复用一次性 pairingToken；消费后的 offer 从页面 fragment 清除。认证失败停止后台重试但不静默删除保存凭据。
 - Android WebView 用显式请求序号识别新扫码或重试，不因重组重新插入已消费的 offer；返回前台触发共享 SPA 的连接探测与目录同步。内置资源缺失或主页面加载失败必须可见，不能回落公网下载同名资源。
 - 手机目录转发保留全部 `session.list` 行和原始会话字段，投影只传 `title` / `sessionListMetadata`。模型、权限、计划与用量详情通过打开会话时的 history 按需获取，不能为每次首屏同步重复传输所有会话的详情；history、创建与搜索响应不受目录裁剪影响。目录失败必须可重试，不能假空列表。
 - **非 secure context 兼容**：`http://<LAN-IP>:3180` 禁止裸用 `crypto.randomUUID` / `crypto.subtle`；uuid 走 `getRandomValues` fallback；E2EE 保持 tweetnacl。
-- 颜色仍只抄 `--dsw-alias-*` / `--dsw-specific-*`（浅色／深色同值表），不另起色板或衬线；页面结构按[设计语言「手机远程交互」](../design-language.md#手机远程交互)的 Claude 式结构：48px 顶栏、浮动输入卡、抽屉只做导航与「最近」、完整会话列表为全屏任务、输入框触发的选择用底部面板、设置为分组卡片。顶栏／行菜单仍是贴近触发器的 Menu，破坏性确认仍是居中 Modal。
+- 已配对页颜色仍只取 `--dsw-alias-*` / `--dsw-specific-*` 同值表，不另起产品皮肤；连接／权限／扫码入口可用文档化的 `--mobile-connect-*` 与 Compose `DshConnectionPalette` 复述鲸屿海天语义，并仅在品牌字标使用展示衬线，禁止读取 `--boot-*` 或把该例外扩散进聊天。已配对页面结构按[设计语言「手机远程交互」](../design-language.md#手机远程交互)的 Claude 式结构：48px 顶栏、浮动输入卡、抽屉只做导航与「最近」、完整会话列表为全屏任务、输入框触发的选择用底部面板、设置为分组卡片。顶栏／行菜单仍是贴近触发器的 Menu，破坏性确认仍是居中 Modal。
 - 全量启动才启用内容搜索：`--patch` `desktop-session-search.patch.yml` 覆写 `session-query-sqlite` 为 `openAt: first-search` 与 `dsh-home/session-query.sqlite`。禁止把这次 opt-in 写进用户 `cordis.patch.yml`。skip 启动保持发版 `openAt: never`。
 
 ## Allowed touch

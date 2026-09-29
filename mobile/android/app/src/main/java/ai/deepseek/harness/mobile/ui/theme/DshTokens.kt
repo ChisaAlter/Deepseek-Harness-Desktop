@@ -2,6 +2,31 @@ package ai.deepseek.harness.mobile.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+data class DshConnectionPalette(
+    val ink: Color,
+    val muted: Color,
+    val mark: Color,
+    val markCutout: Color,
+    val hairline: Color,
+    val panel: Color,
+    val panelBorder: Color,
+    val panelShadow: Color,
+    val primary: Color,
+    val primaryInk: Color,
+    val sceneStops: List<Pair<Float, Color>>,
+    val hazePrimary: Color,
+    val hazeSecondary: Color,
+    val star: Color,
+    val seaLight: Color,
+    val particle: Color,
+    val cameraSurface: Color,
+    val cameraInk: Color,
+    val cameraMuted: Color,
+    val cameraScrim: Color,
+    val torchSurface: Color,
+    val torchTint: Color,
+)
+
 data class DshPalette(
     val bgBase: Color,
     val bgLayer1: Color,
@@ -35,6 +60,7 @@ data class DshPalette(
     val navHover: Color,
     val inputMajor: Color,
     val mask: Color,
+    val connection: DshConnectionPalette,
 )
 
 object DshTokens {
@@ -71,6 +97,36 @@ object DshTokens {
         navHover = Color(241, 243, 245),
         inputMajor = Color(255, 255, 255, 0xCC),
         mask = Color(0, 0, 0, 0x3D),
+        connection = DshConnectionPalette(
+            ink = Color(24, 42, 54),
+            muted = Color(82, 108, 121),
+            mark = Color(24, 58, 74),
+            markCutout = Color(229, 239, 243),
+            hairline = Color(30, 60, 76, 0x4D),
+            panel = Color(248, 251, 253, 0xD6),
+            panelBorder = Color(30, 60, 76, 0x29),
+            panelShadow = Color(29, 71, 91, 0x29),
+            primary = Color(24, 42, 54),
+            primaryInk = Color(244, 249, 251),
+            sceneStops = listOf(
+                0f to Color(241, 246, 248),
+                0.55f to Color(229, 239, 243),
+                0.62f to Color(204, 227, 235),
+                0.75f to Color(151, 188, 206),
+                1f to Color(80, 126, 151),
+            ),
+            hazePrimary = Color(255, 241, 214, 0xB3),
+            hazeSecondary = Color(184, 215, 230, 0xA8),
+            star = Color.Transparent,
+            seaLight = Color(255, 255, 255, 0x52),
+            particle = Color(51, 96, 119, 0x47),
+            cameraSurface = Color(15, 17, 21),
+            cameraInk = Color(249, 250, 251),
+            cameraMuted = Color(173, 178, 184),
+            cameraScrim = Color(0, 0, 0, 0x52),
+            torchSurface = Color(15, 17, 21, 0xCC),
+            torchTint = Color(255, 255, 220, 0x28),
+        ),
     )
 
     val Dark = DshPalette(
@@ -106,5 +162,36 @@ object DshTokens {
         navHover = Color(44, 44, 46),
         inputMajor = Color(44, 44, 46, 0xCC),
         mask = Color(0, 0, 0, 0x80),
+        connection = DshConnectionPalette(
+            ink = Color(234, 240, 244),
+            muted = Color(151, 170, 182),
+            mark = Color(186, 221, 236),
+            markCutout = Color(7, 16, 26),
+            hairline = Color(190, 224, 240, 0x52),
+            panel = Color(8, 16, 26, 0xD1),
+            panelBorder = Color(190, 224, 240, 0x29),
+            panelShadow = Color(0, 0, 0, 0x70),
+            primary = Color(224, 237, 244),
+            primaryInk = Color(6, 14, 22),
+            sceneStops = listOf(
+                0f to Color(2, 4, 9),
+                0.40f to Color(4, 9, 17),
+                0.55f to Color(8, 18, 30),
+                0.62f to Color(12, 34, 48),
+                0.78f to Color(8, 24, 38),
+                1f to Color(4, 13, 23),
+            ),
+            hazePrimary = Color(64, 115, 156, 0x3D),
+            hazeSecondary = Color(78, 130, 151, 0x29),
+            star = Color(236, 246, 252, 0xD1),
+            seaLight = Color(96, 170, 200, 0x29),
+            particle = Color(175, 212, 230, 0x7A),
+            cameraSurface = Color(15, 17, 21),
+            cameraInk = Color(249, 250, 251),
+            cameraMuted = Color(173, 178, 184),
+            cameraScrim = Color(0, 0, 0, 0x52),
+            torchSurface = Color(15, 17, 21, 0xCC),
+            torchTint = Color(255, 255, 220, 0x28),
+        ),
     )
 }

@@ -77,6 +77,26 @@ describe('declarative preset revisions', () => {
     expect(roster.presets.find(row => row.id === 'standard')?.isDefault).toBe(true)
   })
 
+  it('keeps a healthy hidden preset off the roster while resolving and mounting it by id', async () => {
+    const ctx = await setup()
+    await declare(ctx, { ...contribution('internal'), hidden: true, name: 'Internal' })
+    await declare(ctx, contribution('standard'))
+
+    expect(await ctx.agentPresets.resolve('internal')).toEqual({ id: 'internal', name: 'Internal', hidden: true })
+    expect((await ctx.agentPresets.remoteExportList()).presets.map(row => row.id)).toEqual(['standard'])
+    const scope = createScope(ctx, {})
+    await expect(ctx.agentPresets.mount(scope.ctx, 'internal')).resolves.toEqual({ id: 'internal' })
+    await scope.dispose()
+  })
+
+  it('keeps a broken hidden preset visible so its diagnostic remains actionable', async () => {
+    const ctx = await setup()
+    await declare(ctx, { id: 'internal', hidden: true, plugins: [{ name: 'missing-hidden-preset-plugin-for-test' }] })
+
+    const row = (await ctx.agentPresets.remoteExportList()).presets.find(preset => preset.id === 'internal')
+    expect(row?.broken).toEqual(expect.any(String) as string)
+  })
+
   it('rejects duplicate IDs without disposing the first definition', async () => {
     const ctx = await setup()
     await declare(ctx, contribution('standard'))

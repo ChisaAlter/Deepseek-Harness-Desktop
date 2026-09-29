@@ -4,9 +4,9 @@
 
 This is the full contract for the「Mobile remote interaction」section of [design-language.en.md](design-language.en.md); the token tables, mandatory rules and exceptions live in the parent document.
 
-The page structure of remote Web and the Android bundled SPA follows the
+The paired page structure of remote Web and the Android bundled SPA follows the
 Claude mobile app; colors, font stack and light/dark still come only from the
-same-value token tables — no warm paper surface, serif type or second palette;
+same-value token tables — no warm paper surface or second product skin;
 the desktop is unaffected. Canvas `--dsw-specific-sidebar-fill`, cards and the
 floating composer card `--dsw-alias-bg-layer-1`, round buttons and pills
 `--dsw-specific-sidebar-nav-item-hover`, selection and checks
@@ -14,6 +14,45 @@ floating composer card `--dsw-alias-bg-layer-1`, round buttons and pills
 `--dsw-specific-bubble`, and the composer card only adds an `lv2` soft shadow.
 The decision is in
 [Mobile remote Claude-style structure](decisions/implemented/product/2026-09-24-mobile-remote-claude-structure.en.md).
+
+## Pre-connection sea-horizon canvas
+
+Connect, camera permission, and scan entry inherit atmosphere rather than
+components from the Whale Isle desktop boot page. A 1px horizon at 62% splits
+sky and water: light mode uses pale skylight, faint clouds, and blue water;
+dark mode uses sparse stars, deep-space haze, and deep water. The centered
+`Whale Isle` uses a Didot / Bodoni display serif and the secondary lockup is
+`鲸屿 · MOBILE`. This display-serif exception stays at the connection entry and
+does not spread into chat copy or controls. Do not copy desktop boot states,
+logs, window controls, shine animation, or `--boot-*` names.
+
+The lower first screen uses one translucent compact action dock rather than a
+vertical technical form: one primary `Scan QR code` action and one secondary
+`Paste pairing link` action; the paste field expands only after the user asks.
+Choosing paste from permission or native scan returns to connect with the field
+expanded and focused. In the shared Web SPA, a saved computer is a single
+reconnect row with primary name, secondary endpoint, and an independently
+reachable Forget action. The computer name prefers the handshake
+`server_info.hostname` and is added to local sticky state after pairing or a
+successful reconnect. Legacy rows without a name read `My computer`; the
+protocol-internal `serverId` must never masquerade as a user-facing name. The
+Compose shell does not copy that device store; it may only offer a resume row
+back to the saved phone page. Connecting and
+failure use a short status card inside the dock. Protocol explanation collapses
+to one line: `End-to-end encrypted. Connects only to your computer.` The Android
+bundled WebView enters native scanning through a controlled native navigation;
+generic browsers enter the Web scanner according to BarcodeDetector / camera
+support. The canvas honors safe areas, 320px widths, and landscape. Dock
+content may scroll, but decoration must never cover the primary action.
+
+Light and dark use same-meaning `--mobile-connect-*` and Compose `DshTokens`
+tables calibrated from the DSHD baseline and Whale Isle boot canvas; they do
+not read desktop `--boot-*`. With no saved appearance, first launch follows the
+system scheme instead of forcing light. Native and Web camera previews share
+the same high-contrast camera tokens, mask, and clear frame. A generic browser
+scanner still uses the sea-horizon canvas around its header, camera container,
+and action dock; it must not return to the old gray full page. Pairing destroys
+the canvas and restores the mobile structure below.
 
 Structure: a 48px top bar (menu / Git pill or session title / new chat); the
 blank draft centers the whale mark, a time-of-day greeting and a workspace

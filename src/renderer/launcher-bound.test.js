@@ -43,6 +43,41 @@ function runBound(env = {}) {
 
 const hasElectron = Boolean(ELECTRON);
 
+test('home uses one guarded start action and hides stale diagnostics throughout deferred startup', { skip: !hasElectron }, async () => {
+  const r = await runBound({ QA_STARTUP_FLOW: '1' });
+  assert.equal(r.initial.duplicateRetry, false);
+  assert.equal(r.initial.diagnosticsOpen, false);
+  assert.doesNotMatch(r.initial.visibleText, /EEXIST|fixture|未检测到插件/);
+  assert.match(r.initial.startText, /重试/);
+  assert.equal(r.startsWhilePending, 1);
+  assert.equal(r.pending.startDisabled, true);
+  assert.equal(r.pending.skipDisabled, true);
+  assert.equal(r.pending.fullDisabled, true);
+  assert.equal(r.pending.diagnosticsHidden, true);
+  assert.match(r.pending.startText, /启动中/);
+  assert.match(r.pending.progress, /[1-9]\d* 秒/);
+  assert.doesNotMatch(r.pending.status, /未运行|失败|EEXIST/);
+  assert.equal(r.failed.startDisabled, false);
+  assert.equal(r.rejected.startDisabled, false);
+  assert.match(r.rejected.detail, /fixture transport failure/);
+  assert.match(r.failed.detail, /EEXIST/);
+  assert.doesNotMatch(r.failed.visibleText, /EEXIST|fixture/);
+  assert.equal(r.readyHome.startHidden, true);
+  assert.equal(r.readyHome.stopHidden, false);
+  assert.equal(r.readyHome.diagnosticsHidden, true);
+  assert.equal(r.stops, 1);
+  assert.equal(r.stopping.stopDisabled, true);
+  assert.match(r.stopping.stopText, /关闭中/);
+  assert.equal(r.stopping.startHidden, true);
+  assert.equal(r.stopped.startDisabled, false);
+  assert.equal(r.stopped.startHidden, false);
+  for (const layout of r.layouts) {
+    assert.equal(layout.reachable, true, `main action reachable at ${layout.zoom}x`);
+    assert.equal(layout.rawErrorCount, 1, 'raw error only appears in diagnostics');
+  }
+  assert.ok(r.layouts[1].width < r.layouts[0].width, 'zoom changes actual viewport geometry');
+});
+
 test('bound handlers: delayed cancel A->B keeps B live and refuses the stale write', { skip: !hasElectron }, async () => {
   const r = await runBound();
   assert.equal(r.scan.hasShell, true, 'real preload bridge exposed window.shell');

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `desktop-build-runtime` |
 | **status** | `proposed` |
-| **last verified** | 2026-09-28 — 一源一目录装配通过 747 包 / 3602 边验证；tar 搬迁、循环与严格身份回归通过。桌面 2765 通过/2 跳过；源码与安装树冒烟、NSIS 与资产校验通过。ws 与平台会话资源已随包。当前仅本地演练，CI 同 SHA 候选与正式生产验收未完成。 |
+| **last verified** | 2026-09-29 — Node 24.21.0 LTS 全量构建和本地 NSIS 成功，包内 Node 版本核实；桌面 2809 通过/2 跳过，打包 P0（界面、Git/PTY、Ghostty、旧运行时替换）通过。CI 同 SHA 正式验收仍未完成。此前 2026-09-28 — 一源一目录装配通过 747 包 / 3602 边验证；tar 搬迁、循环与严格身份回归通过。桌面 2765 通过/2 跳过；源码与安装树冒烟、NSIS 与资产校验通过。ws 与平台会话资源已随包。当前仅本地演练，CI 同 SHA 候选与正式生产验收未完成。 |
 
 ## User paths
 
@@ -13,6 +13,8 @@
 3. 应用更新读取 `build.publish` 的 GitHub 元数据与 `dependencies.electron-updater`，与安装器 artifact 命名保持一致。
 
 ## Invariants
+
+- 桌面构建与随包 Harness Node 以 `.nvmrc` 为唯一版本源，当前选用 Node 24.21.0 LTS；跨主版本后重新执行构建、桌面测试和打包启动验证。Electron 内置 Node 与 Office 锁定运行时各自独立。
 
 - 每个运行时源 realpath 对应一个物理包目录；消费者经根内链接解析到相同或隔离的源实例。version 1 `.dsh-runtime-links.json` 仅记录相对路径，归档前移除链接、解压后恢复，实际解析边与发布文件都须通过验证。
 - 账户启动依赖 `ws` 必须在根生产 dependencies 与锁文件中声明，不能依赖本机额外安装。工作区依赖同源拆分与异源合并均阻断打包，字节相同不豁免；删除副本后的依赖树必须复验，正确收拢不能因复制计数不变而失败。
@@ -26,6 +28,8 @@
 - **装配期复用已验证的插件依赖树（2026-09-22）**：`dsh-im` 的依赖是否重装由 `missingPluginRuntimeClosure()`（自身入口 + 深度 3 的依赖闭包）决定，不再由 `skipIfComplete: false` 无条件删除重装。检查不通过时仍走 `defaultNpmInstall()`；`skipIfComplete` 的浅语义对其余插件不变。复用前提是这些依赖为纯 JS；引入原生依赖前必须把平台与 ABI 纳入判定。
 
 ## Allowed touch
+
+- `.nvmrc` — 2026-09-29 用户授权重选合适的 Node 构建版本。
 
 - `scripts/runtime-instance-graph.js`、`src/shared/runtime-links.js`、`src/main/harness-extract.js` 与对应测试 — 2026-09-28 用户全面修复授权下的一源一目录装配、链接清单和提取恢复
 - `package.json` — 清单字段与打包配置
@@ -58,6 +62,8 @@
 | Manual / QA | 打包冒烟 `npm run smoke:packaged`（真实产物）；安装器实机项见 `windows-installer` 卡的 `TC-INST-*` |
 
 ## Sources
+
+- Decision: [发布构建使用 Node 24 LTS](../decisions/implemented/process/2026-09-29-node24-release-runtime.md)
 
 - Decision: [运行时按源实例装配并在解压后恢复链接](../decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md)
 - Decision: [打包实例门禁恢复与账户运行时依赖补齐](../decisions/implemented/bug-fix/2026-09-28-packaging-identity-gates-and-ws.md)

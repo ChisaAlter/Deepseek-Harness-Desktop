@@ -4,6 +4,8 @@ Status: implemented
 
 中文 | [English](2026-09-27-transparent-window-os-corner-mask.en.md)
 
+> Windows 主窗口/启动器的透明性与自绘外轮廓要求已由[原生窗口动画](2026-09-29-native-window-motion.md)取代；非 Windows、内部内容圆角及其他决定保留。
+
 ## Problem
 
 剪影半径回调到 20px 后窗角出现明显锯齿。根因不在页面裁切：`windowChrome` 一直默认 `roundedCorners: true`，Windows 11 的 DWM 对透明窗仍套用约 8px 的 OS 圆角遮罩——页面把更大圆弧之外画成透明，DWM 再按自己的弧度硬裁一次，两条不同曲线交界呈阶梯状锯齿（该遮罩对透明窗不做 alpha 混合）。半径 10px 时两条曲线接近、缺陷被掩盖；放大到 20px 后明显。事实上此前外框视觉半径一直被 OS 遮罩吃掉一截——10px 合同实际只显示约 8px，「圆角太小」的观感部分来自此缺陷。

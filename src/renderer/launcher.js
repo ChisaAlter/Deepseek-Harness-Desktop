@@ -562,16 +562,19 @@ function renderHomeRecovery(status) {
   const forensics = status?.forensics;
   const recovery = status?.recovery || forensics?.recovery || status?.desktop?.pluginRecovery;
   const recoveryApi = window.launcherRecovery;
-  const show = recoveryApi?.shouldShowRecovery
-    ? recoveryApi.shouldShowRecovery(status?.lastStart, recovery, forensics, status?.desktop)
-    : false;
+  const show = !desktopActionBusy() && Boolean(desktopActionError || recovery?.skipUserPlugins
+    || (!desktopIsRunning(status?.desktop)
+      && recoveryApi?.shouldShowRecovery?.(status?.lastStart, recovery, forensics, status?.desktop)));
   board.hidden = !show;
   if (!show) {
+    board.open = false;
     return;
   }
-  $('home-recovery-verdict').textContent = recoveryApi?.recoveryVerdict
-    ? recoveryApi.recoveryVerdict(status?.lastStart, recovery, forensics)
-    : '';
+  const verdict = desktopActionError || (recoveryApi?.recoveryVerdict
+    ? recoveryApi.recoveryVerdict(status?.lastStart, recovery, forensics) : '');
+  if ($('home-recovery-verdict').textContent !== verdict) board.open = false;
+  $('home-recovery-verdict').textContent = verdict;
+  $('home-recovery-list').hidden = !forensics?.plugins?.length;
   renderPluginBoard(forensics, {
     listId: 'home-recovery-list',
     sortSuspectsFirst: true,
@@ -637,6 +640,9 @@ function desktopIsRunning(desktop) {
 // --- Download route + runtime install (slim package / missing runtime) -----
 
 let lastStatus = null;
+let desktopOperation = null;
+let desktopActionError = '';
+let statusRequest = 0;
 let installBusy = false;
 let updateBusy = false;
 let updateCheckBusy = false;
@@ -985,13 +991,7 @@ async function installRuntime() {
   }
 }
 
-async function refreshStatus() {
-  const api = pageShell();
-  if (!api) {
-    return;
-  }
-  const status = await api.launcherStatus();
-  lastStatus = status;
+function renderHomeStatus(status) {
   const launcherPackage = status?.launcherPackage === true;
   // In the slim package "当前版本" is the managed desktop's version, not the
   // launcher's own build number.
@@ -999,8 +999,8 @@ async function refreshStatus() {
     ? (status?.installed?.version || '')
     : (status?.version || status?.config?.appVersion || '');
   const last = status?.lastStart;
-  const desktop = status?.desktop;
-  const recovery = status?.recovery || desktop?.pluginRecovery;
+  const desktop = desktopOperation ? { state: desktopOperation.kind } : status?.desktop;
+  const recovery = status?.recovery || status?.desktop?.pluginRecovery;
   const installedState = status?.installed;
   const bits = [launcherPackage
     ? (version ? `桌面端 v${version} 已安装` : (installedState?.registeredInstall ? '桌面端已安装' : '桌面端未安装'))
@@ -1011,10 +1011,27 @@ async function refreshStatus() {
   if (recovery?.skipUserPlugins) {
     bits.push('当前跳过用户插件');
   }
-  if (last && last.ok === false) {
-    bits.push(`上次启动失败：${last.error || '原因未知'}`);
+  if (!desktopActionBusy() && (desktopActionError || (!desktopIsRunning(desktop) && last?.ok === false))) {
+    bits.push('启动或关闭未完成，详见启动诊断');
   }
   $('home-status').textContent = bits.join(' · ');
+  const progress = $('home-start-progress');
+  if (progress) {
+    progress.hidden = !desktopActionBusy();
+    const seconds = desktopOperation ? Math.floor((Date.now() - desktopOperation.startedAt) / 1000) : null;
+    const label = desktop?.state === 'stopping' ? '正在关闭桌面端' : '正在准备运行时与插件';
+    progress.textContent = progress.hidden ? '' : `${label}${seconds === null ? '' : ` · 已等待 ${seconds} 秒`}。`;
+  }
+}
+
+async function refreshStatus() {
+  const api = pageShell();
+  if (!api) return;
+  const request = ++statusRequest;
+  const status = await api.launcherStatus();
+  if (request !== statusRequest) return;
+  lastStatus = status;
+  renderHomeStatus(status);
   renderInstallCard(status);
   renderRouteControls(status);
   renderVersionsHead(status);
@@ -1023,6 +1040,7 @@ async function refreshStatus() {
   syncLauncherState(status);
   syncComponentsBadge();
   const config = status?.config || await api.getConfig();
+  if (request !== statusRequest) return;
   $('opt-quit').checked = config.quitAfterStart !== false;
   $('opt-auto').checked = config.autoStartDesktop !== false;
   $('opt-ask').checked = config.askOnUpdate !== false;
@@ -1040,18 +1058,53 @@ async function refreshStatus() {
   }
 }
 
-// Recovery-lane buttons（跳过用户插件 / 恢复完整插件）是恢复路径操作，只在
-// 存在恢复上下文时出现：启动失败、恢复板可见、或粘性跳过已生效。常态首页
-// 只留常态动作，避免把排障选项平铺成默认路径。
+function desktopActionBusy() {
+  return Boolean(desktopOperation) || ['starting', 'stopping'].includes(lastStatus?.desktop?.state);
+}
+
+async function runDesktopAction(method, kind = 'starting') {
+  const api = pageShell();
+  if (desktopActionBusy() || typeof api?.[method] !== 'function') return;
+  desktopOperation = { kind, startedAt: Date.now() };
+  desktopActionError = '';
+  ++statusRequest; // Ignore status reads issued before this operation.
+  setHint('');
+  const paint = () => {
+    renderHomeStatus(lastStatus);
+    renderHomeRecovery(lastStatus);
+    syncRecoveryActions(lastStatus);
+    syncLauncherState();
+  };
+  paint();
+  const timer = setInterval(() => renderHomeStatus(lastStatus), 1000);
+  try {
+    const result = await api[method]();
+    if (result?.ok === false) {
+      desktopActionError = String(result.message || result.error || result.code || '操作未完成');
+    }
+  } catch (error) {
+    desktopActionError = error?.message || String(error);
+  } finally {
+    clearInterval(timer);
+    desktopOperation = null;
+    try { await refreshStatus(); }
+    catch { setHint('暂时无法读取桌面状态，请稍后重新打开首页。'); }
+    paint();
+  }
+}
+
 function syncRecoveryActions(status) {
   const lane = $('home-recovery-actions');
   if (!lane) {
     return;
   }
-  const inRecovery = launcherState(status) === 'recovery'
-    || status?.lastStart?.ok === false
-    || status?.recovery?.skipUserPlugins === true;
-  lane.hidden = !inRecovery;
+  const recovery = status?.recovery || status?.desktop?.pluginRecovery || status?.forensics?.recovery;
+  const canRestore = recovery?.skipUserPlugins === true;
+  const canSkip = !canRestore && (status?.forensics?.pluginTreeFailure === true
+    || disableableSuspectNames(status?.forensics).length > 0);
+  lane.hidden = $('home-recovery').hidden || (!canRestore && !canSkip);
+  $('btn-skip').hidden = !canSkip;
+  $('btn-retry-full').hidden = !canRestore;
 }
 
 function syncUpdateNotice(check) {
@@ -1093,6 +1146,7 @@ function renderUpdateCheck(check) {
 // --- Runtime state + components --------------------------------------------
 
 function launcherState(status) {
+  if (desktopActionBusy()) return desktopOperation?.kind || status?.desktop?.state;
   const desktop = status?.desktop;
   const recovery = status?.recovery || desktop?.pluginRecovery;
   const recoveryApi = window.launcherRecovery;
@@ -1118,18 +1172,25 @@ function launcherState(status) {
 }
 
 function syncDesktopControls() {
-  const running = desktopIsRunning(lastStatus?.desktop);
+  const busy = desktopActionBusy();
+  const stopping = desktopOperation?.kind === 'stopping' || lastStatus?.desktop?.state === 'stopping';
+  const running = !busy && desktopIsRunning(lastStatus?.desktop);
   const start = $('btn-start');
   const stop = $('btn-stop');
   if (start) {
     // Controls are mutually exclusive: a running desktop offers only 关闭,
     // a stopped one only 启动 — reopening a dismissed window rides the tray.
-    start.hidden = running;
-    start.textContent = '启动桌面端';
+    start.hidden = running || stopping;
+    start.disabled = busy;
+    start.textContent = busy ? '启动中…' : (desktopActionError || lastStatus?.lastStart?.ok === false ? '重试启动' : '启动桌面端');
   }
   if (stop) {
-    stop.hidden = !running;
-    stop.textContent = '关闭桌面端';
+    stop.hidden = !running && !stopping;
+    stop.disabled = busy;
+    stop.textContent = stopping ? '关闭中…' : '关闭桌面端';
+  }
+  for (const id of ['btn-skip', 'btn-retry-full', 'btn-disable-suspects']) {
+    if ($(id)) $(id).disabled = busy;
   }
   const runBadge = $('home-run-badge');
   if (runBadge) {
@@ -2061,74 +2122,9 @@ function bind() {
   document.querySelectorAll('[data-goto]').forEach((link) => {
     link.addEventListener('click', () => activateTab(link.dataset.goto));
   });
-  const startDesktopFlow = async (button) => {
-    if (button) {
-      button.disabled = true;
-    }
-    setHint('正在启动桌面端…');
-    try {
-      const result = await api?.startDesktop();
-      if (result && result.ok === false) {
-        setHint(errText(result, '启动失败'));
-        return;
-      }
-      setHint('');
-      await refreshStatus();
-    } catch (error) {
-      setHint(errText(error));
-    } finally {
-      if (button) {
-        button.disabled = false;
-      }
-    }
-  };
-  const stopDesktopFlow = async (button) => {
-    if (button) {
-      button.disabled = true;
-    }
-    setHint('正在关闭桌面端…');
-    try {
-      const result = await api?.stopDesktop();
-      if (result && result.ok === false) {
-        setHint(errText(result, '关闭失败'));
-        return;
-      }
-      setHint('');
-      await refreshStatus();
-    } catch (error) {
-      setHint(errText(error));
-    } finally {
-      if (button) {
-        button.disabled = false;
-      }
-    }
-  };
-  $('btn-start').addEventListener('click', async (event) => {
-    const button = event.currentTarget;
-    if (button.disabled) {
-      return;
-    }
-    const status = await api?.launcherStatus();
-    if (status) {
-      lastStatus = status;
-    }
-    await startDesktopFlow(button);
-  });
+  $('btn-start').addEventListener('click', () => void runDesktopAction('startDesktop'));
   if ($('btn-stop')) {
-    $('btn-stop').addEventListener('click', (event) => {
-      const button = event.currentTarget;
-      if (!button.disabled) {
-        void stopDesktopFlow(button);
-      }
-    });
-  }
-  if ($('btn-recovery-retry')) {
-    $('btn-recovery-retry').addEventListener('click', (event) => {
-      const button = event.currentTarget;
-      if (!button.disabled) {
-        void startDesktopFlow(button);
-      }
-    });
+    $('btn-stop').addEventListener('click', () => void runDesktopAction('stopDesktop', 'stopping'));
   }
   if ($('btn-check-update')) {
     $('btn-check-update').addEventListener('click', () => checkUpdateNow());
@@ -2172,35 +2168,8 @@ function bind() {
       closeRoutePops();
     }
   });
-  $('btn-skip').addEventListener('click', async () => {
-    setHint('正在跳过用户插件并重新启动…');
-    try {
-      const result = await api?.skipUserPlugins();
-      if (result && result.ok === false) {
-        setHint(errText(result, '启动失败'));
-        return;
-      }
-      setHint('');
-      void refreshStatus();
-    } catch (error) {
-      setHint(errText(error));
-    }
-  });
-  $('btn-retry-full').addEventListener('click', async () => {
-    setHint('正在恢复完整插件并启动…');
-    try {
-      const result = await api?.retryFullPlugins();
-      if (result && result.ok === false) {
-        setHint(errText(result, '启动失败'));
-        void refreshStatus();
-        return;
-      }
-      setHint('');
-      void refreshStatus();
-    } catch (error) {
-      setHint(errText(error));
-    }
-  });
+  $('btn-skip').addEventListener('click', () => void runDesktopAction('skipUserPlugins'));
+  $('btn-retry-full').addEventListener('click', () => void runDesktopAction('retryFullPlugins'));
   $('btn-disable-suspects').addEventListener('click', async () => {
     const raw = $('btn-disable-suspects').dataset.names || '';
     const names = raw.split('\0').filter(Boolean);
@@ -2431,14 +2400,16 @@ function bind() {
   }
   if (api?.onDesktopFailed) {
     api.onDesktopFailed((payload) => {
+      desktopActionError = payload?.error || '桌面端启动失败。';
       activateTab('home');
-      setHint(payload?.error || '桌面端启动失败。可在下方恢复工作台处理插件冲突后重试。');
+      setHint('');
       void refreshStatus();
       void refreshPlugins();
     });
   }
   if (api?.onDesktopReady) {
     api.onDesktopReady(() => {
+      desktopActionError = '';
       setHint('');
       void refreshStatus();
     });

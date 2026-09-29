@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-09-27-transparent-window-os-corner-mask.md) | English
 
+> Windows main/launcher transparency and outer-silhouette requirements are superseded by [native window motion](2026-09-29-native-window-motion.en.md); non-Windows, inner content corners and unrelated decisions remain valid.
+
 ## Problem
 
 After the silhouette radius returned to 20px, the window corners showed visible stair-stepping. The page clip is not the root cause: `windowChrome` had always defaulted `roundedCorners: true`, so Windows 11's DWM still applies its ~8px corner mask to transparent windows — the page paints transparency outside a larger arc and DWM hard-clips again at its own radius, and the meeting of the two curves reads as jagged steps (the mask is not alpha-blended on transparent windows). At 10px the two curves nearly coincided and hid the defect; 20px exposed it. In fact the mask had been biting into the silhouette all along — the 10px contract only ever showed ~8px, which contributed to the "corners too small" feedback.

@@ -4,6 +4,8 @@ Status: implemented
 
 中文 | [English](2026-09-25-window-silhouette-edge-ring.en.md)
 
+> Windows 主窗口/启动器的透明性与自绘外轮廓要求已由[原生窗口动画](2026-09-29-native-window-motion.md)取代；非 Windows、内部内容圆角及其他决定保留。
+
 ## Problem
 
 圆角/窗控恢复后用户仍反馈「圆角很糊」。主窗口是 `frame:false + transparent:true` 分层窗，圆角剪影完全由页面自绘的 alpha 边缘构成（`harness-chrome-inject.js` 给 `body` 加 20px 圆角 + `overflow:hidden` 裁切）。像素实测直边/弧边过渡只有 ~1.5–2 物理像素（150% DPI），接近正常抗锯齿——但裸 alpha AA 边缘没有锚定线，在桌面壁纸映衬下读作发糊；同架构的 launcher 卡靠 `.shell` 的 `inset 0 0 0 1px var(--dsw-alias-border-l1)` 发丝环获得清晰轮廓，Harness 剪影缺少等价物。

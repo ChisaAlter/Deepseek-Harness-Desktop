@@ -10,7 +10,7 @@
   /** Full titlebar height so the no-drag plate covers drag padding around the 32px buttons. */
   const CAPTION_HEIGHT = 48;
   /** Transparent-window silhouette radius; every injected layer that draws the
-      rounded edge shares this one value (design-language 外框圆角 10). */
+      rounded edge shares this value outside the native Windows frame. */
   const FRAME_RADIUS = 20;
 
   const ICON_MIN = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="5.4" width="8" height="1.2" rx="0.6" fill="currentColor"/></svg>';
@@ -188,6 +188,17 @@
       html[data-window-maximized] #${FRAME_RING_ID} {
         display: none;
       }
+      /* Native Windows silhouette is clipped by DWM, not by page alpha.
+         Keep the inner content corner; only the full-window planes fill out. */
+      html[data-native-window-frame] body,
+      html[data-native-window-frame] #dsh-wallpaper,
+      html[data-native-window-frame] #${FRAME_CANVAS_ID},
+      html[data-native-window-frame] [data-titlebar-density] {
+        border-radius: 0 !important;
+      }
+      html[data-native-window-frame] #${FRAME_RING_ID} {
+        display: none;
+      }
     `;
     if (style.textContent !== css) {
       style.textContent = css;
@@ -284,6 +295,11 @@
   }
 
   function measure() {
+    if (window.__dshShellNativeFrame) {
+      document.documentElement.setAttribute('data-native-window-frame', '');
+    } else {
+      document.documentElement.removeAttribute('data-native-window-frame');
+    }
     ensureStyle();
     const host = ensureControls();
     placeControls(host);
@@ -327,6 +343,7 @@
     }
     if (window.shell && typeof window.shell.onWindowState === 'function') {
       window.shell.onWindowState((state) => {
+        window.__dshShellNativeFrame = Boolean(state && state.nativeFrame);
         window.__dshShellMaximized = Boolean(state && state.maximized);
         measure();
       });
@@ -336,6 +353,7 @@
     // silhouette until the next geometry event.
     if (window.shell && typeof window.shell.getWindowState === 'function') {
       Promise.resolve(window.shell.getWindowState()).then((state) => {
+        window.__dshShellNativeFrame = Boolean(state && state.nativeFrame);
         window.__dshShellMaximized = Boolean(state && state.maximized);
         measure();
       }).catch(() => {});

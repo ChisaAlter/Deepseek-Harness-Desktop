@@ -1,0 +1,26 @@
+{
+  "version": "0.3.3",
+  "petTransparencyFix": true,
+  "checks": [
+    {
+      "path": "src/main/desktop-live2d.js",
+      "sha256": "3243b527f062168cf27cb2c2529fbbbccb94519289b68eed4b60a855a6eb4b00"
+    },
+    {
+      "path": "src/main/config.js",
+      "sha256": "33e22b15cd7145cf2e00ef899bf2c164db69b65bb3facd0c43b38aa833fbee4a"
+    },
+    {
+      "path": "src/main/dsh.js",
+      "sha256": "8b0a8b826ee5e02efb37d31ac2fae8f47b4e8d63acee5632c1120854af69f14f"
+    },
+    {
+      "path": "src/main/launcher-gate.js",
+      "sha256": "76f67228e40d8722bc7214d8255fd5f5630e459e150a7029e7c6e440d680e697"
+    },
+    {
+      "path": "src/renderer/launcher.js",
+      "sha256": "de2d5b71bb146f1e698a3a8c5251d225e884891f25a485597f7d43ac4088c705"
+    }
+  ]
+}

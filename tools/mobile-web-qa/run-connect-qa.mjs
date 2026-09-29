@@ -23,7 +23,7 @@ try {
     await new Promise((resolve, reject) => {
       window.__connectGate = { resolve, reject };
     });`);
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 1280]) {
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -45,16 +45,21 @@ try {
     await page.goto(base, { waitUntil: 'networkidle0' });
     assert.equal(await page.$eval('#device-line', (node) => node.textContent), '正在连接电脑…');
     assert.equal(await page.$eval('.saved-open', (node) => node.disabled), true);
+    assert.equal(await page.$eval('.saved-open b', (node) => node.textContent), '我的电脑');
+    assert.doesNotMatch(await page.$eval('.saved-open', (node) => node.textContent), /srv_/i);
     await page.screenshot({ path: join(output, `${width}-connecting.png`), fullPage: true });
     await page.evaluate(() => window.__connectGate.reject(new Error('Connection timed out')));
     await page.waitForFunction(() => !document.querySelector('.saved-open').disabled);
     assert.equal(await page.$eval('#device-line', (node) => node.textContent), '连接失败');
-    assert.match(await page.$eval('#connect-error', (node) => node.textContent), /Connection timed out/);
+    assert.match(await page.$eval('#connect-error', (node) => node.textContent), /连接超时/);
     assert.equal(await page.$eval('#paste-enter', (node) => node.disabled), false);
     assert.equal(await page.evaluate(() => window.__qa.calls.filter((call) => call.method === 'close').length), 1);
     assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem('dsh-chisacode-device-secrets')).srv_saved));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: join(output, `${width}-failed.png`), fullPage: true });
+    await page.evaluate(() => document.documentElement.setAttribute('data-ds-dark-theme', ''));
+    await page.screenshot({ path: join(output, `${width}-failed-dark.png`), fullPage: true });
+    await page.evaluate(() => document.documentElement.removeAttribute('data-ds-dark-theme'));
     await page.click('.saved-open');
     await page.waitForFunction(() => document.querySelector('.saved-open').disabled);
     await page.evaluate(() => {

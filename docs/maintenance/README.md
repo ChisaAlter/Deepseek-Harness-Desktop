@@ -12,7 +12,7 @@
 | 决策层 | [docs/decisions/](../decisions/README.md) | 为什么：动机、被否方案、代价；路径编码生命周期 | `verify-decision-tree`、`verify-decision-format`、`verify-archived-decisions` |
 | 叙事层 | [docs/postmortem/](../postmortem/README.md) | 事故叙事——唯一允许讲故事的层 | 无（叙事不机检） |
 | 语言层 | [docs/i18n/](../i18n/README.md) | 双语配对：三件套、blob hash、结构签名、pending 棘轮 | `verify-translation-pairing` |
-| 执行层 | `scripts/` + `.github/` | 门禁聚合、git hooks、merge driver、PR/issue 模板、dependabot | `run-gates.mjs`、`verify-md-links`、`verify-doc-budgets` |
+| 执行层 | `scripts/` + `.github/` | 门禁聚合、git hooks、merge driver、PR/issue 模板、dependabot | `run-gates.mjs`、`verify-md-links` |
 
 代理操作入口：根 [AGENTS.md](../../AGENTS.md) 是 standing orders；`.devin/skills/` 里 `dshd-maintenance`（决策记录操作流）与 `dshd-checks`（改动面→最小检查集）是可执行程序。
 
@@ -33,7 +33,7 @@ incident → docs/postmortem/
 
 ```sh
 npm run check:governance    # 结构门禁：决策树/格式/归档封印/卡/schema/规则同步/远程开关
-npm run doc-sync            # 全量文档门禁：上面 + 死链/配对/字数预算
+npm run doc-sync            # 全量文档门禁：决策树/格式/归档封印/卡/规则同步/死链/配对
 node scripts/verify-translation-pairing.mjs --list          # 所有配对状态
 node scripts/verify-translation-pairing.mjs --write <path>  # 改完双语任一侧后重录
 node scripts/verify-archived-decisions.mjs --write          # 归档动作时重录封印
@@ -45,6 +45,8 @@ DSHD_GATE_FAIL_FAST=1 npm run doc-sync                      # 红一个即停
 `npm install` 经 `prepare` 自动装 git 集成：`core.hooksPath` 指到 `scripts/git-hooks/`（pre-commit 跑结构门禁、pre-push 跑 doc-sync），`*.i18n.yaml` 走 `dshd-translation-pairing` merge driver。
 
 ## 边界
+
+桌面仓库文档不设字数上限；长度由内容需要决定。决策见[取消文档字数门禁](../decisions/implemented/process/2026-09-29-remove-doc-word-limits.md)。
 
 - `docs/superpowers/`（过程稿）、`docs/qa/results/`（历史验收记录）、`vendor/`（上游自带治理）不进死链与配对检查。
 - 外部 PR/issue 开放：见 [CONTRIBUTING.md](../../CONTRIBUTING.md)；卡与规则由维护者收尾。

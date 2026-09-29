@@ -14,6 +14,13 @@ export interface AgentPresetRow {
   readonly name?: string
   /** One sentence on what this preset is for. */
   readonly description?: string
+  /**
+   * Internal preset kept off the selectable roster.
+   *
+   * A healthy hidden preset is filtered out entirely; a broken one stays in
+   * the roster with this flag and its `broken` diagnostic.
+   */
+  readonly hidden?: boolean
   /** Why this preset cannot compose a session; absent when it can. */
   readonly broken?: string
 }

@@ -1,12 +1,12 @@
 # 模块：dsh-whale 内置鲸鱼娘助理
 
-`dsh-whale` 是随桌面安装包交付的第一方插件（`vendor/dsh-whale`），提供一个恒定的 `whale-girl` 会话、侧栏入口和 preset 作用域统筹工具面。默认**关闭**（`whaleAssistantEnabled: false`）。设置导航为「鲸鱼娘」，助理开关位于「聊天与能力」页。
+`dsh-whale` 是随桌面安装包交付的第一方插件（`vendor/dsh-whale`），提供一个恒定的 `whale-girl` 会话、侧栏入口和 preset 作用域统筹工具面。默认**开启**（`whaleAssistantEnabled: true`），已有显式关闭配置继续生效。设置导航为「鲸鱼娘」，助理开关位于「聊天与能力」页。
 
 ## 挂载路径
 
 `src/main/dsh-whale-desktop.js` 的 `ensureDesktopDshWhale` 与 dshbot 同机同契约：strip 用户层 `cordis.patch.yml` 受管块 → junction `profiles/web/node_modules/dsh-whale` → `vendor/dsh-whale` → 写桌面 overlay `desktop-plugins/dsh-whale/desktop-dsh-whale.patch.yml`（insert id `dsh-whale`，按包名装载）。overlay 仅在 `whaleAssistantEnabled` 为 true 时随每次启动（全量 + skip 恢复）经 `--patch` 传入；关闭时 ensure 删 overlay、跳过 vendor 校验、不阻断启动。启用态下 vendor 源缺文件/缺运行时依赖即 fail-closed 阻断启动。
 
-`dsh-whale` 入 `DROPPED`/`DROPPED_BASENAMES`（市场同名包隐藏、拒绝安装、manifest 剥离），disable 名单免疫（`withoutDshWhaleAliases`，config 归一化剔除）。改动 `whaleAssistantEnabled` 经 `ipc.js` 走 Harness 重启对齐，与 `dshbotEnabled` 同分支。桌宠卡仍每 3 秒拉取共享会话尾；历史请求与模型目录请求分别去重，目录慢时历史仍继续同步。目录只在开卡及约每分钟刷新，空目录记为已加载，重开卡时的强制刷新在既有目录请求后补做；目录失败保留旧缓存并在下轮重试。
+`dsh-whale` 入 `DROPPED`/`DROPPED_BASENAMES`（市场同名包隐藏、拒绝安装、manifest 剥离），disable 名单免疫（`withoutDshWhaleAliases`，config 归一化剔除）。改动 `whaleAssistantEnabled` 经 `ipc.js` 走 Harness 重启对齐，与 `dshbotEnabled` 同分支。重启获准后先显示现有恢复页，再异步查询并停止旧进程；新进程等待停止完成，主线程不等待同步系统命令。桌宠卡仍每 3 秒拉取共享会话尾；历史请求与模型目录请求分别去重，目录慢时历史仍继续同步。目录只在开卡及约每分钟刷新，空目录记为已加载，重开卡时的强制刷新在既有目录请求后补做；目录失败保留旧缓存并在下轮重试。
 
 ## 插件内部
 

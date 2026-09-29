@@ -4,6 +4,7 @@
  */
 
 const SECRET_KEY = 'dsh-chisacode-device-secrets';
+const DEFAULT_COMPUTER_NAME = '我的电脑';
 
 function loadSecrets() {
   try {
@@ -16,10 +17,49 @@ function loadSecrets() {
 function saveSecret(serverId, record) {
   const all = loadSecrets();
   all[serverId] = {
+    ...all[serverId],
     ...record,
     savedAt: Date.now(),
   };
   localStorage.setItem(SECRET_KEY, JSON.stringify(all));
+}
+
+function normalizeComputerName(value, serverId = '') {
+  const name = String(value || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+  if (!name || name === serverId || /^srv_/i.test(name)) return '';
+  return name;
+}
+
+function resolveComputerName(client, serverId, storedName = '') {
+  const serverName = normalizeComputerName(
+    client?.getLastServerInfoMessage?.()?.hostname,
+    serverId,
+  );
+  return serverName || normalizeComputerName(storedName, serverId) || DEFAULT_COMPUTER_NAME;
+}
+
+function saveComputerName(serverId, computerName) {
+  const name = normalizeComputerName(computerName, serverId);
+  if (!name) return;
+  const all = loadSecrets();
+  const stored = all[serverId];
+  if (!stored || stored.computerName === name) return;
+  all[serverId] = { ...stored, computerName: name };
+  try {
+    localStorage.setItem(SECRET_KEY, JSON.stringify(all));
+  } catch {
+    // The connection is already live; optional display metadata must not tear it down.
+  }
+}
+
+function computerNameSession(client, serverId) {
+  const refreshComputerName = () => {
+    const storedName = loadSecrets()[serverId]?.computerName;
+    const computerName = resolveComputerName(client, serverId, storedName);
+    saveComputerName(serverId, computerName);
+    return computerName;
+  };
+  return { computerName: refreshComputerName(), refreshComputerName };
 }
 
 function clearSecret(serverId) {
@@ -46,7 +86,7 @@ function listStickyServerIds() {
  * Rows for the connect screen "已保存的电脑" chooser: complete sticky records
  * only, most recently saved first. Pure local state — no daemon RPC.
  * @param {Record<string, object>} secrets loadSecrets() shape
- * @returns {Array<{ serverId: string, relayEndpoint: string, savedAt: number }>}
+ * @returns {Array<{ serverId: string, computerName: string, relayEndpoint: string, savedAt: number }>}
  */
 function savedComputerRows(secrets) {
   return Object.entries(secrets || {})
@@ -58,6 +98,7 @@ function savedComputerRows(secrets) {
     ))
     .map(([serverId, record]) => ({
       serverId,
+      computerName: normalizeComputerName(record.computerName, serverId) || DEFAULT_COMPUTER_NAME,
       relayEndpoint: String(record.relayEndpoint),
       savedAt: Number(record.savedAt) || 0,
     }))
@@ -315,7 +356,14 @@ export async function pairFromOfferUrl(api, offerUrl, { signal } = {}) {
   });
 
   await connectInitial(client, signal, () => authError);
-  return { client, offer, serverId: offer.serverId, getAuthError: () => authError };
+  const computerNameState = computerNameSession(client, offer.serverId);
+  return {
+    client,
+    offer,
+    serverId: offer.serverId,
+    ...computerNameState,
+    getAuthError: () => authError,
+  };
 }
 
 /**
@@ -362,7 +410,8 @@ export async function reconnectSticky(api, serverId, { signal } = {}) {
     },
   });
   await connectInitial(client, signal, () => authError);
-  return { client, serverId, getAuthError: () => authError };
+  const computerNameState = computerNameSession(client, serverId);
+  return { client, serverId, ...computerNameState, getAuthError: () => authError };
 }
 
 async function connectInitial(client, signal, getAuthError = () => null) {

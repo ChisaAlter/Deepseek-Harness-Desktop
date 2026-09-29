@@ -12,8 +12,14 @@ const appJs = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 // 落地页必须把这个分流讲给用户。
 test('landing page explains the one-QR entry split (App = link device, browser = web client)', () => {
   assert.match(indexHtml, /id="entry-split-hint"/);
-  assert.match(indexHtml, /web 端/);
-  assert.match(indexHtml, /App 内扫同一张码＝链接设备/);
+  assert.match(indexHtml, /Web 端/);
+  assert.match(indexHtml, /Android App 内扫同一张码会链接设备/);
+});
+
+test('landing exposes one primary scan action and a themed Web scanner', () => {
+  assert.match(indexHtml, /id="scan-open"/);
+  assert.match(indexHtml, /id="screen-scan"[^>]*connect-canvas|connect-canvas[^>]*id="screen-scan"/);
+  assert.match(indexHtml, /id="scan-video"/);
 });
 
 // Android 系统相机 / 链接点按分流：manifest 必须认领 http://*:3180 的 VIEW，
@@ -47,7 +53,9 @@ test('browser scan keeps auto-connecting into the web client on #offer= boot', (
   assert.match(appJs, /connect\(window\.location\.href\)/);
 });
 
-test('landing page warns that WeChat/QQ strip #offer= and paste must be complete', () => {
+test('expanded paste panel warns that WeChat/QQ strip #offer= and paste must be complete', () => {
+  assert.match(indexHtml, /id="paste-toggle"/);
+  assert.match(indexHtml, /id="paste-panel" class="paste-panel hidden"|class="paste-panel hidden" id="paste-panel"/);
   assert.match(indexHtml, /#offer=/);
   assert.match(indexHtml, /微信/);
   assert.match(indexHtml, /丢.*密钥|丢掉密钥/);

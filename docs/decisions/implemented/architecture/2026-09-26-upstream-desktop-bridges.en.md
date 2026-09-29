@@ -24,6 +24,8 @@ Each capability gets a minimal main-process port plus a narrowed preload surface
 
 6. **`__DSH_HOST_PATHS__`**: the `webUtils.getPathForFile` bridge gives dragged files real paths, activating `ui-file-reference-local` `@path` references (no byte upload, always current).
 
+The Platform session route resolves the current Cordis `deepseekAccount` on every request instead of capturing the service at route installation. The account service can become ready after WebServer, be replaced, or be removed; retaining its initial reference makes usage queries fail persistently with `Platform account unavailable` even after sign-in. Regression coverage exercises late startup, replacement, and removal while preserving Bearer authorization and credential boundaries.
+
 ## Alternatives considered
 
 - **Mount upstream apps/desktop wholesale**: replaces our Electron shell/launcher/profile — conflicts with standing architecture decisions; rejected.

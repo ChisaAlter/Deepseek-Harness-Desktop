@@ -1,0 +1,69 @@
+{
+  "at": "2026-09-29T06:57:09.153Z",
+  "launcherUrl": "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html",
+  "initial": {
+    "tab": "home",
+    "start": {
+      "hidden": false,
+      "disabled": false,
+      "text": "启动桌面端"
+    },
+    "stop": {
+      "hidden": true,
+      "disabled": false,
+      "text": "关闭桌面端"
+    },
+    "skip": true,
+    "retryFull": true,
+    "duplicateRetry": false,
+    "recovery": {
+      "exists": true,
+      "hidden": true,
+      "open": false
+    },
+    "progress": {
+      "hidden": true,
+      "text": ""
+    },
+    "status": "当前版本 0.3.3 · 桌面端未运行",
+    "text": "鲸屿\nWHALE ISLE\n启动器\n首页\n组件\n版本\n导入\n插件排查\n设置\n线路\nGitHub\n首页\n\n启动桌面端，或在左侧管理版本和导入数据。\n\n当前版本 0.3.3 · 桌面端未运行\n\n启动桌面端\n检查更新"
+  },
+  "pending": {
+    "tab": "home",
+    "start": {
+      "hidden": false,
+      "disabled": true,
+      "text": "启动中…"
+    },
+    "stop": {
+      "hidden": true,
+      "disabled": true,
+      "text": "关闭桌面端"
+    },
+    "skip": true,
+    "retryFull": true,
+    "duplicateRetry": false,
+    "recovery": {
+      "exists": true,
+      "hidden": true,
+      "open": false
+    },
+    "progress": {
+      "hidden": false,
+      "text": "正在准备运行时与插件 · 已等待 0 秒。"
+    },
+    "status": "当前版本 0.3.3 · 桌面端启动中",
+    "text": "鲸屿\nWHALE ISLE\n启动器\n首页\n组件\n版本\n导入\n插件排查\n设置\n线路\nGitHub\n首页\n\n启动桌面端，或在左侧管理版本和导入数据。\n\n当前版本 0.3.3 · 桌面端启动中\n\n正在准备运行时与插件 · 已等待 0 秒。\n\n启动中…\n检查更新"
+  },
+  "pendingMs": 716,
+  "checks": {
+    "homeTab": true,
+    "startVisible": true,
+    "stopHiddenOnIdle": true,
+    "singleRetryControl": true,
+    "diagnosticsCollapsed": true,
+    "startLockedAfterClick": true,
+    "stopLockedAfterClick": true,
+    "progressVisible": true
+  }
+}

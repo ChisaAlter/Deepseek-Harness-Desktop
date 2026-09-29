@@ -65,6 +65,7 @@ import {
   mapHostSlashList,
 } from './host/commands.js';
 import { classifyScan, detectScanSupport, scanUnavailableHint } from './pair/scan.js';
+import { isNativeAndroidApp, runScanAction } from './pair/native-scan.js';
 import {
   clearSecret,
   getMostRecentStickyServerId,
@@ -136,6 +137,8 @@ const connectError = el('connect-error');
 const savedComputersEl = el('saved-computers');
 const deviceLine = el('device-line');
 const pasteInput = el('paste');
+const pastePanel = el('paste-panel');
+const pasteToggle = el('paste-toggle');
 const scanOpen = el('scan-open');
 const scanUnavailable = el('scan-unavailable');
 const scanVideo = el('scan-video');
@@ -190,7 +193,7 @@ const fileGallery = el('file-gallery');
 // 手机外观持久化（localStorage，对应 Android DeviceStore 的 scheme/glass/uiFont/gitTitle）。
 const PHONE_KEYS = { scheme: 'dsh-phone-scheme', glass: 'dsh-phone-glass', uiFont: 'dsh-phone-ui-font', gitTitle: 'dsh-phone-git-title' };
 function readPhoneStore() {
-  let scheme = 'light';
+  let scheme = 'system';
   let glass = 80;
   let uiFont = '';
   let gitTitle = true;
@@ -212,6 +215,7 @@ function persistPhoneStore(key, value) {
 
 const store = readPhoneStore();
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const nativeAndroidApp = isNativeAndroidApp(navigator.userAgent);
 
 const HISTORY_POLL_MS = 1500;
 
@@ -442,6 +446,13 @@ function showError(message) {
   connectError.classList.toggle('hidden', !message);
 }
 
+function setPasteExpanded(expanded, { focus = false } = {}) {
+  pastePanel.classList.toggle('hidden', !expanded);
+  pasteToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  pasteToggle.textContent = expanded ? '收起配对链接' : '粘贴配对链接';
+  if (expanded && focus) requestAnimationFrame(() => pasteInput.focus());
+}
+
 // —— 已保存的电脑（多台 sticky 选择，纯本地状态） —— //
 
 let connectBusy = false;
@@ -472,7 +483,8 @@ async function runInitialConnect(attempt, { replace = false } = {}) {
     if (pendingConnect !== controller) return;
     if (state.chisacode) forceLogout('', { forget: false });
     deviceLine.textContent = '连接失败';
-    showError(`无法连接电脑：${error?.message || '电脑没有响应'}。请确认电脑端远程和中继已连接后重试；配对已撤销时请重新扫码。`);
+    const reason = /timed? out/i.test(error?.message || '') ? '连接超时' : (error?.message || '电脑没有响应');
+    showError(`${reason}。确认电脑端远程已开启，再重试或重新扫码。`);
   } finally {
     if (pendingConnect === controller) {
       pendingConnect = null;
@@ -491,7 +503,7 @@ function renderSavedComputers() {
   if (!rows.length) return;
   const heading = document.createElement('p');
   heading.className = 'saved-title';
-  heading.textContent = '已保存的电脑';
+  heading.textContent = '继续连接';
   savedComputersEl.append(heading);
   for (const entry of rows) {
     const row = document.createElement('div');
@@ -507,7 +519,7 @@ function renderSavedComputers() {
     const main = document.createElement('span');
     main.className = 'saved-main';
     const name = document.createElement('b');
-    name.textContent = entry.serverId;
+    name.textContent = entry.computerName;
     const desc = document.createElement('span');
     desc.className = 'saved-desc';
     desc.textContent = [
@@ -522,7 +534,7 @@ function renderSavedComputers() {
     forget.className = 'saved-forget';
     forget.textContent = '忘记';
     forget.disabled = connectBusy;
-    forget.setAttribute('aria-label', `忘记 ${entry.serverId}`);
+    forget.setAttribute('aria-label', `忘记 ${entry.computerName}`);
     forget.addEventListener('click', () => {
       clearSecret(entry.serverId);
       renderSavedComputers();
@@ -2227,6 +2239,9 @@ async function finishChisaCodeConnect(paired, reconnected, signal) {
       renderComposer();
     },
     onReconnected: () => {
+      paired.computerName = paired.refreshComputerName?.() || paired.computerName;
+      state.hostName = paired.computerName;
+      if (state.settingsOpen) renderSettings();
       void runReconnectResync();
     },
   });
@@ -2245,7 +2260,7 @@ async function finishChisaCodeConnect(paired, reconnected, signal) {
   state.cwd = '';
   resetWorkPanes();
   state.extPane = { mcp: null, skills: null };
-  state.hostName = paired.serverId;
+  state.hostName = paired.computerName;
   let loadError = '';
   deviceLine.textContent = '已连接，正在同步会话…';
   try {
@@ -2266,7 +2281,7 @@ async function finishChisaCodeConnect(paired, reconnected, signal) {
     window.history.replaceState(null, '', `${location.pathname}${location.search}`);
   }
   deviceLine.replaceChildren();
-  deviceLine.append(document.createTextNode(`${reconnected ? '已重连' : '已配对'} ${paired.serverId}`));
+  deviceLine.append(document.createTextNode(`${reconnected ? '已重连' : '已配对'} ${paired.computerName}`));
   showBanner(loadError);
   renderSessions();
   renderHeader();
@@ -3123,6 +3138,13 @@ function updateSlashPopup() {
 // —— 扫码（M2）—— //
 
 async function initScanButton() {
+  if (nativeAndroidApp) {
+    state.scanSupport = { supported: true, native: true };
+    scanOpen.classList.remove('hidden');
+    scanUnavailable.classList.add('hidden');
+    scanUnavailable.textContent = '';
+    return;
+  }
   state.scanSupport = await detectScanSupport({
     isSecureContext: window.isSecureContext,
     mediaDevices: navigator.mediaDevices,
@@ -3142,6 +3164,7 @@ function stopScan() {
   scanStream = null;
   scanVideo.srcObject = null;
   torchOn = false;
+  scanTorch.classList.remove('is-on');
 }
 
 function closeScan() {
@@ -3172,7 +3195,7 @@ function handleScanHit(raw) {
 async function startScan() {
   if (!state.scanSupport.supported) return;
   state.route = 'scan';
-  scanTip.textContent = '将二维码放入框内';
+  scanTip.textContent = '将二维码完整放入取景框';
   scanTorch.classList.add('hidden');
   renderScreen();
   let detector;
@@ -3227,8 +3250,10 @@ async function toggleTorch() {
     torchOn = !torchOn;
     await track.applyConstraints({ advanced: [{ torch: torchOn }] });
     scanTorch.textContent = torchOn ? '关闭手电' : '手电筒';
+    scanTorch.classList.toggle('is-on', torchOn);
   } catch {
     torchOn = false;
+    scanTorch.classList.remove('is-on');
     scanTorch.classList.add('hidden');
   }
 }
@@ -5895,14 +5920,21 @@ function renderLightbox() {
 // —— 事件接线 —— //
 
 scanOpen.addEventListener('click', () => {
-  startScan();
+  runScanAction({
+    userAgent: navigator.userAgent,
+    navigate: (url) => window.location.assign(url),
+    startBrowserScan: startScan,
+  });
 });
 el('scan-cancel').addEventListener('click', () => closeScan());
 scanTorch.addEventListener('click', () => toggleTorch());
 el('permission-paste').addEventListener('click', () => {
   state.route = 'connect';
   renderScreen();
-  pasteInput.focus();
+  setPasteExpanded(true, { focus: true });
+});
+pasteToggle.addEventListener('click', () => {
+  setPasteExpanded(pastePanel.classList.contains('hidden'), { focus: true });
 });
 el('paste-enter').addEventListener('click', () => {
   const outcome = classifyScan(pasteInput.value, origin);

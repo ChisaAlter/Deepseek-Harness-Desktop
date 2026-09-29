@@ -35,9 +35,19 @@ const CSS = `
 .dshr-formFull { grid-column: 1 / -1; }
 .dshr-checkRow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
 
-.dshr-flow { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
+.dshr-flow { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; color: var(--dsw-alias-label-primary); }
+.dshr-flowContent { display: flex; flex-direction: column; gap: 12px; flex: 1 1 0; min-height: 0; overflow: auto; padding: 16px 24px; }
+.dshr-flowContent > .dshr-row { flex: none; }
+.dshr-flowContent .dshr-formLabel { flex: none; }
+.dshr-flowContent .dshr-iconBtn { flex: none; }
+.dshr-flowContent .dshr-list { min-height: 80px; max-height: none; }
+.dshr-flowContent .dshr-emptyState { flex: 1; justify-content: center; }
+.dshr-flowStatus { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; flex: 1; padding: 16px; text-align: center; overflow-wrap: anywhere; }
+.dshr-flowFooter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; padding: 16px 24px; border-top: 0.5px solid var(--dsw-alias-border-l3); }
+.dshr-flowActions { display: flex; gap: 8px; margin-left: auto; }
+.dshr-flowActions > button { min-width: 72px; }
 .dshr-crumbs { display: flex; align-items: center; gap: 2px; font-size: 12px; color: var(--dsw-alias-label-tertiary); overflow: hidden; white-space: nowrap; }
-.dshr-crumb { cursor: pointer; padding: 1px 3px; border-radius: 4px; }
+.dshr-crumb { cursor: pointer; padding: 1px 3px; border: none; background: transparent; color: inherit; font: inherit; border-radius: 4px; }
 .dshr-crumb:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dshr-crumbLast { color: var(--dsw-alias-label-primary); font-weight: 600; }
 .dshr-list { flex: 1; min-height: 140px; max-height: 280px; overflow-y: auto; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; padding: 4px; }

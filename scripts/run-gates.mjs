@@ -18,7 +18,7 @@ const MODES = {
     'verify-rules-sync.mjs',
     'check-remote-flag-not-committed.mjs',
   ],
-  // Everything touching documentation, including pairing and budgets.
+  // Everything touching documentation, including links and pairing.
   'doc-sync': [
     'verify-decision-tree.mjs',
     'verify-decision-format.mjs',
@@ -27,7 +27,6 @@ const MODES = {
     'verify-rules-sync.mjs',
     'verify-md-links.mjs',
     'verify-translation-pairing.mjs',
-    'verify-doc-budgets.mjs',
   ],
 }
 

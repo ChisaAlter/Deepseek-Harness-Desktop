@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-09-25-window-chrome-self-heal.md) | English
 
+> Windows main/launcher transparency and outer-silhouette requirements are superseded by [native window motion](2026-09-29-native-window-motion.en.md); non-Windows, inner content corners and unrelated decisions remain valid.
+
 ## Problem
 
 User report: after editing plugins and restarting several times, the main window's rounded corners disappeared, the top-right minimize/maximize/close buttons went missing, and a dark line appeared at the far-right viewport edge. The main window is `frame:false + transparent:true`; the rounded silhouette and window controls are all painted by `harness-chrome-inject.js` inside the Harness BrowserView page. All three symptoms share one source — the inject script never ran or its nodes were wiped afterwards.

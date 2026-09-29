@@ -6,6 +6,8 @@ Status: implemented
 
 > Supersedes [2026-09-27-shell-window-corner-radius-10](../../archived/product/2026-09-27-shell-window-corner-radius-10.en.md)
 
+> Windows main/launcher transparency and outer-silhouette requirements are superseded by [native window motion](../bug-fix/2026-09-29-native-window-motion.en.md); non-Windows, inner content corners and unrelated decisions remain valid.
+
 ## Problem
 
 The same day the unified 10px silhouette landed, hands-on feedback called the launcher and desktop corners too small. Re-checking the macOS reference showed the anchor itself is drifting: 10pt is the Big Sur–Sequoia (macOS 11–15) window radius; current Tahoe (macOS 26) raised it to 16pt and up — toolbar/sidebar windows run larger and are no longer uniform — because the corner wraps concentrically around glass toolbar elements. 10px anchors the previous macOS generation and reads tight on this product's desktop.

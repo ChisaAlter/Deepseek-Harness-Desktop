@@ -530,6 +530,61 @@ test('start 与 stop 重叠不死锁：start 等待 stop 完成后新起一代',
   assert.equal(rStop.status, 'fulfilled');
 });
 
+test('Windows tree cleanup yields during process lookup and termination, preserving image guards', { skip: process.platform !== 'win32' }, async () => {
+  const { killTree } = require('./dsh');
+  const calls = [];
+  let complete;
+  const run = (command, args, options, callback) => {
+    calls.push({ command, args, options });
+    complete = callback;
+  };
+  let settled = false;
+  const pending = killTree(CHILD_PID, run).then(() => { settled = true; });
+  await tick();
+  assert.equal(settled, false);
+  assert.equal(calls[0].command, 'tasklist');
+  assert.equal(calls[0].options.windowsHide, true);
+  complete(null, '"node.exe","4242"');
+  await tick();
+  assert.equal(calls[1].command, 'taskkill');
+  assert.deepEqual(calls[1].args, ['/pid', '4242', '/T', '/F']);
+  assert.equal(settled, false);
+  complete(null, '');
+  await pending;
+  for (const name of ['electron.exe', 'Whale Isle.exe', 'unrelated.exe', '']) {
+    const commands = [];
+    await killTree(CHILD_PID, (command, args, options, callback) => {
+      commands.push(command);
+      callback(null, name ? `"${name}","4242"` : '');
+    });
+    assert.deepEqual(commands, ['tasklist']);
+  }
+  await killTree(process.pid, () => assert.fail('must not query or kill itself'));
+});
+
+test('stop awaits asynchronous process cleanup before clearing pid and allowing another start', async (t) => {
+  let releaseKill;
+  const pendingKill = new Promise((resolve) => { releaseKill = resolve; });
+  const h = makeHarness({ deps: { killTree: () => pendingKill } });
+  t.after(h.cleanup);
+  h.setReachable(true);
+  await h.manager.start();
+  const clears = h.calls.clearPid;
+  const stop = h.manager.stop();
+  await tick(10);
+  const stateDuringKill = h.manager.state;
+  const clearsDuringKill = h.calls.clearPid;
+  const next = h.manager.start();
+  await tick(10);
+  const spawnsDuringKill = h.spawned.length;
+  releaseKill();
+  await Promise.all([stop, next]);
+  assert.equal(stateDuringKill, 'stopping');
+  assert.equal(clearsDuringKill, clears);
+  assert.equal(spawnsDuringKill, 1);
+  assert.equal(h.spawned.length, 2);
+});
+
 test('正常 stop：stopping→idle、killTree/clearPid 被调用、幂等', async (t) => {
   const h = makeHarness();
   t.after(h.cleanup);

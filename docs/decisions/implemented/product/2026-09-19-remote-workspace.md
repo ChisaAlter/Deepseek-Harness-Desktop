@@ -10,6 +10,8 @@ Status: implemented
 
 ## Decision
 
+目录选择器的远程页复用本机标题与底栏的几何：内容有独立留白和滚动区域，取消在加载、空机器及失败时仍可用。机器清单失败显示错误与重试，设为当前机器失败不继续读取旧机器目录；不能用只给整个 pane 加 padding 的方式修复，因为短窗仍会把操作按钮挤出可见区域。对应 Chromium 组件回归覆盖三类状态及窄窗，真实 SSH 可用性另行验收。
+
 把 `dsh-remote` 代码级合并为桌面内置，分四层落地：
 
 1. **后端 vendor**：`vendor/dsh-remote` 快照 host 半 17 个模块（机器注册表、ssh2 连接池、SFTP 双向同步、20 个 `rw_*` 工具、端口转发、审计、TOFU 指纹、`/dsh-remote/*` 路由），依赖 `ssh2`/`schemastery`/`iconv-lite` 随 `vendor/dsh-remote/node_modules` git 跟踪（dshbot 同例）；砍掉 `update.js` 自更新（桌面统一管更新）。

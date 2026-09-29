@@ -20,10 +20,10 @@ export function apply(ctx) {
   const token = String(process.env.DSHD_PLATFORM_TOKEN || '');
   let routeRegistered = false;
   const install = () => {
-    const account = ctx.get('deepseekAccount');
     const webServer = ctx.get('webServer');
     if (!webServer || typeof webServer.register !== 'function') return false;
     const read = async () => {
+      const account = ctx.get('deepseekAccount');
       if (!account || typeof account.getPlatformSession !== 'function') return null;
       return account.getPlatformSession();
     };

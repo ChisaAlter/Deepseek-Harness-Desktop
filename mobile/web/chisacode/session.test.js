@@ -101,6 +101,7 @@ test('reconnectSticky uses role=client and stored useTls', async () => {
 
     setReconnectEnabled(enabled) { assert.equal(enabled, true); }
     async connect() {}
+    getLastServerInfoMessage() { return { hostname: '  WHALE-DESKTOP  ' }; }
   }
   const api = {
     buildRelayWebSocketUrl(params) {
@@ -110,11 +111,46 @@ test('reconnectSticky uses role=client and stored useTls', async () => {
     DaemonClient: MockDaemonClient,
   };
 
-  await reconnectSticky(api, 'srv_test');
+  const reconnected = await reconnectSticky(api, 'srv_test');
 
   assert.equal(calls[0].role, 'client');
   assert.equal(calls[0].useTls, false);
   assert.equal(calls[0].serverId, 'srv_test');
+  assert.equal(reconnected.computerName, 'WHALE-DESKTOP');
+  const saved = JSON.parse(localStorage.getItem(SECRET_KEY));
+  assert.equal(saved.srv_test.computerName, 'WHALE-DESKTOP');
+  assert.equal(saved.srv_test.savedAt, 1);
+});
+
+test('computer-name persistence is best-effort after a successful reconnect', async () => {
+  const previousStorage = globalThis.localStorage;
+  const record = {
+    deviceId: 'dev_quota',
+    deviceSecret: 'secret_quota',
+    relayEndpoint: 'relay.example:8411',
+    daemonPublicKeyB64: 'pk_quota',
+    savedAt: 7,
+  };
+  let closeCount = 0;
+  globalThis.localStorage = {
+    getItem: () => JSON.stringify({ srv_quota: record }),
+    setItem: () => { throw new Error('quota'); },
+  };
+  try {
+    const reconnected = await reconnectSticky({
+      buildRelayWebSocketUrl: () => 'ws://relay.example:8411/ws',
+      DaemonClient: class {
+        async connect() {}
+        async close() { closeCount += 1; }
+        setReconnectEnabled() {}
+        getLastServerInfoMessage() { return { hostname: 'Whale Desktop' }; }
+      },
+    }, 'srv_quota');
+    assert.equal(reconnected.computerName, 'Whale Desktop');
+    assert.equal(closeCount, 0);
+  } finally {
+    globalThis.localStorage = previousStorage;
+  }
 });
 
 test('expired offers fail before opening a transport and do not discard saved credentials', async () => {
@@ -171,6 +207,7 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
   const relayCalls = [];
   let clientOptions;
   let initialAuth;
+  let serverHostname = '  Whale   Workstation  ';
   class MockDaemonClient {
     constructor(options) {
       assert.equal(options.reconnect.enabled, false);
@@ -186,6 +223,8 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
         deviceSecret: 's'.repeat(64),
       });
     }
+
+    getLastServerInfoMessage() { return { hostname: serverHostname }; }
   }
   const offer = {
     v: 2,
@@ -224,6 +263,7 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
   }
 
   assert.equal(paired.serverId, 'srv_pair');
+  assert.equal(paired.computerName, 'Whale Workstation');
   assert.deepEqual(initialAuth, {
     version: 1,
     serverId: 'srv_pair',
@@ -237,6 +277,13 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
   const saved = JSON.parse(localStorage.getItem('dsh-chisacode-device-secrets'));
   assert.equal(saved.srv_pair.deviceId, 'dev_revoked_0000');
   assert.equal(saved.srv_pair.deviceSecret, 's'.repeat(64));
+  assert.equal(saved.srv_pair.computerName, 'Whale Workstation');
+  const savedAt = saved.srv_pair.savedAt;
+  serverHostname = 'Whale Laptop';
+  assert.equal(paired.refreshComputerName(), 'Whale Laptop');
+  const renamed = JSON.parse(localStorage.getItem('dsh-chisacode-device-secrets'));
+  assert.equal(renamed.srv_pair.computerName, 'Whale Laptop');
+  assert.equal(renamed.srv_pair.savedAt, savedAt);
 });
 
 test('deviceNameFromUa mirrors the desktop device naming contract', () => {
@@ -343,16 +390,32 @@ test('savedComputerRows lists complete sticky records most-recent first', () => 
     relayEndpoint: '192.168.1.8:8411',
   };
   assert.deepEqual(savedComputerRows({
-    srv_old: { ...complete, savedAt: 100 },
-    srv_new: { ...complete, relayEndpoint: 'relay.lan:8411', savedAt: 200 },
+    srv_old: { ...complete, computerName: 'srv_old', savedAt: 100 },
+    srv_new: { ...complete, computerName: '  Whale   Studio  ', relayEndpoint: 'relay.lan:8411', savedAt: 200 },
     // Incomplete records cannot reconnect — they must not render as choices.
     srv_broken: { deviceId: 'dev_b', savedAt: 300 },
   }), [
-    { serverId: 'srv_new', relayEndpoint: 'relay.lan:8411', savedAt: 200 },
-    { serverId: 'srv_old', relayEndpoint: '192.168.1.8:8411', savedAt: 100 },
+    { serverId: 'srv_new', computerName: 'Whale Studio', relayEndpoint: 'relay.lan:8411', savedAt: 200 },
+    { serverId: 'srv_old', computerName: '我的电脑', relayEndpoint: '192.168.1.8:8411', savedAt: 100 },
   ]);
   assert.deepEqual(savedComputerRows({}), []);
   assert.deepEqual(savedComputerRows(undefined), []);
+});
+
+test('savedComputerRows never exposes protocol server ids as computer names', () => {
+  const complete = {
+    deviceId: 'dev_a',
+    deviceSecret: 'sec_a',
+    daemonPublicKeyB64: 'pk_a',
+    relayEndpoint: '192.168.1.8:8411',
+  };
+  const rows = savedComputerRows({
+    srv_missing: { ...complete, savedAt: 3 },
+    srv_prefix: { ...complete, computerName: 'srv_mwTybX8qgBZk', savedAt: 2 },
+    srv_equal: { ...complete, computerName: 'srv_equal', savedAt: 1 },
+  });
+  assert.deepEqual(rows.map((row) => row.computerName), ['我的电脑', '我的电脑', '我的电脑']);
+  assert.equal(rows.some((row) => /^srv_/i.test(row.computerName)), false);
 });
 
 test('agentRows maps the upstream directory payload into the mobile session list', () => {

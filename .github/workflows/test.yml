@@ -39,6 +39,9 @@ jobs:
         run: npm run doc-sync
       - name: Run desktop unit tests
         run: npm test
+      - name: Native Windows shell motion contract (real Electron factories and IPC)
+        if: runner.os == 'Windows'
+        run: node scripts/run-window-motion-qa.mjs
 
   vendor-gui:
     runs-on: windows-latest

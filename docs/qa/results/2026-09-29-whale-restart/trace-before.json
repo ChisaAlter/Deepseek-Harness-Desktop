@@ -1,0 +1,191 @@
+[
+  {
+    "ms": 413,
+    "name": "setLoginItemSettings:begin"
+  },
+  {
+    "ms": 418,
+    "name": "setLoginItemSettings:end",
+    "elapsed": 5
+  },
+  {
+    "ms": 1518,
+    "name": "main-loop-delay",
+    "delay": 670
+  },
+  {
+    "ms": 1521,
+    "name": "performStartOnce:begin"
+  },
+  {
+    "ms": 1551,
+    "name": "ensureBootVisible:begin"
+  },
+  {
+    "ms": 1878,
+    "name": "ensureBootVisible:end",
+    "elapsed": 327
+  },
+  {
+    "ms": 2043,
+    "name": "start:begin"
+  },
+  {
+    "ms": 13369,
+    "name": "start:end",
+    "elapsed": 11326
+  },
+  {
+    "ms": 16896,
+    "name": "harness-visible"
+  },
+  {
+    "ms": 17031,
+    "name": "performStartOnce:end",
+    "elapsed": 15509
+  },
+  {
+    "ms": 17908,
+    "name": "toggle"
+  },
+  {
+    "ms": 17916,
+    "name": "setLoginItemSettings:begin"
+  },
+  {
+    "ms": 17919,
+    "name": "setLoginItemSettings:end",
+    "elapsed": 3
+  },
+  {
+    "ms": 17925,
+    "name": "coordinate:begin"
+  },
+  {
+    "ms": 17931,
+    "name": "toggle-return"
+  },
+  {
+    "ms": 17942,
+    "name": "confirm",
+    "inspection": {
+      "ok": true,
+      "hostGeneration": "c8b7d740-6767-4995-bb69-4479dd3cc954",
+      "observedAt": 1790663333670,
+      "locked": false,
+      "activeWork": [
+        {
+          "kind": "request",
+          "id": "pending-requests",
+          "count": 1
+        }
+      ],
+      "scheduledWork": [],
+      "coverage": {
+        "agents": "ok",
+        "jobs": "ok",
+        "schedule": "intentional-disabled",
+        "bots": "intentional-disabled"
+      }
+    }
+  },
+  {
+    "ms": 22640,
+    "name": "restart:begin"
+  },
+  {
+    "ms": 22641,
+    "name": "replaceOperation:begin"
+  },
+  {
+    "ms": 22641,
+    "name": "stop:begin"
+  },
+  {
+    "ms": 24655,
+    "name": "stop:end",
+    "elapsed": 2014
+  },
+  {
+    "ms": 24656,
+    "name": "ensureBootVisible:begin"
+  },
+  {
+    "ms": 24674,
+    "name": "ensureBootVisible:end",
+    "elapsed": 18
+  },
+  {
+    "ms": 24675,
+    "name": "performStartOnce:begin"
+  },
+  {
+    "ms": 24675,
+    "name": "ensureBootVisible:begin"
+  },
+  {
+    "ms": 24678,
+    "name": "ensureBootVisible:end",
+    "elapsed": 3
+  },
+  {
+    "ms": 24683,
+    "name": "main-loop-delay",
+    "delay": 2096
+  },
+  {
+    "ms": 24825,
+    "name": "start:begin"
+  },
+  {
+    "ms": 33234,
+    "name": "start:end",
+    "elapsed": 8409
+  },
+  {
+    "ms": 35315,
+    "name": "harness-visible"
+  },
+  {
+    "ms": 35315,
+    "name": "complete"
+  },
+  {
+    "ms": 35433,
+    "name": "performStartOnce:end",
+    "elapsed": 10758
+  },
+  {
+    "ms": 35434,
+    "name": "replaceOperation:end",
+    "elapsed": 12793
+  },
+  {
+    "ms": 35435,
+    "name": "restart:end",
+    "elapsed": 12795
+  },
+  {
+    "ms": 35471,
+    "name": "coordinate:end",
+    "elapsed": 17546
+  },
+  {
+    "ms": 35831,
+    "name": "coordinate:begin"
+  },
+  {
+    "ms": 43734,
+    "name": "stop:begin"
+  },
+  {
+    "ms": 45566,
+    "name": "stop:end",
+    "elapsed": 1832
+  },
+  {
+    "ms": 45567,
+    "name": "coordinate:end",
+    "elapsed": 9736
+  }
+]

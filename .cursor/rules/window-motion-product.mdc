@@ -1,0 +1,12 @@
+---
+description: Preserve native Windows maximize/minimize/restore animations across shell edits and upstream sync
+alwaysApply: true
+---
+
+# Window motion
+
+Windows main and launcher windows use `shellWindowChrome`: opaque native windows, `transparent: false`, `thickFrame: true`, `roundedCorners: true`. Never restore alpha shell windows for a fixed outer radius or replace native transitions with geometry/CSS animation. Pets and overlays keep their separate transparency policy. Respect OS animation preferences.
+
+Run `node scripts/run-window-motion-qa.mjs` on Windows after shell changes, Electron upgrades or upstream integration, alongside `npm test`. HWND styles and real IPC state checks do not replace visible transition acceptance. Update the feature card and decisions if the contract changes.
+
+Full card: [docs/features/window-motion.md](../../docs/features/window-motion.md)

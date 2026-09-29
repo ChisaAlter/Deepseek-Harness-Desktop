@@ -15,6 +15,10 @@ Reuse `ui-primitives` and `--dsw-alias-*` tokens. The boot page consumes baselin
 
 Harness-internal work also follows [vendor/deepseek-harness/AGENTS.md](vendor/deepseek-harness/AGENTS.md).
 
+## Native window motion
+
+Windows main/launcher windows must preserve native DWM transitions. Follow [window-motion](docs/features/window-motion.md): opaque shell windows, native outer corners, no transparent-window workaround for a fixed radius. Pets/overlays are separate. After window styling, Electron upgrades or upstream integration, run `node scripts/run-window-motion-qa.mjs` on Windows; state-only checks do not certify visible animation.
+
 ## Surfaces and terminal (work loops)
 
 The right column and conversation terminal drawer implement **work loops** (Files search/save, Browser navigation, Diff scopes, selection into chat), not an empty-state card grid. Empty-state cards are not done. Contract: [2026-08-16-surfaces-terminal-work-loops.md](vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-16-surfaces-terminal-work-loops.md). Out of scope (GPU terminal embedding, worktree, turn-diff, review-comment pick) stays in that note; do not fake those capabilities.

@@ -52,7 +52,7 @@ const {
   setDesktopDshHome,
   sanitizePackagedDshHomeEnv,
 } = require('../shared/dsh-home');
-const { probeImportHold, recoverInterruptedImport } = require('../main/data-import');
+const { recoverInterruptedImport } = require('../main/data-import');
 const runtimeInstall = require('../launcher/runtime-install');
 const {
   runColdStartGate,
@@ -272,7 +272,6 @@ if (!gotLock) {
       openLauncher,
       sendToLauncher,
       recoverInterruptedImport: () => recoverInterruptedImport({ userDataDir: desktopDir }),
-      probeImportHold,
       startDesktop: () => runtimeInstall.startExternalDesktop(),
       drainParkedUpdateCheck: () => drainParkedUpdateCheck.drain({ generation: getLauncherWindow() }),
       log: (line, level) => {

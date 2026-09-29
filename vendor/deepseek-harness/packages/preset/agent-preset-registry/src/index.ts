@@ -158,6 +158,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
         ...(record.config.name === undefined ? {} : { name: record.config.name }),
         ...(record.config.description === undefined ? {} : { description: record.config.description }),
         ...(record.config.order === undefined ? {} : { order: record.config.order }),
+        ...(record.config.hidden === true ? { hidden: true } : {}),
         ...(broken === undefined ? {} : { broken }),
       }
     }))
@@ -165,12 +166,16 @@ export class AgentPresetRegistry extends TypertRemoteService {
   }
 
   /** Read the selection roster.
-   * @returns Current presets, each marked when it is the default.
+   * Healthy hidden presets stay off this list while they can still resolve and mount by id.
+   * A broken hidden preset stays visible so its diagnostic remains actionable.
+   * @returns Current selectable presets, each marked when it is the default.
    */
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
     const defaultId = this.defaultId
-    return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === defaultId })) }
+    return { presets: (await this.list())
+      .filter(row => row.hidden !== true || row.broken !== undefined)
+      .map(row => ({ ...row, isDefault: row.id === defaultId })) }
   }
 
   /** Resolve an identity without starting an Agent.
@@ -183,7 +188,14 @@ export class AgentPresetRegistry extends TypertRemoteService {
     if (record === undefined) throw new RemoteError('agent-preset/not-found', `Unknown agent preset: ${wanted}`,
       { agentPreset: wanted, available: [...this.definitions.keys()] })
     const broken = await this.diagnostic(record)
-    return { id: wanted, ...(broken === undefined ? {} : { broken }) }
+    return {
+      id: wanted,
+      ...(record.config.name === undefined ? {} : { name: record.config.name }),
+      ...(record.config.description === undefined ? {} : { description: record.config.description }),
+      ...(record.config.order === undefined ? {} : { order: record.config.order }),
+      ...(record.config.hidden === true ? { hidden: true } : {}),
+      ...(broken === undefined ? {} : { broken }),
+    }
   }
 
   /** Read one declaration's child plugin list as YAML, for viewing only.

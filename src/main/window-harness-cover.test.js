@@ -408,7 +408,7 @@ test('showBoot cancels a plugin boot watch before its first probe', { timeout: 1
     filename: chromePath,
     loaded: true,
     exports: {
-      windowChrome: (options) => options,
+      shellWindowChrome: (options) => options,
       attachIntegratedChrome() {},
       hideNativeMenu() {},
       prepareHarnessChrome() {},

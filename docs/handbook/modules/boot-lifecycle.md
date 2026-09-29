@@ -2,19 +2,19 @@
 
 ## 职责与非目标
 
-**职责：** 冷启动闸门（只开启动器）、拉起 / 监视 `dsh web`、boot 态机、就绪后露出 BrowserView、崩溃重启。  
+**职责：** 冷启动闸门、拉起 / 监视 `dsh web`、boot 态机、就绪后露出 BrowserView、崩溃重启。
 **非目标：** 不实现对话业务；不扩散启动页海平线画布到启动器或其它页。
 
 ## 用户路径
 
-1. 冷启动只见启动器：检查正式版、可选导入、再启桌面端。  
+1. 自动启动开启时直接进入桌面；关闭或上次启动失败时显示启动器首页。导入由用户主动打开，只有中断事务恢复会自动进入导入页。
 2. 桌面主窗见海平线画布与底缘日志 ticker（点击开抽屉看全部） → 插件进度 → 主界面。  
 3. 失败：启动器留下并打开插件问诊；boot 仍可重试、取消自动重启、导出日志、回启动器排查；跳过用户插件是自动恢复路径而非按钮。  
 4. 运行中 Harness 挂掉：故障态与可选自动重启。
 
 ## 架构要点
 
-- `whenReady` 只 `showLauncher()`；`HarnessController.start()` 由启动器在更新检查之后触发。  
+- `whenReady` 预建隐藏启动器并进入冷启动门；更新检查不阻塞正常自动启动，可选导入来源也不占用启动路径。
 - `HarnessController` 拥有子进程与揭示时机；boot 只消费事件。  
 - 恢复与手动重启共享未完成的 boot 导航；新 Harness 揭示前必须等待旧导航完成，避免迟到的启动页覆盖新界面。
 - 插件装载进度留在 boot，不切官方加载页。  
@@ -22,6 +22,7 @@
 - 无账号或模型密钥也直接揭示工作区，不弹原版欢迎窗；登录和密钥配置留在设置。后台账号观察保留授权外开与 Platform 身份刷新，退出/过期不隐藏工作区。冒烟检测到欢迎窗即失败，不自动点击跳过，见 [desktop-welcome](../../features/desktop-welcome.md)。
 - 主 frame preload 的 `dshDesktop.onboarding: false` 同时关闭首次用途/过程引导，不创建 controller、不写完成标记或默认偏好；通用设置保留这些选项。冒烟不代点继续/稍后配置。
 - 流程详述：[../flows/boot-to-ready.md](../flows/boot-to-ready.md)
+- 启动器使用 `src/renderer/launcher.html` / `launcher.css` / `launcher.js` 与共享 `dsh-webui-tokens.css`。`html[data-shell-theme=official]` 下 `theme.js` 只选择 `theme.scheme` 的明暗表，不写 Appearance 壁纸种子，不新增 `data-theme` / `prefers-color-scheme` 色板。首页启停共享操作锁，故障原文和插件恢复保存在默认折叠的「启动诊断」。
 
 ## 实现入口
 

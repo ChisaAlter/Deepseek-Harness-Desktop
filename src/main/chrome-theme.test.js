@@ -83,6 +83,8 @@ test('isEffectivelyMaximized treats a work-area-covering transparent window as m
       isMaximized: () => false,
       getBounds: () => ({ x: 0, y: 0, width: 1707, height: 920 }),
     };
+    assert.equal(chrome.isEffectivelyMaximized(win), false, 'native windows must not fake maximization from bounds');
+    chrome.markWindowTransparent(win);
     assert.equal(chrome.isEffectivelyMaximized(win), true);
     win.getBounds = () => ({ x: 100, y: 20, width: 1440, height: 920 });
     assert.equal(chrome.isEffectivelyMaximized(win), false);
@@ -93,6 +95,18 @@ test('isEffectivelyMaximized treats a work-area-covering transparent window as m
   } finally {
     restore();
   }
+});
+
+test('shell window policy cannot be overridden to disable native Windows transitions', () => {
+  const { chrome, restore } = loadChrome();
+  try {
+    const options = chrome.shellWindowChrome({ transparent: true, thickFrame: false, roundedCorners: false, backgroundColor: '#00000000' });
+    assert.equal(options.transparent, process.platform !== 'win32');
+    assert.equal(options.thickFrame, true);
+    assert.equal(options.roundedCorners, process.platform === 'win32');
+    if (process.platform === 'win32') assert.notEqual(options.backgroundColor, '#00000000');
+    assert.equal(chrome.windowChrome({ transparent: true }).transparent, true, 'pet/overlay transparency stays available');
+  } finally { restore(); }
 });
 
 test('restorableNormalBounds falls back to a centered default when the tracked rect fills the work area', () => {

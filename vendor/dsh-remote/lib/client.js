@@ -148,6 +148,7 @@ var zh = {
   "picker.refresh": "\u5237\u65B0",
   "picker.mirrorHint": "\u5C06\u5728\u672C\u673A\u521B\u5EFA\u955C\u50CF\u5DE5\u4F5C\u533A\u5E76\u4E0E\u8FDC\u7A0B\u76EE\u5F55\u540C\u6B65\u3002",
   "picker.listFail": "\u76EE\u5F55\u8BFB\u53D6\u5931\u8D25\uFF1A{error}",
+  "picker.loadFail": "\u8FDC\u7A0B\u5DE5\u4F5C\u533A\u52A0\u8F7D\u5931\u8D25\uFF1A{error}",
   "explorer.tabTitle": "\u8FDC\u7A0B\u6587\u4EF6",
   "explorer.empty": "\u672C\u4F1A\u8BDD\u4E0D\u662F\u8FDC\u7A0B\u5DE5\u4F5C\u533A",
   "explorer.emptyHint": "\u4F1A\u8BDD\u76EE\u5F55\u4E0D\u5728\u4EFB\u4F55\u8FDC\u7A0B\u955C\u50CF\u5185\u65F6\uFF0C\u8FD9\u91CC\u4E0D\u663E\u793A\u8FDC\u7A0B\u6587\u4EF6\u3002",
@@ -291,6 +292,7 @@ var en = {
   "picker.refresh": "Refresh",
   "picker.mirrorHint": "A local mirror workspace will be created and synced with the remote directory.",
   "picker.listFail": "Could not list directory: {error}",
+  "picker.loadFail": "Failed to load remote workspace: {error}",
   "explorer.tabTitle": "Remote Files",
   "explorer.empty": "This session is not a remote workspace",
   "explorer.emptyHint": "Remote files show only when the session directory sits inside a remote mirror.",
@@ -459,9 +461,19 @@ var CSS = `
 .dshr-formFull { grid-column: 1 / -1; }
 .dshr-checkRow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
 
-.dshr-flow { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
+.dshr-flow { display: flex; flex-direction: column; min-height: 0; min-width: 0; flex: 1; color: var(--dsw-alias-label-primary); }
+.dshr-flowContent { display: flex; flex-direction: column; gap: 12px; flex: 1 1 0; min-height: 0; overflow: auto; padding: 16px 24px; }
+.dshr-flowContent > .dshr-row { flex: none; }
+.dshr-flowContent .dshr-formLabel { flex: none; }
+.dshr-flowContent .dshr-iconBtn { flex: none; }
+.dshr-flowContent .dshr-list { min-height: 80px; max-height: none; }
+.dshr-flowContent .dshr-emptyState { flex: 1; justify-content: center; }
+.dshr-flowStatus { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; flex: 1; padding: 16px; text-align: center; overflow-wrap: anywhere; }
+.dshr-flowFooter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; padding: 16px 24px; border-top: 0.5px solid var(--dsw-alias-border-l3); }
+.dshr-flowActions { display: flex; gap: 8px; margin-left: auto; }
+.dshr-flowActions > button { min-width: 72px; }
 .dshr-crumbs { display: flex; align-items: center; gap: 2px; font-size: 12px; color: var(--dsw-alias-label-tertiary); overflow: hidden; white-space: nowrap; }
-.dshr-crumb { cursor: pointer; padding: 1px 3px; border-radius: 4px; }
+.dshr-crumb { cursor: pointer; padding: 1px 3px; border: none; background: transparent; color: inherit; font: inherit; border-radius: 4px; }
 .dshr-crumb:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .dshr-crumbLast { color: var(--dsw-alias-label-primary); font-weight: 600; }
 .dshr-list { flex: 1; min-height: 140px; max-height: 280px; overflow-y: auto; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; padding: 4px; }
@@ -996,6 +1008,7 @@ function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError, t }) 
   const [items, setItems] = React3.useState(null);
   const [platform, setPlatform] = React3.useState("");
   const [loading, setLoading] = React3.useState(false);
+  const [loadingMachines, setLoadingMachines] = React3.useState(false);
   const [choosing, setChoosing] = React3.useState(false);
   const [err, setErr] = React3.useState("");
   const [mkdirOpen, setMkdirOpen] = React3.useState(false);
@@ -1021,28 +1034,40 @@ function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError, t }) 
       setErr(t("picker.listFail", { error: String(e && e.message || e) }));
     }).finally(() => setLoading(false));
   }, [t]);
-  React3.useEffect(() => {
-    if (!open || !active || loadedOnce.current) return;
-    loadedOnce.current = true;
+  const loadMachines = React3.useCallback(() => {
+    setLoadingMachines(true);
+    setErr("");
     remoteApi.machines().then((r) => {
       const list0 = r.machines || [];
       setMachines(list0);
       const initial = r.currentId || list0[0] && list0[0].id || "";
       setMachineId(initial);
       if (initial) {
-        remoteApi.setCurrent(initial).catch(() => {
-        }).then(() => list(""));
+        setLoading(true);
+        return remoteApi.setCurrent(initial).then(() => list(""));
       }
-    }).catch((e) => setErr(String(e && e.message || e)));
-  }, [open, active, list]);
+    }).catch((e) => {
+      setLoading(false);
+      setErr(t("picker.loadFail", { error: String(e && e.message || e) }));
+    }).finally(() => setLoadingMachines(false));
+  }, [list, t]);
+  React3.useEffect(() => {
+    if (!open || !active || loadedOnce.current) return;
+    loadedOnce.current = true;
+    loadMachines();
+  }, [open, active, loadMachines]);
   const selectMachine = (id) => {
     if (!id || id === machineId && items !== null) return;
     setMachineId(id);
     setItems(null);
     setPath("");
     setErr("");
-    remoteApi.setCurrent(id).catch(() => {
-    }).then(() => list(""));
+    setConnected(false);
+    setLoading(true);
+    remoteApi.setCurrent(id).then(() => list("")).catch((e) => {
+      setLoading(false);
+      setErr(t("picker.listFail", { error: String(e && e.message || e) }));
+    });
   };
   const enterDir = (it) => {
     if (busy || loading) return;
@@ -1099,94 +1124,105 @@ function RemoteFlowPane({ open, active, busy, onPicked, onCancel, onError, t }) 
   const crumbs = remoteCrumbs(path);
   const machineOptions = (machines || []).map((m) => ({ id: m.id, label: `${m.name || m.host} (${m.username}@${m.host}:${m.port})` }));
   const rootLabel = platform === "windows" ? t("picker.rootPc") : "/";
-  if (machines && machines.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-flow", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-emptyState", children: [
+  const pending = busy || loading || loadingMachines || choosing;
+  const unavailable = pending || !machineId;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-flow", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-flowContent", children: machines === null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-flowStatus", children: err ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-error", role: "alert", children: err }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.Button, { variant: "outline", onClick: loadMachines, disabled: pending, children: t("explorer.retry") })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-caption", role: "status", children: t("picker.loading") }) }) : machines.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-emptyState", children: [
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: t("picker.machineEmpty") }),
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dshr-caption", children: t("picker.machineEmptyHint") })
-    ] }) });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-flow", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dshr-formLabel", style: { textAlign: "left" }, children: t("picker.machine") }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-        import_dsh_client_ui_primitives3.SettingsSelect,
-        {
-          variant: "block",
-          className: "dshr-grow",
-          value: machineId,
-          options: machineOptions,
-          onChange: selectMachine,
-          disabled: busy || loading,
-          "aria-label": t("picker.machine")
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.StateDot, { state: connected ? "done" : loading ? "ongoing" : "idle" })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-        import_dsh_client_ui_primitives3.Input,
-        {
-          value: path,
-          onChange: (e) => {
-            setPath(e.target.value);
-            setErr("");
-          },
-          placeholder: t("picker.pathPlaceholder"),
-          onKeyDown: (e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              list(path);
-            }
-          },
-          className: "dshr-grow dshr-mono",
-          "aria-label": t("picker.pathPlaceholder")
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dshr-iconBtn", title: t("picker.home"), "aria-label": t("picker.home"), onClick: goHome, disabled: busy || loading, children: "~" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dshr-iconBtn", title: t("picker.up"), "aria-label": t("picker.up"), onClick: goUp, disabled: busy || loading || !path, children: "\u2191" }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dshr-iconBtn", title: t("picker.refresh"), "aria-label": t("picker.refresh"), onClick: () => list(path), disabled: busy || loading, children: "\u27F3" })
-    ] }),
-    path ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-crumbs", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dshr-crumb", onClick: () => list(""), children: rootLabel }),
-      crumbs.parts && crumbs.parts.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(React3.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: crumbs.sep === "\\" ? "\\" : "\u203A" }),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dshr-crumb" + (i === crumbs.parts.length - 1 ? " dshr-crumbLast" : ""), onClick: () => list(c.path), children: c.name })
-      ] }, c.path))
-    ] }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-list", children: [
-      loading && items === null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-listEmpty", children: t("picker.loading") }) : null,
-      !loading && items === null && err ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-listEmpty", children: err }) : null,
-      items !== null && items.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-listEmpty", children: t("picker.noDirs") }) : null,
-      (items || []).map((it) => {
-        const isDir = it.type === "dir" || !!it.drive;
-        return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-          "button",
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_jsx_runtime3.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dshr-formLabel", style: { textAlign: "left" }, children: t("picker.machine") }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+          import_dsh_client_ui_primitives3.SettingsSelect,
           {
-            type: "button",
-            className: "dshr-listItem",
-            "data-kind": isDir ? "dir" : "file",
-            onClick: () => {
-              if (isDir) enterDir(it);
+            variant: "block",
+            className: "dshr-grow",
+            value: machineId,
+            options: machineOptions,
+            onChange: selectMachine,
+            disabled: pending,
+            "aria-label": t("picker.machine")
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.StateDot, { state: connected ? "done" : loading ? "ongoing" : "idle" })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+          import_dsh_client_ui_primitives3.Input,
+          {
+            value: path,
+            onChange: (e) => {
+              setPath(e.target.value);
+              setErr("");
             },
-            disabled: !isDir,
-            title: it.path || it.name,
-            children: [
-              isDir ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.FileTypeIcon, { kind: "folder", size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.FileTypeIcon, { path: it.name, size: 14 }),
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dshr-treeName", children: it.name })
-            ]
-          },
-          it.path || it.name
-        );
-      })
-    ] }),
-    err && items !== null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-error", children: err }) : null,
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-caption", children: t("picker.mirrorHint") }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-rowBetween", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.Button, { variant: "ghost", size: "sm", onClick: () => {
+            placeholder: t("picker.pathPlaceholder"),
+            disabled: unavailable,
+            onKeyDown: (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                list(path);
+              }
+            },
+            className: "dshr-grow dshr-mono",
+            "aria-label": t("picker.pathPlaceholder")
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dshr-iconBtn", title: t("picker.home"), "aria-label": t("picker.home"), onClick: goHome, disabled: unavailable, children: "~" }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dshr-iconBtn", title: t("picker.up"), "aria-label": t("picker.up"), onClick: goUp, disabled: unavailable || !path, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.IconChevronUpOutline14, {}) }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dshr-iconBtn", title: t("picker.refresh"), "aria-label": t("picker.refresh"), onClick: () => list(path), disabled: unavailable, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.IconRefreshOutline16, {}) })
+      ] }),
+      path ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-crumbs", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "dshr-crumb", disabled: unavailable, onClick: () => list(""), children: rootLabel }),
+        crumbs.parts && crumbs.parts.map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(React3.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { children: crumbs.sep === "\\" ? "\\" : "\u203A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", disabled: unavailable, className: "dshr-crumb" + (i === crumbs.parts.length - 1 ? " dshr-crumbLast" : ""), onClick: () => list(c.path), children: c.name })
+        ] }, c.path))
+      ] }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-list", children: [
+        loading && items === null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-listEmpty", children: t("picker.loading") }) : null,
+        !loading && items === null && err ? /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-flowStatus", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-error", role: "alert", children: err }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.Button, { variant: "outline", onClick: () => selectMachine(machineId), disabled: unavailable, children: t("explorer.retry") })
+        ] }) : null,
+        items !== null && items.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-listEmpty", children: t("picker.noDirs") }) : null,
+        (items || []).map((it) => {
+          const isDir = it.type === "dir" || !!it.drive;
+          return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+            "button",
+            {
+              type: "button",
+              className: "dshr-listItem",
+              "data-kind": isDir ? "dir" : "file",
+              onClick: () => {
+                if (isDir) enterDir(it);
+              },
+              disabled: !isDir || unavailable,
+              title: it.path || it.name,
+              children: [
+                isDir ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.IconFolderClose16, { size: 14 }) : /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.FileTypeIcon, { path: it.name, size: 14 }),
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "dshr-treeName", children: it.name })
+              ]
+            },
+            it.path || it.name
+          );
+        })
+      ] }),
+      err && items !== null ? /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-error", children: err }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "dshr-caption", children: t("picker.mirrorHint") })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-flowFooter", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.Button, { variant: "outline", icon: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.IconPlusOutline16, { size: 14 }), onClick: () => {
         setMkdirName("");
         setMkdirOpen(true);
-      }, disabled: busy || loading || !path, children: t("picker.mkdir") }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.Button, { variant: "primary", size: "sm", onClick: choose, disabled: busy || loading || choosing || !path, children: choosing ? t("picker.choosing") : t("picker.choose") })
+      }, disabled: unavailable || !path || !connected, children: t("picker.mkdir") }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "dshr-flowActions", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.Button, { variant: "outline", onClick: onCancel, disabled: busy || choosing, children: t("form.cancel") }),
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_dsh_client_ui_primitives3.Button, { variant: "primary", onClick: choose, disabled: unavailable || !path || !connected, children: choosing ? t("picker.choosing") : t("picker.choose") })
+      ] })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
       import_dsh_client_ui_primitives3.Modal,

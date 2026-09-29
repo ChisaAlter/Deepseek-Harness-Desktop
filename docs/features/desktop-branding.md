@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `desktop-branding` |
 | **status** | `active` |
-| **last verified (window icon)** | 2026-09-29 — Windows 优先现有多尺寸 ICO，PNG 回退缩至 48px；其他平台仍读 PNG。真实 Electron 从已安装 ASAR 加载生产选择结果为 256px，大小图标消息均含有效句柄；定向与隔离源码启动通过。未更新安装版，任务栏最终视觉仍待复测。 |
+| **last verified (window icon)** | 2026-09-29 — 安装新版后读取真实窗口 WM_GETICON 为鲸鱼头像；发现用户开始菜单 Electron.lnk 指向源码 Electron，却共用正式 appId。将该快捷方式备份移出并正常重启后，用户确认任务栏恢复鲸鱼头像。未修改 appId、全局图标缓存或 Explorer。见 QA LOCAL-INSTALL.md。 |
 | **last verified** | 2026-09-25 — 已恢复定稿的中文主字标及原字号，仅应用其他入口使用英文主名；品牌与侧栏定向测试 25/25、官方 profile 完整构建、`check:governance` 与 `doc-sync` 通过。桌面应用已重启。 |
 
 ## User paths

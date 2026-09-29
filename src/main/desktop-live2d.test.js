@@ -104,6 +104,62 @@ function authorizedEvent(deps, url = PET_PAGE_URL) {
   return { sender: deps.win.webContents, senderFrame: deps.win.webContents.mainFrame = frame && frame, frame };
 }
 
+test('theme changes preserve the pet overlay transparency, including recreated windows', (t) => {
+  const windows = [];
+  const deps = live2dDeps();
+  deps.electron.screen.getDisplayMatching = deps.electron.screen.getPrimaryDisplay;
+  deps.BrowserWindow = function (options) {
+    const win = stubWindow();
+    win.background = options.backgroundColor;
+    win.destroy = () => { win.closed = true; };
+    win.isDestroyed = () => win.closed;
+    win.setBackgroundColor = (color) => { win.background = color; };
+    win.webContents.getURL = () => PET_PAGE_URL;
+    win.webContents.isDestroyed = () => false;
+    win.isMinimized = () => false;
+    win.isMaximized = () => false;
+    windows.push(win);
+    return win;
+  };
+  const nativeTheme = { shouldUseDarkColors: false };
+  const stubs = {
+    electron: { ...deps.electron, nativeTheme, BrowserWindow: { getAllWindows: () => windows } },
+    './config': { loadConfig: () => ({}) },
+    './window': { getHarnessWebContents: () => null },
+    './desktop-pet': { getDesktopPet: () => null },
+  };
+  const originals = new Map();
+  for (const [id, exports] of Object.entries(stubs)) {
+    const filename = require.resolve(id);
+    originals.set(filename, require.cache[filename]);
+    require.cache[filename] = { id: filename, filename, loaded: true, exports };
+  }
+  const chromePath = require.resolve('./chrome');
+  originals.set(chromePath, require.cache[chromePath]);
+  delete require.cache[chromePath];
+  t.after(() => {
+    for (const [filename, previous] of originals) {
+      if (previous) require.cache[filename] = previous;
+      else delete require.cache[filename];
+    }
+  });
+  const chrome = require('./chrome');
+  const manager = createLive2dPetManager(deps);
+  t.after(() => manager.dispose());
+  manager.show();
+  const verifyThemeCycle = () => {
+    for (const dark of [true, false, true]) {
+      nativeTheme.shouldUseDarkColors = dark;
+      chrome.applyAppTheme();
+      assert.equal(windows.at(-1).background, '#00000000', `pet background after ${dark ? 'dark' : 'light'} theme`);
+    }
+  };
+  verifyThemeCycle();
+  manager.recreateWindow();
+  assert.equal(windows.length, 2);
+  verifyThemeCycle();
+});
+
 const petSettings = require('./pet-settings');
 const petGrowth = require('./pet-growth');
 

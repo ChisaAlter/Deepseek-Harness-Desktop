@@ -143,6 +143,13 @@ const FORK_FILE_MARKERS = [
   // Desktop composition carries the browse rows in the shipped base, so the
   // upstream preset e2e must re-insert only the host row.
   { file: 'apps/cli/tests/web-agent-presets.e2e.ts', includes: ["{ id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' }"] },
+  // Hidden agent presets: DSHD's whale assistant registers an internal preset
+  // (`hidden: true`) that must stay out of every mode picker while remaining
+  // resolvable and mountable by id. The 0.1.7 registry rewrite dropped the
+  // flag; these markers keep it from being merged back out.
+  { file: 'packages/preset/agent-preset-registry/src/definition.ts', includes: ['hidden?: boolean'] },
+  { file: 'packages/preset/agent-preset-registry/src/index.ts', includes: ['record.config.hidden === true', "row.hidden !== true || row.broken !== undefined"] },
+  { file: 'packages/preset/agent-preset-registry/tests/registry.spec.ts', includes: ['keeps a healthy hidden preset off the roster'] },
   // Desktop-forked settings e2e drivers (SettingsSelect menus, section
   // navigation, zh boot copy, RPC interception).
   { file: 'apps/web/tests/settings-chrome.e2e.ts', includes: ['正在加载插件'] },

@@ -49,6 +49,7 @@ fun RemoteWebScreen(
     chromeClient: WebChromeClient,
     onCancelFileChooser: () -> Unit,
     onLeave: () -> Unit,
+    onRequestScan: () -> Unit,
     onFatalLoadError: (String) -> Unit,
     onOpenExternal: (Uri) -> Unit,
 ) {
@@ -57,6 +58,7 @@ fun RemoteWebScreen(
     val appOrigin = "https://appassets.androidplatform.net"
     val readRequestId by rememberUpdatedState(getCurrentRequestId)
     val currentLeave by rememberUpdatedState(onLeave)
+    val currentRequestScan by rememberUpdatedState(onRequestScan)
     val currentFatalLoadError by rememberUpdatedState(onFatalLoadError)
     val cancelFileChooser by rememberUpdatedState(onCancelFileChooser)
     val assetLoader = remember {
@@ -157,6 +159,10 @@ fun RemoteWebScreen(
                 request: WebResourceRequest,
             ): Boolean {
                 val target = request.url
+                if (shouldOpenNativeScan(target.toString(), request.isForMainFrame, request.hasGesture())) {
+                    currentRequestScan()
+                    return true
+                }
                 if (request.isForMainFrame && isTrustedAssetPage(target.toString())) return false
                 if (mayOpenExternalPage(target.toString(), request.isForMainFrame, request.hasGesture())) {
                     onOpenExternal(target)

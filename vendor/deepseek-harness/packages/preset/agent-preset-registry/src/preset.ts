@@ -6,6 +6,8 @@ export interface AgentPreset {
   readonly name?: string
   readonly description?: string
   readonly order?: number
+  /** Whether this preset is intended for plugin-owned sessions rather than the client roster. */
+  readonly hidden?: boolean
   readonly broken?: string
 }
 

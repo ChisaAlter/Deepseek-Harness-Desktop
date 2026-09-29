@@ -2,7 +2,7 @@ const { BrowserView, BrowserWindow, shell, nativeImage, screen } = require('elec
 const { attachRendererConsoleTail, RendererConsoleTail, writeCrashReport, desktopErrorState } = require('./crash-report');
 const { rendererFile, assetFile, preloadFile } = require('./paths');
 const { REMOTE_FEATURE_ENABLED } = require('./config');
-const { windowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, markWindowTransparent, paintBackground } = require('./chrome');
+const { shellWindowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, markWindowTransparent, paintBackground } = require('./chrome');
 const { normalizeSettingsSection, buildSettingsSectionScript } = require('./settings-jump');
 const {
   isLoopbackHttpUrl,
@@ -19,8 +19,7 @@ const { applyHarnessCookieToSession, launchTokenFromUrl, loadUrlAfterRedeem } = 
 
 const PLUGIN_BOOT_TIMEOUT_MS = 90_000;
 
-// Both shell windows are transparent + frameless: a dead renderer would
-// leave an invisible click-swallowing surface with no recovery path. Offer
+// A dead frameless renderer can leave no usable controls. Offer
 // reload-or-quit so a crash never strands the user. The dialog is anchored
 // to no window so it stays visible even when the surface is hidden in tray.
 // Renderer error-level console lines retained across windows for crash files.
@@ -194,7 +193,7 @@ function createMainWindow() {
   }
 
   mainWindow = new BrowserWindow({
-    ...windowChrome({
+    ...shellWindowChrome({
       width: 1440,
       height: 920,
       minWidth: 960,
@@ -202,10 +201,6 @@ function createMainWindow() {
       show: false,
       icon: iconImage(),
     }),
-    // The window's silhouette is drawn by the loaded page (boot canvas or
-    // harness .frame), so the native surface must stay transparent.
-    transparent: true,
-    backgroundColor: '#00000000',
     webPreferences: {
       preload: preloadFile(),
       additionalArguments: ['--dshd-shell-role=boot'],
@@ -216,7 +211,7 @@ function createMainWindow() {
     },
   });
 
-  markWindowTransparent(mainWindow);
+  if (process.platform !== 'win32') markWindowTransparent(mainWindow);
   attachIntegratedChrome(mainWindow);
   mainWindow.once('ready-to-show', () => {
     hideNativeMenu(mainWindow);
@@ -836,15 +831,13 @@ function createLauncherWindow() {
     return launcherWindow;
   }
   launcherWindow = new BrowserWindow({
-    ...windowChrome({
+    ...shellWindowChrome({
       width: 1060,
       height: 660,
       minWidth: 860,
       minHeight: 560,
       show: false,
       icon: iconImage(),
-      transparent: true,
-      backgroundColor: '#00000000',
     }),
     webPreferences: {
       preload: preloadFile(),
@@ -855,7 +848,7 @@ function createLauncherWindow() {
       spellcheck: false,
     },
   });
-  markWindowTransparent(launcherWindow);
+  if (process.platform !== 'win32') markWindowTransparent(launcherWindow);
   attachIntegratedChrome(launcherWindow, { role: 'launcher' });
   launcherWindow.once('ready-to-show', () => {
     hideNativeMenu(launcherWindow);

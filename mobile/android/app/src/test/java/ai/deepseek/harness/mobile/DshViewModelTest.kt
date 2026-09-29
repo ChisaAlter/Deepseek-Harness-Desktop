@@ -105,6 +105,18 @@ class DshViewModelTest {
         assertEquals(Route.Connect, idle.route)
     }
 
+    @Test
+    fun scanPasteActionReturnsToExpandedFocusedPasteEntry() {
+        val vm = DshViewModel(FakeStore())
+        vm.route = Route.Scan
+
+        vm.openPasteEntry()
+
+        assertEquals(Route.Connect, vm.route)
+        assertEquals(true, vm.pasteExpanded)
+        assertEquals(1L, vm.pasteFocusRequestId)
+    }
+
     private class FakeStore(
         override var webAppUrl: String = "",
         override var scheme: String = "system",

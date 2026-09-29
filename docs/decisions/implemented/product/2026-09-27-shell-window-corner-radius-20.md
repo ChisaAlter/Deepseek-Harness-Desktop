@@ -6,6 +6,8 @@ Status: implemented
 
 > Supersedes [2026-09-27-shell-window-corner-radius-10](../../archived/product/2026-09-27-shell-window-corner-radius-10.md)
 
+> Windows 主窗口/启动器的透明性与自绘外轮廓要求已由[原生窗口动画](../bug-fix/2026-09-29-native-window-motion.md)取代；非 Windows、内部内容圆角及其他决定保留。
+
 ## Problem
 
 剪影半径统一收敛到 10px 落地当天，用户实测反馈「启动器和桌面端的圆角太小」。复核 mac 参照系发现锚点本身在漂移：10pt 是 Big Sur–Sequoia（macOS 11–15）的标准窗角；现版 Tahoe（macOS 26）已把窗角加大到 16pt 起步、带工具栏/侧栏的窗更大且不再统一，理由是窗角与内部玻璃工具栏同心（concentricity）。10px 锚的是上一代 mac，在本产品桌面上读作偏紧。

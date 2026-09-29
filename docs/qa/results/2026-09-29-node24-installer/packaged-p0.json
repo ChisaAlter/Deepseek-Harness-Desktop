@@ -1,0 +1,102 @@
+{
+  "ok": true,
+  "result": {
+    "hasFrame": true,
+    "gridColumns": "280px 1160px 0px 0px",
+    "hasTitlebar": true,
+    "titlebarButtons": [
+      "切换分支",
+      "Publish repository",
+      "Git 操作",
+      "切换终端抽屉",
+      "切换右侧栏"
+    ],
+    "hasTerminalToggle": true,
+    "hasSurfacesToggle": true,
+    "hasDragStrip": false,
+    "hasDragMark": false,
+    "hasHitMark": false,
+    "captionRegion": "drag",
+    "hasHarnessShellApi": true,
+    "harnessShellApiIsScoped": true,
+    "hasBootShellApi": true,
+    "bootShellApiIsScoped": true,
+    "titlebarHits": {
+      "hits": {
+        "surfaces": 1,
+        "branch": 1,
+        "git": 1
+      },
+      "error": null
+    }
+  },
+  "ptyStatus": "echoed:ok",
+  "pageErrors": [],
+  "desktopHome": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\user-data\\dsh-home",
+  "homeLog": "[app] Harness 家目录 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\user-data\\dsh-home",
+  "electronEnv": {
+    "DSH_HOME": "",
+    "DSHD_HOME": ""
+  },
+  "bootLogs": [
+    "[app] Harness 家目录 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\user-data\\dsh-home",
+    "[app] 检测端口 127.0.0.1:62928",
+    "[app] 端口 62928 空闲",
+    "[app] 已接入桌面任务保护",
+    "[app] 已接入桌面内置 Office 运行时",
+    "[app] 已接入桌面内置用量统计",
+    "[app] 已接入桌面内置 dsh-im（消息渠道）",
+    "[app] 已接入桌面内置市场（设置分区）",
+    "[app] 桌面内置 dshbot 已按设置关闭",
+    "[app] 已接入桌面内置 dsh-whale（鲸鱼娘助理）",
+    "[app] 已接入桌面内置 dsh-remote（远程工作区）",
+    "[app] 应用插件禁用名单跳过：missing-profile",
+    "[app] 运行时与安装包不一致，正在重新解压…",
+    "[app] 正在解压运行时（仅首次，之后会变快）…",
+    "[app] 运行时已解压到 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\user-data\\runtime\\0.3.3",
+    "[app] 工作区 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\workspace",
+    "[app] 启动本机服务 http://127.0.0.1:62928",
+    "[app] 从官方源码启动 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\user-data\\runtime\\0.3.3\\apps\\cli\\lib\\bin.js",
+    "[app] 子进程 DSH_HOME C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\user-data\\dsh-home",
+    "[dsh] [dsh-usage-panel] boot: mode=projection services: sessionQuery=true sessionProjections=true sessionProjectionCache=true",
+    "[dsh] [dsh-usage-panel] first scan done: mode=projection sessions=0/0 (failed 0, pending 0) withUsage=0 dataRange=-..-",
+    "[dsh] dsh web: http://127.0.0.1:62928/?token=vMSue0ayitGD7o6LHminmGgTdNrTQMvB8UGApDj_ZR4",
+    "[app] Web UI 就绪 http://127.0.0.1:62928/?token=vMSue0ayitGD7o6LHminmGgTdNrTQMvB8UGApDj_ZR4",
+    "[app] 已注册工作区 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\workspace"
+  ],
+  "packagedP0": {
+    "ok": true,
+    "steps": [
+      {
+        "name": "packaged.sibling.exists",
+        "ok": true,
+        "detail": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\sibling"
+      },
+      {
+        "name": "packaged.git.branchList",
+        "ok": true,
+        "detail": "current=master"
+      },
+      {
+        "name": "packaged.pty.create",
+        "ok": true,
+        "detail": "created:b163536c-cb91-46d8-89ea-23e1eff357df"
+      },
+      {
+        "name": "packaged.ghostty.wasm",
+        "ok": true,
+        "detail": "200 http://127.0.0.1:62928/plugins/@deepseek-ai/dsh-client-ui-user-terminal/assets/ghostty-vt.wasm"
+      },
+      {
+        "name": "packaged.boot.noOpen",
+        "ok": true,
+        "detail": "ok"
+      },
+      {
+        "name": "packaged.runtime.stamp",
+        "ok": true,
+        "detail": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-packaged-p0-WVgRyu\\user-data\\runtime\\0.3.3\\.dshd-runtime.json"
+      }
+    ]
+  }
+}

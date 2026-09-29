@@ -115,6 +115,17 @@ test('configured whale name survives prompt assembly instead of a blank complete
   }
 });
 
+test('whale preset stays hidden from the mode roster while remaining addressable by id', () => {
+  const definition = whalePreset.whalePresetDefinition(tmpHome);
+  assert.equal(definition.id, 'whale-girl');
+  assert.equal(definition.hidden, true);
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'vendor', 'dsh-whale', 'presets', 'whale-girl', 'preset.yml'),
+    'utf8',
+  );
+  assert.match(source, /^hidden: true$/m);
+});
+
 test('persona gate keys on the whale-girl preset identity, not just the stored session id', () => {
   const snap = { sessionId: 'resident-id' };
   const whaleHome = whalePreset.whaleHomeDir(tmpHome);
