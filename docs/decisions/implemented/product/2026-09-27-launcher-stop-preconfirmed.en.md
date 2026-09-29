@@ -20,4 +20,6 @@ Clicking 停止桌面端 in the slim launcher makes the desktop run `coordinate(
 
 ## Consequences
 
+The user subsequently extended pre-confirmation to quit; see [quit transport repair](../bug-fix/2026-09-29-quit-transport-false-positive.en.md). That decision supersedes the original quit restriction below; restart/reload remain unchanged.
+
 Clicking 停止桌面端 commits coordination immediately — zero dialogs, forever; the "active work will be interrupted" notice disappears on this path (explicitly accepted by the user). `preConfirmed` is a coordinator opt-in reusable for other "explicit action re-confirmed" cases; it must not spread to window-close/tray/menu quit or install/update paths — confirmation there remains the designed behavior. **(2026-09-27 revision: a full audit later classified the install/update lanes as the same double-confirm defect, so `preConfirmed` was extended there too — see [update-install-preconfirmed](2026-09-27-update-install-preconfirmed.en.md); the quit/restart/reload constraint stands.)**

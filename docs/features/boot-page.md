@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `boot-page` |
 | **status** | `active` |
+| **last verified (window controls)** | 2026-09-29 — 窗控对齐主界面 32px / 8px 方钮、零间距与相同内边距；Electron 明暗最终样式及三个按钮命中检查通过。安装包构建暂停。 |
 | **last verified (A2 plugin recovery)** | 2026-09-28 — 插件恢复纳入取消世代与共享 import 维护准入；真实 controller + launcher service + task-protection + import guard 回归覆盖 stop、blocked/unreadable journal、恢复先持锁、延迟 start/Remote、异步准备成功/失败及旧 finally 不清新任务。定向 217/217；未修改的原外部 A2 回归在独立证据目录重跑 4/4，原审计证据未覆盖。未重启应用；统一文档门禁与重启由主代理负责。 |
 | **last verified (restart)** | 2026-09-08 — 105 项 controller/window/IPC 检查通过；延迟 boot 导航回归及隔离 Electron 内置重启恢复可见 Bot 界面通过 |
 | **last verified (boot canvas)** | 2026-09-18 — 用户提供的 `assets/whale-spin.svg` 原样用作 112px 中区旋转加载动画，减少动态效果时换 `assets/whale-head.png`；Electron 两帧验证旋转/静态切换，32 项定向与全量 1775 项通过（2 跳过）；源码预启动构建受已有 openNoDirectory 类型错误阻塞。 |
@@ -21,6 +22,7 @@
 ## Invariants
 
 - 启动页是整窗海平线画布例外；`--boot-*` **不得**扩散到启动器、设置、关闭遮罩、标题栏或官方 Web UI。
+- 窗控不属于画布视觉例外；尺寸、圆角和间距与主界面一致，保留共享交互色及动作。
 - 启动画布的品牌名为 Whale Isle；保留海平线画布视觉（交接线 / 天空层 / 水下层）与既有恢复语义；日志底缘单行 ticker 常驻、完整日志收进 `logdrawer` 底部抽屉（手动开合，不自动弹），场景页保持纯净，布局可按窗口高度压缩。ticker 单行按优先级复用——恢复/动作回执 > 状态提示 > 最新日志，状态行下方不再出现独立提示行；boot → Web UI 揭示为交叉淡化（harness 透明挂入 → 淡入 + `.scene` 淡出 → `data-harness-covered` 收尾）。
 - 插件进度只呈现 controller / 插件事件提供的状态，不估算百分比或添加虚构步骤；启动器跳板只在 settled `error` 且恢复状态非 `scheduled` / `restarting` 时出现。
 - 禁止 NERV / MAGI / SEELE / EVA 等商标或官方标志挪用。
@@ -54,6 +56,8 @@
 | Manual / QA | 每次发布前 [production-acceptance](../qa/production-acceptance-test-cases.md)：`TC-INST-003`…`007`、`TC-INST-012`、`TC-INST-013`；对象=CI Setup |
 
 ## Sources
+
+- Decision: [启动页窗控对齐主界面](../decisions/implemented/bug-fix/2026-09-29-boot-window-controls.md)
 
 - Decision: [启动器审计收尾修复（A2）](../decisions/implemented/bug-fix/2026-09-28-launcher-audit-closeout-fixes.md)
 - Decision: [启动页改海平线画布](../decisions/implemented/product/2026-09-26-boot-sea-horizon-scene.md)

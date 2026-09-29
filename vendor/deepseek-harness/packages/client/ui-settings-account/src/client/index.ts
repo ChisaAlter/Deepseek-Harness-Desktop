@@ -258,7 +258,8 @@ export function apply(ctx: Context): void {
       throw result.error
     },
   }
-  if ('dshDesktop' in globalThis) {
+  const desktop = (globalThis as typeof globalThis & { dshDesktop?: { onboarding?: boolean } }).dshDesktop
+  if (desktop !== undefined && desktop.onboarding !== false) {
     const controller = new DesktopOnboardingController(
       ctx.configForms.get<OnboardingSettings>(DESKTOP_ONBOARDING_NAMESPACE),
       ctx.configForms.get<{ transcriptView: TranscriptViewMode; performanceUsage: 'compact' | 'detailed' }>('ui-chat'),

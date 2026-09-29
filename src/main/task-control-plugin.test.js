@@ -142,6 +142,47 @@ test('inspection aggregates agents, jobs, sockets, and pending requests', async 
   delete process.env.DSHD_SCHEDULE_ENABLED;
 });
 
+test('inspection excludes local idle transports but keeps external and unknown peers', async () => {
+  const { createControlState } = await load('state.js');
+  const { collectInspection } = await load('inspection.js');
+  const local = ['127.0.0.1', '127.2.3.4', '::1', '0:0:0:0:0:0:0:1', '::ffff:127.0.0.1', '::ffff:7f00:1'];
+  const sockets = new Set(local.map(remoteAddress => ({ remoteAddress })));
+  const ctx = { get: name => ({
+    agents: { list: () => [] }, jobs: { list: () => [] }, webServer: { upgradedSockets: sockets },
+  })[name] };
+  const state = createControlState();
+  const idle = await collectInspection(ctx, state);
+  assert.deepEqual(idle.activeWork, []);
+  for (const remoteAddress of ['192.168.1.25', '2001:db8::1', '::ffff:192.168.1.25', undefined]) {
+    sockets.add({ remoteAddress });
+  }
+  sockets.add({ remoteAddress: '192.168.1.26', destroyed: true });
+  const external = await collectInspection(ctx, state);
+  assert.equal(external.activeWork.find(item => item.kind === 'socket').count, 4);
+});
+
+test('a real loopback socket is ignored without suppressing active agent work', async (t) => {
+  const net = require('node:net');
+  const { once } = require('node:events');
+  const { createControlState } = await load('state.js');
+  const { collectInspection } = await load('inspection.js');
+  const server = net.createServer();
+  t.after(() => server.close());
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const accepted = once(server, 'connection');
+  const client = net.connect(server.address().port, '127.0.0.1');
+  t.after(() => client.destroy());
+  const [socket] = await accepted;
+  t.after(() => socket.destroy());
+  const ctx = { get: name => ({
+    agents: { list: () => [{ id: 'active', status: 'running' }] },
+    jobs: { list: () => [] }, webServer: { upgradedSockets: new Set([socket]) },
+  })[name] };
+  const inspection = await collectInspection(ctx, createControlState());
+  assert.deepEqual(inspection.activeWork, [{ kind: 'agent', id: 'active', detail: 'running' }]);
+});
+
 test('inspection reports missing producers as unavailable', async () => {
   const { createControlState } = await load('state.js');
   const { collectInspection } = await load('inspection.js');

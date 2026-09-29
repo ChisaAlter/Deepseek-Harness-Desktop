@@ -18,7 +18,8 @@
 - `HarnessController` 拥有子进程与揭示时机；boot 只消费事件。  
 - 恢复与手动重启共享未完成的 boot 导航；新 Harness 揭示前必须等待旧导航完成，避免迟到的启动页覆盖新界面。
 - 插件装载进度留在 boot，不切官方加载页。  
-- 无账号和模型密钥时由原生欢迎窗持有工作区入口，登录、保存 API Key 或稍后设置后揭示工作区。欢迎页须带完整上游页面布局、材质与品牌图，真实渲染门禁在冒烟点击前检查，见 [desktop-welcome](../../features/desktop-welcome.md)。
+- 无账号或模型密钥也直接揭示工作区，不弹原版欢迎窗；登录和密钥配置留在设置。后台账号观察保留授权外开与 Platform 身份刷新，退出/过期不隐藏工作区。冒烟检测到欢迎窗即失败，不自动点击跳过，见 [desktop-welcome](../../features/desktop-welcome.md)。
+- 主 frame preload 的 `dshDesktop.onboarding: false` 同时关闭首次用途/过程引导，不创建 controller、不写完成标记或默认偏好；通用设置保留这些选项。冒烟不代点继续/稍后配置。
 - 流程详述：[../flows/boot-to-ready.md](../flows/boot-to-ready.md)
 
 ## 实现入口
@@ -28,6 +29,8 @@
 - `src/renderer/boot.html` / `boot.js` / `boot.css` / `boot-tokens.css`
 
 ## 退出/更新保护（P1）
+
+显式 quit 现与安装/启动器停止一样跳过工作清单二次确认，但保留检查、接纳锁和 drain；锁/排空失败仍显示故障恢复提示。Host 不把本地回环空闲长连接计作远程工作，agent/job/在途请求仍独立检查，见[退出修复](../../decisions/implemented/bug-fix/2026-09-29-quit-transport-false-positive.md)。重启/重载仍需活动任务确认。
 
 退出、重启、停止、reload、更新、增量安装全部过 `src/main/task-protection.js` 协调器：`inspect → 脏则确认（壳层弹窗，无可见窗退原生框） → acquire（Host 接纳锁 + drain）→ 复查 → commit`；launcher 发起的停止（peer `stop-desktop` 与自带启动器 `stopOp`）带 `preConfirmed` 跳过两道确认门——点击即同意。Host 侧 `vendor/dsh-task-control`（overlay `desktop-task-control.patch.yml` 每次启动挂载）包裹 webServer 路由/升级/`connection/request` 瀑布与 `sessionController.resolveAgent`、`jobs.start`，锁定期间新工作一律拒绝，解锁时驱动 schedule `requestDrive` 恢复到期投递。slim 包经 userData 的 `task-control-peer.json` 握手让外部桌面自己跑协调；无握手的旧桌面走 WM_CLOSE，进程仍在即阻断，不再 `taskkill /F`。决策记录：[../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md](../../decisions/implemented/architecture/2026-09-25-task-protection-coordinator.md)。
 

@@ -19,6 +19,8 @@ The source baseline is `dsh-v0.1.7-rc.2` (`477b4f420553e8a52c2fbccc464d7561b239c
 
 Desktop New Session navigation additionally checks complete Host history before reusing a blank identity. Previously titled or plugin-owned Sessions keep their data and remain explicitly openable, but are never repurposed as new drafts. See the [blank Session reuse decision](../docs/decisions/implemented/bug-fix/2026-09-18-blank-session-reuse.md).
 
+The desktop preload opts out of automatic account onboarding through `dshDesktop.onboarding: false`; the account client retains Settings/login without mounting the first-run controller. Other shells keep upstream defaults. See [direct desktop entry](../docs/decisions/implemented/product/2026-09-29-direct-desktop-entry.md).
+
 ```powershell
 cd C:\ai\Deepseek-Harness-Desktop
 npm run setup:harness

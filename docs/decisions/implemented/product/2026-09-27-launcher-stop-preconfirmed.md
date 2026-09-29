@@ -20,4 +20,6 @@ slim 启动器点「停止桌面端」，桌面经 peer `stop-desktop` 跑 `coor
 
 ## Consequences
 
+后续用户授权将 quit 扩入预确认，见[退出连接误报修复](../bug-fix/2026-09-29-quit-transport-false-positive.md)；下段原有 quit 限制已由该决定取代，restart/reload 不变。
+
 点「停止桌面端」立刻进入协调提交，永远零弹窗；中断远程连接等活跃工作的提示整个消失（用户显式接受）。`preConfirmed` 是协调器 opt-in，后续同类「显式动作被二次确认」可复用；不得扩散到窗口关闭/托盘/菜单的 quit 与 install/update 路径——那些路径的确认仍是设计本意。**（2026-09-27 修订：install/update 链随后经全量清点确认同属二次确认，已扩入 `preConfirmed`，见 [update-install-preconfirmed](2026-09-27-update-install-preconfirmed.md)；quit/restart/reload 约束不变。）**

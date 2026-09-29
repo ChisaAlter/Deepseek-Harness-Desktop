@@ -6,6 +6,8 @@ Status: implemented
 
 ## Problem
 
+The entry policy is superseded by [direct desktop entry](../product/2026-09-29-direct-desktop-entry.en.md): welcome no longer opens. This record retains the resource-repair rationale.
+
 Installed 0.3.3 candidate b061501e5b4 displayed default HTML and a broken brand image in first-run welcome, making the boot page appear stuck. The port included compiled component styles but omitted upstream page CSS, its window-material dependency and the brand SVG. Successful stylesheet loading did not prove complete layout. Smoke clicked API Key/set up later without validating presentation and incorrectly passed.
 
 Record audit: [desktop bridges](../architecture/2026-09-26-upstream-desktop-bridges.en.md) retains its welcome entry and credential boundary; this repair completes its resources. [GUI reconciliation](2026-09-28-release-gui-contract-reconciliation.en.md) retains real entry smoke, adding presentation prerequisites before clicks.

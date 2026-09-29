@@ -21,7 +21,7 @@ test('index.js 不再内联 smoke/QA 编排', () => {
     'SMOKE_SURFACES',
     'probeTitlebarHits',
     'probeThemeBackgrounds',
-    'dismissFirstRunOnboarding',
+    'firstRunWorkspaceIsClear',
     'async function keepRemotePhoneHost',
     'runReleaseUiWalk',
     'runComposerOfficialQa',
@@ -36,6 +36,26 @@ test('index.js 仅在 DSH_SMOKE 门禁内惰性加载 ./smoke', () => {
   assert.ok(gate >= 0, '应保留 DSH_SMOKE 门禁');
   assert.ok(lazyRequire > gate, "require('./smoke') 必须出现在门禁之后（惰性加载）");
   assert.ok(indexSource.includes('createSmokeRunner'), '应通过 createSmokeRunner 注入依赖');
+});
+
+test('first-run smoke fails a blocking wizard without auto-dismissing it', async () => {
+  const vm = require('node:vm');
+  const start = smokeSource.indexOf('async function firstRunWorkspaceIsClear');
+  const end = smokeSource.indexOf('/** Real-coordinate clicks', start);
+  assert.ok(start >= 0 && end > start);
+  assert.ok(!smokeSource.includes('dismissFirstRunOnboarding'));
+  const helper = vm.runInNewContext(`${smokeSource.slice(start, end)}; firstRunWorkspaceIsClear`, {
+    waitUntil: probe => probe(),
+  });
+  for (const [inert, dialog, expected] of [[false, false, true], [true, true, false], [false, true, false]]) {
+    const result = await helper({ executeJavaScript: script => vm.runInNewContext(script, {
+      document: {
+        getElementById: () => ({ inert }),
+        querySelector: () => dialog ? { click: () => assert.fail('must not dismiss wizard') } : null,
+      },
+    }) });
+    assert.equal(result, expected);
+  }
 });
 
 test('smoke 模块导出 createSmokeRunner 且语法有效', () => {

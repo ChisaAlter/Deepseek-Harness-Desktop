@@ -84,6 +84,20 @@ it('registers account and sign-in UI through the DSHD shell preload', async ({ s
   expect(operations(c).hooks.account.getSnapshot().loginVisible).toBe(false)
 }, 60_000)
 
+it('keeps Settings available without automatic onboarding when the desktop opts out', async ({ start, mock }) => {
+  vi.stubGlobal('dshDesktop', { onboarding: false })
+  const c = await start()
+  for (const reload of [false, true]) {
+    if (reload) await c.reload(SELF)
+    await c.flush()
+    expect(c.ctx.slots.entries('shell.overlay').some(entry => entry.options.id === 'desktop-onboarding')).toBe(false)
+    expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(1)
+    expect(c.ctx.slots.entries('settings.models.sign-in')).toHaveLength(1)
+    expect(mock.log.streams().some(stream => stream.endpoint === 'account/watch')).toBe(true)
+  }
+  expect(mock.log.calls().filter(call => /^settings\/(update|set|patch)/i.test(call.endpoint))).toEqual([])
+}, 60_000)
+
 it('ignores a partial shell bridge outside the desktop settings host', async ({ start, mock }) => {
   vi.stubGlobal('shell', { getConfig: vi.fn() })
   const c = await start()

@@ -24,7 +24,6 @@ const SMOKE_SURFACES = 'right panel|surfaces|\u53f3\u4fa7\u680f';
 const SMOKE_BRANCH = 'switch branch|\u5207\u6362\u5206\u652f';
 const SMOKE_GIT = 'git actions|git \u64cd\u4f5c';
 const SMOKE_TERMINAL = 'terminal|\u7ec8\u7aef';
-const SMOKE_ONBOARDING = '^\u7ee7\u7eed$|^Continue$|^\u7a0d\u540e\u914d\u7f6e$|^Configure later$|^\u5173\u95ed$|^Close$';
 // 0.1.2-alpha.2 concession: sidebar 280 + surfaces min 360 + center min 640.
 const SMOKE_SURFACES_MIN_VIEWPORT = 1280;
 
@@ -199,37 +198,12 @@ async function ensureSurfacesViewport(win, wc) {
   );
 }
 
-/** Dismiss rc.7 first-run onboarding so titlebar hit-testing can reach the chrome. */
-async function dismissFirstRunOnboarding(wc) {
-  const blocking = await waitUntil(() => wc.executeJavaScript(`(() => {
+/** First-run setup must not intercept desktop entry; never click it away. */
+async function firstRunWorkspaceIsClear(wc) {
+  return waitUntil(() => wc.executeJavaScript(`(() => {
     const root = document.getElementById('root');
-    return Boolean((root && root.inert) || document.querySelector('[role="dialog"]'));
+    return Boolean(root && !root.inert) && !document.querySelector('[role="dialog"]');
   })()`), 5_000);
-  if (!blocking) {
-    return true;
-  }
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
-    await wc.executeJavaScript(`(() => {
-      const match = new RegExp(${JSON.stringify(SMOKE_ONBOARDING)});
-      const dialog = document.querySelector('[role="dialog"]');
-      const button = Array.from((dialog || document).querySelectorAll('button')).find((el) =>
-        (match.test((el.textContent || '').trim())
-          || match.test((el.getAttribute('aria-label') || '').trim())) && !el.disabled);
-      if (!button) return false;
-      button.click();
-      return true;
-    })()`);
-    const clear = await wc.executeJavaScript(`(() => {
-      const root = document.getElementById('root');
-      return Boolean(root && !root.inert) && !document.querySelector('[role="dialog"]');
-    })()`);
-    if (clear) {
-      return true;
-    }
-    await sleep(300);
-  }
-  return false;
 }
 
 /** Real-coordinate clicks after surfaces opens. Zero hits fail the smoke. */
@@ -240,7 +214,7 @@ async function probeTitlebarHits(wc) {
     await wc.debugger.attach('1.3');
   }
   try {
-    if (!await dismissFirstRunOnboarding(wc)) {
+    if (!await firstRunWorkspaceIsClear(wc)) {
       return { hits, error: 'onboarding still open' };
     }
     const surfaces = await waitUntil(() => titlebarButtonRect(wc, SMOKE_SURFACES), 5_000);
@@ -317,7 +291,7 @@ async function probeThemeBackgrounds(wc) {
   try {
     await pressEscape(wc);
     await waitUntil(() => wc.executeJavaScript(`(() => !document.querySelector('[role="menu"]'))()`), 3_000);
-    await dismissFirstRunOnboarding(wc);
+    if (!await firstRunWorkspaceIsClear(wc)) return { ok: false, error: 'onboarding still open' };
     await wc.executeJavaScript(`(() => {
       window.dispatchEvent(new CustomEvent('dshd-open-surface', { detail: { kind: 'terminal' } }));
       return true;

@@ -305,6 +305,7 @@ if (role === 'harness' && isMainFrame) {
   }
   contextBridge.exposeInMainWorld('dshDesktop', {
     protocolVersion: 1,
+    onboarding: false,
     keyboard: {
       closeWindow: invoke(ipcRenderer, 'shell:shortcuts-close-window'),
       subscribe: subscribe(ipcRenderer, 'shell:shortcuts-input'),

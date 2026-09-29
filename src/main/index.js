@@ -38,7 +38,6 @@ const { checkUpdate, installUpdate, setGithubTokenProvider, setUpdateStateSink, 
 const { createUpdatesState } = require('./updates-state');
 const { BrowserGuests, installBrowserGuests } = require('./browser-guests');
 const { connectWelcome } = require('./welcome-backend');
-const { openWelcomeWindow, WELCOME_IPC } = require('./welcome-window');
 const { resolveDesktopStartupLocale } = require('./desktop-locale');
 const { probeImportHold, recoverInterruptedImport, readImportJournal, journalIsBlocked } = require('./data-import');
 const { isLauncherPackage } = require('../launcher/product');
@@ -351,26 +350,15 @@ function isDesktopKernelRunning() {
   return state === 'ready' || state === 'starting';
 }
 
-// ── Native welcome gate（上游 Welcome 流）──────────────────────────────────
-// needsWelcome({loggedIn,hasApiKey}) → 欢迎窗持有入口；skip/save/sign-in 完成
-// → enterWorkspace = showMain。账号 watch 流驱动状态推送、授权 URL 外开、
-// signed-out/session-expired 回流欢迎窗。Host 用同款 account RPC。
-
+// Desktop account integration is optional and never owns workspace entry.
 let welcomeBackend;
-let welcomeWindow;
 let welcomeLocale;
-let pendingWelcomeNotice;
-let pendingHarnessEntry;
-let enteredWorkspace = false;
 let openedAttempt;
 let previousAccountStatus;
 let stopAccount;
 let platformView;
 let platformSessionRefresh;
-
-function needsWelcomeGate(state) {
-  return Boolean(state) && !state.loggedIn && !state.hasApiKey;
-}
+let initializingDesktopAccount;
 
 function platformLoginUrl(authorizeUrl) {
   const url = new URL(authorizeUrl);
@@ -386,171 +374,43 @@ function welcomeClientMetadata() {
   };
 }
 
-async function enterWorkspace({ activate = true } = {}) {
-  if (quitting) return;
-  enteredWorkspace = true;
-  // The deferred workspace load resolves the entry before revealing.
-  const load = pendingHarnessEntry;
-  pendingHarnessEntry = undefined;
-  try {
-    await load?.();
-  } catch {
-    // The deferred load already ran its own failure path; the welcome stays
-    // closable and the boot page remains the recovery surface.
-    return;
-  }
-  const win = getMainWindow() ?? showMain();
-  if (win === undefined || win.isDestroyed()) return;
-  if (activate) win.show();
-  else win.showInactive();
-  if (welcomeWindow !== undefined) {
-    welcomeWindow.close();
-    welcomeWindow = undefined;
-  }
-}
-
-let openingWelcome;
-async function showWelcome() {
-  if (quitting) return;
-  if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
-    welcomeWindow.show();
-    welcomeWindow.focus();
-    return;
-  }
-  openingWelcome ??= (async () => {
-    welcomeWindow = await openWelcomeWindow(welcomeLocale, {
-      takeNotice: () => {
-        const notice = pendingWelcomeNotice;
-        pendingWelcomeNotice = undefined;
-        return Promise.resolve(notice);
-      },
-      startSignIn: async () => {
-        if (welcomeBackend === undefined) throw new Error('dshd welcome: backend unavailable');
-        return welcomeBackend.account.start(welcomeClientMetadata());
-      },
-      cancelSignIn: async (id) => {
-        if (welcomeBackend === undefined) throw new Error('dshd welcome: backend unavailable');
-        return welcomeBackend.account.cancel(id);
-      },
-      copySignInLink: async (id) => {
-        const state = await welcomeBackend?.account.state();
-        if (state?.attempt?.id !== id || state.attempt.phase !== 'waiting-browser' || state.attempt.authorizeUrl === undefined) {
-          throw new Error('dshd welcome: login link is unavailable');
-        }
-        clipboard.writeText(platformLoginUrl(state.attempt.authorizeUrl));
-      },
-      saveApiKey: async (apiKey) => {
-        if (welcomeBackend === undefined) return { ok: false };
-        const saved = await welcomeBackend.save(apiKey);
-        if (!saved.ok) return saved;
-        await enterWorkspace();
-        return { ok: true };
-      },
-      skip: enterWorkspace,
-    });
-    const window = welcomeWindow;
-    window.once('closed', () => {
-      void welcomeBackend?.account.state().then((state) => {
-        if (state.attempt !== null && !enteredWorkspace) return welcomeBackend?.account.cancel(state.attempt.id);
-        return undefined;
-      }).catch(() => undefined);
-    });
-    window.once('closed', () => {
-      if (welcomeWindow === window) welcomeWindow = undefined;
-      if (enteredWorkspace || quitting) return;
-      // The welcome gate owns the entry: closing it before entering the
-      // workspace quits the app (upstream policy).
-      app.quit();
-    });
-    if (quitting || enteredWorkspace) window.close();
-    else getMainWindow()?.hide();
-  })().finally(() => { openingWelcome = undefined; });
-  return openingWelcome;
-}
-
 function startAccountWatch() {
   stopAccount?.();
   if (welcomeBackend === undefined) return;
-  const account = welcomeBackend.account;
-  stopAccount = account.watch((state) => {
+  stopAccount = welcomeBackend.account.watch((state) => {
     if (quitting) return;
-    if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
-      welcomeWindow.webContents.send(WELCOME_IPC.state, state);
-    }
-    // Embedded Platform documents track account identity: refresh the
-    // publisher snapshot on every transition (sign-in seeds credentials,
-    // sign-out clears and closes the view).
+    // Keep embedded Platform identity current without hiding the workspace.
     if (state.status !== previousAccountStatus) void platformSessionRefresh?.();
     const attempt = state.attempt;
     if (attempt?.phase === 'waiting-browser' && attempt.authorizeUrl !== undefined && openedAttempt !== attempt.id) {
       openedAttempt = attempt.id;
       void shell.openExternal(platformLoginUrl(attempt.authorizeUrl)).catch(() => undefined);
     }
-    if (state.status === 'credential-stored' && attempt?.phase === 'succeeded' && welcomeWindow !== undefined) {
-      void enterWorkspace({ activate: false }).catch(() => undefined);
-    }
-    if (previousAccountStatus === 'credential-stored' && state.status === 'signed-out') {
-      void readWelcomeState().then(async (value) => {
-        if (needsWelcomeGate(value) && !quitting) {
-          enteredWorkspace = false;
-          await showWelcome();
-          if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
-            welcomeWindow.webContents.send(WELCOME_IPC.state, state);
-          }
-        }
-        return undefined;
-      }).catch(() => undefined);
-    }
     previousAccountStatus = state.status;
   }, () => {
-    // The stream reconnects; a transport failure does not change account state.
+    // The stream reconnects; transport failures never redirect the workspace.
   }, () => {
-    void readWelcomeState().then(async (value) => {
-      if (!needsWelcomeGate(value) || quitting) return;
-      pendingWelcomeNotice = 'session-expired';
-      enteredWorkspace = false;
-      await showWelcome();
-      const state = await account.state();
-      if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
-        welcomeWindow.webContents.send(WELCOME_IPC.state, state);
-      }
-    }).catch(() => undefined);
+    if (!quitting) void platformSessionRefresh?.();
   });
 }
 
-async function readWelcomeState() {
-  if (welcomeBackend === undefined) throw new Error('dshd welcome: backend unavailable');
-  return welcomeBackend.read();
-}
-
-/** Connect + watch + resolve the entry decision. Returns true when welcome owns the entry. */
-async function openInitialWelcome(targetUrl) {
-  if (quitting || welcomeBackend !== undefined) return false;
-  try {
-    // The harness view is not attached yet at the welcome gate, so the Host
-    // origin comes from the URL the workspace is about to load.
-    welcomeBackend = await connectWelcome(new URL(targetUrl).origin, () => dsh.sessionCookie);
-  } catch (error) {
-    console.warn('dshd welcome: backend connect failed', error);
-    welcomeBackend = undefined;
-    return false;
-  }
-  startAccountWatch();
-  let state;
-  try {
-    state = await readWelcomeState();
-  } catch (error) {
-    console.warn('dshd welcome: state read failed', error);
-    return false;
-  }
-  const languages = [];
-  try { languages.push(app.getLocale()); } catch { /* pre-ready */ }
-  welcomeLocale = resolveDesktopStartupLocale(state.localePreference, languages.length === 0 ? ['zh-CN'] : languages);
-  if (!enteredWorkspace && needsWelcomeGate(state)) {
-    await showWelcome();
-    return true;
-  }
-  return false;
+async function initializeDesktopAccount(targetUrl) {
+  if (quitting || welcomeBackend !== undefined) return;
+  if (initializingDesktopAccount) return initializingDesktopAccount;
+  initializingDesktopAccount = (async () => {
+    try {
+      welcomeBackend = await connectWelcome(new URL(targetUrl).origin, () => dsh.sessionCookie);
+      if (quitting) return;
+      startAccountWatch();
+      const preference = await welcomeBackend.readLocalePreference();
+      const languages = [];
+      try { languages.push(app.getLocale()); } catch { /* pre-ready */ }
+      welcomeLocale = resolveDesktopStartupLocale(preference, languages.length === 0 ? ['zh-CN'] : languages);
+    } catch (error) {
+      console.warn('dshd account: initialization failed', error);
+    }
+  })().finally(() => { initializingDesktopAccount = undefined; });
+  return initializingDesktopAccount;
 }
 
 function showForeground() {
@@ -736,14 +596,8 @@ const harness = new HarnessController({
   getMainWindow,
   showBoot,
   showHarness: async (url, extra) => {
-    // Native welcome gate (upstream): when neither account login nor a
-    // configured provider key exists, the welcome window owns the entry and
-    // the workspace load defers until skip/sign-in/save calls enterWorkspace.
-    if (!enteredWorkspace && await openInitialWelcome(url).catch(() => false)) {
-      pendingHarnessEntry = () => showHarness(url, { cookie: dsh.sessionCookie, ...extra });
-      return url;
-    }
-    enteredWorkspace = true;
+    // Account services must not delay or gate workspace entry.
+    void initializeDesktopAccount(url);
     return showHarness(url, { cookie: dsh.sessionCookie, ...extra });
   },
   sendToBoot,
@@ -1520,7 +1374,8 @@ if (!gotLock) {
         loadConfig,
         saveConfig,
         getHarnessWebContents,
-        getWelcomeWebContents: () => welcomeWindow && !welcomeWindow.isDestroyed() ? welcomeWindow.webContents : null,
+        getWelcomeWebContents: () => require('electron').BrowserWindow.getAllWindows()
+          .find(window => !window.isDestroyed() && /\/welcome\.html(?:[?#]|$)/.test(window.webContents.getURL()))?.webContents,
         showMain,
         invokeTrayAction,
         probeRemoteSnapshot,
@@ -1553,12 +1408,12 @@ if (!gotLock) {
     void finalizeQuit();
   });
 
-  // All quit paths funnel here: the protection decision (inspect → acquire →
-  // drain → inspect → confirm) completes before the first shutdown side
-  // effect runs. A cancelled prompt restores the pre-quit flags.
+  // Explicit quit is already consent: keep inspection/lock/drain, not a
+  // second task-warning prompt. Failed shutdown still offers recovery.
   async function finalizeQuit() {
     const result = await taskProtection.coordinate('quit', {
       terminal: true,
+      preConfirmed: true,
       commit: async () => {
         stoppingForQuit = true;
         stopDesktopInstallControl();
@@ -1577,7 +1432,7 @@ if (!gotLock) {
     quitting = false;
     stoppingForQuit = false;
     closingOverlayActive = false;
-    // The user already accepted the risk prompt; a failed drain or an
+    // The user already requested quit; a failed drain or an
     // unreachable runtime must not silently cancel the quit — offer a
     // last-resort force exit so the app can always be closed.
     if (result.code && result.code !== 'cancelled' && result.code !== 'busy') {

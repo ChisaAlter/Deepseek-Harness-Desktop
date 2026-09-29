@@ -6,6 +6,8 @@ Status: implemented
 
 ## Problem
 
+入口策略已由[桌面直接进入工作区](../product/2026-09-29-direct-desktop-entry.md)取代：不再弹欢迎窗；本篇保留资源缺失的修复依据。
+
 0.3.3 候选 b061501e5b4 安装后首次欢迎窗显示默认 HTML、破损品牌图，用户误以为启动页停住。移植只携带编译组件样式，遗漏上游独立页面 CSS、其 window-material 依赖和品牌 SVG。样式表加载成功并不代表页面布局完整。旧冒烟通过程序点击 API Key/稍后设置，未验证欢迎窗呈现，因此错误放行。
 
 记录审计：[桌面能力桥](../architecture/2026-09-26-upstream-desktop-bridges.md) 的欢迎入口与凭据边界仍有效，本次补其资源闭包；[GUI 回归对齐](2026-09-28-release-gui-contract-reconciliation.md) 的真实入口冒烟保持，但补齐点击前的呈现前提。

@@ -245,3 +245,38 @@ test('inspectionClean treats unknown coverage as blocking', () => {
   assert.equal(inspectionClean({ ...CLEAN_INSPECTION, coverage: { bots: 'intentional-disabled' } }), true);
   assert.equal(inspectionClean(DIRTY_INSPECTION), false);
 });
+
+test('production quit skips confirmation while retaining inspect, lock, cleanup and shutdown', async () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(require('node:path').join(__dirname, 'index.js'), 'utf8');
+  const start = source.indexOf('  async function finalizeQuit()');
+  const end = source.indexOf("  app.on('window-all-closed'", start);
+  assert.ok(start >= 0 && end > start);
+  for (const failDrain of [false, true]) {
+    const events = [];
+    const { protection, calls } = makeProtection({
+      inspection: DIRTY_INSPECTION,
+      confirm: async () => { assert.fail('explicit quit must not ask again'); },
+    }, failDrain ? { acquire: async () => ({ ok: false, code: 'dshd/drain-timeout' }) } : {});
+    const quit = vm.runInNewContext(`${source.slice(start, end)}; finalizeQuit`, {
+      taskProtection: protection, quitting: true, stoppingForQuit: false, closingOverlayActive: false,
+      stopDesktopInstallControl: () => events.push('control-stop'),
+      taskControlPeer: { stop: async () => events.push('peer-stop') },
+      cleanupDesktopResources: async () => events.push('cleanup'),
+      hideHarnessView: () => {}, getMainWindow: () => ({}), loadConfig: () => ({}),
+      showClosingOverlay: async () => {}, harness: { shutdown: async () => events.push('shutdown') },
+      app: { quit: () => events.push('quit'), exit: () => assert.fail('must not force exit') },
+      firstVisibleWindow: () => null,
+      confirmDialog: async () => { events.push('failure-notice'); return { response: 0 }; },
+    });
+    await quit();
+    if (failDrain) {
+      assert.deepEqual(events, ['failure-notice']);
+      assert.deepEqual(calls.map(call => call.op), ['inspect', 'acquire']);
+    } else {
+      assert.deepEqual(events, ['control-stop', 'peer-stop', 'cleanup', 'shutdown', 'quit']);
+      assert.deepEqual(calls.map(call => call.op), ['inspect', 'acquire', 'inspect']);
+    }
+  }
+});

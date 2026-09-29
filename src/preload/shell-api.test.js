@@ -283,6 +283,7 @@ test('harness preload exposes upstream dshDesktop.updates/browser and dshPlatfor
     { webUtils: { getPathForFile: () => '' } },
   );
   const updates = exposures.dshDesktop?.updates;
+  assert.equal(exposures.dshDesktop?.onboarding, false);
   assert.equal(typeof updates?.status, 'function');
   assert.equal(typeof updates?.open, 'function');
   assert.equal(typeof updates?.subscribe, 'function');

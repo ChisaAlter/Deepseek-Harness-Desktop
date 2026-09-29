@@ -80,6 +80,18 @@ test('window-control buttons are a no-drag hit target and ignore SVG pointer eve
   assert.match(css, /\.window-controls button svg[\s\S]*?pointer-events:\s*none/);
 });
 
+test('boot window controls match the square main-window geometry', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../renderer/boot.css'), 'utf8');
+  // Boot loads the shared round defaults last: scoped selectors must win.
+  const plate = css.match(/html\[data-boot-theme\] \.window-controls\s*\{([^}]+)\}/)?.[1] || '';
+  const button = css.match(/html\[data-boot-theme\] \.window-controls button\s*\{([^}]+)\}/)?.[1] || '';
+  assert.match(plate, /gap:\s*0;/);
+  assert.match(plate, /padding:\s*12px 8px 4px;/);
+  assert.match(button, /width:\s*32px;/);
+  assert.match(button, /height:\s*32px;/);
+  assert.match(button, /border-radius:\s*8px;/);
+});
+
 test('harness view relayouts on maximize and unmaximize', () => {
   const src = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
   assert.match(src, /win\.on\('maximize', relayout\)/);

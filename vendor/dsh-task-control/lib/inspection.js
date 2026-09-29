@@ -10,6 +10,11 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { BlockList, isIP } from 'node:net';
+
+const LOOPBACK = new BlockList();
+LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
+LOOPBACK.addAddress('::1', 'ipv6');
 
 // ScheduleRecord.kind discriminators; 'after'/'at' are one-shots.
 const RECURRING_KINDS = new Set(['every', 'daily', 'weekly', 'cron']);
@@ -167,10 +172,18 @@ async function collectBots(scheduledWork, activeWork, coverage) {
 function collectSockets(webServer, activeWork) {
   const sockets = webServer && webServer.upgradedSockets;
   if (!(sockets instanceof Set)) return 0;
-  if (sockets.size > 0) {
-    activeWork.push({ kind: 'socket', id: 'upgraded-sockets', count: sockets.size });
+  let count = 0;
+  for (const socket of sockets) {
+    if (socket?.destroyed === true) continue;
+    const address = socket?.remoteAddress;
+    const family = typeof address === 'string' ? isIP(address) : 0;
+    // Local UI/account streams are idle transports, not remote user work.
+    // BlockList also recognizes IPv4-mapped IPv6; unknown peers stay counted.
+    if (family && LOOPBACK.check(address, family === 4 ? 'ipv4' : 'ipv6')) continue;
+    count++;
   }
-  return sockets.size;
+  if (count > 0) activeWork.push({ kind: 'socket', id: 'upgraded-sockets', count });
+  return count;
 }
 
 /**

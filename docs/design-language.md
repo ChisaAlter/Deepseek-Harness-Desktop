@@ -177,7 +177,7 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 ## 桌面欢迎窗
 
-欢迎窗完整复用钉版上游布局、材质、品牌图与字体，见[契约](features/desktop-welcome.md)。
+启动直达工作区，不弹欢迎或引导；配置留在设置，见[契约](features/desktop-welcome.md)。
 
 ## 桌面启动页
 
@@ -189,7 +189,7 @@ Browser 空白页、导航工具栏与尚未加载网页的 guest 占位区透�
 
 色与主题：[`boot-tokens.css`](../src/renderer/boot-tokens.css) 是唯一色表（天空/海面、星场与水下各层、交接线、告警、字标扫光、抽屉面板全部进 token）。`html[data-boot-theme]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 明暗半，不写用户主题 `bg` / `accent`。[`boot.css`](../src/renderer/boot.css) 只引用 `--boot-*` 与基线字体、动效 token，不写明暗分支与颜色字面量。`prefers-reduced-motion` 冻结扫光、星闪、微粒、省略号与抽屉动效。
 
-窗口控件仍走 [`window-controls.css`](../src/renderer/window-controls.css)。禁止 NERV / MAGI / SEELE / EVA 商标或官方标志。禁止把 `--boot-*` 用到设置页、关闭遮罩、标题栏或 Web UI。
+窗控沿用 [`window-controls.css`](../src/renderer/window-controls.css) 交互色；boot 与主界面同为 32px 方钮、8px 圆角、零间距、内边距 12px 8px 4px。禁用 NERV / MAGI / SEELE / EVA 标志；`--boot-*` 不得外溢。
 
 ## 桌面宠物
 

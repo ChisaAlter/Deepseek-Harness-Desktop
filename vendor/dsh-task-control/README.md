@@ -24,6 +24,11 @@ While locked: webServer routes (incl. pre-registered and upgrades) answer 503,
 
 ## Coverage semantics
 
+Socket work counts exclude destroyed transports and known loopback peers
+(127/8, ::1 and IPv4-mapped IPv6). External or unknown peers remain counted.
+Agents, jobs and admitted requests are inspected independently, including work
+originating over local connections. This filter changes reporting, not admission.
+
 `coverage.*` ∈ `ok | intentional-disabled | unavailable`. `intentional-disabled`
 requires the desktop-declared off state (`DSHD_SCHEDULE_ENABLED` /
 `DSHD_DSHBOT_ENABLED` unset). `unavailable` blocks unattended commits.

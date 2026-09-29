@@ -271,7 +271,7 @@ is in
 
 ## Desktop welcome window
 
-Welcome retains the complete pinned upstream layout, material, brand image and fonts; see the [contract](features/desktop-welcome.md).
+Startup enters the workspace without welcome or first-run setup; configuration remains in Settings. See the [contract](features/desktop-welcome.md).
 
 ## Desktop boot page
 
@@ -283,7 +283,7 @@ Logs live at the bottom edge: a one-line ticker (pulse dot + latest line + live 
 
 Color and theme: [`boot-tokens.css`](../src/renderer/boot-tokens.css) is the only color table (sky/sea gradients, starfield and underwater layers, the waterline, alert, brand and sheen, and the drawer panel all live as tokens). `html[data-boot-theme]` makes [`theme.js`](../src/renderer/theme.js) apply only the light/dark half of `theme.scheme` and skip the user's `bg` / `accent`. [`boot.css`](../src/renderer/boot.css) consumes `--boot-*` plus baseline font and motion tokens; it does not branch on `[data-ds-dark-theme]` and does not contain color literals. `prefers-reduced-motion` freezes the sheen, twinkle, particles, dots, and drawer motion.
 
-Window controls stay on [`window-controls.css`](../src/renderer/window-controls.css). Do not use NERV / MAGI / SEELE / EVA marks or official logos. Do not use `--boot-*` on settings, the closing overlay, the title bar, or the Web UI.
+Controls retain [`window-controls.css`](../src/renderer/window-controls.css) interaction colors. Boot matches main-window controls: 32px squares, 8px radius, zero gap, 12px 8px 4px padding. No NERV / MAGI / SEELE / EVA marks; keep `--boot-*` boot-only.
 
 ## Desktop pet
 
