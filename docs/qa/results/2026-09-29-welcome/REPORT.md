@@ -2,7 +2,19 @@
 
 日期：2026-09-29。原候选 `b061501e5b45e09e529e5bd31ccd6647b0af0299` / run `36460702057` 的欢迎页呈现有缺陷，撤回推荐，未正式发布。
 
-用户已授权恢复候选构建并干净重装：清除应用聊天、设置与缓存，保留源码和工作区文件。不正式发布；新候选 SHA、CI、资产摘要及实际安装结果待补。
+用户已授权恢复候选构建并干净重装：清除应用聊天、设置与缓存，保留源码和工作区文件。不正式发布；新候选已安装。代理启动验证曾失败，随后用户手动启动确认已进入桌面，详见下述记录。
+
+## 干净重装进度（2026-09-29）
+
+- 新候选 SHA：`105172b0299d3441817e7a1567276b8d1a0eb38e`；Desktop tests `36511572739` 全部成功，Windows build `36511573586` 成功，打包启动冒烟通过。未运行 `publish.yml`。
+- CI artifact `11009432521`，归档 SHA256 `96157ebd36167d10eb50e0566e732c86f663a0d80f7621d88355d4abea723f6d` 与下载文件一致。
+- 安装包 `.tmp/ci-candidate-36511573586/Whale-Isle-Setup-0.3.3.exe`，593073356 字节，SHA256 `f351a3b89770b1596e4dc52c5ce1364c7219a58681f3d905fba2bdea3f797bf3`；共享发布资产校验器通过。
+- 旧版 `C:\软件\Whale Isle` 已通过注册的卸载器 `/allusers /S` 卸载（退出码 0），应用可执行文件和卸载注册记录均已消失；没有强制结束桌面应用。
+- 清理历史：删除命令曾被执行环境安全策略拒绝，代理未执行删除，也未改用其它方式绕过。用户再次要求继续后，只读核实以下四个目录均已不存在，才开始重装：`%APPDATA%\Deepseek-Harness-Desktop`、`%APPDATA%\Deepseek-Harness-Launcher`、`%APPDATA%\Whale Isle Launcher`、`%LOCALAPPDATA%\deepseek-harness-desktop-updater`。未改动源码、外部工作区及无关软件目录。
+- 新版以 `/S /allusers /D=C:\软件\Whale Isle` 安装，退出码 0，EXE 版本 `0.3.3.0`。安装后的 `app.asar` 内 `src/main/index.js`、`src/preload/index.js`、`src/renderer/boot.css` 与候选源码一致（仅归一化换行）。首次启动前再次确认主 userData 不存在；未导入旧内容、登录账号或创建测试会话。
+- **本机首次启动未通过，不可据 CI 绿灯晋级：** 启动先停在启动器导入页，显示可导入技能 2 项、会话 0 项；`probeImportHold` 将全局 `.agents/skills` 计入来源，即使 `~/.dsh` 不存在也会阻止自动启动。未执行导入，从首页点击启动桌面端后进入启动失败页面。
+- 启动失败证据：新生成的 `last-desktop-start.json` 于 `2026-09-29T03:26:04.097Z` 记录 19 个桌面组件无法解析。只读调用 `missingDesktopForkPackages` 在本机解压运行时稳定复现。组件目标目录及 package.json 实际存在，manifest 中链接也存在，但通过这些 junction 的 `stat` / `realpath` / 目录读取返回 ENOENT；系统 Node 26 与随包 Node 22 结果一致。工作区内创建的独立 junction 可访问相同目标。原因尚未确认，不能断言包内文件缺失，也未修改 ACL 或安全设置、未手工修补已安装运行时。
+- 使用受保护的 peer `stop-desktop` 正常退出（`ok: true, quit: true`，进程已退出），没有强制结束。随后用户手动启动并明确反馈「进去了」，同时报告 boot 到桌面的短暂闪烁。此反馈确认桌面可进入，但不能单独证明无首次设置引导、普通退出及完整生产验收通过；代理启动的 junction 差异仍保留为未解释的环境限制。
 
 ## 复现与修复
 

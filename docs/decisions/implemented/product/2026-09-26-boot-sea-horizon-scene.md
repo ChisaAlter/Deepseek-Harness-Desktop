@@ -37,3 +37,7 @@ Status: implemented
 
 - `.core` 只留品牌、状态（+省略号）、诊断与动作；`#hint`/`#recovery` 移除，提示、恢复倒计时与动作回执三路按优先级复用 ticker 单行——恢复/动作回执 > 状态提示 > 最新日志行。
 - `revealHarnessView` 改交叉淡化：harness 页先 `insertCSS` 持 0 透明度挂入（View 背景本即透明，boot 透出），双 rAF 后 `data-dshd-harness-fade="in"` 淡入，`.scene` 同步淡出，560ms 后 `data-harness-covered` 收尾；注入失败回退瞬时遮盖。减弱动效下两侧均不播过渡，boot 端保持到 covered 直切。
+
+## Amendment — 2026-09-29（无空窗揭示）
+
+用户实装反馈切换闪烁。两透明表面同时退入会露出底色；旧实现不等窗控注入与全尺寸布局完成，并从主进程提前开始 560ms 收尾计时。保留淡入方向，但 boot 始终不透明垫底，桌面在窗控注入、全尺寸布局与两帧准备后，以 `2 × --ds-transition-duration` 和 `--ds-ease-in-out` 淡入；由渲染侧过渡完成通知收尾，有界计时只兜底丢失的帧/事件。减少动效直接切，不引入缩放、模糊或额外品牌停留。每个异步边界检查当前 View 和揭示世代；注入失败须确保全尺寸挂载并解除透明才遮盖 boot。单纯延长旧计时不解决透明空窗和布局竞态，因此不采用。

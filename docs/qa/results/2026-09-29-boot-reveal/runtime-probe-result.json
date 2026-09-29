@@ -1,0 +1,225 @@
+{
+  "rows": [
+    {
+      "file": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop\\dsh-home\\profiles\\web\\node_modules\\dsh-task-control",
+      "fs": {
+        "lstatSync": {
+          "link": true,
+          "directory": false
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "C:\\软件\\whale isle\\resources\\vendor\\dsh-task-control",
+        "realpathSync": "C:\\软件\\whale isle\\resources\\vendor\\dsh-task-control"
+      },
+      "original": {
+        "lstatSync": {
+          "link": true,
+          "directory": false
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "C:\\软件\\whale isle\\resources\\vendor\\dsh-task-control",
+        "realpathSync": "C:\\软件\\whale isle\\resources\\vendor\\dsh-task-control"
+      }
+    },
+    {
+      "file": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop\\dsh-home\\profiles\\web\\node_modules\\dsh-usage-panel",
+      "fs": {
+        "lstatSync": {
+          "link": true,
+          "directory": false
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "C:\\软件\\Whale Isle\\resources\\vendor\\dsh-usage-panel",
+        "realpathSync": "C:\\软件\\Whale Isle\\resources\\vendor\\dsh-usage-panel"
+      },
+      "original": {
+        "lstatSync": {
+          "link": true,
+          "directory": false
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "C:\\软件\\Whale Isle\\resources\\vendor\\dsh-usage-panel",
+        "realpathSync": "C:\\软件\\Whale Isle\\resources\\vendor\\dsh-usage-panel"
+      }
+    },
+    {
+      "file": "C:/软件/Whale Isle/resources/vendor/dsh-task-control",
+      "fs": {
+        "lstatSync": {
+          "link": false,
+          "directory": true
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "EINVAL",
+        "realpathSync": "C:\\软件\\Whale Isle\\resources\\vendor\\dsh-task-control"
+      },
+      "original": {
+        "lstatSync": {
+          "link": false,
+          "directory": true
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "EINVAL",
+        "realpathSync": "C:\\软件\\Whale Isle\\resources\\vendor\\dsh-task-control"
+      }
+    },
+    {
+      "file": "C:/软件/Whale Isle/resources/app.asar/assets/icon.png",
+      "fs": {
+        "lstatSync": {
+          "link": false,
+          "directory": false
+        },
+        "statSync": {
+          "link": false,
+          "directory": false
+        },
+        "readlinkSync": "ENOENT",
+        "realpathSync": "C:\\软件\\Whale Isle\\resources\\app.asar\\assets\\icon.png"
+      },
+      "original": {
+        "lstatSync": "ENOENT",
+        "statSync": "ENOENT",
+        "readlinkSync": "ENOENT",
+        "realpathSync": "ENOENT"
+      },
+      "image": {
+        "empty": false,
+        "size": {
+          "width": 1024,
+          "height": 1024
+        }
+      }
+    },
+    {
+      "file": "C:/软件/whale isle/resources/vendor/dsh-task-control",
+      "fs": {
+        "lstatSync": {
+          "link": false,
+          "directory": true
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "EINVAL",
+        "realpathSync": "C:\\软件\\whale isle\\resources\\vendor\\dsh-task-control"
+      },
+      "original": {
+        "lstatSync": {
+          "link": false,
+          "directory": true
+        },
+        "statSync": {
+          "link": false,
+          "directory": true
+        },
+        "readlinkSync": "EINVAL",
+        "realpathSync": "C:\\软件\\whale isle\\resources\\vendor\\dsh-task-control"
+      }
+    },
+    {
+      "file": "C:/软件/whale isle/resources/app.asar/assets/icon.png",
+      "fs": {
+        "lstatSync": {
+          "link": false,
+          "directory": false
+        },
+        "statSync": {
+          "link": false,
+          "directory": false
+        },
+        "readlinkSync": "ENOENT",
+        "realpathSync": "C:\\软件\\whale isle\\resources\\app.asar\\assets\\icon.png"
+      },
+      "original": {
+        "lstatSync": "ENOENT",
+        "statSync": "ENOENT",
+        "readlinkSync": "ENOENT",
+        "realpathSync": "ENOENT"
+      },
+      "image": {
+        "empty": false,
+        "size": {
+          "width": 1024,
+          "height": 1024
+        }
+      }
+    }
+  ],
+  "stress": {
+    "fixture": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-link-probe-C6Z13Q",
+    "iterations": 200,
+    "reused": 199
+  },
+  "windowIcons": [
+    {
+      "name": "icon.png",
+      "size": {
+        "width": 1024,
+        "height": 1024
+      },
+      "messages": [
+        {
+          "kind": 0,
+          "handle": "258151723"
+        },
+        {
+          "kind": 1,
+          "handle": "1208749281"
+        }
+      ]
+    },
+    {
+      "name": "icon.ico",
+      "size": {
+        "width": 256,
+        "height": 256
+      },
+      "messages": [
+        {
+          "kind": 0,
+          "handle": "293606515"
+        },
+        {
+          "kind": 1,
+          "handle": "258217259"
+        }
+      ]
+    }
+  ],
+  "selectedIcon": {
+    "size": {
+      "width": 256,
+      "height": 256
+    },
+    "messages": [
+      {
+        "kind": 0,
+        "handle": "1424823367"
+      },
+      {
+        "kind": 1,
+        "handle": "293672051"
+      }
+    ]
+  }
+}

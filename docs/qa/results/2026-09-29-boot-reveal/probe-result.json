@@ -1,0 +1,329 @@
+{
+  "ok": true,
+  "rows": [
+    {
+      "name": "light",
+      "reduced": false,
+      "coveredAt": 454,
+      "samples": [
+        {
+          "at": 10,
+          "desktop": {
+            "opacity": 1,
+            "held": false
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": []
+        },
+        {
+          "at": 139,
+          "desktop": {
+            "opacity": 0,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "at": 175,
+          "desktop": {
+            "opacity": 0.334597,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            83,
+            82,
+            80,
+            85
+          ]
+        },
+        {
+          "at": 240,
+          "desktop": {
+            "opacity": 0.686986,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            170,
+            168,
+            165,
+            175
+          ]
+        },
+        {
+          "at": 307,
+          "desktop": {
+            "opacity": 0.880803,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            218,
+            215,
+            211,
+            225
+          ]
+        },
+        {
+          "at": 344,
+          "desktop": {
+            "opacity": 0.944066,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            234,
+            230,
+            227,
+            241
+          ]
+        },
+        {
+          "at": 392,
+          "desktop": {
+            "opacity": 0.983394,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            244,
+            240,
+            236,
+            251
+          ]
+        },
+        {
+          "at": 435,
+          "desktop": {
+            "opacity": 0.998034,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            248,
+            244,
+            240,
+            254
+          ]
+        }
+      ],
+      "final": {
+        "opacity": 1,
+        "held": false
+      }
+    },
+    {
+      "name": "dark",
+      "reduced": false,
+      "coveredAt": 420,
+      "samples": [
+        {
+          "at": 5,
+          "desktop": {
+            "opacity": 1,
+            "held": false
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": []
+        },
+        {
+          "at": 62,
+          "desktop": {
+            "opacity": 0.0140225,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            1,
+            1,
+            0,
+            4
+          ]
+        },
+        {
+          "at": 109,
+          "desktop": {
+            "opacity": 0.128929,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            5,
+            5,
+            4,
+            33
+          ]
+        },
+        {
+          "at": 152,
+          "desktop": {
+            "opacity": 0.375499,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            15,
+            14,
+            12,
+            96
+          ]
+        },
+        {
+          "at": 212,
+          "desktop": {
+            "opacity": 0.711414,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            28,
+            26,
+            23,
+            181
+          ]
+        },
+        {
+          "at": 272,
+          "desktop": {
+            "opacity": 0.880612,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            35,
+            32,
+            28,
+            225
+          ]
+        },
+        {
+          "at": 321,
+          "desktop": {
+            "opacity": 0.950563,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            38,
+            34,
+            30,
+            242
+          ]
+        },
+        {
+          "at": 363,
+          "desktop": {
+            "opacity": 0.983394,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            39,
+            35,
+            31,
+            251
+          ]
+        },
+        {
+          "at": 412,
+          "desktop": {
+            "opacity": 0.998895,
+            "held": true
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": [
+            40,
+            36,
+            32,
+            255
+          ]
+        }
+      ],
+      "final": {
+        "opacity": 1,
+        "held": false
+      }
+    },
+    {
+      "name": "reduced",
+      "reduced": true,
+      "coveredAt": 27,
+      "samples": [
+        {
+          "at": 4,
+          "desktop": {
+            "opacity": 1,
+            "held": false
+          },
+          "boot": {
+            "opacity": 1,
+            "visibility": "visible"
+          },
+          "pixel": []
+        }
+      ],
+      "final": {
+        "opacity": 1,
+        "held": false
+      }
+    }
+  ]
+}

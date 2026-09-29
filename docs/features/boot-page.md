@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `boot-page` |
 | **status** | `active` |
+| **last verified (desktop reveal)** | 2026-09-29 — boot 保持不透明垫底，桌面按双倍基础时长淡入并等待渲染完成；真实 Electron 明暗均有中间帧、减少动态效果无中间透明帧，最终 hold 解除。定向 75/75、隔离源码冒烟通过（标题栏命中、PTY、无页面错误）。见 `docs/qa/results/2026-09-29-boot-reveal/REPORT.md`；未构建安装包。 |
 | **last verified (window controls)** | 2026-09-29 — 窗控对齐主界面 32px / 8px 方钮、零间距与相同内边距；Electron 明暗最终样式及三个按钮命中检查通过。安装包构建暂停。 |
 | **last verified (A2 plugin recovery)** | 2026-09-28 — 插件恢复纳入取消世代与共享 import 维护准入；真实 controller + launcher service + task-protection + import guard 回归覆盖 stop、blocked/unreadable journal、恢复先持锁、延迟 start/Remote、异步准备成功/失败及旧 finally 不清新任务。定向 217/217；未修改的原外部 A2 回归在独立证据目录重跑 4/4，原审计证据未覆盖。未重启应用；统一文档门禁与重启由主代理负责。 |
 | **last verified (restart)** | 2026-09-08 — 105 项 controller/window/IPC 检查通过；延迟 boot 导航回归及隔离 Electron 内置重启恢复可见 Bot 界面通过 |
@@ -16,14 +17,15 @@
 ## User paths
 
 1. 冷启动先开启动器（更新 / 导入 / 版本 / 问诊）。启动桌面端后，主窗见海平线场景：62% 交接线分开天空（深色=深空星云星场，浅色=高空云气）与深海（调暗 + 表层透光 + 微粒 + 暗角）；中央「Whale Isle」衬线字标带周期扫光，状态下只剩「启动中」+ 三点呼吸省略号；底缘单行 ticker 实时滚最新日志行并记 `L NN` 行数，点击（Enter/Space）从底部升起毛玻璃日志抽屉看全部行，ESC / 点遮罩 / × 关闭；error / 恢复排程 / 重启中时瞬时动作面回到中央并按态逐项 gating，抽屉不自动弹开；插件进度留在此页。
-2. 就绪后露出官方 Web UI；不切到官方「正在加载插件」页代替 boot。揭示是交叉淡化（harness 页 0→1 叠在 `.scene` 淡出之上，减弱动效下直接切）。
+2. 就绪后露出官方 Web UI；不切到官方「正在加载插件」页代替 boot。桌面窗控与全尺寸布局就绪后，以双倍基础动效时长（默认 400ms）淡入；boot 画面保持不透明垫底，等桌面过渡完成再遮盖，减弱动效直切。
 3. 失败：ERROR 态、重试、导出日志；自动重启排程或进行期间隐藏「回启动器排查」跳板，恢复停止后该跳板可打开启动器 home tab（Recovery Board）；用户插件弄挂可跳过插件树后再试完整插件。插件级排查（归因、逐项/批量禁用）在 Recovery Board 做，不在 boot 页。
 
 ## Invariants
 
 - 启动页是整窗海平线画布例外；`--boot-*` **不得**扩散到启动器、设置、关闭遮罩、标题栏或官方 Web UI。
 - 窗控不属于画布视觉例外；尺寸、圆角和间距与主界面一致，保留共享交互色及动作。
-- 启动画布的品牌名为 Whale Isle；保留海平线画布视觉（交接线 / 天空层 / 水下层）与既有恢复语义；日志底缘单行 ticker 常驻、完整日志收进 `logdrawer` 底部抽屉（手动开合，不自动弹），场景页保持纯净，布局可按窗口高度压缩。ticker 单行按优先级复用——恢复/动作回执 > 状态提示 > 最新日志，状态行下方不再出现独立提示行；boot → Web UI 揭示为交叉淡化（harness 透明挂入 → 淡入 + `.scene` 淡出 → `data-harness-covered` 收尾）。
+- 揭示不让两层同时变透明，不用固定主进程计时提前撤下 boot；关闭、重启或新一轮揭示后，旧回调不得遮盖当前加载页。注入失败仍须挂载全尺寸桌面并解除透明状态，不能只隐藏 boot。
+- 启动画布的品牌名为 Whale Isle；保留海平线画布视觉（交接线 / 天空层 / 水下层）与既有恢复语义；日志底缘单行 ticker 常驻、完整日志收进 `logdrawer` 底部抽屉（手动开合，不自动弹），场景页保持纯净，布局可按窗口高度压缩。ticker 单行按优先级复用——恢复/动作回执 > 状态提示 > 最新日志，状态行下方不再出现独立提示行；boot → Web UI 揭示为桌面淡入（harness 透明挂入 → 在不透明 `.scene` 上淡入 → 渲染完成后 `data-harness-covered` 收尾）。
 - 插件进度只呈现 controller / 插件事件提供的状态，不估算百分比或添加虚构步骤；启动器跳板只在 settled `error` 且恢复状态非 `scheduled` / `restarting` 时出现。
 - 禁止 NERV / MAGI / SEELE / EVA 等商标或官方标志挪用。
 - 插件装载进度留在 boot 画布。
@@ -42,6 +44,8 @@
 - `src/main/harness-controller*.test.js`；`src/launcher/launcher-service.js` 仅限自动插件恢复的 import journal 准入接线
 - `assets/whale-spin.svg`、`assets/whale-head.png` — 用户指定的加载与品牌资源
 - 本卡、[启动页决策记录](../decisions/implemented/product/2026-09-26-boot-sea-horizon-scene.md)、handbook boot / plugin-recovery 章、[design-language 桌面启动页段](../design-language.md#桌面启动页)及其英文配对
+- `docs/motion.md` 仅限 boot→harness 揭示清单（2026-09-29 用户确认扩展）
+- `src/main/window-marketplace.test.js` 仅补齐揭示清理所需 Electron 替身方法（2026-09-29 用户确认继续）
 
 ## Do not touch
 

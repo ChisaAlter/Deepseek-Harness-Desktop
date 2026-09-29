@@ -88,13 +88,6 @@ body[data-harness-covered] {
   overflow: hidden;
   background: var(--boot-scene);
   opacity: 1;
-  transition: opacity 0.42s var(--ds-ease-in-out);
-}
-
-/* The harness view fades in on top while the scene fades out beneath it;
-   once the crossfade lands the covered attribute hides the document. */
-body[data-harness-fade] .scene {
-  opacity: 0;
 }
 
 /* 天空层：星云三团 + 银河斜带（浅色读作云气，银河带仅深色可见） */
@@ -619,15 +612,6 @@ body[data-state="error"] .ticker-dot {
     animation: none !important;
   }
 
-  .scene {
-    transition: none !important;
-  }
-
-  /* Reduced motion: the scene stays until the covered attribute hides it —
-     fading to a blank window would be worse than a clean cut. */
-  body[data-harness-fade] .scene {
-    opacity: 1;
-  }
 }
 
 /* Maximized windows lose the rounded silhouette (native corners square). */

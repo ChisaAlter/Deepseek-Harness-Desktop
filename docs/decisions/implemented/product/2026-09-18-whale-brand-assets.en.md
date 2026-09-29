@@ -18,4 +18,6 @@ Replacing only generated icon.png/ICO minimizes edits but reverts on regeneratio
 
 ## Consequences
 
+2026-09-29 window loading correction: Windows prefers the existing multi-size `icon.ico` instead of converting the 1024px PNG directly to HICON; if ICO is unavailable it falls back to a resized PNG, while other platforms retain PNG loading. Electron 43's PNG-to-HICON path does not resize to the requested dimensions, whereas its ICO path loads by size. Artwork, EXE resources and appId remain unchanged; no system cache is cleared, and the installed taskbar still needs verification in a later candidate.
+
 Source PNG and loader SVG retain their original bytes for hash comparison; icons have a white background, transparent outer corners, and a fully proportioned head. The sidebar uses a transparent static Web copy of the head while retaining the existing brand slots and interactions. Brand updates require icon and installer:assets regeneration; installed executable icons still require repackaging. Validation covers generated dimensions, animation frames, reduced motion, existing installer contracts, and sidebar wordmark themes; this task does not publish an installer.

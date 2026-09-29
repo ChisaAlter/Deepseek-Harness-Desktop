@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `desktop-branding` |
 | **status** | `active` |
+| **last verified (window icon)** | 2026-09-29 — Windows 优先现有多尺寸 ICO，PNG 回退缩至 48px；其他平台仍读 PNG。真实 Electron 从已安装 ASAR 加载生产选择结果为 256px，大小图标消息均含有效句柄；定向与隔离源码启动通过。未更新安装版，任务栏最终视觉仍待复测。 |
 | **last verified** | 2026-09-25 — 已恢复定稿的中文主字标及原字号，仅应用其他入口使用英文主名；品牌与侧栏定向测试 25/25、官方 profile 完整构建、`check:governance` 与 `doc-sync` 通过。桌面应用已重启。 |
 
 ## User paths
@@ -23,6 +24,8 @@
 
 ## Allowed touch
 
+- 本次任务栏图标修复（2026-09-29 用户确认）：`src/main/window.js` 的窗口图标加载及其测试、现有品牌决策与 QA 证据；仅更换资源格式选择，不改图标设计。
+
 - `docs/design-language.md` / `docs/design-language.en.md`、本卡与索引、品牌决策记录和对应翻译 sidecar — 品牌合同。
 - `vendor/deepseek-harness/packages/client/ui-brand-official/` — 桌面品牌槽位内容及测试。
 - `vendor/deepseek-harness/packages/client/ui-sidebar/src/client/SidebarRoot.tsx` / `SidebarRoot.module.css` 及定向测试 — 收起态品牌标记、展开按钮和行高。
@@ -37,7 +40,7 @@
 
 ## Do not touch
 
-- 窗口/任务栏/托盘图标与聊天首屏的 Harness 内容。
+- 除上述窗口资源加载修复外，不改窗口/任务栏/托盘图标设计与聊天首屏的 Harness 内容。
 - 侧栏导航与标题栏交互。
 
 ## Gates

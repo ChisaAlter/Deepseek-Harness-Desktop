@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { ensureDirectoryLink } = require('./desktop-plugin-link');
 const { pathToFileURL } = require('url');
 const { missingDeclaredEntries, missingRuntimeFiles } = require('./plugin-runtime-files');
 const { webProfileDir, stripBlockFromFile } = require('./plugins');
@@ -75,9 +76,7 @@ function removeLegacyDesktopCopy(profileDir) {
  */
 function linkIntoProfileModules(sourceDir, profileDir) {
   const linked = path.join(profileDir, 'node_modules', DSHBOT_PACKAGE);
-  fs.mkdirSync(path.dirname(linked), { recursive: true });
-  removeLinkOrDir(linked);
-  fs.symlinkSync(sourceDir, linked, process.platform === 'win32' ? 'junction' : 'dir');
+  ensureDirectoryLink(sourceDir, linked);
 }
 
 /**

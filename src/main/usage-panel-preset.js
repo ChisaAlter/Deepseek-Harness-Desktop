@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { linkInfo, directoryLinkMatches, ensureDirectoryLink } = require('./desktop-plugin-link');
 const { missingRuntimeFiles } = require('./plugin-runtime-files');
 const { webProfileDir, stripBlockFromFile } = require('./plugins');
 
@@ -26,31 +27,7 @@ function defaultSourceDir() {
 }
 
 function pathExists(target) {
-  try {
-    fs.lstatSync(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function removeLinkOrDir(target) {
-  if (!pathExists(target)) {
-    return;
-  }
-  try {
-    fs.readlinkSync(target);
-    fs.unlinkSync(target);
-    return;
-  } catch {
-    // Real directory or file, not a junction/symlink.
-  }
-  const st = fs.lstatSync(target);
-  if (st.isSymbolicLink() || st.isFile()) {
-    fs.unlinkSync(target);
-    return;
-  }
-  fs.rmSync(target, { recursive: true, force: true });
+  return Boolean(linkInfo(target));
 }
 
 /** The `name` field of a directory's package.json, or null. */
@@ -176,13 +153,7 @@ function findLeftoverBackup(target) {
  * @returns {{ relinked: boolean, quarantine: { from: string, to: string } | null }}
  */
 function linkToTarget(sourceDir, target) {
-  try {
-    if (fs.realpathSync(target) === fs.realpathSync(sourceDir)) {
-      return { relinked: false, quarantine: null };
-    }
-  } catch {
-    // Missing, dangling, or not a link: fall through and (re)create it.
-  }
+  if (directoryLinkMatches(sourceDir, target)) return { relinked: false, quarantine: null };
   fs.mkdirSync(path.dirname(target), { recursive: true });
 
   // A crash between "quarantine" and "link" leaves the backup and no target;
@@ -196,28 +167,15 @@ function linkToTarget(sourceDir, target) {
   if (pathExists(target)) {
     if (isManagedUsagePanelCopy(target)) {
       quarantine = quarantineManagedCopy(target);
-    } else {
-      let linkLike = false;
-      try {
-        linkLike = fs.lstatSync(target).isSymbolicLink();
-      } catch {
-        linkLike = false;
-      }
-      if (!linkLike) {
-        // Unknown user content: never delete it to make room for our link.
-        throw new Error(`refusing to replace unknown content at ${target}`);
-      }
-      // A link that points somewhere else is ours to replace.
-      removeLinkOrDir(target);
     }
   }
   try {
-    fs.symlinkSync(sourceDir, target, process.platform === 'win32' ? 'junction' : 'dir');
+    const relinked = ensureDirectoryLink(sourceDir, target);
+    return { relinked, quarantine };
   } catch (error) {
     restoreQuarantinedCopy(quarantine);
     throw error;
   }
-  return { relinked: true, quarantine };
 }
 
 /**

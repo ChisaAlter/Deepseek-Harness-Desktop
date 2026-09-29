@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `task-protection` |
 | **status** | `active` |
+| **last verified (plugin links)** | 2026-09-29 — 内置插件复用有效链接、保留读取错误，EEXIST 只接受复查为正确目标的链接；未知目录不删除。定向 95/95、真实 Electron 200 次准备（199 次复用）、隔离源码启动/PTY/标题栏通过。安装版未更新，原现场触发条件未完整复现。 |
 | **last verified (quit)** | 2026-09-29 — 本地连接误报修复，统一 quit 预确认；32 项定向回归及隔离源码冒烟通过，含真实 TCP socket、生产退出接线与 drain 失败无副作用。旧进程确认框待用户取消后正常重启；未打包。 |
 | **last verified** | 2026-09-27(续2) — `preConfirmed` 扩到全部 install/update 链（`update.js` 整包、`update-updater.js` electron-updater、peer `prepare-install` 的 `install`）：安装/更新入口本身即显式同意，链内任务保护不再二次确认；quit/restart/reload 三入口保留确认门。新增 `launcher-confirm` 桥把主进程确认渲染进启动器 app-confirm 卡。launcher-confirm/update/task-protection/ipc/runtime-install/launcher-gate/window-marketplace 定向 175 例绿。决策见 [update-install-preconfirmed](../decisions/implemented/product/2026-09-27-update-install-preconfirmed.md)。前次：2026-09-27(续) — launcher 发起停止（peer `stop-desktop` + 自带启动器 `stopOp`）改 `preConfirmed`：用户点击即同意，两道确认门跳过，消除桌面窗口全隐藏时的原生 messagebox 回退；`confirmTaskStop` 锚点改首个可见窗。task-protection/ipc/runtime-install 定向 102 例绿。决策见 [launcher-stop-preconfirmed](../decisions/implemented/product/2026-09-27-launcher-stop-preconfirmed.md)。前次：2026-09-27 — 修复停止链三层缺陷（token 查询吞控制路径 405 / 升级 socket 终身占 pending 致 drain 超时 / schedule 未按 flag 报 unavailable）+ 启动器控件互斥；实机停止全链路通过（acquire 即刻、commit 执行、Host 子进程退出、启动器回落仅「启动桌面端」），drain-timeout 响应新增 `pendingLabels` 观测面。`src/main/task-protection*` + `task-control-plugin` 23 例、全量 2537 绿。决策见 [launcher-stop-controls](../decisions/implemented/bug-fix/2026-09-27-launcher-stop-controls.md)。前次：2026-09-25 — `node --test` 协调器/插件/契约相关 352 例全过；打包态与实机验收待 C 阶段复跑。 |
 | **last verified** | 2026-09-28 — drain timer 保持到等待结束并在 finally 清理，独立 Node 进程回归通过；2026-09-28 — 二次确认窗按设计语言重写：`src/renderer/update-dialog.{html,css,js}` 由固定深色 + `#4d6bfe` 电光蓝改成基线 token（`--dsw-alias-*` / `--dsw-radius-panel` / `--dsw-elevation-prominent` / `--dsw-mask-blur`），`view.scheme` 随 payload 走 main → preload `onTheme` → renderer `data-ds-dark-theme`，`applyAppTheme` 的 `shell:theme` 广播把打开中的卡同步到最新主题。`confirmTaskStop` 按钮序改成 `[仍要X, 取消]`（同 `confirmUnverifiedColdStart` / `openDesktopUpdate`），defaultId/cancelId=1：主操作 index 0 = primary，取消 index 1 = secondary，Enter/Esc 都落取消，"仍要 X"必须显式点击。新增 `view.dangerIds` 通道：main 把"明知有风险的行动"按钮标 danger（`confirmTaskStop`/`confirmUnverifiedColdStart`/`finalizeQuit force`/`attachRendererRecovery` 中的"仍要X"/"强制退出"/"退出应用"），renderer 给非取消按钮 paint `.danger` 描边（`--dsw-alias-state-error-primary`），与 launcher app-confirm 卡 `danger` 字段同源。`launcher.css` 内嵌 `modal-mask`/`modal-card` 同批对齐——mask 改 `--dsw-alias-bg-mask-1` + `--dsw-mask-blur`，卡片去边框换 `radius-panel` + `elevation-prominent`，title 16/24、body 14/22、`padding 22/24`，actions 走 `gap: 8px` 行向。共享 token 表补 `--dsw-radius-xs..panel`、`border-l3/l4` 与 `elevation-stroke/panel/prominent/soft` 派生四件套。`update-dialog.test.js` + `shell-silhouette-radius.test.js` + `chrome-theme.test.js` + `themes.test.js` + `task-protection.test.js` + `close-behavior.test.js` + `launcher-theme.test.js` + `background-notice.test.js` 57/57 通过。 |
@@ -16,6 +17,8 @@
 
 ## Invariants
 
+- 插件链接准备只将 ENOENT 视为缺失；已解析到同一目录的链接复用，EEXIST 需重新验证目标。普通占位内容不得递归删除，不得跳过任务保护继续启动。
+
 - 回环长连接（127/8、::1、IPv4-mapped IPv6）及已销毁 socket 不计远程连接；外部/未知来源保守保留。本地发起的 agent/job/在途请求仍独立检查。
 
 - 被调用方等待的 drain 截止 timer 必须保持事件循环，完成后清除；没有其他活动句柄时也须返回排空或超时结果。
@@ -27,6 +30,8 @@
 - `preConfirmed` 用于显式同意的入口（统一 quit、peer `stop-desktop`、launcher `stopOp`、全部 install/update 链、peer `prepare-install`）：inspect、Host 接纳锁与 drain 照常。quit 不再弹工作清单确认，故障恢复提示保留；restart/reload 确认不变。
 
 ## Allowed touch
+
+- 本次启动链接修复（2026-09-29 用户确认）：`src/main/desktop-plugin-link.js` 与共用测试、`task-control-overlay.js`、`platform-session-overlay.js`、`usage-panel-preset.js`、`dsh-im-desktop.js`、`dshbot-desktop.js`、`dsh-whale-desktop.js`、`dsh-remote-desktop.js` 的链接处理；本卡、配套决策与 QA 证据。
 
 - `src/main/task-protection*.js`（新，协调器 + 与入口接线）
 - `src/main/index.js` / `launcher-service.js` / `update.js` / `update-updater.js` / `runtime-install.js` / `ipc-delta.js` / `delta/install.js` / `ipc-components.js` / `main-launcher/index.js`（只加协调器调用 + 挪副作用时机）
@@ -48,6 +53,8 @@
 | Manual / QA | quit/安装/更新/启动器停止无工作清单二次确认；重启/重载活动任务确认；失败 drain 不提交 |
 
 ## Sources
+
+- Decision: [内置插件链接的幂等准备](../decisions/implemented/bug-fix/2026-09-29-desktop-plugin-links.md)
 
 - Decision: [退出本地连接误报与确认移除](../decisions/implemented/bug-fix/2026-09-29-quit-transport-false-positive.md)
 

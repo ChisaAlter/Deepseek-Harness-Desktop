@@ -10,6 +10,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { ensureDirectoryLink } = require('./desktop-plugin-link');
 const { missingDeclaredEntries, missingRuntimeFiles } = require('./plugin-runtime-files');
 const { webProfileDir } = require('./plugins');
 
@@ -27,37 +28,9 @@ function defaultSourceDir() {
   }
 }
 
-function pathExists(target) {
-  try {
-    fs.lstatSync(target);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function removeLinkOrDir(target) {
-  if (!pathExists(target)) return;
-  try {
-    fs.readlinkSync(target);
-    fs.unlinkSync(target);
-    return;
-  } catch {
-    // Real directory, not a junction/symlink.
-  }
-  const st = fs.lstatSync(target);
-  if (st.isSymbolicLink() || st.isFile()) {
-    fs.unlinkSync(target);
-    return;
-  }
-  fs.rmSync(target, { recursive: true, force: true });
-}
-
 function linkIntoProfileModules(sourceDir, profileDir) {
   const linked = path.join(profileDir, 'node_modules', PLATFORM_PACKAGE);
-  fs.mkdirSync(path.dirname(linked), { recursive: true });
-  removeLinkOrDir(linked);
-  fs.symlinkSync(sourceDir, linked, process.platform === 'win32' ? 'junction' : 'dir');
+  ensureDirectoryLink(sourceDir, linked);
 }
 
 /** @param {{ sourceDir?: string, profileDir?: string }} [options] */

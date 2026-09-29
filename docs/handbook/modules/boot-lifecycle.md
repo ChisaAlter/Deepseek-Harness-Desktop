@@ -18,6 +18,7 @@
 - `HarnessController` 拥有子进程与揭示时机；boot 只消费事件。  
 - 恢复与手动重启共享未完成的 boot 导航；新 Harness 揭示前必须等待旧导航完成，避免迟到的启动页覆盖新界面。
 - 插件装载进度留在 boot，不切官方加载页。  
+- 揭示先持桌面透明，等待窗控注入与全尺寸布局产帧，再按动效 token 淡入；boot 保持不透明，渲染侧报告过渡完成后才遮盖。取消/替换后的旧回调无效，减弱动效直切；失败回退也须挂载并解除透明，而非只隐藏 boot。
 - 无账号或模型密钥也直接揭示工作区，不弹原版欢迎窗；登录和密钥配置留在设置。后台账号观察保留授权外开与 Platform 身份刷新，退出/过期不隐藏工作区。冒烟检测到欢迎窗即失败，不自动点击跳过，见 [desktop-welcome](../../features/desktop-welcome.md)。
 - 主 frame preload 的 `dshDesktop.onboarding: false` 同时关闭首次用途/过程引导，不创建 controller、不写完成标记或默认偏好；通用设置保留这些选项。冒烟不代点继续/稍后配置。
 - 流程详述：[../flows/boot-to-ready.md](../flows/boot-to-ready.md)

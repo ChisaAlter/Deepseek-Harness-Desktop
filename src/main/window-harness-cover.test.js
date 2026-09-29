@@ -4,6 +4,37 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { EventEmitter } = require('node:events');
+const vm = require('node:vm');
+
+test('Windows window icons use the multi-size ICO instead of the full-resolution PNG', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
+  const snippet = source.slice(source.indexOf('function iconImage()'), source.indexOf('function createMainWindow'));
+  const loaded = [];
+  const iconImage = vm.runInNewContext(`${snippet}\niconImage`, {
+    process: { platform: 'win32' }, assetFile: name => name,
+    nativeImage: { createFromPath(name) { loaded.push(name); return { isEmpty: () => false }; } },
+  });
+  iconImage();
+  assert.deepEqual(loaded, ['icon.ico']);
+});
+
+test('missing Windows ICO falls back to a bounded PNG while other platforms retain PNG', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
+  const snippet = source.slice(source.indexOf('function iconImage()'), source.indexOf('function createMainWindow'));
+  for (const platform of ['win32', 'linux', 'darwin']) {
+    const loaded = [], resized = [];
+    const iconImage = vm.runInNewContext(`${snippet}\niconImage`, {
+      process: { platform }, assetFile: name => name,
+      nativeImage: { createFromPath(name) {
+        loaded.push(name);
+        return { isEmpty: () => name === 'icon.ico', resize(size) { resized.push([size.width, size.height]); return this; } };
+      } },
+    });
+    iconImage();
+    assert.deepEqual(loaded, platform === 'win32' ? ['icon.ico', 'icon.png'] : ['icon.png']);
+    assert.deepEqual(resized, platform === 'win32' ? [[48, 48]] : []);
+  }
+});
 
 test('boot caption disables drag while the harness BrowserView covers it', () => {
   const css = fs.readFileSync(path.join(__dirname, '../renderer/boot.css'), 'utf8');
@@ -17,21 +48,117 @@ test('covered boot document blanks out so minimize/restore gaps show the window 
   assert.match(css, /body\[data-harness-covered\][\s\S]*?visibility:\s*hidden/);
 });
 
-test('boot to harness reveal crossfades instead of cutting', () => {
+test('boot stays opaque underneath the token-driven desktop reveal', () => {
   const src = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '../renderer/boot.css'), 'utf8');
-  // The harness page is held at opacity 0 before the view expands, then
-  // fades in while the boot scene fades out beneath the transparent view.
   assert.match(src, /HARNESS_FADE_CSS/);
   assert.match(src, /insertCSS\(HARNESS_FADE_CSS\)/);
   assert.match(src, /data-dshd-harness-fade/);
-  assert.match(src, /data-harness-fade/);
-  // The covered flag lands only after the fade window, not synchronously.
-  assert.match(src, /setTimeout\(finish, HARNESS_FADE_MS\)/);
-  assert.match(css, /body\[data-harness-fade\] \.scene[\s\S]*?opacity:\s*0/);
-  assert.match(css, /\.scene\s*\{[\s\S]*?transition:\s*opacity/);
-  // Reduced motion: no fade — the covered attribute still lands the cut.
-  assert.match(css, /prefers-reduced-motion[\s\S]*?body\[data-harness-fade\] \.scene[\s\S]*?opacity:\s*1/);
+  assert.match(src, /calc\(var\(--ds-transition-duration, 0\.2s\) \* 2\)/);
+  assert.match(src, /transitionend/);
+  assert.doesNotMatch(src, /setTimeout\(finish, HARNESS_FADE_MS\)/);
+  assert.doesNotMatch(css, /body\[data-harness-fade\] \.scene/);
+  assert.match(src, /prefers-reduced-motion: reduce/);
+});
+
+function revealFixture({ rejectCss = false, chrome = Promise.resolve(), animation = Promise.resolve() } = {}) {
+  const events = [];
+  const view = { webContents: {
+    isDestroyed: () => false,
+    insertCSS() { events.push('hold-css'); return rejectCss ? Promise.reject(new Error('injection')) : Promise.resolve('css-key'); },
+    removeInsertedCSS() { events.push('remove-css'); return Promise.resolve(); },
+    executeJavaScript(script) {
+      if (script.includes('transitionend')) { events.push('animate'); return animation; }
+      events.push(script.includes('removeAttribute') ? 'clear-hold' : 'hold');
+      return Promise.resolve();
+    },
+  } };
+  const win = {
+    isDestroyed: () => false,
+    getBrowserViews: () => [],
+    addBrowserView() { events.push('attach'); },
+    setTopBrowserView() {},
+    webContents: { executeJavaScript: () => Promise.resolve() },
+  };
+  const source = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
+  const snippet = source.slice(source.indexOf('const HARNESS_FADE_'), source.indexOf('function watchPluginBoot'));
+  const context = {
+    harnessView: view, harnessRevealed: false,
+    setBootHarnessCovered(_win, covered) { events.push(covered ? 'covered' : 'uncovered'); },
+    layoutHarnessView() { events.push('layout'); },
+    desktopPet: () => null,
+    prepareHarnessChrome() {},
+    syncHarnessChrome() { events.push('chrome'); return chrome; },
+    consumePendingMarketplaceJump() {},
+    setTimeout() { events.push('main-timer'); },
+  };
+  const api = vm.runInNewContext(`${snippet}\n({ reveal: revealHarnessView, cancel() { harnessView = null; harnessRevealed = false; } })`, context);
+  return { ...api, win, events };
+}
+
+test('reveal waits for chrome before layout and renderer completion before covering boot', async () => {
+  let chromeReady, fadeDone;
+  const fixture = revealFixture({
+    chrome: new Promise(resolve => { chromeReady = resolve; }),
+    animation: new Promise(resolve => { fadeDone = resolve; }),
+  });
+  const outcome = fixture.reveal(fixture.win);
+  await new Promise(setImmediate);
+  assert.ok(fixture.events.includes('chrome'));
+  assert.ok(!fixture.events.includes('layout'));
+  chromeReady();
+  await new Promise(setImmediate);
+  assert.ok(fixture.events.includes('animate'));
+  assert.ok(!fixture.events.includes('covered'));
+  fadeDone();
+  await outcome;
+  assert.ok(fixture.events.indexOf('covered') > fixture.events.indexOf('animate'));
+  assert.ok(fixture.events.includes('remove-css'));
+});
+
+test('failed fade injection still mounts a visible full-size desktop', async () => {
+  const fixture = revealFixture({ rejectCss: true });
+  await fixture.reveal(fixture.win);
+  await new Promise(setImmediate);
+  assert.ok(fixture.events.includes('attach'));
+  assert.ok(fixture.events.includes('layout'));
+  assert.ok(fixture.events.includes('clear-hold'));
+  assert.ok(fixture.events.includes('covered'));
+});
+
+test('cancelled reveal never hides the next boot page', async () => {
+  let chromeReady;
+  const fixture = revealFixture({ chrome: new Promise(resolve => { chromeReady = resolve; }) });
+  const outcome = fixture.reveal(fixture.win);
+  await new Promise(setImmediate);
+  fixture.cancel();
+  chromeReady();
+  await outcome;
+  assert.ok(!fixture.events.includes('covered'));
+});
+
+test('cancellation during the fade does not cover the next boot page', async () => {
+  let fadeDone;
+  const fixture = revealFixture({ animation: new Promise(resolve => { fadeDone = resolve; }) });
+  const outcome = fixture.reveal(fixture.win);
+  await new Promise(setImmediate);
+  assert.ok(fixture.events.includes('animate'));
+  fixture.cancel();
+  fadeDone();
+  await outcome;
+  assert.ok(!fixture.events.includes('covered'));
+  assert.ok(fixture.events.includes('remove-css'));
+});
+
+test('failed renderer animation releases the hold before covering boot', async () => {
+  let failFade;
+  const fixture = revealFixture({ animation: new Promise((resolve, reject) => { failFade = reject; }) });
+  const outcome = fixture.reveal(fixture.win);
+  await new Promise(setImmediate);
+  failFade(new Error('renderer animation failed'));
+  await outcome;
+  assert.ok(fixture.events.indexOf('clear-hold') < fixture.events.indexOf('covered'));
+  assert.ok(fixture.events.includes('remove-css'));
 });
 
 test('harness view keeps painting while the window is hidden so restore does not flash a blank surface', () => {

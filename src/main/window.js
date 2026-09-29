@@ -176,9 +176,13 @@ function cancelPluginBootWatch() {
 }
 
 function iconImage() {
+  if (process.platform === 'win32') {
+    const ico = nativeImage.createFromPath(assetFile('icon.ico'));
+    if (!ico.isEmpty()) return ico;
+  }
   const png = nativeImage.createFromPath(assetFile('icon.png'));
   if (!png.isEmpty()) {
-    return png;
+    return process.platform === 'win32' ? png.resize({ width: 48, height: 48 }) : png;
   }
   const svg = nativeImage.createFromPath(assetFile('icon.svg'));
   return svg.isEmpty() ? undefined : svg;
@@ -374,37 +378,58 @@ function layoutHarnessView(win) {
   desktopPet()?.layout(win);
 }
 
-// Boot → harness crossfade: the view's transparent background lets the boot
-// scene show through while the harness page is held at opacity 0; the reveal
-// fades harness in as `.scene` fades out, then the covered attribute hides
-// the boot document for real.
-const HARNESS_FADE_MS = 560;
+// Keep boot opaque: fading both source-over surfaces exposes the window
+// underneath. Only the prepared desktop fades; its renderer owns completion.
 const HARNESS_FADE_CSS = [
-  'html[data-dshd-harness-fade] { opacity: 0 !important; transition: opacity 0.42s ease-out !important; }',
-  'html[data-dshd-harness-fade="in"] { opacity: 1 !important; }',
+  'html[data-dshd-harness-fade] { opacity: 0 !important; transition: none !important; }',
+  'html[data-dshd-harness-fade="in"] { opacity: 1 !important; transition: opacity calc(var(--ds-transition-duration, 0.2s) * 2) var(--ds-ease-in-out, ease-out) !important; }',
   '@media (prefers-reduced-motion: reduce) { html[data-dshd-harness-fade] { transition: none !important; } }',
 ].join('\n');
 
-function revealHarnessView(win) {
+const HARNESS_FADE_SCRIPT = `(async function () {
+  const root = document.documentElement;
+  if (!root) throw new Error('Desktop document is unavailable');
+  const painted = () => new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; clearTimeout(timer); resolve(); } };
+    // Hidden/minimized windows may not deliver rAF; do not stall startup.
+    const timer = setTimeout(finish, 250);
+    requestAnimationFrame(() => requestAnimationFrame(finish));
+  });
+  await painted();
+  // Commit the non-animated hold before enabling the enter transition.
+  void getComputedStyle(root).opacity;
+  await new Promise(resolve => {
+    let timer;
+    const finish = () => {
+      clearTimeout(timer);
+      root.removeEventListener('transitionend', ended);
+      resolve();
+    };
+    const ended = event => {
+      if (event.target === root && event.propertyName === 'opacity') finish();
+    };
+    root.addEventListener('transitionend', ended);
+    root.setAttribute('data-dshd-harness-fade', 'in');
+    const value = getComputedStyle(root).transitionDuration;
+    const duration = parseFloat(value) * (value.endsWith('ms') ? 1 : 1000) || 0;
+    // An interrupted/no-op transition need not emit transitionend.
+    if (duration > 0) timer = setTimeout(finish, duration + 150);
+    else finish();
+  });
+  await painted();
+})()`;
+
+async function revealHarnessView(win) {
   if (!harnessView || !win || win.isDestroyed()) {
     return;
   }
-  harnessRevealed = true;
   const view = harnessView;
-  const cover = () => setBootHarnessCovered(win, true);
-  const finish = () => {
-    if (!harnessView || harnessView !== view || win.isDestroyed()) {
-      return;
-    }
-    setBootHarnessCovered(win, true);
-    void view.webContents.executeJavaScript(
-      `document.documentElement && document.documentElement.removeAttribute('data-dshd-harness-fade')`,
-    ).catch(() => {});
-  };
-  const begin = () => {
-    if (!harnessView || harnessView !== view || win.isDestroyed()) {
-      return;
-    }
+  const generation = view._dshRevealGeneration = (view._dshRevealGeneration || 0) + 1;
+  const current = () => harnessView === view && view._dshRevealGeneration === generation
+    && !win.isDestroyed() && !view.webContents.isDestroyed();
+  const mount = () => {
+    harnessRevealed = true;
     if (!win.getBrowserViews().includes(view)) {
       win.addBrowserView(view);
     }
@@ -412,33 +437,50 @@ function revealHarnessView(win) {
     if (typeof win.setTopBrowserView === 'function') {
       win.setTopBrowserView(view);
     }
-    desktopPet()?.show(win);
-    void win.webContents.executeJavaScript(
-      `document.body && document.body.setAttribute('data-harness-fade','')`,
-    ).catch(() => {});
-    // A painted frame between the two attribute writes is required, else the
-    // engine coalesces 0→in and the transition never runs.
-    void view.webContents.executeJavaScript(`(function () {
-      var root = document.documentElement;
-      if (!root) { return; }
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          root.setAttribute('data-dshd-harness-fade', 'in');
-        });
-      });
-    })()`).catch(() => {});
-    setTimeout(finish, HARNESS_FADE_MS);
   };
-  // Hold the page transparent before the first full-size paint; on failure
-  // (mid-navigation, crashed contents) fall back to the instant cover.
-  view.webContents.insertCSS(HARNESS_FADE_CSS)
-    .then(() => view.webContents.executeJavaScript(
+  let cssKey;
+  try {
+    cssKey = await view.webContents.insertCSS(HARNESS_FADE_CSS);
+    if (!current()) return;
+    await view.webContents.executeJavaScript(
       `document.documentElement && document.documentElement.setAttribute('data-dshd-harness-fade','')`,
-    ))
-    .then(begin)
-    .catch(cover);
-  prepareHarnessChrome(win);
-  syncHarnessChrome(win, view.webContents);
+    );
+    if (!current()) return;
+    prepareHarnessChrome(win);
+    await syncHarnessChrome(win, view.webContents);
+    if (!current()) return;
+    mount();
+    await view.webContents.executeJavaScript(HARNESS_FADE_SCRIPT);
+    if (!current()) return;
+    await view.webContents.executeJavaScript(
+      `document.documentElement && document.documentElement.removeAttribute('data-dshd-harness-fade')`,
+    );
+  } catch (error) {
+    if (!current()) return;
+    await syncHarnessChrome(win, view.webContents);
+    if (!current()) return;
+    mount();
+    // Fallback must release the hold and attach the view, not just hide boot.
+    let released = !cssKey;
+    if (cssKey) {
+      try { await view.webContents.removeInsertedCSS(cssKey); released = true; } catch {}
+    }
+    if (!current()) return;
+    try {
+      await view.webContents.executeJavaScript(
+        `document.documentElement && document.documentElement.removeAttribute('data-dshd-harness-fade')`,
+      );
+      released = true;
+    } catch {}
+    if (!released) throw error;
+  } finally {
+    if (cssKey && !view.webContents.isDestroyed()) {
+      await view.webContents.removeInsertedCSS(cssKey).catch(() => {});
+    }
+  }
+  if (!current()) return;
+  setBootHarnessCovered(win, true);
+  desktopPet()?.show(win);
   consumePendingMarketplaceJump(win);
 }
 
@@ -501,7 +543,13 @@ function watchPluginBoot(view, win) {
         return;
       }
       if (settled || Date.now() > deadline) {
-        revealHarnessView(win);
+        try {
+          await revealHarnessView(win);
+        } catch (error) {
+          finish(reject, error);
+          return;
+        }
+        if (!isCurrent()) return;
         finish(resolve, status);
         return;
       }
