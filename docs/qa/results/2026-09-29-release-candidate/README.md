@@ -38,6 +38,16 @@
 - 源提交：`0a828d5dcabcd3ee560e98def49a810d3d57959b`。
 - Windows 构建：[36604075860](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36604075860)，已取消；发现仍缺生成目录后避免继续浪费构建。
 - 同提交 Desktop tests：[36604044587](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36604044587)，同步取消，等待补齐生成产物后的新 SHA。
-- Setup SHA256：待原始 CI artifact 生成后下载校验；安装版验收未执行。
+- 未生成可晋级产物，该轮已取消；安装版验收未执行。
+
+## 当前候选
+
+- 源提交：`47222716ae8e3c826d2a649be09681647314569f`。
+- Windows 构建：[36604949879](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36604949879)，成功；packaged smoke 通过，远程 SQLite ABI、daemon 启停及 Office 文档往返检查通过。
+- 同提交 Desktop tests：[36604948790](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36604948790)，全部成功。Windows：2865 项，2859 通过、6 跳过、0 失败，两个生产窗口工厂的原生窗控契约也通过；macOS job 成功。GUI：745 文件、11058 通过、1 跳过；核心回归：215 文件、5009 通过、5 跳过；定向无密钥工具恢复：1 通过、134 个未选用例跳过；client catalog 与 third-party notices 均为最新。跳过项与本机环境不同，保留 CI 原始计数。
+- 本地源码官方构建完成并重新启动仓库 Electron，未把这一启动当成 CI 安装包验收。
+- Setup SHA256：`e8d5e220be87483d54b8d5d812604d263e9f6cb4db3ddc281ddaa71711b6933a`；文件 `Whale-Isle-Setup-0.3.3.exe`，594868378 字节。原始 artifact ID `11050959373`，归档 SHA256 `baa6acd9b57dc8d943dbf42370c4f271b6c2e64e80e35060d99ee4bcc0246a73` 与 GitHub API digest 一致。身份另存 [candidate-identity.json](candidate-identity.json)。
+- 下载目录：本机 `.tmp/ci-candidate-36604949879/`。`gh run download` 的存储连接停滞后，用 GitHub API 签发的同一资产地址重试成功；未将令牌或签名地址写入报告。发布资产校验器确认 Setup、blockmap 名称与 latest.yml 的版本、大小、SHA512 一致。
+- 结论：**CI 候选已就绪，尚未正式发布**。126 项安装版验收均未执行，尚无生产验收签字或豁免。此前安装记录要求后续安装与交互验证先约定，见 [Local installer repair verification](../2026-09-29-boot-reveal/LOCAL-INSTALL.md#source-follow-up-and-interaction-boundary)。本轮未运行该 Setup、未覆盖用户安装、未执行 `publish.yml`。
 
 新候选必须绑定源提交、成功的 `release.yml` run、同 SHA 成功的 `test.yml` run、原始 Setup SHA256 与资产校验结果。全部生产安装包验收仍须按[验收表](../../production-acceptance-test-cases.md)在同一 CI Setup 上完成；本地测试不能替代该表。未执行 `publish.yml`，公开 latest 仍为 v0.3.2。

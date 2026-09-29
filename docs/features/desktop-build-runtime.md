@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `desktop-build-runtime` |
 | **status** | `proposed` |
+| **last verified (CI candidate)** | 2026-09-29 — `47222716ae8` 的 Desktop tests 与 Windows 构建均成功；CI packaged smoke、原始 artifact 摘要与发布资产校验通过。完整安装版验收未执行，身份见 [候选记录](../qa/results/2026-09-29-release-candidate/README.md)。 |
 | **last verified (release preflight)** | 2026-09-29 — Node 24.21.0 桌面 2863 通过/2 跳过；治理 6/6、文档 7/7；主窗与启动器四角合成检查通过。新候选与正式验收状态见 [发布记录](../qa/results/2026-09-29-release-candidate/README.md)。 |
 | **last verified (async links)** | 2026-09-29 — 启动链接操作改为异步 I/O；慢盘取消、路径边界、最终链接失败回滚与装配定向测试 148/148。数千链接响应性演练及全量结果见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，不代表 WER 根因已确认或新包已发布。 |
 | **last verified (extraction recovery)** | 2026-09-29 — 临时解压、空间预检、最终路径 junction 重建与中断替换恢复回归通过；本地旧归档真实提取/复用成功，未改装配内容或重建发行包，见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)。 |

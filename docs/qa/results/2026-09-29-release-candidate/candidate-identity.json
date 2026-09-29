@@ -1,0 +1,10 @@
+{
+  "candidate_sha": "47222716ae8e3c826d2a649be09681647314569f",
+  "run_id": 36604949879,
+  "test_run_id": 36604948790,
+  "artifact_id": 11050959373,
+  "setup_file": "Whale-Isle-Setup-0.3.3.exe",
+  "setup_size": 594868378,
+  "setup_sha256": "e8d5e220be87483d54b8d5d812604d263e9f6cb4db3ddc281ddaa71711b6933a",
+  "artifact_sha256": "baa6acd9b57dc8d943dbf42370c4f271b6c2e64e80e35060d99ee4bcc0246a73"
+}
