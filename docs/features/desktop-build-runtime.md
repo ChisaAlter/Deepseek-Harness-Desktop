@@ -4,12 +4,13 @@
 | --- | --- |
 | **id** | `desktop-build-runtime` |
 | **status** | `proposed` |
+| **last verified (archive and stage identity)** | 2026-09-30 — 提取/装配/归档摘要定向 73/73、阶段凭据 15/15；同长度 tar 内容变更刷新、旧戳迁移、无变化启动不读大归档、摘要损坏保留旧树、helper/vendor 输入失效与平台 native 产物归属通过。未重建正式发行包。 |
 | **last verified (CI candidate)** | 2026-09-29 — `47222716ae8` 的 Desktop tests 与 Windows 构建均成功；CI packaged smoke、原始 artifact 摘要与发布资产校验通过。完整安装版验收未执行，身份见 [候选记录](../qa/results/2026-09-29-release-candidate/README.md)。 |
 | **last verified (release preflight)** | 2026-09-29 — Node 24.21.0 桌面 2863 通过/2 跳过；治理 6/6、文档 7/7；主窗与启动器四角合成检查通过。新候选与正式验收状态见 [发布记录](../qa/results/2026-09-29-release-candidate/README.md)。 |
 | **last verified (async links)** | 2026-09-29 — 启动链接操作改为异步 I/O；慢盘取消、路径边界、最终链接失败回滚与装配定向测试 148/148。数千链接响应性演练及全量结果见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，不代表 WER 根因已确认或新包已发布。 |
 | **last verified (extraction recovery)** | 2026-09-29 — 临时解压、空间预检、最终路径 junction 重建与中断替换恢复回归通过；本地旧归档真实提取/复用成功，未改装配内容或重建发行包，见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)。 |
 | **last verified (window bridge)** | 2026-09-29 — Koffi 生产闭包/双方解包契约通过全量测试；slim 启动器打包成功，ASAR 内 Koffi + win32 模块解析及真实 HWND 样式桥通过。见 [QA](../qa/results/2026-09-29-corner-motion/README.md)；不代替完整桌面发布验收 |
-| **last verified** | 2026-09-29 — Node 24.21.0 LTS 全量构建和本地 NSIS 成功，包内 Node 版本核实；桌面 2809 通过/2 跳过，打包 P0（界面、Git/PTY、Ghostty、旧运行时替换）通过。CI 同 SHA 正式验收仍未完成。此前 2026-09-28 — 一源一目录装配通过 747 包 / 3602 边验证；tar 搬迁、循环与严格身份回归通过。桌面 2765 通过/2 跳过；源码与安装树冒烟、NSIS 与资产校验通过。ws 与平台会话资源已随包。当前仅本地演练，CI 同 SHA 候选与正式生产验收未完成。 |
+| **last verified** | 2026-09-30 — 归档内容身份及阶段输入/产物归属修复；提取/装配/共享摘要 73/73、阶段凭据 15/15。未重建正式发行包。此前 2026-09-29 — Node 24.21.0 LTS 全量构建和本地 NSIS 成功，包内 Node 版本核实；桌面 2809 通过/2 跳过，打包 P0（界面、Git/PTY、Ghostty、旧运行时替换）通过。CI 同 SHA 正式验收仍未完成。此前 2026-09-28 — 一源一目录装配通过 747 包 / 3602 边验证；tar 搬迁、循环与严格身份回归通过。桌面 2765 通过/2 跳过；源码与安装树冒烟、NSIS 与资产校验通过。ws 与平台会话资源已随包。当前仅本地演练，CI 同 SHA 候选与正式生产验收未完成。 |
 
 ## User paths
 
@@ -19,8 +20,11 @@
 
 ## Invariants
 
+- 阶段输入覆盖根构建清单、`scripts/**` 构建 helper、`vendor/**` 源与 native 声明；`vendor/*/lib/**`、`native/system/packages/*/lib/**` 是 host 产物，native 二进制按当前 `platform-arch/bin` 归属。精确产物根不计为源输入；位于 `src/lib/**` 的真实源码仍须失效。
+
 - 提取运行时使用同卷临时树，验证后替换；Windows junction 不随临时目录原样搬迁，正式路径重新构造成功后才写戳。旧运行时通过 `.previous` 保留至切换完成，启动时先恢复中断替换，再清理遗留临时树；空间不足或归档损坏不提前删除旧树。
 - 启动时批量链接校验/修复/清理使用异步文件 I/O，仍逐次验证路径边界；准备阶段可取消，正式目录切换须完成重建或回滚。构建期同步 API 和链接清单格式不变。
+- `afterPack` 对完成的 tar 异步流式计算 SHA-256，随包写 version 1 `vendor/deepseek-harness-runtime.json`（`archiveBytes` + `archiveSha256`）。复用戳必须匹配内容摘要；缺摘要的旧戳刷新一次。同版本、同 upstream pin、同 tar 长度也不得复用不同内容。现代包稳态仅读小摘要清单，替换前流式核验实际归档；无清单的旧布局通过流式摘要兼容。摘要无效或核验失败不替换旧树。
 
 - 窗口圆角/动画桥 `koffi@3.3.2` 是生产依赖，锁文件保留平台闭包；桌面包与 slim 启动器解包 Koffi 及其 `@koromix` 原生模块，Windows 不得缺桥静默改为不透明窗口。见 [window-motion](window-motion.md)。
 
@@ -33,11 +37,14 @@
 - NSIS 品牌契约（artifact 名、installerLanguages、`build/installer.nsh`）由 `windows-installer` 卡定义，本卡只保证字段存活，不重复定义取值。
 - 结构约束由 `src/main/package-contract.test.js` 机检；清单残缺时该测试本身必须失败，而不是让测试在模块加载期崩溃。`npm test` 目前是单一 glob，不额外前置 manifest preflight；维护者排查时应先直接运行该契约测试。
 - **prestart 的 client 失效判定只看真实输入（2026-09-22）**：`scripts/source-scan.mjs` 是唯一谓词来源——`isClientSourceFile()` 决定文件、`createClientSourcePruner()` 决定进入哪些目录。`packages/client/**/{tests,__tests__}`、`*.spec.*`、`*.test.*`、`README*` 不算 client 输入；`docs`/`website`/`mobile`/`benchmarks` 不再被遍历。
-- **官方构建按阶段凭据复用（2026-09-22）**：`vendor/deepseek-harness/scripts/build-stage-credentials.mjs` 是唯一判定实现（`scripts/build.ts` 经 `.d.mts` 导入同一份代码，`scripts/prestart-ensure.mjs` 直接消费 `.mjs`）。阶段顺序固定 `native-system → host → client → web`，`build.ts` 调用 `build:lib:host` / `build:lib:client` 子脚本而不再调用 `build:lib`。每个阶段记录 inputs / outputs 的 `size:mtime:ctime` manifest 摘要与路径绑定内容摘要，外加 `environment` 摘要与 `formatVersion`；manifest 命中即复用，manifest 变动时用内容摘要兜底（字节相同的重建仍复用）。`DSH_CLIENT_*` 只绑定在 client 与 web 上，因此 commit/version 变化只重建这两个阶段。`native-system` 在 Windows 上零产物是合法凭据，其它平台为零即 stale。产物归属由 `isGeneratedArtifact()` 按精确产物根判定（`packages/*/*/lib/**`、`apps/*/lib/**`、`apps/*/dist/**`、`native/system/packages/*/bin/**`），不得按目录名 `lib` 通配；host / client 靠 `ownsOutput` 把共用的 `lib/**` 分成两半。判定 fail-closed：凭据缺失、无法解析、schema 不符、缺 stage 条目、计数不符、环境不符、所需产物为零一律重建；`stagesToRun()` 保证前序阶段 stale 时后续全跑。`.dsh-build/client-build-environment.json` 仍是产物凭据，仍需与产物一致才可消费。
+- **官方构建按阶段凭据复用（2026-09-22）**：`vendor/deepseek-harness/scripts/build-stage-credentials.mjs` 是唯一判定实现（`scripts/build.ts` 经 `.d.mts` 导入同一份代码，`scripts/prestart-ensure.mjs` 直接消费 `.mjs`）。阶段顺序固定 `native-system → host → client → web`，`build.ts` 调用 `build:lib:host` / `build:lib:client` 子脚本而不再调用 `build:lib`。每个阶段记录 inputs / outputs 的 `size:mtime:ctime` manifest 摘要与路径绑定内容摘要，外加 `environment` 摘要与 `formatVersion`；manifest 命中即复用，manifest 变动时用内容摘要兜底（字节相同的重建仍复用）。`DSH_CLIENT_*` 只绑定在 client 与 web 上，因此 commit/version 变化只重建这两个阶段。`native-system` 在 Windows 上零产物是合法凭据，其它平台为零即 stale。产物归属由 `isGeneratedArtifact()` 按精确产物根判定（`packages/*/*/lib/**`、`vendor/*/lib/**`、`apps/*/lib/**`、`apps/*/dist/**`、`native/system/packages/*/{bin,lib}/**`），不得按目录名 `lib` 通配；host / client 靠 `ownsOutput` 把共用的 `lib/**` 分成两半。判定 fail-closed：凭据缺失、无法解析、schema 不符、缺 stage 条目、计数不符、环境不符、所需产物为零一律重建；`stagesToRun()` 保证前序阶段 stale 时后续全跑。`.dsh-build/client-build-environment.json` 仍是产物凭据，仍需与产物一致才可消费。
 - `scripts/prepare-dshd-remote.mjs` 每次运行对同一个源目录只枚举一次（`createScanMemo()`）；server stack 与 mobile bundle 共用 protocol/client 的扫描结果。memo 只在进程内，不得落盘——跨运行的持久 mtime 记录无法区分「文件未变」与「扫描未运行」，会静默留下陈旧产物。
 - **装配期复用已验证的插件依赖树（2026-09-22）**：`dsh-im` 的依赖是否重装由 `missingPluginRuntimeClosure()`（自身入口 + 深度 3 的依赖闭包）决定，不再由 `skipIfComplete: false` 无条件删除重装。检查不通过时仍走 `defaultNpmInstall()`；`skipIfComplete` 的浅语义对其余插件不变。复用前提是这些依赖为纯 JS；引入原生依赖前必须把平台与 ABI 纳入判定。
 
 ## Allowed touch
+
+- `src/shared/harness-runtime-identity.js`、`.test.js`、`src/main/harness-extract.js`、`.test.js`、`scripts/after-pack.js`、`src/main/after-pack.test.js` — 2026-09-30 用户全面修复授权下的归档内容身份、旧戳迁移与提取前校验。
+- `vendor/deepseek-harness/.agents/notes/implemented/process/2026-09-30-stage-build-input-ownership.md` 与中文配对/sidecar — 阶段凭据输入和产物归属的长期边界。
 
 - `package.json`、`package-lock.json`、`electron-builder.launcher.yml`、`src/main/package-contract.test.js` — 2026-09-29 圆角与动画修复所需 Koffi 生产闭包/原生模块解包。
 
@@ -74,6 +81,8 @@
 | Manual / QA | 打包冒烟 `npm run smoke:packaged`（真实产物）；安装器实机项见 `windows-installer` 卡的 `TC-INST-*` |
 
 ## Sources
+
+- Decision: [项目审查修复](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)
 
 - Decision: [安装恢复边界](../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)
 

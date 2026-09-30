@@ -539,7 +539,7 @@ for (const mode of ['failure', 'throw', 'success']) {
   });
 }
 
-test('A6: pnpm virtual store and package junctions survive a failed overwrite', async () => {
+test('A6: pnpm virtual store and package junctions survive a failed overwrite', async t => {
   const name = '@scope/good-plugin';
   writeProfileDep(name, '^1.0.0');
   const modules = path.join(profileDir(), 'node_modules');
@@ -554,8 +554,20 @@ test('A6: pnpm virtual store and package junctions survive a failed overwrite', 
   fs.mkdirSync(overlay);
   fs.writeFileSync(path.join(overlay, 'keep.txt'), 'external overlay');
   fs.symlinkSync(overlay, path.join(modules, 'overlay'), 'junction');
+  const { symlinkSync } = fs;
+  const copiedLinkTypes = [];
+  t.mock.method(fs, 'symlinkSync', function (source, target, type) {
+    copiedLinkTypes.push(type);
+    return symlinkSync.call(this, source, target, type);
+  });
   const result = await installImportPlugin(`${name}@2.0.0`, { runPlugin: async args => {
     assert.equal(args[0], 'add');
+    const snapshot = path.join(profileDir(), fs.readdirSync(profileDir()).find(entry => entry.startsWith('.install-rollback-')));
+    const savedModules = path.join(snapshot, 'node_modules');
+    assert.equal(fs.lstatSync(path.join(savedModules, name)).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(path.join(savedModules, name)), originalLink);
+    assert.equal(fs.readFileSync(path.join(savedModules, '.pnpm/good-plugin@1.0.0/node_modules/@scope/good-plugin/index.js'), 'utf8'), 'old virtual store bytes');
+    assert.equal(fs.readlinkSync(path.join(savedModules, 'overlay')), overlay);
     writeProfileDep(name, '2.0.0');
     // Simulate an in-place mutation through the link and removal of old bytes.
     fs.writeFileSync(path.join(store, 'package.json'), JSON.stringify({ name, main: 'index.js' }));
@@ -567,6 +579,61 @@ test('A6: pnpm virtual store and package junctions survive a failed overwrite', 
   assert.equal(fs.lstatSync(path.join(modules, name)).isSymbolicLink(), true);
   assert.equal(fs.readlinkSync(path.join(modules, name)), originalLink);
   assert.equal(fs.readFileSync(path.join(modules, name, 'index.js'), 'utf8'), 'old virtual store bytes');
+  assert.equal(fs.readFileSync(path.join(overlay, 'keep.txt'), 'utf8'), 'external overlay');
+  assert.equal(fs.readlinkSync(path.join(modules, 'overlay')), overlay);
+  if (process.platform === 'win32') assert.deepEqual(copiedLinkTypes, ['junction', 'junction']);
+});
+
+test('A6: a committed install cleans the snapshot without deleting a linked external directory', async () => {
+  writeProfileDep('good-plugin', '1.0.0');
+  writePlugin('good-plugin', { version: '1.0.0', main: 'index.js' }, { 'index.js': 'old' });
+  const modules = path.join(profileDir(), 'node_modules');
+  const overlay = path.join(dshHomeDir, 'external-overlay');
+  fs.mkdirSync(overlay);
+  fs.writeFileSync(path.join(overlay, 'keep.txt'), 'external overlay');
+  fs.symlinkSync(overlay, path.join(modules, 'overlay'), 'junction');
+  const result = await installImportPlugin('good-plugin@2.0.0', { runPlugin: async () => {
+    writeProfileDep('good-plugin', '2.0.0');
+    writePlugin('good-plugin', { version: '2.0.0', main: 'index.js' }, { 'index.js': 'new' });
+    return { ok: true };
+  } });
+  assert.equal(result.ok, true, result.error);
+  assert.equal(fs.readdirSync(profileDir()).some(name => name.startsWith('.install-rollback-')), false);
+  assert.equal(fs.readFileSync(path.join(overlay, 'keep.txt'), 'utf8'), 'external overlay');
+  assert.equal(fs.readlinkSync(path.join(modules, 'overlay')), overlay);
+  assert.equal(fs.readFileSync(path.join(modules, 'good-plugin/index.js'), 'utf8'), 'new');
+});
+
+test('A6: a snapshot directory link refuses an occupied ordinary directory before add', { skip: process.platform !== 'win32' }, async t => {
+  writeProfileDep('good-plugin', '1.0.0');
+  writePlugin('good-plugin', { version: '1.0.0', main: 'index.js' }, { 'index.js': 'old' });
+  const modules = path.join(profileDir(), 'node_modules');
+  const overlay = path.join(dshHomeDir, 'external-overlay');
+  fs.mkdirSync(overlay);
+  fs.writeFileSync(path.join(overlay, 'keep.txt'), 'external overlay');
+  fs.symlinkSync(overlay, path.join(modules, 'overlay'), 'junction');
+  const { cp } = fs.promises;
+  let inspected = false;
+  t.mock.method(fs.promises, 'cp', async (source, target, options) => {
+    if (source === modules) {
+      const occupied = path.join(target, 'overlay');
+      fs.mkdirSync(occupied, { recursive: true });
+      fs.writeFileSync(path.join(occupied, 'unknown.txt'), 'unknown directory');
+      await assert.rejects(cp(source, target, options), /refusing to replace unknown content/);
+      assert.equal(fs.lstatSync(occupied).isDirectory(), true);
+      assert.equal(fs.readFileSync(path.join(occupied, 'unknown.txt'), 'utf8'), 'unknown directory');
+      inspected = true;
+      throw new Error('refusing to replace unknown content');
+    }
+    return cp(source, target, options);
+  });
+  let called = false;
+  const result = await installImportPlugin('good-plugin@2.0.0', { runPlugin: async () => { called = true; } });
+  assert.equal(inspected, true);
+  assert.equal(called, false);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /未执行安装.*refusing to replace unknown content/);
+  assert.equal(fs.readFileSync(path.join(modules, 'good-plugin/index.js'), 'utf8'), 'old');
   assert.equal(fs.readFileSync(path.join(overlay, 'keep.txt'), 'utf8'), 'external overlay');
   assert.equal(fs.readlinkSync(path.join(modules, 'overlay')), overlay);
 });

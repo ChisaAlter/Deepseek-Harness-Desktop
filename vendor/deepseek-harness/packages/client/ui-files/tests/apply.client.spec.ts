@@ -8,6 +8,7 @@ import { SidebarRightTabRegistry } from '../../ui-sidebar-right/src/client/tab-r
 import { apply, inject } from '../src/client/index.ts'
 import { SidebarFilePreview } from '../src/client/FilePreview.tsx'
 import { SidebarFilesPanel } from '../src/client/FilesPanel.tsx'
+import type { SidebarFilesPanelProps } from '../src/client/FilesPanel.tsx'
 import {
   DESKTOP_FILE_ID,
   DESKTOP_FILES_ID,
@@ -19,6 +20,7 @@ function declare(slots: SlotRegistry): () => void {
   return slots.register({
     name: 'root',
     children: {
+      'shell.overlay': { kind: 'list', scope: 'global' },
       'sidebar.right.pane.tab': {
         kind: 'keyed',
         scope: 'session',
@@ -44,6 +46,9 @@ async function bench(options: {
   const tabs = new SidebarRightTabRegistry(ctx)
   ctx.provide('locale', new LocaleRuntime(ctx))
   ctx.provide('sidebarRightTabs', tabs)
+  ctx.provide('sidebarRight', { registerCloseHandler: vi.fn(() => () => {}) })
+  const openPath = vi.fn(async () => {})
+  ctx.provide('workspaces', { openPath })
   ctx.provide('sessions', {
     scope: () => ({}),
     list: {
@@ -63,7 +68,7 @@ async function bench(options: {
   }
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, tabs, fiber }
+  return { ctx, slots, declaration, tabs, fiber, openPath }
 }
 
 afterEach(() => {
@@ -72,7 +77,7 @@ afterEach(() => {
 
 describe('ui-files apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale', 'sidebarRightTabs', 'sessions'])
+    expect(inject).toEqual(['slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'sessions', 'workspaces'])
   })
 
   it('registers the Desktop Files page and file viewer in the native Sidebar', async () => {
@@ -80,7 +85,7 @@ describe('ui-files apply', () => {
     const files = b.tabs.entries().find(entry => entry.id === DESKTOP_FILES_ID)
     const file = b.tabs.entries().find(entry => entry.id === DESKTOP_FILE_ID)
     expect(files).toMatchObject({ kind: 'files', priority: 'extension' })
-    expect(file).toMatchObject({ kind: 'desktop-file', priority: 'extension' })
+    expect(file).toMatchObject({ kind: 'desktop-file', priority: 'extension', keepMounted: true })
     expect(file?.guide?.[0]).toMatchObject({ id: 'desktop-file' })
     expect(b.slots.entries('sidebar.right.pane.tab').map(entry => entry.options.key)).toEqual([
       DESKTOP_FILES_ID, DESKTOP_FILE_ID,
@@ -131,6 +136,17 @@ describe('ui-files apply', () => {
     const injected = (b.slots.entries('sidebar.right.pane.tab')[0]?.inject as unknown as () => FilesShellInjected)()
     injected.mentionFile('sess', 'docs/My File.md')
     expect(setDraft).toHaveBeenCalledWith('[My File.md](docs/My%20File.md)')
+    await b.fiber.dispose()
+  })
+
+  it('uses the unified path opener with the originating Session and workspace root', async () => {
+    const b = await bench()
+    const injected = b.slots.entries('sidebar.right.pane.tab')[0]?.inject?.()
+    const openWorkspaceFile = injected?.openWorkspaceFile
+    if (typeof openWorkspaceFile !== 'function') throw new Error('Files opener was not injected')
+    const open = openWorkspaceFile as SidebarFilesPanelProps['openWorkspaceFile']
+    await open('owning-session', 'C:\\work\\proj\\', 'docs/page.html')
+    expect(b.openPath).toHaveBeenCalledExactlyOnceWith('C:\\work\\proj\\docs/page.html', { sessionId: 'owning-session' })
     await b.fiber.dispose()
   })
 

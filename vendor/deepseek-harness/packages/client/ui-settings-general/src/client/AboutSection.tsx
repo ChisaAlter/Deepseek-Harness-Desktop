@@ -11,7 +11,7 @@ const HARNESS_URL = 'https://github.com/deepseek-ai/deepseek-harness'
 const REPO_URL = 'https://github.com/ChisaAlter/Deepseek-Harness-Desktop'
 const RELEASES_URL = `${REPO_URL}/releases`
 
-type UpdateStatus = 'idle' | 'checking' | 'none' | 'current' | 'available' | 'error' | 'download' | 'install'
+type UpdateStatus = 'idle' | 'checking' | 'none' | 'current' | 'available' | 'error' | 'download' | 'install' | 'manual'
 
 /** Props the Settings renderer binds for this section. */
 export type AboutSectionProps = PropsRuntime<'settings.section'> & PropsLocale<'settings'>
@@ -25,6 +25,7 @@ function statusCopy(
   if (status === 'checking') return t('about.updateChecking')
   if (status === 'download') return t('about.updateDownloading', { percent: String(percent) })
   if (status === 'install') return t('about.updateInstalling')
+  if (status === 'manual') return t('about.updateManualInstall')
   if (info?.openedPage) return t('about.updateOpenedPage')
   if (status === 'none') return t('about.updateNone')
   if (status === 'current') return t('about.updateCurrent', { latest: info?.latest || info?.current || '' })
@@ -75,7 +76,8 @@ export function AboutSection({ t }: AboutSectionProps): ReactNode {
     try {
       const next = await shell.installUpdate()
       applyInfo(next)
-      if (next.launched) setStatus('install')
+      if (next.manualInstall) setStatus('manual')
+      else if (next.launched) setStatus('install')
     } catch (error) {
       applyInfo({ status: 'error', message: error instanceof Error ? error.message : String(error) })
     } finally {
@@ -88,7 +90,7 @@ export function AboutSection({ t }: AboutSectionProps): ReactNode {
     setHomeError('')
     try {
       const result = await shell.openDshHome()
-      if (result && result.ok === false) setHomeError(result.error || 'failed')
+      if (!result.ok) setHomeError(result.error || 'failed')
     } catch (error) {
       setHomeError(error instanceof Error ? error.message : String(error))
     }
@@ -98,9 +100,9 @@ export function AboutSection({ t }: AboutSectionProps): ReactNode {
     if (!shell) return undefined
     let cancelled = false
     void shell.getConfig?.().then((config) => {
-      if (!cancelled && config?.appVersion) setVersion(config.appVersion)
-      if (!cancelled && typeof config?.dshHome === 'string') setHomePath(config.dshHome)
-      if (!cancelled && (config?.credentialStorage === 'encrypted' || config?.credentialStorage === 'plaintext')) {
+      if (!cancelled && config.appVersion) setVersion(config.appVersion)
+      if (!cancelled && typeof config.dshHome === 'string') setHomePath(config.dshHome)
+      if (!cancelled && (config.credentialStorage === 'encrypted' || config.credentialStorage === 'plaintext')) {
         setCredentialStorage(config.credentialStorage)
       }
     }).catch(() => {})

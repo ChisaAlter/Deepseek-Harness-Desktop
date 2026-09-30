@@ -36,7 +36,9 @@ Release remediation follows the [regression contract](decisions/implemented/bug-
 
 New Session keeps the existing entry points, draft canvas, and composer, and reuses only ordinary blank drafts without a prior identity. Titled sessions, sessions previously managed by a plugin, and forks retain their identity and are not opened as new drafts. No controls or visual styling are added.
 
-Harness updates retain the visual contract and reuse existing tokens/primitives. Layout, slot or prop migrations preserve the title bar, work surfaces, transparent wallpaper, linked composer width and typing effects. Surface close controls stay right of the title; the boot exception does not expand.
+macOS updates select the DMG for the current architecture, verify its SHA, then open the image through the system. The existing update feedback tells the user to drag the app into Applications manually; it does not claim installation succeeded or quit the app automatically.
+
+Harness updates retain the visual contract and reuse existing tokens/primitives. Layout, slot or prop migrations preserve the title bar, work surfaces, transparent wallpaper, linked composer width and typing effects. Surface close controls stay right of the title; the boot exception does not expand. Unsaved Files drafts survive reload and quit. Closing a dirty file uses the existing Modal with Keep editing / Discard / Save and close; a failed save retains the tab and draft. Switching tabs keeps debounced saving alive, Add to chat preserves line numbers and code fences, and primary file opens use the originating session's application preview.
 
 Window controls (`window-controls.css`) carry one deliberate system-color exception: minimize/maximize hover uses the `--dsw-alias-interactive-bg-hover` token, but the close button hover uses the Windows system semantic color `#e81123` (red) with a `#fff` foreground — a platform-level "danger/close" convention, not a theme color. This is intentional; do not convert it to a token.
 
@@ -60,7 +62,7 @@ Pairing and saved-device reconnect show a connecting state; failure is one short
 
 Web and Android share recovery states: indicate catalog synchronization after authentication and offer Retry beneath the existing drawer error, never a false empty catalog. A new offer supersedes an older attempt; successful pairing removes the one-time fragment. Foreground recovery retains drafts and checks the connection before resynchronizing the catalog and open conversation. Reuse existing controls and status bars.
 
-Remote connection mode uses the existing segmented control with LAN / Server labels. Server is the default; LAN remains an explicit manual choice. Layout, colors, and the pairing protocol stay unchanged.
+Remote connection mode uses the existing segmented control with LAN / Server labels. Server is the default; LAN remains an explicit manual choice. Gateway security is read-only copy: mobile sessions use relay end-to-end encryption and relay TLS, while the LAN HTTP pairing page only serves application files. Remove the ineffective TLS selector and show the daemon's actual pairing port. Layout, colors, and the pairing protocol stay unchanged.
 
 The plugin marketplace does not inject a first-party dshbot recommendation card. Registry sources, card primitives, and generic plugin management stay unchanged.
 

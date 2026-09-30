@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { EventEmitter } = require('node:events');
-const { installLatestViaUpdater, makeDifferentialTracker, cachedInstallerPath } = require('./update-updater');
+const { downloadLatestViaUpdater: installLatestViaUpdater, makeDifferentialTracker, cachedInstallerPath } = require('./update-updater');
 
 class FakeCancellationToken {
   constructor() {
@@ -28,7 +28,6 @@ function fakeAutoUpdater(overrides = {}) {
   updater.autoDownload = true;
   updater.autoInstallOnAppQuit = true;
   updater.logger = null;
-  updater.cancellationToken = null;
   updater.checkForUpdates = async () => {
     updater.calls.checkForUpdates += 1;
     if (overrides.failCheck) {
@@ -39,9 +38,9 @@ function fakeAutoUpdater(overrides = {}) {
     }
     return { updateInfo: { version: overrides.version || '9.9.9' } };
   };
-  updater.downloadUpdate = async () => {
+  updater.downloadUpdate = async (token = new FakeCancellationToken()) => {
     updater.calls.downloadUpdate += 1;
-    updater.calls.token = updater.cancellationToken;
+    updater.calls.token = token;
     if (overrides.logLine && updater.logger) {
       updater.logger.info(overrides.logLine);
     }
@@ -49,15 +48,16 @@ function fakeAutoUpdater(overrides = {}) {
       throw new Error('download failed');
     }
     if (overrides.hang) {
-      await Promise.race([
-        new Promise(() => {}),
-        updater.cancellationToken ? updater.cancellationToken.whenCancelled() : new Promise(() => {}),
-      ]);
+      await token.whenCancelled().catch((error) => {
+        updater.calls.downloadCancelled = true;
+        throw error;
+      });
       return;
     }
     for (const percent of overrides.progress || [42]) {
       updater.emit('download-progress', { percent, transferred: percent, total: 100 });
     }
+    return overrides.downloaded || ['C:/updates/installer.exe'];
   };
   updater.quitAndInstall = (...args) => {
     updater.calls.quitAndInstall.push(args);
@@ -96,7 +96,7 @@ test('updater path reports no-update when latest.yml resolves nothing', async ()
   assert.equal(fake.listenerCount('download-progress'), 0, 'listeners must be cleaned up');
 });
 
-test('updater path installs silently and reports the real differential share', async () => {
+test('updater path returns a downloaded installer and reports the real differential share without installing', async () => {
   const fake = fakeAutoUpdater({
     version: '0.3.3',
     logLine: 'Full: 636.65 MB, To download: 44.59 MB (7%)',
@@ -109,13 +109,14 @@ test('updater path installs silently and reports the real differential share', a
     existsSync: () => true,
   });
   assert.equal(result.ok, true);
-  assert.equal(result.launched, true);
+  assert.equal(result.installer, 'C:/updates/installer.exe');
+  assert.equal(result.launched, undefined);
   assert.equal(result.version, '0.3.3');
   assert.equal(result.differential, true);
   assert.equal(result.downloadPercent, 7);
-  assert.deepEqual(fake.calls.quitAndInstall, [[true, true]], 'silent install + force-run');
+  assert.deepEqual(fake.calls.quitAndInstall, [], 'installation is owned by the observed spawn commit');
   assert.equal(fake.autoDownload, false, 'manual download only');
-  assert.deepEqual(events.map((e) => [e.phase, e.percent]), [['download', 12], ['download', 48], ['install', 100]]);
+  assert.deepEqual(events.map((e) => [e.phase, e.percent]), [['download', 12], ['download', 48]]);
   assert.equal(events[0].differential, true, 'downloader report marks differential before first tick');
   assert.equal(fake.listenerCount('download-progress'), 0);
   assert.equal(fake.listenerCount('error'), 0);
@@ -165,7 +166,8 @@ test('updater path check failure is updater-error and never reaches download', a
 });
 
 test('updater path enforces the wall-clock timeout via cancellation token', async () => {
-  const fake = fakeAutoUpdater({ hang: true });
+  const overrides = { hang: true };
+  const fake = fakeAutoUpdater(overrides);
   const timer = { fn: null };
   const result = await installLatestViaUpdater({ timeoutMs: 1234 }, null, {
     isPackaged: true, platform: 'win32',
@@ -178,7 +180,17 @@ test('updater path enforces the wall-clock timeout via cancellation token', asyn
   assert.equal(result.reason, 'timeout');
   assert.match(result.message, /下载超时/);
   assert.equal(fake.calls.token.cancelled, true, 'timeout must cancel the download token');
-  assert.equal(fake.cancellationToken, null, 'the spent token must be cleared so a later update is not poisoned');
+  assert.equal(fake.calls.downloadCancelled, true, 'the explicit download token must stop the pending download');
+  assert.equal(fake.listenerCount('download-progress'), 0);
+  assert.equal(fake.listenerCount('error'), 0);
+  const spentToken = fake.calls.token;
+  overrides.hang = false;
+  const retry = await installLatestViaUpdater({}, null, {
+    isPackaged: true, platform: 'win32', autoUpdater: fake, CancellationToken: FakeCancellationToken,
+  });
+  assert.equal(retry.ok, true);
+  assert.notEqual(fake.calls.token, spentToken, 'a retry must have its own cancellation token');
+  assert.equal(fake.calls.token.cancelled, false);
 });
 
 test('differential tracker only trusts the downloader report line', () => {

@@ -19,6 +19,7 @@
 - DSHD 只有一个全高右栏，guide 与内容由 `ui-sidebar-right` 的同一份页签状态承载；`ui-surfaces` 仅适配文件/预览打开请求，不再挂载独立栏体。点卡原位开页、末页关闭原位回到 guide，栏宽和聊天区保持连续。
 - 右栏展开会减少会话标题行的实际内容宽度；`ConversationRoot.module.css` 在扣除 AppFrame 尾簇预留后的标题行上做局部容器查询，窄到 520px 时收起次级 Agent 操作。AppFrame 对尾簇的实测小数宽度向上取整，保留打开方式与尾簇至少 8px 间距。整列宽度决定的尾簇密度不改，以免测量宽度反馈振荡。几何验收用 `node scripts/verify-titlebar-fit.mjs` 连到带 CDP 端口的源码 Electron 普通工作区会话。
 - 无页签时使用 DSHD 原有的居中两列方形入口；终端入口选择 shell。
+- Files 由原生 Sidebar 的 `files` / `desktop-file` 类型承载。文件主体 `keepMounted`，树与搜索携带所属 Session 经 `workspaces.openPath`，HTML/PDF 保持 Files 与 Browser 打开链。插件内 `DesktopFileState` 按 Session 资源地址逐次持久化脏草稿，接管关闭/替换确认；`FileSaveCoordinator` 保留串行保存，确认中的保存失败或新增输入不会关闭页签。Sidebar 的一次性 `proceed()` 回调只提交原 occurrence 的移除，过期确认保留恢复页签的草稿。
 - Browser 悬浮预览复用同一原生 guest。顶部 28px 窄条展示文件名与右栏、关闭按钮；网页视口从其下方铺满。由于 BrowserView 会盖住网页矩形内的 renderer 事件，四边与四角缩放命中区放在该矩形外侧，使用 pointer capture 并由几何函数限制在聊天可视区。
 - Feature card：[../../features/surfaces-work-loops.md](../../features/surfaces-work-loops.md)
 
@@ -35,6 +36,7 @@
 - 关闭控件在标题右侧。  
 - 工作区文件的主点击统一经过 `workspaces.openPath`；Chat 显式携带发起 Session，桌面接管层使用该 Session 的真实 cwd，在 DSHD 页签内打开文件与 Browser。缺 cwd 或无法接管的路径交给 Host。
 - Files 根目录 `listDir` 未完成时显示列出中，不把空 `root` 画成「此目录为空。」
+- 文件草稿在刷新或退出后仍可恢复；切页保留防抖保存。添加到对话追加路径、行范围和围栏原文；文件提及的链接序列化只用于 Mention。工作区预览 URL 按路径段编码，文件名里的 `#`、`?`、`%` 等字符不改变 URL 结构。
 - 独立文件窗单实例、只读、置顶；文件预览头部的 Desktop 动作使用 `{cwd, relativePath}` 或 `{absolutePath}`。成功要求 `ok === true`，失败必须可见，绝不回落到系统打开器 / `workspaces.openPath` / Browser tab。HTML sandbox，文件 URL 仍受 workspace authority 与大小上限约束。
 
 ## 门槛

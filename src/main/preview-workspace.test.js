@@ -74,6 +74,25 @@ test('fileUrl serves an authorized pdf as application/pdf', async () => {
   }
 });
 
+test('token URLs round-trip Unicode, spaces, percent signs, and nested resource names', async () => {
+  const cwd = makeTempDir();
+  const preview = controllerFor(cwd);
+  try {
+    fs.mkdirSync(path.join(cwd, '中文 目录'));
+    for (const name of ['报告.html', 'my report.html', 'my%20report.html', '中文 目录/资源%.css']) {
+      fs.writeFileSync(path.join(cwd, name), `contents:${name}`);
+      const opened = await preview.fileUrl({ cwd, relativePath: name });
+      assert.equal(opened.ok, true);
+      const page = await request(opened.url);
+      assert.equal(page.status, 200, name);
+      assert.equal(page.body, `contents:${name}`);
+    }
+  } finally {
+    await preview.close();
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test('media responses support one byte range for Chromium playback', async () => {
   const cwd = makeTempDir();
   const preview = controllerFor(cwd);
@@ -160,6 +179,10 @@ test('parent-directory and encoded traversal GETs are 404', async () => {
     assert.equal(parent.status, 404);
     const encoded = await request(`http://127.0.0.1:${parsed.port}/${token}/%2e%2e%2findex.html`);
     assert.equal(encoded.status, 404);
+    for (const unsafe of ['%2e%2e%5cindex.html', '%2egit/config', '%00index.html']) {
+      assert.equal((await request(`http://127.0.0.1:${parsed.port}/${token}/${unsafe}`)).status, 404);
+    }
+    assert.equal((await request(`http://127.0.0.1:${parsed.port}/${token}/%`)).status, 400);
   } finally {
     await preview.close();
     fs.rmSync(cwd, { recursive: true, force: true });

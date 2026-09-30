@@ -2021,6 +2021,11 @@ async function installTag(tag, kind) {
   $('update-progress').textContent = '正在下载安装包…';
   try {
     const result = await api.installRelease(tag);
+    if (result?.manualInstall) {
+      paintProgress('update-progress', { phase: 'waiting' });
+      $('update-progress').textContent = result.message || '已打开安装映像，请将 Whale Isle 拖入 Applications 完成更新，完成后重新打开应用。';
+      return;
+    }
     if (result?.status === 'installed' || (launcherPackage && result?.ok === true)) {
       paintProgress('update-progress', { phase: 'done' });
       $('update-progress').textContent = `安装完成${result?.installed?.version ? `：v${result.installed.version}` : ''}`;

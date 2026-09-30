@@ -917,7 +917,7 @@ function fakeUpdaterChannel(overrides = {}) {
     if (overrides.failCheck) {
       throw new Error('manifest unreachable');
     }
-    return { updateInfo: { version: '9.9.9' } };
+    return { updateInfo: { version: overrides.version || '0.2.6' } };
   };
   updater.downloadUpdate = async () => {
     updater.calls.downloadUpdate += 1;
@@ -925,6 +925,7 @@ function fakeUpdaterChannel(overrides = {}) {
       updater.logger.info(overrides.logLine);
     }
     updater.emit('download-progress', { percent: 42 });
+    return [overrides.installer];
   };
   updater.quitAndInstall = (...args) => {
     updater.calls.quitAndInstall.push(args);
@@ -937,9 +938,14 @@ test('installUpdate uses the updater channel for the latest release and skips th
   const previousGet = https.get;
   const fetched = [];
   const seenGet = [];
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'updater-spawn-'));
+  const installer = path.join(dir, 'installer.exe');
+  fs.writeFileSync(installer, 'verified installer');
+  const digest = crypto.createHash('sha512').update('verified installer').digest('hex');
   global.fetch = async (url) => {
     fetched.push(String(url));
-    return { ok: true, status: 200, json: async () => releaseWithChecksum() };
+    return { ok: true, status: 200, json: async () => releaseWithChecksum(),
+      text: async () => `${digest}  Deepseek-Harness-Desktop-Setup-0.2.6.exe` };
   };
   https.get = (target) => {
     seenGet.push(String(target));
@@ -947,22 +953,32 @@ test('installUpdate uses the updater channel for the latest release and skips th
     request.destroy = () => {};
     return request;
   };
-  const fake = fakeUpdaterChannel({ logLine: 'Full: 636.65 MB, To download: 44.59 MB (7%)' });
+  const fake = fakeUpdaterChannel({ installer, logLine: 'Full: 636.65 MB, To download: 44.59 MB (7%)' });
   try {
     const result = await installUpdate(null, {
       updaterDeps: { isPackaged: true, platform: 'win32', autoUpdater: fake, existsSync: () => true },
+      quitAfterInstall: false,
+      spawn: (file, args) => {
+        assert.equal(file, installer);
+        assert.deepEqual(args, ['--updated', '/S', '--force-run']);
+        const child = new EventEmitter();
+        child.unref = () => {};
+        setImmediate(() => child.emit('spawn'));
+        return child;
+      },
     });
     assert.equal(result.updater, true);
     assert.equal(result.launched, true);
     assert.equal(result.differential, true);
     assert.equal(result.downloadPercent, 7);
     assert.equal(fake.calls.downloadUpdate, 1);
-    assert.deepEqual(fake.calls.quitAndInstall, [[true, true]]);
+    assert.deepEqual(fake.calls.quitAndInstall, []);
     assert.equal(seenGet.length, 0, 'legacy downloadFile must not run when the updater channel succeeds');
     assert.equal(fetched.some((url) => url.includes('setup.exe')), false);
   } finally {
     global.fetch = previousFetch;
     https.get = previousGet;
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

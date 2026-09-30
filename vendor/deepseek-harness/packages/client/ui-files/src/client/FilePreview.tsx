@@ -26,11 +26,8 @@ import { FileSaveCoordinator, type FileSaveResult } from './fileSaveCoordinator.
 import { NS } from './locales.ts'
 import type { FilesShellInjected } from './shell.ts'
 import { isWorkspaceImagePreviewPath } from './workspacePreview.ts'
-import {
-  type DesktopFileBuffer,
-  readDesktopFileBuffer,
-  writeDesktopFileBuffer,
-} from './desktop-files.ts'
+import type { DesktopFileBuffer } from './desktop-files.ts'
+import type { DesktopFileStateInjected } from './desktop-file-state.ts'
 import css from './FilePreview.module.css'
 
 /** Everything the editor reads: its file identity, buffer, IPC, and copy. */
@@ -54,11 +51,13 @@ export type SidebarFilePreviewProps =
   & UseSidebarRightTabInfoProps
   & PropsLocale<typeof NS>
   & FilesShellInjected
+  & DesktopFileStateInjected
   & { useSessions: UseSessions }
 
 /** The one framework seat the adapter needs from the keyed tab slot. */
 type UseSidebarRightTabInfoProps = { useTabInfo: () => { readonly tab: SidebarTabRecord } }
 type SidebarTabRecord = {
+  readonly id: string
   readonly contentId: string
   readonly visible: boolean
   readonly navigation: { readonly params?: unknown; readonly revision: number }
@@ -67,8 +66,9 @@ type SidebarTabRecord = {
 const RENDER_MARKDOWN_KEY = 'dshd.renderMarkdown'
 const FILE_WORD_WRAP_KEY = 'dshd.fileWordWrap'
 const FILE_SAVE_DEBOUNCE_MS = 500
-function currentCwd(useSessions: FilePreviewProps['useSessions']): string | undefined {
+function currentCwd(sessionId: string | undefined, useSessions: FilePreviewProps['useSessions']): string | undefined {
   return useSessions((s) => {
+    if (sessionId !== undefined) return s.byId[sessionId as SessionId]?.cwd || undefined
     const id = Object.values(s.byId)
       .find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
     const next = id === undefined ? undefined : s.byId[id]?.cwd
@@ -88,7 +88,8 @@ function currentCwd(useSessions: FilePreviewProps['useSessions']): string | unde
 export function SidebarFilePreview(props: SidebarFilePreviewProps): ReactNode {
   const {
     useTabInfo, useSessions, listDir, readFile, readFileMedia, mentionFile, writeFile,
-    listEditors, openInEditor, showItemInFolder, openWithSystemDefault, t,
+    listEditors, openInEditor, showItemInFolder, openWithSystemDefault, appendComposerText,
+    readFileBuffer, writeFileBuffer, registerFileSave, t,
   } = props
   const { tab } = useTabInfo()
   const parsed = parseFileAddress(tab.contentId)
@@ -106,6 +107,7 @@ export function SidebarFilePreview(props: SidebarFilePreviewProps): ReactNode {
   const address = tab.contentId
   return (
     <FilePreview
+      key={address}
       useSessions={useSessions}
       sessionId={sessionId}
       relativePath={relativePath}
@@ -114,9 +116,9 @@ export function SidebarFilePreview(props: SidebarFilePreviewProps): ReactNode {
       active={tab.visible}
       workspaceCwd={workspaceCwd}
       onDirtyChange={() => {}}
-      readBuffer={() => readDesktopFileBuffer(address)}
-      writeBuffer={(buffer: DesktopFileBuffer | null) => { writeDesktopFileBuffer(address, buffer) }}
-      registerSave={() => {}}
+      readBuffer={() => readFileBuffer(address)}
+      writeBuffer={(buffer: DesktopFileBuffer | null) => { writeFileBuffer(address, buffer) }}
+      registerSave={(save) => { registerFileSave(tab.id, address, save) }}
       listDir={listDir}
       readFile={readFile}
       readFileMedia={readFileMedia}
@@ -126,7 +128,7 @@ export function SidebarFilePreview(props: SidebarFilePreviewProps): ReactNode {
       openInEditor={openInEditor}
       showItemInFolder={showItemInFolder}
       openWithSystemDefault={openWithSystemDefault}
-      appendComposerText={(targetSessionId, text) => { mentionFile(targetSessionId, text) }}
+      appendComposerText={appendComposerText}
       t={t}
     />
   )
@@ -228,7 +230,7 @@ export function FilePreview({
   workspaceCwd,
   t,
 }: FilePreviewProps): ReactNode {
-  const selectedCwd = currentCwd(useSessions)
+  const selectedCwd = currentCwd(sessionId, useSessions)
   const cwd = workspaceCwd ?? selectedCwd
   const isImage = isWorkspaceImagePreviewPath(relativePath)
   const isMarkdown = isMarkdownPreviewFile(relativePath)
@@ -419,10 +421,12 @@ export function FilePreview({
     persistCwd: string | undefined,
     persistPath: string,
     contents: string,
+    isCurrent: () => boolean,
   ): Promise<FileSaveResult> => {
     if (persistCwd === undefined) return { ok: false }
     try {
       const latest = await readFileRef.current(persistCwd, persistPath)
+      if (!isCurrent()) return { ok: false }
       if (
         latest.ok
         && latest.binary !== true
@@ -437,6 +441,7 @@ export function FilePreview({
         return { ok: false }
       }
       const result = await writeFileRef.current(persistCwd, persistPath, contents)
+      if (!isCurrent()) return { ok: result.ok }
       if (!result.ok) {
         setSaveError(result.message ?? tRef.current('error.write'))
         return { ok: false }
@@ -447,7 +452,7 @@ export function FilePreview({
       setBinary(false)
       return { ok: true }
     } catch {
-      setSaveError(tRef.current('error.write'))
+      if (isCurrent()) setSaveError(tRef.current('error.write'))
       return { ok: false }
     }
   }
@@ -458,29 +463,32 @@ export function FilePreview({
   // Unmount/Discard must not flush. Hook destroy runs in declaration order, so
   // this empty-deps cleanup runs before dispose; relativePath change skips it.
   useEffect(() => () => {
-    persistContentsRef.current = async () => ({ ok: false })
+    persistContentsRef.current = () => Promise.resolve({ ok: false })
   }, [])
 
   const coordinatorRef = useRef<FileSaveCoordinator | null>(null)
   useEffect(() => {
     const persistPath = relativePath
+    let disposed = false
     const coordinator = new FileSaveCoordinator({
       debounceMs: FILE_SAVE_DEBOUNCE_MS,
-      persist: contents => persistContentsRef.current(cwdRef.current, persistPath, contents),
+      persist: contents => persistContentsRef.current(cwdRef.current, persistPath, contents, () => !disposed),
       onPendingChange: () => {},
       onConfirmed: (contents) => {
+        if (disposed) return
         setText(contents)
         writeBufferRef.current({ text: contents, draft: draftRef.current })
       },
     })
     coordinatorRef.current = coordinator
     return () => {
+      disposed = true
       coordinator.dispose()
       if (coordinatorRef.current === coordinator) coordinatorRef.current = null
     }
   }, [relativePath])
 
-  const saveRef = useRef<() => Promise<boolean>>(async () => false)
+  const saveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false))
   const save = async (): Promise<boolean> => {
     if (cwd === undefined || !dirty) return false
     // Snapshot the draft before any await: characters typed while the write is
@@ -613,7 +621,7 @@ export function FilePreview({
             <Button
               variant="ghost"
               size="sm"
-              onMouseDown={event => { event.preventDefault() }}
+              onMouseDown={(event) => { event.preventDefault() }}
               onClick={() => { addSelectionToChat(selectedLineRange) }}
             >
               {t('preview.comment')}
@@ -669,8 +677,8 @@ export function FilePreview({
                 className={clsx(css.editor, wordWrap && css.wrap)}
                 value={draft}
                 aria-label={relativePath}
-                onChange={event => { applyDraft(event.target.value) }}
-                onSelect={event => { syncTextareaSelection(event.currentTarget) }}
+                onChange={(event) => { applyDraft(event.target.value) }}
+                onSelect={(event) => { syncTextareaSelection(event.currentTarget) }}
               />
             )}
           </>

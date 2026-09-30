@@ -173,8 +173,19 @@ function resolvedAppBaseUrl(config) {
       relayEndpoint: (config.remoteRelayEndpoint || DEFAULT_RELAY_ENDPOINT).trim(),
     }) || DEFAULT_PUBLIC_APP_BASE_URL;
   }
-  const ip = preferredLanIp() || '127.0.0.1';
+  const bind = mobileBindAddress(config);
+  const ip = bind === '0.0.0.0' ? (preferredLanIp() || '127.0.0.1') : bind;
   return publicUrl(ip, MOBILE_WEB_PORT).replace(/\/$/, '');
+}
+
+function mobileBindAddress(config = {}) {
+  return config.remoteBindAddress || '127.0.0.1';
+}
+
+/** The unauthenticated daemon stays loopback; the visible port control owns its port. */
+function daemonListen(config = {}) {
+  const port = Number(config.remotePort);
+  return `127.0.0.1:${Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : 6767}`;
 }
 
 function relayUseTls(config, endpoint) {
@@ -512,7 +523,7 @@ class DshdRemote extends EventEmitter {
     if (this.mobileWebServer) {
       return;
     }
-    const bind = config.remoteBindAddress === '127.0.0.1' ? '0.0.0.0' : (config.remoteBindAddress || '0.0.0.0');
+    const bind = mobileBindAddress(config);
     const server = createMobileWebServer({ bindAddress: bind, port: MOBILE_WEB_PORT });
     try {
       await listenMobileWebServer(server, bind, MOBILE_WEB_PORT);
@@ -563,9 +574,9 @@ class DshdRemote extends EventEmitter {
     // Ranked by adapter as well as address: a plain address list cannot tell
     // the Wi-Fi NIC from a WSL / TUN adapter in the same private range.
     let snapshotAddress = preferredLanIp() || 'pair';
-    if (away && pairingUrl) {
+    if (pairingUrl) {
       try {
-        snapshotAddress = new URL(resolvedAppBaseUrl(config)).hostname;
+        snapshotAddress = new URL(pairingUrl).hostname;
       } catch {
         snapshotAddress = 'pair';
       }
@@ -576,10 +587,10 @@ class DshdRemote extends EventEmitter {
       protocol: 'chisacode-v2',
       enabled,
       listening,
-      port: Number(String(defaults.listen || '127.0.0.1:6767').split(':').pop()) || 6767,
+      port: Number(daemonListen(config).split(':').pop()),
       token: '',
       mode: away ? 'relay' : 'lan',
-      bindAddress: config.remoteBindAddress || '127.0.0.1',
+      bindAddress: this.mobileWebServer?.address()?.address || mobileBindAddress(config),
       lanTls: false,
       tlsFingerprint: '',
       addresses,
@@ -663,7 +674,7 @@ class DshdRemote extends EventEmitter {
       const home = this.homeDir();
       const relayEndpoint = (config.remoteRelayEndpoint || config.remoteRelayUrl || defaults.relayEndpoint || '').trim();
       const useTls = relayUseTls(config, relayEndpoint);
-      const listen = config.remoteListen || defaults.listen || '127.0.0.1:6767';
+      const listen = daemonListen(config);
       const staticDir = path.join(VENDOR_ROOT, 'node_modules', '@chisacode', 'server', 'dist', 'server');
       const agentStoragePath = path.join(home, 'agents');
       fs.mkdirSync(agentStoragePath, { recursive: true });
@@ -966,10 +977,8 @@ class DshdRemote extends EventEmitter {
     return JSON.stringify({
       endpoint,
       useTls: relayUseTls(config, endpoint),
-      listen: config.remoteListen || defaults.listen || '127.0.0.1:6767',
-      mobileBind: config.remoteBindAddress === '127.0.0.1'
-        ? '0.0.0.0'
-        : (config.remoteBindAddress || '0.0.0.0'),
+      listen: daemonListen(config),
+      mobileBind: mobileBindAddress(config),
       mode: modeIsAway(config) ? 'relay' : 'lan',
       appBaseUrl: resolvedAppBaseUrl(config),
     });

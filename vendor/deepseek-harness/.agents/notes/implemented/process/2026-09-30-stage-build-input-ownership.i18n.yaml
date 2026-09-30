@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-09-30-stage-build-input-ownership.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-30-stage-build-input-ownership.md
+/agent-note-stage-build-input-ownership:
+  en: a044bb72c7e6ac35
+  zh: 42354b2dc71efdc9
+/agent-note-stage-build-input-ownership/problem:
+  en: d6c100ee89f117b7
+  zh: d42403957ef64311
+/agent-note-stage-build-input-ownership/decision:
+  en: c2e61d8726abd49b
+  zh: 8b1ffca509e8d147
+/agent-note-stage-build-input-ownership/alternatives-considered:
+  en: a87d33ca0ff0330c
+  zh: e82fe08769e1eec5
+/agent-note-stage-build-input-ownership/consequences:
+  en: ac6b35d484e5611d
+  zh: eb9566bd37167dad
+/agent-note-stage-build-input-ownership/testing:
+  en: 00a78169b04a472d
+  zh: 7838582eb3e063aa

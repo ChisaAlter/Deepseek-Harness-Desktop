@@ -21,6 +21,9 @@
 
 ## 不变量
 
+- 更新资产按平台选择：Windows Setup.exe，macOS 匹配架构的 DMG；DMG 校验后由系统打开并提示拖入 Applications，当前应用保持运行，不宣称已安装。
+- 差量通道只负责下载；目标版本与 SHA512 校验后和整包路径共用任务保护 commit 中的 spawn。操作系统拒绝启动会报错、释放接纳锁，不能报告 launched 或提前退出。
+
 - 关闭行为可配置且重启后保持（验收表有持久化相关条）。  
 - 更新来源为项目 Releases；`/releases/latest` 忽略 draft。启动器自 0.2.7 起随 Setup 提供，当前版本与发布状态以 [构建、钉版与发版](build-release.md) 为准。
 - 冷启动更新询问/下载挂在可见启动器上；下载失败（含正文断流、字节数与 content-length 不符）删除半成品并回启动器首页，不留无窗进程（`TC-LAUNCH-008`）。  

@@ -16,6 +16,26 @@ global.document = {
 
 const { radioNextIndex, issueRouteSave, installPhaseText, paintProgress } = require('./launcher');
 
+test('version installation displays manual DMG instructions and releases busy state', async () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const source = fs.readFileSync(require('node:path').join(__dirname, 'launcher.js'), 'utf8');
+  const start = source.indexOf('async function installTag(');
+  const end = source.indexOf('async function installDelta(', start);
+  const elements = new Map(['update-progress-title', 'update-progress'].map((id) => [id, { textContent: '' }]));
+  const phases = [];
+  const context = vm.createContext({ updateBusy: false, lastStatus: {},
+    pageShell: () => ({ installRelease: async () => ({ manualInstall: true, launched: false, message: 'Drag into Applications' }) }),
+    appConfirm: async () => true, $: (id) => elements.get(id),
+    paintProgress: (_id, state) => phases.push(state.phase),
+    refreshStatus: () => assert.fail('opening a DMG does not certify installation'),
+    errText: (error) => error.message });
+  await vm.runInContext(`${source.slice(start, end)}; installTag('v9.9.9', 'update')`, context);
+  assert.equal(elements.get('update-progress').textContent, 'Drag into Applications');
+  assert.equal(phases.at(-1), 'waiting');
+  assert.equal(context.updateBusy, false);
+});
+
 test('installation feedback distinguishes unknown length, retry and waiting for the wizard', () => {
   const text = installPhaseText({ phase: 'download', percent: null, received: 1048576, total: 0 });
   assert.match(text, /1\.0 MB/);

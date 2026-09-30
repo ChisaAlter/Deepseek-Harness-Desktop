@@ -8,19 +8,24 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
 import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import {
+  DESKTOP_FILE_KIND,
   DESKTOP_FILE_ID,
   DESKTOP_FILES_ID,
   desktopFileDefinition,
   desktopFilesDefinition,
 } from './desktop-files.ts'
 import { FilePreview, SidebarFilePreview } from './FilePreview.tsx'
-import { FilesPanel, SidebarFilesPanel } from './FilesPanel.tsx'
+import { FilesPanel, SidebarFilesPanel, type SidebarFilesPanelProps } from './FilesPanel.tsx'
 import { hasFloatingPreview } from './floating-preview.ts'
 import { readFilesShell, type FilesShellInjected } from './shell.ts'
 import { appendToDraft } from './draft.ts'
 import { serializeComposerFileLink } from './composerMention.ts'
 import { SidebarFloatingPreviewAction } from './SidebarFloatingPreviewAction.tsx'
+import { DesktopFileState, type DesktopFileStateInjected } from './desktop-file-state.ts'
+import { FileClosePrompt, type FileClosePromptInjected } from './FileClosePrompt.tsx'
+import { parseFileAddress, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 
 export type { FilesPanelProps, SidebarFilesPanelProps } from './FilesPanel.tsx'
 export type { FilePreviewProps, SidebarFilePreviewProps } from './FilePreview.tsx'
@@ -35,7 +40,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Services required by the files plugin. */
-export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sessions']
+export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'sessions', 'workspaces']
 
 /**
  * Register dictionaries and inject the tree and preview occupants.
@@ -44,8 +49,10 @@ export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sessions']
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-files: dictionaries')
   const t = ctx.locale.bind(NS)
+  const files = new DesktopFileState()
+  ctx.effect(() => () => { files.dispose() }, 'ui-files: draft and close lifecycle')
 
-  const injected = (): FilesShellInjected => ({
+  const injected = (): FilesShellInjected & DesktopFileStateInjected & Pick<SidebarFilesPanelProps, 'openWorkspaceFile'> => ({
     ...readFilesShell(),
     mentionFile: (targetSessionId, relativePath) => {
       appendToDraft(ctx, targetSessionId, serializeComposerFileLink(relativePath))
@@ -53,7 +60,33 @@ export function apply(ctx: Context): void {
     appendComposerText: (targetSessionId, text) => {
       appendToDraft(ctx, targetSessionId, text)
     },
+    readFileBuffer: address => files.read(address),
+    writeFileBuffer: (address, buffer) => { files.write(address, buffer) },
+    registerFileSave: (tabId, address, save) => { files.registerSave(tabId, address, save) },
+    openWorkspaceFile: async (sessionId, cwd, relativePath) => {
+      const workspaces = ctx.workspaces as typeof ctx.workspaces & {
+        openPath?: (path: string, options: { sessionId: string }) => Promise<void>
+      }
+      if (workspaces.openPath === undefined) throw new Error('workspace path opener is unavailable')
+      await workspaces.openPath(resolveWorkspacePath(cwd, relativePath), { sessionId })
+    },
   })
+
+  ctx.effect(() => ctx.sidebarRight.registerCloseHandler(DESKTOP_FILE_KIND, (_sessionId, tab, proceed) => {
+    const parsed = parseFileAddress(tab.contentId)
+    return files.requestClose(tab.id, tab.contentId, parsed?.path ?? tab.title, proceed)
+  }), 'ui-files: unsaved close guard')
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'files-close-confirmation',
+    locale: NS,
+    inject: (): FileClosePromptInjected => ({
+      hooks: { closeRequest: files.closeRequest },
+      cancelClose: () => { files.cancelClose() },
+      discardClose: () => { files.discardClose() },
+      saveClose: () => files.saveClose(),
+    }),
+  }, FileClosePrompt))
 
   const cwdOf = (sessionId: string): string | undefined => {
     const cwd = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd
@@ -71,14 +104,14 @@ export function apply(ctx: Context): void {
     name: 'sidebar.right.pane.tab',
     key: DESKTOP_FILES_ID,
     locale: NS,
-    inject: (): FilesShellInjected => injected(),
+    inject: injected,
   }, SidebarFilesPanel)), 'ui-files: desktop files body')
 
   ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
     name: 'sidebar.right.pane.tab',
     key: DESKTOP_FILE_ID,
     locale: NS,
-    inject: (): FilesShellInjected => injected(),
+    inject: injected,
   }, SidebarFilePreview)), 'ui-files: desktop file body')
 
   ctx.slots.inject('surfaces.files', () => ctx.slots.register({

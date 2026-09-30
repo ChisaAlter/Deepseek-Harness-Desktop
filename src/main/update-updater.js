@@ -5,7 +5,7 @@
  *
  * Why this exists as a separate module: `update.js` owns the GitHub-API check,
  * the release list, the unverified-manifest gate, and the whole-file download
- * fallback. This file only wraps the updater download+install so that seam can
+ * fallback. This file only wraps the updater download so that seam can
  * be mocked in unit tests and so `require('electron-updater')` never executes
  * in contexts where app-update.yml does not exist (dev runs, unit tests).
  *
@@ -95,17 +95,18 @@ function makeLogger(tracker, sink) {
 }
 
 /**
- * Download the latest release through electron-updater and install it.
+ * Download the latest release through electron-updater. Installation belongs
+ * to update.js, where child-process spawn can be observed inside a commit.
  *
  * @param {object} args
  * @param {number} args.timeoutMs - wall-clock budget for the whole download.
  * @param {function} [onProgress] - receives `{phase:'download'|'install', percent, differential}`.
  * @param {object} [deps] - test seams: `autoUpdater`, `isPackaged`,
  *   `existsSync`, `CancellationToken`, `logger`, `setTimeout`/`clearTimeout`.
- * @returns {Promise<{ok:true, launched:true, differential:boolean, version:string}|{ok:false, reason:string}>}
+ * @returns {Promise<{ok:true, installer:string, differential:boolean, version:string}|{ok:false, reason:string}>}
  *   `ok:false` tells the caller to use the legacy whole-file path instead.
  */
-async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}) {
+async function downloadLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}) {
   if (!readPackagedFlag(deps)) {
     return { ok: false, reason: 'not-packaged' };
   }
@@ -166,7 +167,7 @@ async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}
       resolve(timeoutSentinel);
     }, Math.max(1_000, Number(timeoutMs) || 15 * 60_000));
   });
-  // checkForUpdates does not honor autoUpdater.cancellationToken — only the
+  // checkForUpdates has no cancellation-token parameter — only the
   // race guarantees the wall-clock budget when the manifest fetch stalls.
   const timed = (pending) => Promise.race([pending, timeoutPromise]);
   const timeoutOutcome = () => ({
@@ -176,9 +177,6 @@ async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}
   });
 
   try {
-    if (token) {
-      autoUpdater.cancellationToken = token;
-    }
     const check = await timed(autoUpdater.checkForUpdates());
     if (check === timeoutSentinel) {
       return timeoutOutcome();
@@ -189,27 +187,16 @@ async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}
     if (!info || !info.version) {
       return { ok: false, reason: 'no-update-in-manifest' };
     }
-    const downloaded = await timed(autoUpdater.downloadUpdate());
+    const downloaded = await timed(autoUpdater.downloadUpdate(token || undefined));
     if (downloaded === timeoutSentinel) {
       return timeoutOutcome();
     }
+    const installer = Array.isArray(downloaded) && downloaded.find((file) => typeof file === 'string' && /\.exe$/i.test(file));
+    if (!installer) return { ok: false, reason: 'missing-downloaded-installer' };
     const result = tracker.finish();
-    if (typeof onProgress === 'function') {
-      onProgress({ phase: 'install', percent: 100, differential: result.differential });
-    }
-    // Task protection runs between download and quit — `quitAndInstall` is a
-    // terminal side effect, so a denied coordination must not reach it.
-    const protection = deps.taskProtection;
-    if (protection && typeof protection.coordinate === 'function') {
-      const coordination = await protection.coordinate('update', { terminal: true, preConfirmed: true });
-      if (!coordination.proceeded) {
-        return { ok: false, reason: 'cancelled' };
-      }
-    }
-    autoUpdater.quitAndInstall(true, true);
     return {
       ok: true,
-      launched: true,
+      installer,
       differential: result.differential,
       downloadPercent: result.downloadPercent,
       version: String(info.version),
@@ -222,7 +209,6 @@ async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}
   } finally {
     clearTimeoutFn(timeoutHandle);
     try {
-      autoUpdater.cancellationToken = null;
       autoUpdater.removeListener('download-progress', onProgressEvent);
       autoUpdater.removeListener('error', onErrorEvent);
     } catch {
@@ -232,7 +218,7 @@ async function installLatestViaUpdater({ timeoutMs } = {}, onProgress, deps = {}
 }
 
 module.exports = {
-  installLatestViaUpdater,
+  downloadLatestViaUpdater,
   cachedInstallerPath,
   makeDifferentialTracker,
 };

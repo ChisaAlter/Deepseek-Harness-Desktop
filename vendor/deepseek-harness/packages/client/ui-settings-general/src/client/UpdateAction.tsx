@@ -13,7 +13,7 @@ import { desktopShell, type UpdateInfo } from './desktop-shell.ts'
 import css from './UpdateAction.module.css'
 
 /** Dialog flow state; 'ready' shows the install call to action. */
-type Phase = 'ready' | 'download' | 'install' | 'error'
+type Phase = 'ready' | 'download' | 'install' | 'manual' | 'error'
 
 /** Props: the sidebar column state plus the settings locale seat. */
 export type UpdateActionProps = { wide: boolean } & PropsLocale<'settings'>
@@ -39,7 +39,6 @@ export function UpdateAction({ wide, t }: UpdateActionProps): ReactNode {
     }).catch(() => {})
     return () => { cancelled = true }
     // The bridge is a stable window global; check once per mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -69,12 +68,20 @@ export function UpdateAction({ wide, t }: UpdateActionProps): ReactNode {
     setPercent(0)
     try {
       const next = await shell.installUpdate()
+      if (next.manualInstall) {
+        setPhase('manual')
+        return
+      }
       if (next.openedPage) {
         setPhase('error')
         setMessage(t('about.updateOpenedPage'))
         return
       }
       if (next.launched) setPhase('install')
+      else {
+        setPhase('error')
+        setMessage(t('about.updateError', { message: next.message || next.status || '' }))
+      }
     } catch (error) {
       setPhase('error')
       setMessage(t('about.updateError', { message: error instanceof Error ? error.message : String(error) }))
@@ -124,6 +131,7 @@ export function UpdateAction({ wide, t }: UpdateActionProps): ReactNode {
             )}
             {phase === 'download' && <p className={css.status}>{t('about.updateDownloading', { percent: String(percent) })}</p>}
             {phase === 'install' && <p className={css.status}>{t('about.updateInstalling')}</p>}
+            {phase === 'manual' && <p className={css.status} role="status">{t('about.updateManualInstall')}</p>}
             {phase === 'error' && <p className={clsx(css.status, css.error)}>{message}</p>}
             <div className={css.actions}>
               <Button variant="outline" size="sm" disabled={phase === 'download'} onClick={close}>

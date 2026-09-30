@@ -25,6 +25,20 @@ function mount() {
   render(<AboutSection {...props} />)
 }
 
+it('shows manual DMG instructions and releases busy controls after opening the image', async () => {
+  ;(window as Window & { shell?: unknown }).shell = {
+    checkUpdate: async () => ({ status: 'available', latest: '9.9.9', assetUrl: 'https://example.test/app.dmg' }),
+    installUpdate: async () => ({ manualInstall: true, launched: false }),
+  }
+  mount()
+  const button = await screen.findByRole('button', { name: en['about.installUpdate'] })
+  await waitFor(() => { expect((button as HTMLButtonElement).disabled).toBe(false) })
+  fireEvent.click(button)
+  expect(await screen.findByText(en['about.updateManualInstall'])).toBeTruthy()
+  expect((screen.getByRole('button', { name: en['about.checkUpdate'] }) as HTMLButtonElement).disabled).toBe(false)
+  expect(screen.queryByText(en['about.updateInstalling'])).toBeNull()
+})
+
 describe('AboutSection data folder', () => {
   it('hides the open-home control without a desktop opener', () => {
     mount()

@@ -4,7 +4,6 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { UseSessions } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
-import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { serializeComposerFileLink } from './composerMention.ts'
 import { filterEntries } from './filter.ts'
 import { FileTree, joinRel, type TreeEntry } from './FileTree.tsx'
@@ -16,7 +15,7 @@ import css from './FilesPanel.module.css'
 export interface FilesPanelProps extends PropsLocale<typeof NS>, FilesShellInjected {
   sessionId: string | undefined
   useSessions: UseSessions
-  openFile: (relativePath: string) => void
+  openFile: (relativePath: string) => void | Promise<void>
   /** Workspace root override for a caller that owns the Session (the Sidebar adapter). */
   workspaceCwd?: string | undefined
 }
@@ -25,7 +24,7 @@ export interface FilesPanelProps extends PropsLocale<typeof NS>, FilesShellInjec
 export interface SidebarFilesPanelProps extends PropsLocale<typeof NS>, FilesShellInjected {
   sessionId: string | undefined
   useSessions: UseSessions
-  useTabInfo: () => { readonly tab: { readonly actions: { openResource(address: string): void } } }
+  openWorkspaceFile: (sessionId: string, cwd: string, relativePath: string) => Promise<void>
 }
 
 /**
@@ -38,14 +37,13 @@ export interface SidebarFilesPanelProps extends PropsLocale<typeof NS>, FilesShe
  * @returns the Desktop file tree.
  */
 export function SidebarFilesPanel(props: SidebarFilesPanelProps): ReactNode {
-  const { sessionId, useSessions, useTabInfo, t, ...injected } = props
-  const { tab } = useTabInfo()
+  const { sessionId, useSessions, openWorkspaceFile, t, ...injected } = props
   const cwd = useSessions(state => sessionId === undefined
     ? undefined
     : state.byId[sessionId as SessionId]?.cwd || undefined)
-  const openFile = (relativePath: string): void => {
+  const openFile = async (relativePath: string): Promise<void> => {
     if (cwd === undefined || sessionId === undefined) return
-    tab.actions.openResource(fileAddressFor(sessionId, cwd, relativePath))
+    await openWorkspaceFile(sessionId, cwd, relativePath)
   }
   return (
     <FilesPanel
@@ -134,7 +132,7 @@ export function FilesPanel({
   const [copied, setCopied] = useState(false)
   const [generation, setGeneration] = useState(0)
   const [query, setQuery] = useState('')
-  const [editors, setEditors] = useState<readonly { id: string, label: string }[]>([])
+  const [editors, setEditors] = useState<readonly { id: string; label: string }[]>([])
   const searching = query.trim() !== ''
 
   useEffect(() => {
@@ -239,6 +237,13 @@ export function FilesPanel({
     })
   }
 
+  const openFileInWorkspace = async (relativePath: string): Promise<void> => {
+    try { await openFile(relativePath) }
+    catch (_error: unknown) {
+      setError(t('error.open'))
+    }
+  }
+
   const onSearchKey = (event: KeyboardEvent<HTMLInputElement>): void => {
     if (event.key !== 'Escape') return
     event.preventDefault()
@@ -258,7 +263,7 @@ export function FilesPanel({
           value={query}
           placeholder={t('search')}
           aria-label={t('search')}
-          onChange={event => { setQuery(event.target.value) }}
+          onChange={(event) => { setQuery(event.target.value) }}
           onKeyDown={onSearchKey}
         />
         {copied && <span className={css.copied} role="status">{t('copied')}</span>}
@@ -296,7 +301,7 @@ export function FilesPanel({
                   key={match.path}
                   type="button"
                   className={css.pickerRow}
-                  onClick={() => { openFile(match.path) }}
+                  onClick={() => { void openFileInWorkspace(match.path) }}
                 >
                   <span className={css.pickerName}>{match.name}</span>
                   <span className={css.pickerPath}>{match.path}</span>
@@ -310,8 +315,8 @@ export function FilesPanel({
               expanded={expanded}
               query={query}
               onToggle={onToggle}
-              onOpenFile={openFile}
-      onMention={sessionId === undefined ? undefined : (path) => {
+              onOpenFile={(relativePath) => { void openFileInWorkspace(relativePath) }}
+              onMention={sessionId === undefined ? undefined : (path) => {
                 mentionFile(sessionId, path)
               }}
               onCopyRelative={(path) => { copyPath(path) }}

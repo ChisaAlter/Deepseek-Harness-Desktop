@@ -44,14 +44,12 @@
 
 ## 安全边界（LAN 模式）
 
-LAN 模式默认在 `0.0.0.0` 上监听**明文 HTTP**：令牌与会话内容对同网段的窃听者可见，仅限可信局域网（家庭 / 办公内网）使用；公共 Wi‑Fi 场景应改用 HTTPS 中继或关闭远程。可用的收窄手段（设置 → 远程 → 网关）：
+LAN 配对静态页使用 HTTP 3180，只分发 `mobile/web` 应用文件；offer 留在 URL fragment，手机会话仍经 offer v2 中继使用端到端加密。中继传输默认 TLS，自定义中继的 TLS 由中继主机配置决定。HTTP 静态页本身没有 TLS，仍只适合可信网络；不可信网络使用 HTTPS 公网页或 APK 内置资源。
 
-- **监听范围**（`remoteBindAddress`）：全部网卡（默认）/ 仅本机 `127.0.0.1` / 指定网卡 IPv4。绑仅本机时子网不可达（真机可走 `adb reverse`），弹窗换 `bindLoopbackHint`；快照 `urls` 只列绑定可达地址。
-- **自签 TLS**（`remoteLanTls`，默认关）：开启后 LAN 网关走 HTTPS——ECDSA P-256 自签证书由 `src/main/remote-tls.js` 生成并持久于 `userData/remote-tls`（指纹稳定，便于浏览器记例外与后续 Android 证书固定），配对 URL 换 `https` 且 offer 携带 `fp`（证书 SHA-256）。限制：浏览器首访出自签警示页需手动继续；Android 客户端在证书固定实现前不支持 LAN TLS；中继模式绝不套 LAN TLS（中继链路本身 HTTPS）。
-
-警示矩阵：「已开启 + LAN + 明文 + 非仅本机」常驻 `lanPlaintextWarning`；开 TLS 换 `lanTlsHint`；绑仅本机换 `bindLoopbackHint`。
-
-Android 证书固定跟进清单（未落地，勿假装完成）：解析 offer `fp` → 自定义 `TrustManager` 按 SHA-256 固定证书 → 登录与 WebSocket 均走固定校验 → `:protocol:test` 补配对/固定用例。
+- **监听范围**（`remoteBindAddress`）：全部网卡 / 仅本机 `127.0.0.1`（默认）/ 指定网卡 IPv4。仅本机不得转换成通配地址；配对 URL 使用 loopback、所选 NIC 或通配监听下的可达 LAN IP，快照与监听一致。
+- **监听端口**（`remotePort`）：loopback daemon 端口，默认 6767；更改后重启 daemon，静态页仍用 3180。静态页监听范围不会开放无鉴权 daemon。
+- **传输加密**：网关显示上述端到端加密、中继 TLS 和 LAN HTTP 边界，不提供未实现的自签 LAN TLS 按钮；旧 `remoteLanTls` 配置不改变当前 offer v2 链路。
+- 静态页的无效 URL、Host 和百分号编码返回 400，不影响 Electron 主进程或后续正常请求。
 
 ## 门槛
 

@@ -144,8 +144,18 @@ function createWorkspacePreviewController(options = {}) {
     }
     const segments = parsed.pathname.split('/').filter((part) => part.length > 0);
     const token = segments[0];
-    const rest = segments.slice(1);
-    if (!token || rest.length === 0 || rest.some((part) => part === '.' || part === '..')) {
+    let rest;
+    try {
+      rest = segments.slice(1).map((part) => decodeURIComponent(part));
+    } catch {
+      send(res, 400, 'Bad URL');
+      return;
+    }
+    // Decode exactly once, then reject path separators and traversal before
+    // giving the real filenames to the shared workspace authority.
+    if (!token || rest.length === 0 || rest.some((part) => (
+      part === '.' || part === '..' || /[\\/\0]/.test(part)
+    ))) {
       send(res, 404, 'Not Found');
       return;
     }

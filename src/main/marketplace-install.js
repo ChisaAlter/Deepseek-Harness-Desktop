@@ -7,6 +7,7 @@ const { loadConfig } = require('./config');
 const { resolveNodeBin, sourceHarnessStatus } = require('./dsh');
 const { projectRoot, harnessRoot } = require('./paths');
 const { childSpawnEnv } = require('../shared/child-spawn-env');
+const { ensureDirectoryLink } = require('./desktop-plugin-link');
 const { DROPPED, isDroppedPluginName, webProfileDir, PROFILE, listInstalledPlugins } = require('./plugins');
 const { resolveCommitSha, getMarketplacePlugin } = require('./marketplace-catalog');
 const { parseAllowBuilds } = require('./marketplace-allowbuilds');
@@ -576,6 +577,17 @@ async function captureInstallSnapshot() {
       if (entry.existed) {
         await fs.promises.cp(entry.file, path.join(dir, entry.name), {
           recursive: true, verbatimSymlinks: true,
+          filter: (source, target) => {
+            if (process.platform === 'win32' && fs.lstatSync(source).isSymbolicLink()
+              && fs.statSync(source).isDirectory()) {
+              // fs.cp recreates junctions as directory symlinks, which need
+              // elevated privileges on Windows. Keep directory links as
+              // junctions and never copy the external target's contents.
+              ensureDirectoryLink(source, target);
+              return false;
+            }
+            return true;
+          },
         });
       }
     }

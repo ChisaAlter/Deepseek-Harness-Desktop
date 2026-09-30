@@ -8,7 +8,7 @@
  */
 
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { arch, platform, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -32,6 +32,10 @@ function scaffold(): string {
     'apps/web/dist',
     'native/system/scripts',
     'native/system/packages/entry/src',
+    `native/system/packages/${platform()}-${arch()}/bin`,
+    'vendor/cordis/src/lib',
+    'vendor/cordis/lib',
+    'scripts',
   ]) {
     mkdirSync(resolve(root, directory), { recursive: true })
   }
@@ -42,6 +46,11 @@ function scaffold(): string {
   writeFileSync(resolve(root, 'apps/web/dist/index.html'), '<!doctype html>\n')
   writeFileSync(resolve(root, 'native/system/scripts/build.ts'), 'export {}\n')
   writeFileSync(resolve(root, 'native/system/packages/entry/src/index.ts'), 'export {}\n')
+  writeFileSync(resolve(root, `native/system/packages/${platform()}-${arch()}/bin/system.node`), 'native binary\n')
+  writeFileSync(resolve(root, 'vendor/cordis/src/index.ts'), 'export const context = 1\n')
+  writeFileSync(resolve(root, 'vendor/cordis/src/lib/helper.ts'), 'export const helper = 1\n')
+  writeFileSync(resolve(root, 'vendor/cordis/lib/index.js'), 'export const context = 1\n')
+  writeFileSync(resolve(root, 'scripts/bundle-input-isolation.ts'), 'export const bundleInput = 1\n')
   return root
 }
 
@@ -68,6 +77,49 @@ afterEach(() => {
 })
 
 describe('build stage credentials', () => {
+  it('rebuilds after a build-helper edit without a Git commit change', async () => {
+    const root = repository()
+    const environment = { DSH_CLIENT_COMMIT_HASH: 'aaaaaaa' }
+    await recordAll(root, environment)
+    writeFileSync(resolve(root, 'scripts/bundle-input-isolation.ts'), 'export const bundleInput = 2\n')
+    await expect(stagesToRun(root, environment, readStageCredentials(root)))
+      .resolves.toEqual(['host', 'client', 'web'])
+  })
+
+  it('tracks vendored sources, including source directories named lib', async () => {
+    const root = repository()
+    const environment = { DSH_CLIENT_COMMIT_HASH: 'aaaaaaa' }
+    await recordAll(root, environment)
+    writeFileSync(resolve(root, 'vendor/cordis/src/lib/helper.ts'), 'export const helper = 2\n')
+    await expect(stagesToRun(root, environment, readStageCredentials(root)))
+      .resolves.toEqual(['host', 'client', 'web'])
+  })
+
+  it('owns vendored lib outputs without treating them as new source inputs', async () => {
+    const root = repository()
+    const environment = { DSH_CLIENT_COMMIT_HASH: 'aaaaaaa' }
+    const before = await recordAll(root, environment)
+    writeFileSync(resolve(root, 'vendor/cordis/lib/index.js'), 'export const context = 2\n')
+    const changed = await captureStageCredential(root, 'host', environment)
+    expect(changed.inputs).toBe(before.stages.host?.inputs)
+    expect(changed.outputs).not.toBe(before.stages.host?.outputs)
+    await expect(stagesToRun(root, environment, readStageCredentials(root)))
+      .resolves.toEqual(['host', 'client', 'web'])
+    await recordAll(root, environment)
+    await expect(stagesToRun(root, environment, readStageCredentials(root))).resolves.toEqual([])
+  })
+
+  it('tracks the actual platform native outputs and declaration metadata', async () => {
+    const root = repository()
+    const environment = { DSH_CLIENT_COMMIT_HASH: 'aaaaaaa' }
+    const before = await recordAll(root, environment)
+    expect(before.stages['native-system']?.outputCount).toBe(1)
+    mkdirSync(resolve(root, `native/system/packages/${platform()}-${arch()}`), { recursive: true })
+    writeFileSync(resolve(root, `native/system/packages/${platform()}-${arch()}/prebuilds.json`), '{"binaries":[]}\n')
+    await expect(stagesToRun(root, environment, readStageCredentials(root)))
+      .resolves.toEqual([...BUILD_STAGES])
+  })
+
   it('reuses every stage when nothing changed', async () => {
     const root = repository()
     await recordAll(root, { DSH_CLIENT_COMMIT_HASH: 'aaaaaaa' })

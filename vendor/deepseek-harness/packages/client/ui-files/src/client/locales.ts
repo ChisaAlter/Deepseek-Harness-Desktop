@@ -12,6 +12,7 @@ export const zh = {
   'listing': '正在列出目录…',
   'error.list': '无法读取目录。',
   'error.read': '无法读取文件。',
+  'error.open': '无法打开文件。',
   'preview.binary': '无法预览二进制文件。',
   'preview.truncated': '文件过长，仅显示开头。',
   'preview.copy': '复制',
@@ -40,6 +41,12 @@ export const zh = {
   'preview.comment': '添加到对话',
   'error.write': '无法保存文件。',
   'error.changed': '磁盘上的文件已更改。再次保存将覆盖。',
+  'unsaved.title': '有未保存的修改',
+  'unsaved.body': '关闭前可以保存修改，或继续编辑。',
+  'unsaved.close': '关闭',
+  'unsaved.keep': '继续编辑',
+  'unsaved.discard': '丢弃',
+  'unsaved.save': '保存并关闭',
 } satisfies Record<string, string>
 
 /** The files namespace key union. */
@@ -57,6 +64,7 @@ export const en = {
   'listing': 'Listing directory…',
   'error.list': 'Could not list the directory.',
   'error.read': 'Could not read the file.',
+  'error.open': 'Could not open the file.',
   'preview.binary': 'This binary file cannot be previewed.',
   'preview.truncated': 'File is too large; showing the beginning.',
   'preview.copy': 'Copy',
@@ -85,6 +93,12 @@ export const en = {
   'preview.comment': 'Add to chat',
   'error.write': 'Could not save the file.',
   'error.changed': 'The file changed on disk. Save again to overwrite.',
+  'unsaved.title': 'Unsaved changes',
+  'unsaved.body': 'Save your changes before closing, or keep editing.',
+  'unsaved.close': 'Close',
+  'unsaved.keep': 'Keep editing',
+  'unsaved.discard': 'Discard',
+  'unsaved.save': 'Save and close',
 } satisfies Record<FilesKey, string>
 
 /** Dictionary namespace owned by this plugin. */

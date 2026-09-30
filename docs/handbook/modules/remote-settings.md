@@ -4,6 +4,8 @@
 
 设置分区 `remote` 承载连接方式、网关高级项与**桌面内置** IM 渠道（`vendor/dsh-im`）；侧栏手机弹窗只负责开关、设备与扫码配对。产品契约见 [Feature: remote-settings](../../features/remote-settings.md)，配对网关见 [手机远程](mobile-remote.md)。
 
+网关“监听端口”修改 loopback daemon 的真实端口（默认 6767）；LAN 配对静态页另用 3180。“监听范围”约束该静态页，包含严格的仅本机选项，配对 URL 和快照使用相同地址。传输加密一行只说明当前协议边界：手机会话端到端加密、中继 TLS 随中继主机配置、LAN 静态页 HTTP；没有独立的 LAN TLS 单选控件。畸形 HTTP URL、Host 和编码在静态页请求边界返回 400。
+
 ## 结构
 
 | 标签 | id | 所有者 |

@@ -1,11 +1,10 @@
 /**
- * Desktop file tab definitions and the in-memory editor buffer that keeps a
- * draft alive while its tab is not the active one.
+ * Desktop file tab definitions and the editor buffer shape.
  *
  * The native Sidebar owns tab lifetime and persistence; this module only
- * supplies the two Desktop extension types and the per-open buffer keyed by
- * the stable resource address. The buffer is deliberately in memory: a draft
- * is unsaved editor state, not a second copy of the file on disk.
+ * supplies the two Desktop extension types. File bodies remain mounted while
+ * hidden so their save queue survives tab changes; desktop-file-state owns
+ * the recoverable browser-local drafts keyed by stable resource address.
  */
 import type { SidebarRightTabDefinition } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
@@ -28,28 +27,6 @@ export const DESKTOP_FILE_KIND = 'desktop-file'
 export interface DesktopFileBuffer {
   text: string
   draft: string
-}
-
-const buffers = new Map<string, DesktopFileBuffer>()
-
-/**
- * Read one resource's live buffer.
- * @param address - stable `dsh-resource://file/...` identity.
- * @returns the buffered pair, or undefined when the viewer never wrote one.
- */
-export function readDesktopFileBuffer(address: string): DesktopFileBuffer | undefined {
-  const buffer = buffers.get(address)
-  return buffer === undefined ? undefined : { ...buffer }
-}
-
-/**
- * Remember or clear one resource's live buffer.
- * @param address - stable `dsh-resource://file/...` identity.
- * @param buffer - next buffer, or null when the viewer releases it.
- */
-export function writeDesktopFileBuffer(address: string, buffer: DesktopFileBuffer | null): void {
-  if (buffer === null) buffers.delete(address)
-  else buffers.set(address, { ...buffer })
 }
 
 /**
@@ -127,6 +104,7 @@ export function desktopFileDefinition(
   return {
     id: DESKTOP_FILE_ID,
     kind: DESKTOP_FILE_KIND,
+    keepMounted: true,
     patterns: ['dsh-resource://file/session/**'],
     priority: 'extension',
     canOpen: address => canOpenDesktopFile(address, cwdOf),

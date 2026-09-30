@@ -8,6 +8,7 @@ const { harnessHasGhosttyAssets } = require('../shared/ghostty-assets');
 const { materializeRuntimeLinksAsync, removeRuntimeLinksAsync } = require('../shared/runtime-links');
 const { checkInstallSpace } = require('./install-space');
 const { randomUUID } = require('node:crypto');
+const { hashRuntimeArchive, readRuntimeArchiveIdentity } = require('../shared/harness-runtime-identity');
 
 function looseHarnessRoot() {
   return path.join(process.resourcesPath, 'vendor', 'deepseek-harness');
@@ -150,19 +151,32 @@ function writeRuntimeStamp(dest, identity) {
   fs.writeFileSync(runtimeStampPath(dest), `${JSON.stringify(identity)}\n`);
 }
 
-function packagedRuntimeIdentity(pin, archiveBytes) {
+function packagedRuntimeIdentity(pin, archiveBytes, archiveSha256) {
   return {
     sha: pin.sha,
     npm: pin.npm,
     archiveBytes,
+    archiveSha256,
   };
+}
+
+async function readPackagedRuntimeIdentity(pin, archive, signal) {
+  const archiveBytes = (await fsp.stat(archive)).size;
+  const manifest = await readRuntimeArchiveIdentity(archive);
+  if (manifest && manifest.archiveBytes !== archiveBytes) {
+    throw new Error('运行时归档大小与摘要不一致，请重新下载安装包');
+  }
+  // Modern builds carry a tiny build-time digest. Legacy layouts stream the
+  // archive; their old stamps lack the digest and refresh once before reuse.
+  const archiveSha256 = manifest?.archiveSha256 ?? await hashRuntimeArchive(archive, { signal });
+  return { identity: packagedRuntimeIdentity(pin, archiveBytes, archiveSha256), needsVerification: Boolean(manifest) };
 }
 
 /**
  * Same desktop version reuses userData/runtime/<version>. Overlay installs must
  * not keep a previous Harness tree just because bin.js and Ghostty exist.
  * @param {string} dest
- * @param {{ sha: string, npm: string, archiveBytes: number }} identity
+ * @param {{ sha: string, npm: string, archiveBytes: number, archiveSha256: string }} identity
  * @returns {boolean}
  */
 function canReuseExtractedHarness(dest, identity) {
@@ -170,6 +184,9 @@ function canReuseExtractedHarness(dest, identity) {
     return false;
   }
   if (!Number.isFinite(identity.archiveBytes)) {
+    return false;
+  }
+  if (typeof identity.archiveSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(identity.archiveSha256)) {
     return false;
   }
   if (!hasBuiltHarness(dest)) {
@@ -181,7 +198,8 @@ function canReuseExtractedHarness(dest, identity) {
   }
   return stamp.sha === identity.sha
     && stamp.npm === identity.npm
-    && stamp.archiveBytes === identity.archiveBytes;
+    && stamp.archiveBytes === identity.archiveBytes
+    && stamp.archiveSha256 === identity.archiveSha256;
 }
 
 function packagedHarnessRoot() {
@@ -304,9 +322,10 @@ async function preparePackagedHarness(log = () => {}, { signal } = {}) {
   const archiveExists = fs.existsSync(archive);
   // readPackagedPin throws on a missing/invalid pin before anything on disk
   // is deleted; a broken install must not destroy a usable runtime.
-  const identity = archiveExists
-    ? packagedRuntimeIdentity(readPackagedPin(), fs.statSync(archive).size)
+  const packaged = archiveExists
+    ? await readPackagedRuntimeIdentity(readPackagedPin(), archive, signal)
     : null;
+  const identity = packaged?.identity;
   let linksReady = true;
   try { await prepareRuntimeLinks(dest, { signal, log }); } catch (error) {
     if (signal?.aborted || error.code === 'DSH_CANCELLED') throw extractionCancelled();
@@ -335,6 +354,12 @@ async function preparePackagedHarness(log = () => {}, { signal } = {}) {
   // runtime stays in place until a replacement has been validated.
   const space = checkInstallSpace(path.dirname(dest), identity.archiveBytes * 1.15);
   if (!space.checked) log('无法预先读取运行时磁盘空间；解压失败时请检查目标磁盘可用空间。');
+  if (packaged.needsVerification) {
+    log('正在校验安装包运行时归档…');
+    if (await hashRuntimeArchive(archive, { signal }) !== identity.archiveSha256) {
+      throw new Error('运行时归档校验失败，请重新下载安装包');
+    }
+  }
   log(`正在准备运行时到 ${dest}（首次或更新后需要解压）…`);
   const staging = `${dest}${EXTRACT_SUFFIX}${randomUUID()}`;
   activeStaging.add(staging);

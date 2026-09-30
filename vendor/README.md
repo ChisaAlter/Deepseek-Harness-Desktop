@@ -3,6 +3,8 @@
 Index of everything vendored into the desktop app. Per-tree provenance and
 divergence notes live in each tree's own `DESKTOP-FORK.md` / `AGENTS.md`.
 
+The desktop audit repairs Files draft/close protection, verbatim selection transfer and Session-aware path routing; remote settings now reflect effective binding/daemon ports and disclose LAN HTTP; macOS update feedback describes manual DMG installation. Build-stage credentials include helper/vendor/native inputs and actual platform outputs. See [project audit repairs](../docs/decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md).
+
 | Tree | What it is | How the desktop uses it |
 | --- | --- | --- |
 | `deepseek-harness/` | Official DeepSeek Harness monorepo fork (pin in `harness-upstream.json`; sync via `npm run sync:harness`, build via `npm run setup:harness`). | The entire web UI + CLI runtime. Desktop-owned fork packages (the `DESKTOP_PACKAGES` registered in `src/shared/harness-desktop-forks.js`, e.g. `ui-settings-market`, `ui-surfaces`) live inside this tree and mount through the web-app bundle. |

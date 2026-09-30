@@ -37,6 +37,19 @@ test('resolveMobileWebRoot points at mobile/web', () => {
   assert.match(root.replace(/\\/g, '/'), /mobile\/web$/);
 });
 
+test('SPA paths decode exactly once, including literal percent filenames', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-spa-'));
+  try {
+    for (const name of ['报告.js', 'my app.js', 'a%20b.js', 'a%name.js']) {
+      fs.writeFileSync(path.join(root, name), 'asset');
+      assert.equal(resolveSpaAsset(root, `/${encodeURIComponent(name)}`).file, path.join(root, name));
+    }
+    assert.equal(resolveSpaAsset(root, '/%252e%252e%252fpackage.json'), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('mobile app boots offer v2 through DaemonClient instead of retired HTTP login', () => {
   const root = resolveMobileWebRoot();
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');

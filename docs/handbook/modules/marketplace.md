@@ -23,6 +23,11 @@
   执行，操作前快照 manifest / lockfile / workspace；失败、无实际变化、入口损坏或 loader id 冲突时回滚并
   重新安装旧状态。UI 在发现卡片和已安装行显示差异并支持逐项更新。
 - 目录 / 安装：`marketplace-catalog.js`、`marketplace-install.js`、`marketplace-spec.js`、`marketplace-allowbuilds.js`。
+  catalog / 会话内 / launcher 导入安装在执行 CLI 前保存元数据与完整 `node_modules` 本地快照；
+  失败时通过隔离新目录、原地恢复快照保留旧物理安装，不依赖联网重装。
+  Windows 快照中的可解析目录链接复用 `desktop-plugin-link.js` 创建 junction，普通用户无需额外
+  symlink 权限；`.pnpm` 实体内容正常复制，外部 overlay 仅保留链接，不遍历其目标。
+  链接目标位置若被未知普通目录占据即拒绝建立快照；失败前不执行 CLI，恢复失败保留备份。
   目录拉取流式封顶 8 MiB（`MAX_REGISTRY_BYTES`），超限走缓存 / 内置离线快照回退
   （`marketplace-registry-snapshot.json`：随包携带的极小精选子集，仅保证断网首启
   分区不空白，不是完整目录镜像；发版前用 `npm run refresh:marketplace-snapshot`

@@ -157,8 +157,8 @@ export interface SidebarRightOpenTabOptions<K extends string = string> extends S
 /** The scheme every resource address carries; anything else is not a resource this face opens. */
 const RESOURCE_SCHEME = 'dsh-resource://'
 
-/** Synchronous close/replacement hook; resource owners retain any background cleanup. */
-export type SidebarRightCloseHandler = (sessionId: SessionId, tab: TabRecord) => void
+/** Cleanup before close/replacement; false defers removal until the owner calls proceed. */
+export type SidebarRightCloseHandler = (sessionId: SessionId, tab: TabRecord, proceed: () => boolean) => void | boolean
 
 /** The outward right-Sidebar face (`ctx.sidebarRight`). */
 export interface ISidebarRight {
@@ -270,7 +270,7 @@ export class SidebarRightController implements ISidebarRight {
   /**
    * Register resource cleanup before explicit removal. Failure preserves the tab.
    * @param kind - tab kind owned by the registering plugin.
-   * @param handler - saves any background cleanup before returning and allowing removal.
+   * @param handler - cleans up before removal, or returns false and retains proceed for confirmation.
    * @returns an effect-scoped unregister callback.
    */
   registerCloseHandler(kind: string, handler: SidebarRightCloseHandler): () => void {
@@ -402,8 +402,20 @@ export class SidebarRightController implements ISidebarRight {
   }
 
   private removeAfterCleanup(sessionId: SessionId, tab: TabRecord, commit: () => void): void {
-    this.closeHandlers.get(tab.kind)?.(sessionId, tab)
-    commit()
+    const occurrence = this.adopted.has(sessionId) ? this.tabDomain.occurrence(sessionId, tab) : undefined
+    let completed = false
+    const proceed = (): boolean => {
+      if (completed) return false
+      completed = true
+      if (occurrence?.signal.aborted) return false
+      const surface = this.adopted.get(sessionId)?.store.getSnapshot().bySession[sessionId]
+        ?? (this.binding?.sessionId === sessionId ? this.binding.surfaces[sessionId] : undefined)
+      const current = surface?.layout.tabs[tab.id]
+      if (current?.kind !== tab.kind || current.contentId !== tab.contentId) return false
+      commit()
+      return true
+    }
+    if (this.closeHandlers.get(tab.kind)?.(sessionId, tab, proceed) !== false) proceed()
   }
 
   /** Claim a resource and place it in one session; an address outside the scheme or one no type claims throws. */
@@ -479,7 +491,8 @@ export class SidebarRightController implements ISidebarRight {
   close(tabId: TabId): void {
     const { sessionId, actions } = this.require()
     if (this.adopted.has(sessionId)) { this.closeIn(sessionId, tabId); return }
-    actions.closeTab(sessionId, tabId)
+    const tab = this.binding?.surfaces[sessionId]?.layout.tabs[tabId]
+    if (tab !== undefined) this.removeAfterCleanup(sessionId, tab, () => { actions.closeTab(sessionId, tabId) })
   }
 
   /**

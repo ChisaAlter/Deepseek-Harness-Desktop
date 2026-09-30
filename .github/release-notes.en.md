@@ -8,11 +8,15 @@
 - **Session costs**: Usage Statistics now shows costs by model, includes a price-period editor, and has a more compact activity calendar.
 - **One resident whale conversation**: The main window, desktop quick chat, and enabled IM channels share one persistent conversation. Settings separate chat and capabilities from desktop appearance and behavior; quick chat uses a floating model and reasoning picker.
 - **File and browser work loops**: File references and deliverables in chat open the relevant surface. HTML, HTM, XHTML, and PDF deliverables first open in the chat mini preview, then move to the right Browser panel on request while retaining the same page and history.
+- **File editing protection**: Edits retain a draft, and closing an unsaved file offers Save or Discard. A failed save keeps the editor open. Selected text goes into the owning conversation, and the file tree and search use the shared opening route.
+- **Remote access fixes**: Malformed requests no longer interrupt the LAN static server. Local-only mode retains loopback listening, and the configured port controls the actual remote daemon. Settings remove the unimplemented LAN TLS switch and explain the existing encryption scope.
+- **Preview path fixes**: Files with Chinese characters, spaces, or percent signs preview correctly, while path traversal and encoded path separators remain rejected.
 - **One right panel**: Files, browser pages, diffs, and other resources open in place in the same right panel. Closing the last content tab returns to its entry view without switching between separate sidebars.
-- **Launcher and data preservation**: Failed imports preserve existing data, and failed plugin replacements restore the previous installation. Stopping or cancelling startup invalidates older recovery tasks. Import lists and long confirmations remain scrollable in small windows and at high zoom levels.
+- **Launcher and data preservation**: Failed imports preserve existing data, and failed plugin replacements restore the previous installation, including a fix for directory links in Windows rollback snapshots. Stopping or cancelling startup invalidates older recovery tasks. Import lists and long confirmations remain scrollable in small windows and at high zoom levels.
 - **Account sign-in**: The system browser opens automatically when a desktop account authorization link becomes available; the dialog still offers a copyable link.
 - **Interface fixes**: The Jobs popover avoids clipping under the conversation header. The browser mini preview has slimmer chrome and improved dragging, resizing, and title display. The whale pet's interaction area follows the character more closely.
-- **Installation and startup recovery**: Interrupted downloads retry within a bounded limit, and installation failures show a recoverable state. The runtime is validated in a temporary directory before replacement, and startup checks dependency links asynchronously to reduce long UI stalls.
+- **Installation and startup recovery**: Interrupted downloads retry within a bounded limit, and installation failures show a recoverable state. The runtime is validated in a temporary directory before replacement. Same-version upgrades refresh it by archive content to avoid reusing an older runtime. Startup checks dependency links asynchronously to reduce long UI stalls.
+- **Update failure recovery**: A differential-download timeout cancels the download. If the installer cannot start, the app reports the error, keeps the current app and component services running, and allows a retry without claiming success or quitting early.
 - **Accurate statistics and responsive switches**: Fixed missing usage in restored sessions and totals doubling on repeated refreshes. Session statistics, cost, and peak/off-peak switches respond immediately and retain the latest choice during rapid changes.
 - **Windows windows and desktop pet**: The main window and launcher retain both 20px transparent corners and native window animations. The pet adapts to screen density, and clicks pass through the gap between the character and chat card.
 - **Harness baseline**: Updated to `dsh-v0.1.7-rc.2` while retaining desktop work loops and plugin capabilities.
@@ -23,6 +27,9 @@
 - The right Browser panel and chat mini preview hand off the same guest; a delayed hide from the departing surface must not override the new owner's display.
 - The `dshd mini-player` positions its renderer controls in the chat viewport and hands the Browser guest (BrowserView) over by `previewId`; the same guest retains URL and history. The installed-package Browser path is a P0 acceptance case.
 - File opening uses authorized workspace paths. Paths without a working directory or a supported handler fall back to the Host.
+- Differential and full-file installs share target-version, release-manifest SHA512, and task-admission checks. An installer-start failure releases the admission lock, and a retry checks work again.
+- Runtime archives use SHA256 content identity; older extraction markers migrate once. Normal reuse reads only a small digest manifest, and replacement verifies the actual archive. Build credentials also track script helpers, vendored sources, and native outputs for the current platform while excluding generated directories.
+- The macOS update path selects a DMG for the current architecture, verifies it, and opens it with instructions to drag the app into Applications. Opening the image does not mean installation is complete and does not quit the app. This Windows release does not include a DMG.
 
 ## Install and upgrade
 
@@ -30,7 +37,7 @@ Windows 10 or later x64 users can download the installer from [Releases](https:/
 
 ## Platform scope
 
-The public asset set defaults to a Windows x64 installer. macOS is included only when explicitly selected for the candidate build. Android and the second Web client are outside this installer set. Remote access requires an explicit pairing opt-in.
+This release includes only a Windows x64 installer. Android, macOS, and the second Web client are outside this installer set. Remote access requires an explicit pairing opt-in. The LAN static page uses HTTP; Settings explains the scope of end-to-end encryption and relay TLS.
 
 ## Verification scope
 

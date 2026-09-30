@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `desktop-launcher` |
 | **status** | `active` |
+| **last verified (audit update)** | 2026-09-30 — 更新/启动器 79 项、任务保护与渲染反馈定向回归通过；资产按平台和架构选择，DMG 手动安装反馈覆盖设置、版本卡和冷启动提示。未做 macOS 实机安装。 |
 | **last verified (installation recovery)** | 2026-09-29 — 下载断流/重试/取消、完整缓存校验、安装失败优先与同版本待确认回归通过；真实 Electron 明暗 × 两种宽度共 20 场景通过，源码重启与冒烟通过。未构建或验收新的 CI Setup。证据：[安装恢复 QA](../qa/results/2026-09-29-installation-recovery/README.md)。 |
 | **last verified (home state)** | 2026-09-29 — 可选导入不抢占冷启动；首页、门禁与恢复定向 95/95。隐藏 Electron 真实页面覆盖双击只调用一次、延迟/失败/异常/恢复启动/关闭，860×560 下 100%/200% 主操作可达。同批实机复测：`autoStartDesktop:false` 的真实启动器首页只有单一启动入口、诊断默认折叠，点击后进入锁定进行态并显示真实等待秒数。证据见 `docs/qa/results/2026-09-29-four-fix-live/` 与 `docs/qa/results/2026-09-29-boot-reveal/LOCAL-INSTALL.md`；未更新安装版首页，用户要求不操作其桌面。 |
 | **last verified (audit closeout)** | 2026-09-28 — 真实 Electron 回归验证恢复标题 16/24、明暗主题与 100%–200% 缩放下导入列表至少 120px、逐项选择/导入按钮可达、展开说明可滚动，以及 600 字符/超长确认正文不挤出按钮。 |
@@ -28,6 +29,8 @@
 
 ## Invariants
 
+- 2026-09-30：更新/指定版本安装按平台选择资产，Windows 使用 Setup.exe，macOS 使用匹配架构的 DMG；DMG 打开后明确显示手动拖入 Applications 的提示，当前应用保持运行。
+
 - 下载与安装恢复：整包下载分别限制连接（20s）、无数据（45s）及总耗时（2h），暂态错误最多三次尝试；取消覆盖传输与重试等待。完整缓存每次重新校验 SHA512 后才能复用，`.part` 不可执行。下载目标盘做空间预检，未知总大小只显示字节/速度。安装启动失败及时返回；父进程退出不足以证明 UAC 安装完成，同版本修复返回「待确认」，失败优先于注册表变化。终止或未确认状态收起活动进度，版本安装 IPC 拒绝也必须显示失败原因。
 
 - 启动器对外显示 Whale Isle Launcher，桌面运行时显示 Whale Isle；两个 appId 与各自旧版 userData 路径保持稳定，启动器继续识别旧版 Deepseek-Harness-Desktop 的注册表与可执行文件。
@@ -44,9 +47,9 @@
 - 启动器浅色/深色跟官方 dsh web 表（`data-ds-dark-theme`），不把 Appearance 壁纸种子写进 token。
 - 市场 / 壁纸图库仍禁止另开产品窗。
 - `/releases/latest` 忽略 draft；正式版 0.2.7 起启动器随 Setup 提供。
-- 换版本只下载该 tag 的 Setup 并拉起安装器，不单独切 `vendor/dsh` pin。
-- 「更新到最新版」优先走 electron-updater 差量通道（`installFromAsset` → `installLatestViaUpdater`，仅 packaged 且 Windows）：`latest.yml` 元数据 + 新旧 Setup `.blockmap` 分块比对，COPY 源为 updater 缓存目录里安装时自拷贝的 `installer.exe`，差异分块经 HTTP Range 拉取、本地拼出新安装器后静默安装并重启；无旧块图 / 缓存缺失 / 校验或下载失败一律自动回退既有全量下载 + sha512 校验路径（同一 `installFromAsset` 语义）。「切换到指定版本」的 `installRelease` **不走**该通道——electron-updater 只认 `latest.yml` 指向的版本；dev / 源码运行不启用。差量生效时进度载荷带 `differential` 标记，启动器文案显示「增量下载」；更新完整性由 `latest.yml` 内嵌 sha512 兜底，feed 来自 `build.publish` GitHub 配置（electron-builder 生成 `resources/app-update.yml`）。
-- 更新检查请求 10s 超时、单次下载整体 15 分钟超时；正文中断（error/aborted）或落盘字节与 content-length 不符视为失败并删除半成品；失败不阻塞手动「启动桌面端」。
+- 换版本只下载该 tag 对应平台的安装包，不单独切 vendor/dsh pin。
+- 「更新到最新版」优先走 Windows packaged 的 electron-updater blockmap 下载（installFromAsset → downloadLatestViaUpdater），COPY 源仍为安装时自拷贝的 installer.exe；下载失败回退整包。成功下载后检查目标版本与发布清单 SHA512，共用任务保护 commit 内的 spawn，失败不再次安装。指定版本、已确认 release 快照和源码运行不走此通道。差量报告决定 differential 标记；发布 feed 来自 resources/app-update.yml。
+- 更新检查请求 10s 超时；差量下载十五分钟、整包两小时总预算，正文中断或长度不符删除半成品；失败保留当前界面与手动启动入口。
 - **运行时装与自更新分层**：完整包在操作系统接受安装器 spawn 后退出；slim 包保持存活，以注册表、主 exe 和目标版本匹配观察首次安装或版本切换。同版本修复不能用 mtime 或父进程结束证明完成，父进程结束后返回「待确认」；安装错误立即报告，其余等待八分钟封顶或用户取消后回未确认状态。具体恢复边界见本卡下载不变量。
 - **下载线路枚举与镜像权威（2026-09-24）**：`release-source.js` 是唯一线路表（github/gitee）；`downloadRoute` 是 launcher 可写字段（`''` 未选）；选 gitee 的每一次取数（latest/list/tag 元数据、安装包、校验单）只走 gitee 主机。未验证线路在 UI 可见但禁选（「未启用」标注），不得以 GitHub 静默顶替。
 - **slim 形态的目标重定向（2026-09-24）**：`product.isLauncherPackage()` 为真时 `status`/`checkUpdate`/`listReleases`/`installRelease`/`installUpdate`/`startDesktop`/`stopDesktop`/`uninstallApp` 全部指向桌面产品身份（`install-detect` `deps.target={appId,productName}`），启动/停止走 spawn exe + tasklist/taskkill 探测（控制通道属后续批次）；renderer 不换通道只看 `launcherPackage`/`installed`/`running-external`。`--dshd-from-launcher` 让被拉起的桌面端跳过自身冷启动门直接进桌面。
@@ -80,6 +83,8 @@
 
 ## Allowed touch
 
+- 2026-09-30 全修授权：`src/main/update-platform-commit.test.js`、`src/main/update-updater*.js`；`vendor/deepseek-harness/packages/client/ui-settings-general` 的更新反馈源码/测试，限 macOS 手动安装反馈；配对设计文档与本次决策。
+
 - `src/main/install-space.js` 与测试、`src/main/update.test.js`、`src/renderer/launcher-behavior.test.js` — 2026-09-29 用户授权全面优化安装链路的空间预检、故障恢复与反馈回归。
 
 - `src/main/window.js` 启动器窗、`src/renderer/launcher.*`
@@ -107,6 +112,8 @@
 | Manual / QA | `TC-LAUNCH-001`…`008` |
 
 ## Sources
+
+- Decision: [项目审查修复](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)
 
 - Decision: [安装恢复边界](../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)
 

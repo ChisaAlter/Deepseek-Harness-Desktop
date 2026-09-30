@@ -229,12 +229,6 @@ function createTaskProtection(options = {}) {
           }
         }
       }
-      // Commit-scoped cleanups (component supervision etc.) belong to terminal
-      // operations only — a stop/restart commit must not tear down services
-      // the launcher keeps supervising across desktop restarts.
-      if (opts.terminal === true) {
-        await runCommitCleanups();
-      }
       try {
         if (typeof opts.commit === 'function') {
           await opts.commit();
@@ -245,6 +239,10 @@ function createTaskProtection(options = {}) {
         if (opts.hostLock !== false) await release();
         throw error;
       }
+      // Keep supervised services and their cleanup registrations intact when
+      // a terminal commit fails (for example, an installer rejected at spawn).
+      // A successful terminal commit is followed by cleanup before app.quit.
+      if (opts.terminal === true) await runCommitCleanups();
       if (opts.terminal === true) committed = true;
       else if (opts.hostLock !== false) {
         // The Host may have survived a failed non-terminal commit; release so

@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `task-protection` |
 | **status** | `active` |
+| **last verified (audit update)** | 2026-09-30 — 差量与整包共享 spawn commit；失败后二次准入、附属清理保留、显式下载取消令牌、macOS 手动安装回归通过，未做真实 NSIS/DMG 安装。 |
 | **last verified (installer failure)** | 2026-09-29 — 实际 update 整包调用链 + 真实协调器 + 消失安装器回归验证：spawn ENOENT 拒绝、Host release 执行、committed 保持 false；取消在安装前异步准入后仍阻止 spawn。见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，未做 CI Setup 实机安装。 |
 | **last verified (plugin links)** | 2026-09-29 — 内置插件复用有效链接、保留读取错误，EEXIST 只接受复查为正确目标的链接；未知目录不删除。定向 95/95、真实 Electron 200 次准备（199 次复用）、隔离源码启动/PTY/标题栏通过。安装版未更新，原现场触发条件未完整复现。 |
 | **last verified (quit)** | 2026-09-29 — 本地连接误报修复，统一 quit 预确认；32 项定向回归及隔离源码冒烟通过，含真实 TCP socket、生产退出接线与 drain 失败无副作用。旧进程确认框待用户取消后正常重启；未打包。 |
@@ -17,6 +18,9 @@
 3. Launcher 侧的「停止桌面」与运行时装对**外部桌面**先走同义握手；旧桌面无握手时要求正常退出并确认进程结束，不回退直接 taskkill /F。launcher 发起的停止带 `preConfirmed`——点击即同意，inspect→acquire→commit 照跑但两道确认门整体跳过，永远零弹窗。
 
 ## Invariants
+
+- 2026-09-30：差量下载和整包安装共用可观测 spawn commit；updater 只下载，不调用 quitAndInstall。安装失败后释放锁且下一次尝试重新 inspect/acquire；macOS 打开 DMG 不提交退出。
+- 终止操作的附属清理只在 commit 成功后执行；commit 失败保留运行中的组件服务及清理钩子，后续退出仍正常清理。
 
 - 整包更新把安装器 spawn 纳入协调器 commit；启动失败或 commit 前取消须释放 Host 接纳锁，不得提前锁定 committed 或退出当前界面。
 
@@ -56,6 +60,8 @@
 | Manual / QA | quit/安装/更新/启动器停止无工作清单二次确认；重启/重载活动任务确认；失败 drain 不提交 |
 
 ## Sources
+
+- Decision: [项目审查修复](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)
 
 - Decision: [安装恢复边界](../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)
 

@@ -6,6 +6,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const Module = require('node:module');
+const { createHash } = require('node:crypto');
+const { hashRuntimeArchive, writeRuntimeArchiveIdentity } = require('../shared/harness-runtime-identity');
+
+const TEST_ARCHIVE_SHA256 = 'a'.repeat(64);
 
 const electronStub = { app: {} };
 const originalLoad = Module._load;
@@ -143,18 +147,20 @@ test('a built extract without a stamp is not reused across same-version overlays
   const identity = packagedRuntimeIdentity(
     { sha: '528c682e061696f5a160f363f236ecbf53cbd006', npm: '0.1.1-rc.1' },
     1509949440,
+    TEST_ARCHIVE_SHA256,
   );
   assert.equal(hasBuiltHarness(root), true);
   assert.equal(canReuseExtractedHarness(root, identity), false);
 });
 
-test('an extract matching the packaged pin and archive size is reused', (t) => {
+test('an extract matching the packaged pin and archive content digest is reused', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'current-runtime-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   seedBuiltHarness(root);
   const identity = packagedRuntimeIdentity(
     { sha: '528c682e061696f5a160f363f236ecbf53cbd006', npm: '0.1.1-rc.1' },
     1509949440,
+    TEST_ARCHIVE_SHA256,
   );
   writeRuntimeStamp(root, identity);
   assert.equal(canReuseExtractedHarness(root, identity), true);
@@ -167,12 +173,80 @@ test('an extract is refreshed when the packaged archive size changes', (t) => {
   writeRuntimeStamp(root, packagedRuntimeIdentity(
     { sha: '528c682e061696f5a160f363f236ecbf53cbd006', npm: '0.1.1-rc.1' },
     1509949440,
+    TEST_ARCHIVE_SHA256,
   ));
   const next = packagedRuntimeIdentity(
     { sha: '528c682e061696f5a160f363f236ecbf53cbd006', npm: '0.1.1-rc.1' },
     1509949441,
+    TEST_ARCHIVE_SHA256,
   );
   assert.equal(canReuseExtractedHarness(root, next), false);
+});
+
+test('legacy stamps without an archive digest cannot reuse an extract', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-runtime-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  seedBuiltHarness(root);
+  writeRuntimeStamp(root, { sha: 'same', npm: 'same', archiveBytes: 123 });
+  assert.equal(canReuseExtractedHarness(root, packagedRuntimeIdentity({ sha: 'same', npm: 'same' }, 123, TEST_ARCHIVE_SHA256)), false);
+});
+
+test('same-version overlays refresh equal-size archives and then reuse without rehashing', async (t) => {
+  const { spawnSync } = require('node:child_process');
+  const fixture = packagedFixture(t);
+  const tree = path.join(fixture.root, 'archive-tree');
+  seedBuiltHarness(tree);
+  const html = path.join(tree, 'apps/web/dist/index.html');
+  const archive = path.join(fixture.resources, 'vendor', 'deepseek-harness.tar');
+  fs.writeFileSync(path.join(fixture.resources, 'vendor', 'harness-upstream.json'), JSON.stringify({ sha: 'same', npm: 'same' }));
+  const pack = async content => {
+    fs.writeFileSync(html, content);
+    const result = spawnSync(tarCommand(), ['-cf', archive, '-C', tree, '.'], { windowsHide: true });
+    assert.equal(result.status, 0, result.stderr?.toString());
+    return writeRuntimeArchiveIdentity(archive);
+  };
+  const first = await pack('<html>v1</html>\n');
+  await ensurePackagedHarness();
+  const second = await pack('<html>v2</html>\n');
+  assert.equal(first.archiveBytes, second.archiveBytes);
+  assert.notEqual(first.archiveSha256, second.archiveSha256);
+  await ensurePackagedHarness();
+  assert.equal(fs.readFileSync(path.join(fixture.dest, 'apps/web/dist/index.html'), 'utf8'), '<html>v2</html>\n');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(fixture.dest, '.dshd-runtime.json'), 'utf8')).archiveSha256, second.archiveSha256);
+  t.mock.method(fs, 'createReadStream', () => { throw new Error('unchanged startup must not stream the archive'); });
+  assert.equal(await ensurePackagedHarness(), fixture.dest);
+  t.mock.restoreAll();
+});
+
+test('a legacy stamp refreshes once and records the packaged digest', async (t) => {
+  const { spawnSync } = require('node:child_process');
+  const fixture = packagedFixture(t);
+  const tree = path.join(fixture.root, 'archive-tree');
+  seedBuiltHarness(tree);
+  const archive = path.join(fixture.resources, 'vendor', 'deepseek-harness.tar');
+  assert.equal(spawnSync(tarCommand(), ['-cf', archive, '-C', tree, '.'], { windowsHide: true }).status, 0);
+  const manifest = await writeRuntimeArchiveIdentity(archive);
+  fs.writeFileSync(path.join(fixture.resources, 'vendor', 'harness-upstream.json'), JSON.stringify({ sha: 'same', npm: 'same' }));
+  seedBuiltHarness(fixture.dest);
+  fs.writeFileSync(path.join(fixture.dest, 'legacy-marker'), 'old');
+  writeRuntimeStamp(fixture.dest, { sha: 'same', npm: 'same', archiveBytes: manifest.archiveBytes });
+  await ensurePackagedHarness();
+  assert.equal(fs.existsSync(path.join(fixture.dest, 'legacy-marker')), false);
+  assert.equal(canReuseExtractedHarness(fixture.dest, packagedRuntimeIdentity({ sha: 'same', npm: 'same' }, manifest.archiveBytes, manifest.archiveSha256)), true);
+});
+
+test('a packaged digest mismatch preserves the old runtime before extraction', async (t) => {
+  const fixture = packagedFixture(t);
+  seedBuiltHarness(fixture.dest);
+  fs.writeFileSync(path.join(fixture.dest, 'keep.txt'), 'old-runtime');
+  const archive = path.join(fixture.resources, 'vendor', 'deepseek-harness.tar');
+  fs.writeFileSync(archive, 'archive-v1');
+  await writeRuntimeArchiveIdentity(archive);
+  fs.writeFileSync(archive, 'archive-v2');
+  fs.writeFileSync(path.join(fixture.resources, 'vendor', 'harness-upstream.json'), JSON.stringify({ sha: 'same', npm: 'same' }));
+  await assert.rejects(ensurePackagedHarness(), /归档校验失败/);
+  assert.equal(fs.readFileSync(path.join(fixture.dest, 'keep.txt'), 'utf8'), 'old-runtime');
+  assert.equal(fs.existsSync(`${fixture.dest}.previous`), false);
 });
 
 test('ensurePackagedHarness reuses only a stamped matching extract', () => {
@@ -193,7 +267,7 @@ function seedReusableLinkedRuntime(fixture) {
   const pin = { sha: 'current', npm: 'current' };
   fs.writeFileSync(path.join(fixture.resources, 'vendor', 'harness-upstream.json'), JSON.stringify(pin));
   fs.writeFileSync(path.join(fixture.resources, 'vendor', 'deepseek-harness.tar'), 'archive');
-  writeRuntimeStamp(fixture.dest, packagedRuntimeIdentity(pin, 7));
+  writeRuntimeStamp(fixture.dest, packagedRuntimeIdentity(pin, 7, createHash('sha256').update('archive').digest('hex')));
 }
 
 test('packaged startup checks and repairs links without synchronous realpath on the UI thread', async (t) => {
@@ -332,6 +406,7 @@ test('ensurePackagedHarness re-extracts a stale extract only when the archive ex
   const identity = packagedRuntimeIdentity(
     { sha: '528c682e061696f5a160f363f236ecbf53cbd006', npm: '0.1.1-rc.1' },
     fs.statSync(archive).size,
+    await hashRuntimeArchive(archive),
   );
   assert.equal(canReuseExtractedHarness(fixture.dest, identity), true);
   assert.equal(fs.readFileSync(path.join(fixture.dest, 'node_modules', 'proof', 'proof.txt'), 'utf8'), 'relocated');

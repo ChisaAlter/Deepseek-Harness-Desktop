@@ -16,6 +16,7 @@ export type UpdateInfo = {
   message?: string
   launched?: boolean
   openedPage?: boolean
+  manualInstall?: boolean
 }
 
 /** Download/install progress pushed by the shell during installUpdate. */
@@ -144,8 +145,8 @@ export type DesktopConfig = {
 
 /** The preload-exposed desktop API surface used by the settings UI. */
 export type OpenDshHomeResult =
-  | { ok: true, path: string }
-  | { ok: false, error: string }
+  | { ok: true; path: string }
+  | { ok: false; error: string }
 
 export type DesktopShell = {
   getConfig?: () => Promise<DesktopConfig>
@@ -184,5 +185,5 @@ export function desktopShell(): DesktopShell | null {
  * @returns true only when both getConfig and saveConfig exist.
  */
 export function canPersistCloseBehavior(shell: DesktopShell | null = desktopShell()): boolean {
-  return Boolean(shell?.getConfig && shell?.saveConfig)
+  return Boolean(shell?.getConfig && shell.saveConfig)
 }

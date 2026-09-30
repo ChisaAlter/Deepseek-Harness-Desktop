@@ -1,4 +1,4 @@
-/** Settings → Remote → Gateway: advanced RemoteGateway knobs. */
+/** Settings → Remote → Gateway: offer v2 connections and local daemon settings. */
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Button, SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -97,7 +97,6 @@ export function GatewaySettingsTab({
   }, [applySnap, saveRemote])
 
   const bindAddress = snap?.bindAddress || '0.0.0.0'
-  const lanTls = Boolean(snap?.lanTls)
   const mode = snap?.mode === 'lan' ? 'lan' : 'relay'
   const relayReady = snap?.relayConfigured === true
   const modeHint = snap ? modeDescription(snap, t) : ''
@@ -308,35 +307,7 @@ export function GatewaySettingsTab({
       <div className={css.row}>
         <div className={css.rowText}>
           <div className={css.title}>{t('lanTransport')}</div>
-          <div className={css.desc}>
-            {lanTls
-              ? t('lanTlsHint', { fp: (snap.tlsFingerprint || '').slice(0, 16) })
-              : t('lanPlaintextWarning')}
-          </div>
-        </div>
-        <div className={`${css.control} ${css.modes}`} role="radiogroup" aria-label={t('lanTransport')}>
-          <Button
-            size="sm"
-            variant={lanTls ? 'ghost' : 'primary'}
-            className={css.modeButton}
-            role="radio"
-            aria-checked={!lanTls}
-            disabled={busy}
-            onClick={() => { if (lanTls) void save({ remoteLanTls: false }) }}
-          >
-            {t('transportPlain')}
-          </Button>
-          <Button
-            size="sm"
-            variant={lanTls ? 'primary' : 'ghost'}
-            className={css.modeButton}
-            role="radio"
-            aria-checked={lanTls}
-            disabled={busy}
-            onClick={() => { if (!lanTls) void save({ remoteLanTls: true }) }}
-          >
-            {t('transportTls')}
-          </Button>
+          <div className={css.desc}>{t('lanTlsHint')}</div>
         </div>
       </div>
 
@@ -354,7 +325,7 @@ export function GatewaySettingsTab({
               setBusy(true)
               void rotateRemoteToken()
                 .then((next) => { applySnap(next) })
-                .catch((caught) => {
+                .catch((caught: unknown) => {
                   setError(ipcErrorMessage(caught))
                 })
                 .finally(() => { setBusy(false) })

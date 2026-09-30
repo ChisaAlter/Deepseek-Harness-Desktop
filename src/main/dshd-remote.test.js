@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const http = require('node:http');
 const {
   DshdRemote,
   buildDaemonChildEnv,
@@ -104,6 +105,28 @@ test('pairingAppBaseUrl in LAN mode is :3180 never the relay host', () => {
   const base = remote.pairingAppBaseUrl();
   assert.match(base, /^http:\/\/.+:3180$/);
   assert.doesNotMatch(base, /ayase\.cn/);
+  assert.equal(base, 'http://127.0.0.1:3180');
+});
+
+test('LAN listener, snapshot, and pairing URL all respect the selected bind scope', async (t) => {
+  const calls = [];
+  t.mock.method(http.Server.prototype, 'listen', function listen(port, bind) {
+    calls.push({ port, bind });
+    t.mock.method(this, 'address', () => ({ port, address: bind }));
+    queueMicrotask(() => this.emit('listening'));
+    return this;
+  });
+  for (const bind of ['127.0.0.1', '192.0.2.10', '0.0.0.0']) {
+    const remote = new DshdRemote({ getConfig: () => ({ remoteMode: 'lan', remoteBindAddress: bind }) });
+    await remote.ensureMobileWebServer();
+    assert.deepEqual(calls.at(-1), { port: 3180, bind });
+    assert.equal(remote.snapshot().bindAddress, bind);
+    const url = new URL(remote.pairingAppBaseUrl());
+    if (bind !== '0.0.0.0') assert.equal(url.hostname, bind);
+    else assert.notEqual(url.hostname, '0.0.0.0');
+    remote.pairing = { url: `${url.href}#offer=test` };
+    assert.equal(remote.snapshot().urls[0].address, url.hostname);
+  }
 });
 
 test('pairingAppBaseUrl defaults to the server landing page without a saved mode', () => {
@@ -474,6 +497,26 @@ test('startDaemon spawns the runner child and restarts it when relay config chan
   const childEnv = JSON.parse(fs.readFileSync(path.join(home, 'runner-env.json'), 'utf8'));
   assert.equal(childEnv.CHISACODE_HOME, home);
   assert.equal(childEnv.ELECTRON_RUN_AS_NODE, '1');
+});
+
+test('the port control changes the real loopback daemon endpoint and restarts its child', async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-port-'));
+  const f = fakeRemote({ home, config: { remoteEnabled: true, remotePort: 7788 } });
+  t.after(async () => {
+    await f.remote.stopDaemon();
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(path.dirname(f.remote.runnerPath), { recursive: true, force: true });
+  });
+  await f.remote.startDaemon();
+  const firstPid = f.remote.daemon.child.pid;
+  const launch = () => JSON.parse(fs.readFileSync(path.join(home, 'daemon-launch.json'), 'utf8'));
+  assert.equal(launch().daemonConfig.listen, '127.0.0.1:7788');
+  assert.equal(f.remote.snapshot().port, 7788);
+  f.setConfig({ ...f.getConfig(), remotePort: 8899 });
+  await f.remote.sync();
+  assert.notEqual(f.remote.daemon.child.pid, firstPid);
+  assert.equal(launch().daemonConfig.listen, '127.0.0.1:8899');
+  assert.equal(f.remote.snapshot().port, 8899);
 });
 
 test('daemon child relay log lines drive snapshot relay state across the process boundary', async () => {

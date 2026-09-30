@@ -109,7 +109,7 @@ describe('GatewaySettingsTab', () => {
 
   it('orders relay credentials before connection mode (T1)', async () => {
     renderGateway()
-    const root = await screen.findByLabelText(en.relayUrl).then((el) => el.closest('[data-dsh-remote-gateway]')!)
+    const root = await screen.findByLabelText(en.relayUrl).then(el => el.closest('[data-dsh-remote-gateway]')!)
     const text = root.textContent || ''
     const urlAt = text.indexOf(en.relayUrl)
     const tokenAt = text.indexOf(en.relayToken)
@@ -212,16 +212,14 @@ describe('GatewaySettingsTab', () => {
     await waitFor(() => { expect(saveRemote).toHaveBeenCalledWith({ remotePort: 3200 }) })
   })
 
-  it('saves bind scope and LAN TLS from the gateway tab', async () => {
-    const saveRemote = vi.fn(async (patch: RemotePatch) => ({
-      ...SNAP,
-      bindAddress: patch.remoteBindAddress ?? SNAP.bindAddress,
-      lanTls: patch.remoteLanTls ?? SNAP.lanTls,
-    }))
-    renderGateway({ saveRemote })
+  it('explains encryption without a LAN TLS control even for a legacy TLS snapshot', async () => {
+    const saveRemote = vi.fn(async () => SNAP)
+    renderGateway({ saveRemote, getRemote: vi.fn(async () => ({ ...SNAP, lanTls: true })) })
     await screen.findByLabelText(en.bindScope)
-    fireEvent.click(screen.getByRole('radio', { name: en.transportTls }))
-    await waitFor(() => { expect(saveRemote).toHaveBeenCalledWith({ remoteLanTls: true }) })
+    expect(screen.getByText(en.lanTlsHint)).toBeTruthy()
+    expect(screen.queryByRole('radio', { name: en.transportTls })).toBeNull()
+    expect(screen.queryByRole('radio', { name: en.transportPlain })).toBeNull()
+    expect(saveRemote).not.toHaveBeenCalled()
   })
 
   it('marks a saved bind address missing from the live NIC scan as unavailable', async () => {

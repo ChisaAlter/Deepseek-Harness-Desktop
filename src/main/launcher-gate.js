@@ -132,6 +132,10 @@ function shouldCloseLauncherAfterDesktopStart({
 
 /** Hint shown when an accepted update did not end with the app quitting. */
 function updateStayHint(check, outcome) {
+  if (outcome?.manualInstall === true) {
+    const message = outcome.message || '已打开安装映像，请将 Whale Isle 拖入 Applications 完成更新';
+    return { ...check, message, hint: `${message}。完成后重新打开应用。` };
+  }
   if (outcome && outcome.launched === true) {
     const message = '安装器已启动（当前为源码运行，应用不会自动退出）';
     return { ...check, message, hint: `${message}。` };

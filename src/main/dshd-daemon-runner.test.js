@@ -154,7 +154,7 @@ test(
       // daemon itself must still come up (relay errors are non-fatal).
       remoteRelayEndpoint: '127.0.0.1:9',
       remoteRelayUseTls: false,
-      remoteListen: `127.0.0.1:${port}`,
+      remotePort: port,
     };
     const remote = new DshdRemote({
       getConfig: () => config,

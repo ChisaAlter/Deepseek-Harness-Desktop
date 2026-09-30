@@ -4,7 +4,7 @@ const https = require('https');
 const path = require('path');
 const { spawn } = require('child_process');
 const { app, shell } = require('electron');
-const { installLatestViaUpdater } = require('./update-updater');
+const { downloadLatestViaUpdater } = require('./update-updater');
 const { UpdateJournal } = require('./update-journal');
 const { checkInstallSpace } = require('./install-space');
 const { setTimeout: delay } = require('node:timers/promises');
@@ -95,8 +95,18 @@ function compareVersions(left, right) {
   return 0;
 }
 
-function pickInstaller(assets) {
+function pickInstaller(assets, { platform = process.platform, arch = process.arch } = {}) {
   const list = Array.isArray(assets) ? assets : [];
+  if (platform === 'darwin') {
+    const dmgs = list.filter((asset) => typeof asset?.name === 'string'
+      && /\.dmg$/i.test(asset.name) && typeof asset.browser_download_url === 'string');
+    const matchesArch = (asset) => new RegExp(`(?:^|[-_.])${arch}(?:[-_.]|$)`, 'i').test(asset.name);
+    return dmgs.find(matchesArch)
+      || dmgs.find((asset) => /(?:^|[-_.])universal(?:[-_.]|$)/i.test(asset.name))
+      || dmgs.find((asset) => !/(?:^|[-_.])(?:arm64|aarch64|x64|x86_64|ia32)(?:[-_.]|$)/i.test(asset.name))
+      || null;
+  }
+  if (platform !== 'win32') return null;
   const exes = list.filter((asset) => typeof asset?.name === 'string'
     && /\.exe$/i.test(asset.name)
     && !/\.blockmap$/i.test(asset.name)
@@ -490,8 +500,8 @@ function downloadFileOnce(url, dest, onProgress, {
   });
 }
 
-function launchInstaller(file) {
-  const child = spawn(file, [], {
+function launchInstaller(file, { spawn: spawnFn = spawn, installerArgs = [] } = {}) {
+  const child = spawnFn(file, installerArgs, {
     detached: true,
     stdio: 'ignore',
     windowsHide: false,
@@ -567,32 +577,28 @@ async function installFromAsset(info, onProgress, options = {}) {
     }
   }
   if (options.preferUpdater) {
+    let outcome;
     try {
-      const outcome = await installLatestViaUpdater(
+      outcome = await downloadLatestViaUpdater(
         { timeoutMs: 15 * 60_000 },
         onProgress,
-        { ...options.updaterDeps, taskProtection: options.taskProtection },
+        options.updaterDeps,
       );
-      if (outcome && outcome.ok) {
-        return {
-          ...info,
-          launched: true,
-          updater: true,
-          differential: Boolean(outcome.differential),
-          downloadPercent: outcome.downloadPercent ?? null,
-        };
-      }
-      if (outcome && outcome.reason === 'cancelled') {
-        // A cancelled protection prompt is a decision, not an updater
-        // shortfall — never fall back into the installer path.
-        return { ...info, launched: false, cancelled: true, code: 'cancelled' };
-      }
-      console.warn(`electron-updater path unavailable (${outcome && outcome.reason}); falling back to full download${outcome && outcome.message ? `: ${outcome.message}` : ''}`);
     } catch (error) {
       // The updater channel is an optimization: any failure falls back to the
       // verified whole-file download below, which is fully independent.
       console.warn('electron-updater path failed, falling back to full download:', error && error.message ? error.message : error);
     }
+    if (outcome?.ok && normalizeVersion(outcome.version) === normalizeVersion(info.latest || info.version)) {
+      // Recheck the release's checksum before launching the updater cache.
+      // Neither download success nor quitAndInstall's void return certifies
+      // an installer launch. Do not retry side effects after commit failures.
+      if (info.checksumUrl) await verifyAssetChecksum(outcome.installer, info.assetName, info.checksumUrl, options);
+      return launchPreparedInstaller(info, outcome.installer, onProgress, {
+        ...options, installerArgs: ['--updated', '/S', '--force-run'],
+      }, { updater: true, differential: Boolean(outcome.differential), downloadPercent: outcome.downloadPercent ?? null });
+    }
+    console.warn(`electron-updater path unavailable (${outcome?.ok ? 'release-changed' : outcome?.reason || 'download-failed'}); falling back to full download`);
   }
   if (typeof onProgress === 'function') {
     onProgress({ phase: 'download', percent: 0 });
@@ -646,10 +652,34 @@ async function installFromAsset(info, onProgress, options = {}) {
     try { journal()?.state({ phase: 'error', version: info.version, failedOperation: 'download-or-verify', message: `${error.code || ''} ${error.message}` }); } catch { /* evidence only */ }
     throw error;
   }
+  return launchPreparedInstaller(info, dest, journalProgress, options);
+}
+
+async function launchPreparedInstaller(info, dest, onProgress, options = {}, extra = {}) {
+  try {
+    return await commitPreparedInstaller(info, dest, onProgress, options, extra);
+  } catch (error) {
+    const state = { phase: 'error', version: info.latest || info.version, failedOperation: 'install', message: error.message || String(error) };
+    try { journal()?.state(state); } catch { /* evidence only */ }
+    publishState(state);
+    throw error;
+  }
+}
+
+async function commitPreparedInstaller(info, dest, onProgress, options = {}, extra = {}) {
   if (options.signal?.aborted) {
     throw cancelledError();
   }
-  journalProgress({ phase: 'install', percent: 100 });
+  if ((options.platform || process.platform) === 'darwin') {
+    if (!/\.dmg$/i.test(info.assetName || dest)) throw new Error('该版本没有适用于 macOS 的安装映像');
+    const error = await (options.openPath || shell.openPath)(dest);
+    if (error) throw new Error(`无法打开安装映像：${error}`);
+    onProgress?.({ phase: 'manual-install', percent: 100 });
+    publishState({ phase: 'available', version: info.latest || info.version });
+    return { ...info, ...extra, launched: false, installer: dest, openedInstaller: true, manualInstall: true,
+      message: '已打开安装映像，请将 Whale Isle 拖入 Applications 完成更新' };
+  }
+  onProgress?.({ phase: 'install', percent: 100, differential: extra.differential });
   // Caller-side gate (launcher runtime installs stop the managed desktop
   // first) and the task-protection check both run AFTER download + verify —
   // the download itself is not a destructive side effect.
@@ -671,7 +701,7 @@ async function installFromAsset(info, onProgress, options = {}) {
     : app.isPackaged;
   const launch = async () => {
     if (options.signal?.aborted) throw cancelledError();
-    const child = launchInstaller(dest);
+    const child = launchInstaller(dest, options);
     // Wire lifecycle observation at launch; the UAC parent can exit early.
     if (typeof options.onInstallerLaunch === 'function') {
       try { options.onInstallerLaunch(child); } catch { /* evidence only */ }
@@ -700,7 +730,7 @@ async function installFromAsset(info, onProgress, options = {}) {
   if (quitAfterInstall) {
     setTimeout(() => app.quit(), 800);
   }
-  return { ...info, launched: true, installer: dest };
+  return { ...info, ...extra, launched: true, installer: dest };
 }
 
 async function installRelease(tag, onProgress, options = {}) {

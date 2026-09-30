@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `marketplace-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-28 — A6：catalog / 会话内 / launcher 导入安装在 CLI 或验证失败后离线恢复安装前元数据和物理依赖，不再 remove 旧安装；快照失败不进 CLI，恢复失败保留备份。`marketplace-install.test.js` + `plugins.test.js` 共 83 项通过（含 12 项 A6 回归）；原审计覆盖安装探针复跑后 manifest / 包 manifest / 入口 SHA-256 一致。未运行真实联网 pnpm、活跃 profile 或应用重启。2026-09-14 — 全部安装/更新通道新增 manifest 身份校验（非空 `name` + `version`），堵 versionless 包打爆请求 inventory 的残余路径。2026-09-08 — 迁移 dshmarket 1.45.0 的收藏、排序 / 时间过滤、截图 / README / manifest 声明详情、安装卸载确认、批量更新和持久脱敏操作记录，保留桌面 IPC / profile / HarnessController / DSHD 视觉。来源一致性与模糊 lock commit 判定 fail closed，回滚失败停止批次。桌面 / IPC / preload 141 项、市场 52 项、完整 GUI 5483 项（1 跳过）、市场与滚动条聚焦 73 项、client typecheck、官方 Web 构建及 Electron 源码 smoke 通过。全仓 Web 回放在聊天滚动、设置、PTC 等场景出现失败和长时间超时后主动中止，未通过，未与基线对照确认归因；国际化全仓剩余 25 条其他模块违规，市场无违规。 |
+| **last verified** | 2026-09-30 — Windows 普通用户的安装快照保留目录 junction，不再经 `fs.cp` 转成需额外权限的目录 symlink；pnpm 实体文件和包链接失败恢复、成功清理时外部目录保护、快照目标被未知普通目录占据时拒绝覆盖均通过。`marketplace-install.test.js` + `plugins.test.js` 共 85 项通过，无跳过；未运行真实联网 pnpm 或活跃 profile。2026-09-28 — A6：catalog / 会话内 / launcher 导入安装在 CLI 或验证失败后离线恢复安装前元数据和物理依赖，不再 remove 旧安装；快照失败不进 CLI，恢复失败保留备份。原审计覆盖安装探针复跑后 manifest / 包 manifest / 入口 SHA-256 一致。2026-09-14 — 全部安装/更新通道新增 manifest 身份校验（非空 `name` + `version`），堵 versionless 包打爆请求 inventory 的残余路径。2026-09-08 — 迁移 dshmarket 1.45.0 的收藏、排序 / 时间过滤、截图 / README / manifest 声明详情、安装卸载确认、批量更新和持久脱敏操作记录，保留桌面 IPC / profile / HarnessController / DSHD 视觉。来源一致性与模糊 lock commit 判定 fail closed，回滚失败停止批次。桌面 / IPC / preload 141 项、市场 52 项、完整 GUI 5483 项（1 跳过）、市场与滚动条聚焦 73 项、client typecheck、官方 Web 构建及 Electron 源码 smoke 通过。全仓 Web 回放在聊天滚动、设置、PTC 等场景出现失败和长时间超时后主动中止，未通过，未与基线对照确认归因；国际化全仓剩余 25 条其他模块违规，市场无违规。 |
 
 ## User paths
 
@@ -49,6 +49,8 @@
   仅安装提交成功或全部恢复成功后清理快照；恢复失败返回 `rolledBack: false` / `rollbackError`、
   保留备份路径并禁用构建授权重试提示，不能清掉唯一旧安装备份。
   快照不跟随 `node_modules` 内指向外部目录的链接；外部源码、安装脚本任意副作用及进程崩溃自动恢复不在本事务保证内。
+  Windows 上可解析的目录链接使用共享目录链接工具创建 junction，无需开发者模式或管理员 symlink 权限；
+  快照目标若已被未知普通目录占据则拒绝覆盖，不将链接目标复制或清理为实体目录。
 - 更新检查只覆盖已安装且仍在精选目录中的行。npm 仅当 registry `latest` 的 semver
   严格高于已装版本时标记更新，无法判定或较低版本不提供更新；GitHub 用 profile
   `pnpm-lock.yaml` 的锁定 commit（或 manifest 中的 commit pin）与远端 HEAD 比较；
@@ -142,6 +144,7 @@ Gate：`src/host/install-dsh-plugin-client.test.js`、`src/main/desktop-install-
 ## Sources
 
 - Decision: [2026-09-28-launcher-audit-closeout-fixes](../decisions/implemented/bug-fix/2026-09-28-launcher-audit-closeout-fixes.md)
+- Decision: [2026-09-30-project-audit-fixes](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)
 
 - Handbook：[../handbook/modules/marketplace.md](../handbook/modules/marketplace.md)、[../handbook/flows/marketplace-install.md](../handbook/flows/marketplace-install.md)
 - Spec：[../superpowers/specs/2026-08-25-marketplace-desktop-integration.md](../superpowers/specs/2026-08-25-marketplace-desktop-integration.md)、[../superpowers/specs/2026-08-18-marketplace-parity-design.md](../superpowers/specs/2026-08-18-marketplace-parity-design.md)

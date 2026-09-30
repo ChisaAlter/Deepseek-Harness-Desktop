@@ -90,9 +90,10 @@ const NEVER_ENTERED_DIRS = new Set([
  */
 function isGeneratedArtifact(path) {
   return /^packages\/[^/]+\/[^/]+\/lib\//u.test(path)
+    || /^vendor\/[^/]+\/lib\//u.test(path)
     || /^apps\/[^/]+\/lib\//u.test(path)
     || /^apps\/[^/]+\/dist\//u.test(path)
-    || /^native\/system\/packages\/[^/]+\/bin\//u.test(path)
+    || /^native\/system\/packages\/[^/]+\/(?:bin|lib)\//u.test(path)
 }
 
 /**
@@ -119,17 +120,13 @@ const anyLibArtifact = path => /(^|\/)lib\//u.test(path)
 const STAGE_LAYOUTS = {
   'native-system': {
     inputs: [
-      'native/system/package.json',
-      'native/system/tsconfig.json',
-      'native/system/tsconfig.base.json',
-      'native/system/scripts',
-      'native/system/packages/entry/src',
-      'native/system/packages/entry/tsconfig.json',
-      'native/system/packages/entry/prebuilds.json',
+      'native/system',
+      'package.json',
+      'pnpm-workspace.yaml',
       'pnpm-lock.yaml',
     ],
-    outputs: ['native/system/packages/entry/bin'],
-    ownsOutput: () => true,
+    outputs: [`native/system/packages/${platform()}-${arch()}/bin`],
+    ownsOutput: path => /^native\/system\/packages\/[^/]+\/bin\//u.test(path),
     // Host binaries are built on Linux and macOS only, so a zero-output
     // credential is legitimate on Windows and a red flag everywhere else.
     requiresOutputs: platform() === 'linux' || platform() === 'darwin',
@@ -137,6 +134,11 @@ const STAGE_LAYOUTS = {
   host: {
     inputs: [
       'packages',
+      'vendor',
+      'scripts',
+      'native/system',
+      'package.json',
+      'pnpm-workspace.yaml',
       'apps/cli',
       'apps/desktop',
       'apps/desktop-host',
@@ -146,7 +148,7 @@ const STAGE_LAYOUTS = {
       'tsconfig.host.json',
       'pnpm-lock.yaml',
     ],
-    outputs: ['packages', 'apps/cli', 'apps/desktop', 'apps/desktop-host'],
+    outputs: ['packages', 'vendor', 'native/system/packages', 'apps/cli', 'apps/desktop', 'apps/desktop-host'],
     // The Node pass owns every `lib` artifact except the browser bundles.
     ownsOutput: path => anyLibArtifact(path) && !CLIENT_BUNDLE_ARTIFACT.test(path),
     requiresOutputs: true,
@@ -154,6 +156,10 @@ const STAGE_LAYOUTS = {
   client: {
     inputs: [
       'packages',
+      'vendor',
+      'scripts',
+      'package.json',
+      'pnpm-workspace.yaml',
       'apps/cli',
       'apps/desktop',
       'apps/desktop-host',
@@ -162,13 +168,13 @@ const STAGE_LAYOUTS = {
       'tsconfig.client.json',
       'pnpm-lock.yaml',
     ],
-    outputs: ['packages', 'apps/cli', 'apps/desktop', 'apps/desktop-host'],
+    outputs: ['packages', 'vendor', 'apps/cli', 'apps/desktop', 'apps/desktop-host'],
     // The browser pass owns the dynamic bundles the module loader fetches.
     ownsOutput: path => anyLibArtifact(path) && CLIENT_BUNDLE_ARTIFACT.test(path),
     requiresOutputs: true,
   },
   web: {
-    inputs: ['apps/web', 'packages', 'pnpm-lock.yaml'],
+    inputs: ['apps/web', 'packages', 'vendor', 'scripts', 'package.json', 'pnpm-workspace.yaml', 'pnpm-lock.yaml'],
     outputs: ['apps/web/dist'],
     ownsOutput: () => true,
     requiresOutputs: true,

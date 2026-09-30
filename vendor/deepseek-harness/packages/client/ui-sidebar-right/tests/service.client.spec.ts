@@ -778,7 +778,7 @@ describe('explicit tab resource cleanup', () => {
       const before = h.entries()
       if (operation === 'close') h.controller.close(tabId)
       else h.controller.openTab('guide', { replaceTab: tabId, revealIfOpened: false })
-      expect(handler).toHaveBeenCalledExactlyOnceWith(SESSION, original)
+      expect(handler).toHaveBeenCalledExactlyOnceWith(SESSION, original, expect.any(Function))
       expect(h.layout().tabs[tabId]).toBeUndefined()
       expect(h.entries()).toBe(before + 1)
       h.controller.closeIn(SESSION, tabId)
@@ -804,6 +804,51 @@ describe('explicit tab resource cleanup', () => {
     h.controller.openResource(address, { replaceTab: tabId })
     expect(handler).not.toHaveBeenCalled()
     expect(h.layout().tabs[tabId]).toBeDefined()
+  })
+
+  it.each(['close', 'replace'] as const)('defers %s until confirmation and resumes only once', (operation) => {
+    const h = harness()
+    h.adopt(SESSION, h.instance)
+    h.publish()
+    h.controller.openResource('dsh-resource://file/session/s-test/dirty')
+    const tabId = h.tabOf('dirty')
+    let proceed: (() => void) | undefined
+    h.controller.registerCloseHandler('text', (_sessionId, _tab, resume) => {
+      proceed = resume
+      return false
+    })
+    const before = h.entries()
+    if (operation === 'close') h.controller.closeIn(SESSION, tabId)
+    else h.controller.openTab('guide', { replaceTab: tabId, revealIfOpened: false })
+    expect(h.layout().tabs[tabId]).toBeDefined()
+    expect(h.entries()).toBe(before)
+    expect(proceed).toBeTypeOf('function')
+    proceed?.()
+    expect(h.layout().tabs[tabId]).toBeUndefined()
+    expect(h.entries()).toBe(before + 1)
+    proceed?.()
+    expect(h.entries()).toBe(before + 1)
+  })
+
+  it('does not let an old confirmation remove a tab restored into a new occurrence', () => {
+    const h = harness()
+    h.adopt(SESSION, h.instance)
+    h.publish()
+    h.controller.openResource('dsh-resource://file/session/s-test/dirty')
+    const tabId = h.tabOf('dirty')
+    let proceed: (() => void) | undefined
+    h.controller.registerCloseHandler('text', (_sessionId, _tab, resume) => {
+      proceed = resume
+      return false
+    })
+    h.controller.closeIn(SESSION, tabId)
+    h.instance.actions.closeTab(SESSION, tabId)
+    h.controller._undo()
+    const before = h.entries()
+    expect(h.layout().tabs[tabId]).toBeDefined()
+    proceed?.()
+    expect(h.layout().tabs[tabId]).toBeDefined()
+    expect(h.entries()).toBe(before)
   })
 
   it.each(['close', 'replace'] as const)('preserves a tab when its synchronous %s handler throws', (operation) => {

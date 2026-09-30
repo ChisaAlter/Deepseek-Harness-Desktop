@@ -24,7 +24,8 @@ function shouldProxyToHost(urlPath) {
 }
 
 function safeJoin(root, urlPath) {
-  const decoded = decodeURIComponent(String(urlPath || '/').split('?')[0] || '/');
+  // resolveSpaAsset already decoded the URL once; filenames may contain `%`.
+  const decoded = String(urlPath || '/');
   if (decoded.includes('\0')) {
     return null;
   }

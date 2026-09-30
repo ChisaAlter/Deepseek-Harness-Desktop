@@ -15,13 +15,20 @@ const MOBILE_WEB_PORT = 3180;
  * @returns {import('http').Server}
  */
 function createMobileWebServer(options = {}) {
-  const bindAddress = String(options.bindAddress || '0.0.0.0');
-  const port = Number(options.port) || MOBILE_WEB_PORT;
   const root = options.root || resolveMobileWebRoot();
 
   const server = http.createServer((req, res) => {
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-    const asset = resolveSpaAsset(root, url.pathname);
+    let asset;
+    try {
+      const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+      asset = resolveSpaAsset(root, url.pathname);
+    } catch {
+      // HTTP parser acceptance does not imply a valid URL or percent encoding.
+      // Keep malformed, unauthenticated LAN input out of the main-process guard.
+      res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('Bad request');
+      return;
+    }
     if (!asset) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('Not found');
@@ -49,8 +56,17 @@ function createMobileWebServer(options = {}) {
       res.end('Method not allowed');
       return;
     }
+    let body;
+    try {
+      body = fs.readFileSync(asset.file);
+    } catch {
+      // A file can disappear after asset resolution during an update/rebuild.
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
     res.writeHead(200, headers);
-    res.end(fs.readFileSync(asset.file));
+    res.end(body);
   });
 
   return server;

@@ -246,6 +246,21 @@ test('inspectionClean treats unknown coverage as blocking', () => {
   assert.equal(inspectionClean(DIRTY_INSPECTION), false);
 });
 
+test('failed terminal commit preserves services and cleanup hooks until a successful commit', async () => {
+  const events = [];
+  const { protection, calls } = makeProtection();
+  protection.onCommitCleanup(() => { events.push('cleanup'); });
+  await assert.rejects(protection.coordinate('update', { terminal: true, preConfirmed: true,
+    commit: async () => { events.push('failed-launch'); throw new Error('spawn denied'); } }), /spawn denied/);
+  assert.deepEqual(events, ['failed-launch']);
+  assert.equal(protection.isCommitted(), false);
+  assert.equal(calls.at(-1).op, 'release');
+  await protection.coordinate('quit', { terminal: true, preConfirmed: true,
+    commit: async () => { events.push('shutdown'); } });
+  assert.deepEqual(events, ['failed-launch', 'shutdown', 'cleanup']);
+  assert.equal(protection.isCommitted(), true);
+});
+
 test('production quit skips confirmation while retaining inspect, lock, cleanup and shutdown', async () => {
   const fs = require('node:fs');
   const vm = require('node:vm');

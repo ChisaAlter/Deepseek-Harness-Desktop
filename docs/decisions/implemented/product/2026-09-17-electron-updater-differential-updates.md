@@ -13,10 +13,10 @@ Status: implemented
 「更新到最新版」路径接入 `electron-updater`（pin `6.8.9`）做 blockmap 差量下载，原有全量下载 + SHA512SUMS 校验路径完整保留为回退：
 
 1. **发布管线**：`build.publish` 从 `null` 改为 GitHub provider（只产元数据，不触发 `--publish`），electron-builder 随之产出 `resources/app-update.yml` 与 `dist/latest.yml`；`release.yml` artifact 与 `publish.yml` 资产/校验清单都收进 `latest.yml`（恰好一个，计入 SHA512SUMS）。
-2. **新模块 `src/main/update-updater.js`**：`installLatestViaUpdater` 惰性加载 `electron-updater`，仅 packaged 运行；`checkForUpdates` 无版本即返回 `no-update-in-manifest`；下载进度事件映射到既有 `{phase:'download', percent}` 载荷并带 `differential` 标记（真值以差量下载器的 `Full: …, To download: … (N%)` 报告行为准，无报告则按全量标记）；15 分钟墙钟超时经 `CancellationToken` 中止；成功后 `quitAndInstall(true, true)` 静默安装并重启；任何失败返回结构化 `{ok:false, reason}` 交给调用方回退，不抛异常。
+2. **新模块 `src/main/update-updater.js`**：`downloadLatestViaUpdater` 惰性加载 `electron-updater`，仅 Windows packaged 运行；无 manifest 版本返回 `no-update-in-manifest`；下载进度沿用既有载荷并带 `differential` 标记（真值以下载器报告行为准，无报告则按全量标记）。十五分钟预算显式把 `CancellationToken` 传给 `downloadUpdate(token)`；下载失败返回 `{ok:false, reason}` 回退。成功返回安装器路径，由 `update.js` 检查目标版本和发布清单 SHA512 后，在任务保护 commit 内观察 spawn，沿用 `--updated /S --force-run` 静默参数；启动失败报错并释放锁，不回退再次安装。见 [项目审查修复](../bug-fix/2026-09-30-project-audit-fixes.md)。
 3. **分流缝 `installFromAsset`**：`installUpdate`（latest）以 `preferUpdater` 先试 updater 通道，非 packaged / 非 Windows / updater 失败一律落到既有 `downloadFile` + sha512 校验路径，确认与校验语义不变；`installRelease`（指定 tag）不传该标记——electron-updater 只认 `latest.yml` 指向的版本，指定版本永远全量。
 4. **差量 COPY 源**：NSIS 安装器安装时把自身拷入 `%LOCALAPPDATA%\<app>-updater\installer.exe`，差量下载以此文件为旧包分块源，不依赖已安装文件可读性；缓存缺失时 electron-updater 自动全量。
-5. **安装器 UAC**：`installer.nsh` `customInit` 并入 per-machine 提升块（`UAC_RunElevated` 弹一次 UAC、校验返回码与 Inner 实例哈希），覆盖 Program Files 目标下非管理员账户的 `quitAndInstall` 场景。
+5. **安装器 UAC**：`installer.nsh` `customInit` 并入 per-machine 提升块（`UAC_RunElevated` 弹一次 UAC、校验返回码与 Inner 实例哈希），覆盖 Program Files 目标下非管理员账户的差量安装场景。
 6. **启动器**：进度载荷 `differential` 为真时文案显示「增量下载 N%」，全量时维持「下载 N%」。
 
 ## Alternatives considered
