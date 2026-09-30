@@ -7,7 +7,7 @@
  * the recoverable browser-local drafts keyed by stable resource address.
  */
 import type { SidebarRightTabDefinition } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
-import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
+import { parseFileAddress, type FileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import type {} from './locales.ts'
 
@@ -64,11 +64,31 @@ export function canOpenDesktopFile(
   address: string,
   cwdOf: (sessionId: string) => string | undefined,
 ): boolean {
-  const parsed = parseFileAddress(address)
-  if (parsed?.scope !== 'session') return false
+  const parsed = parseDesktopFileAddress(address)
+  if (parsed === undefined) return false
   if (isOfficePreviewPath(parsed.path)) return false
   const cwd = cwdOf(parsed.sessionId)
   return cwd !== undefined && cwd !== ''
+}
+
+/**
+ * Parse a concrete file that this editor can bind to a Session.
+ * @param address - a persisted tab address or candidate resource address.
+ * @returns session file parts, excluding page addresses and workspace roots.
+ */
+export function parseDesktopFileAddress(address: string): Extract<FileAddress, { scope: 'session' }> | undefined {
+  const parsed = parseFileAddress(address)
+  return parsed?.scope === 'session' && parsed.path !== '' ? parsed : undefined
+}
+
+/**
+ * Name a file tab, or its directory fallback for an older empty viewer.
+ * @param address - file resource or restored page address.
+ * @param t - bound copy for this plugin.
+ * @returns the filename or the shared Files title.
+ */
+export function desktopFileTitle(address: string, t: TranslateNS<'files'>): string {
+  return parseDesktopFileAddress(address) === undefined ? t('type.label') : resourceTitle(address)
 }
 
 /**
@@ -108,13 +128,7 @@ export function desktopFileDefinition(
     patterns: ['dsh-resource://file/session/**'],
     priority: 'extension',
     canOpen: address => canOpenDesktopFile(address, cwdOf),
-    title: address => resourceTitle(address),
-    guide: [{
-      id: 'desktop-file',
-      order: 20,
-      title: () => t('guide.file.title'),
-      description: () => t('guide.file.description'),
-    }],
+    title: address => desktopFileTitle(address, t),
   }
 }
 

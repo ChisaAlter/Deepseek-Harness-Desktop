@@ -16,7 +16,7 @@ import {
   desktopFileDefinition,
   desktopFilesDefinition,
 } from './desktop-files.ts'
-import { FilePreview, SidebarFilePreview } from './FilePreview.tsx'
+import { FilePreview, SidebarFilePreview, SidebarFileTitle } from './FilePreview.tsx'
 import { FilesPanel, SidebarFilesPanel, type SidebarFilesPanelProps } from './FilesPanel.tsx'
 import { hasFloatingPreview } from './floating-preview.ts'
 import { readFilesShell, type FilesShellInjected } from './shell.ts'
@@ -113,6 +113,12 @@ export function apply(ctx: Context): void {
     locale: NS,
     inject: injected,
   }, SidebarFilePreview)), 'ui-files: desktop file body')
+
+  ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
+    name: 'sidebar.right.pane.tab.title',
+    key: DESKTOP_FILE_ID,
+    locale: NS,
+  }, SidebarFileTitle)), 'ui-files: desktop file title')
 
   ctx.slots.inject('surfaces.files', () => ctx.slots.register({
     name: 'surfaces.files', locale: NS, inject: injected,

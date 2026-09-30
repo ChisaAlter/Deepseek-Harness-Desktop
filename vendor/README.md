@@ -34,4 +34,6 @@ npm run setup:harness
 
 The desktop right panel uses one full-height Sidebar host for guide and content; `ui-surfaces` only adapts workspace opens and preview events. See [in-place panel decision](../docs/decisions/implemented/architecture/2026-09-28-single-panel-in-place.md).
 
+The desktop Files guide exposes only the directory entry. Legacy fileless viewer tabs show the owning Session's standard directory body and localized title without passing internal Sidebar addresses to file reads. Tab records, pane, expansion, and floating state remain unchanged; valid file tabs and drafts keep their identity. See [Files guide address recovery](../docs/decisions/implemented/bug-fix/2026-10-01-sidebar-files-guide-address.md).
+
 Release repairs preserve modal focus ownership, retained exits and desktop role geometry through shared tokens; regression fixtures follow the current service and provider contracts. See [GUI and core reconciliation](../docs/decisions/implemented/bug-fix/2026-09-28-release-gui-contract-reconciliation.md). Packaging preserves source module instances through a relocatable directory-link manifest; see [runtime instance layout](../docs/decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md).

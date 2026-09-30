@@ -7,10 +7,10 @@ import {
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type { UseSidebarRightTabInfo } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { UseSessions } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { parseFileAddress, sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
+import { sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import {
   formatFileCommentRange,
   normalizeFileCommentRange,
@@ -26,7 +26,8 @@ import { FileSaveCoordinator, type FileSaveResult } from './fileSaveCoordinator.
 import { NS } from './locales.ts'
 import type { FilesShellInjected } from './shell.ts'
 import { isWorkspaceImagePreviewPath } from './workspacePreview.ts'
-import type { DesktopFileBuffer } from './desktop-files.ts'
+import { desktopFileTitle, parseDesktopFileAddress, type DesktopFileBuffer } from './desktop-files.ts'
+import { SidebarFilesPanel, type SidebarFilesPanelProps } from './FilesPanel.tsx'
 import type { DesktopFileStateInjected } from './desktop-file-state.ts'
 import css from './FilePreview.module.css'
 
@@ -49,18 +50,18 @@ export interface FilePreviewProps extends PropsLocale<typeof NS>, FilesShellInje
 /** Props the Sidebar adapter needs from its tab plus the shared shell face. */
 export type SidebarFilePreviewProps =
   & UseSidebarRightTabInfoProps
-  & PropsLocale<typeof NS>
-  & FilesShellInjected
+  & SidebarFilesPanelProps
   & DesktopFileStateInjected
-  & { useSessions: UseSessions }
 
 /** The one framework seat the adapter needs from the keyed tab slot. */
 type UseSidebarRightTabInfoProps = { useTabInfo: () => { readonly tab: SidebarTabRecord } }
-type SidebarTabRecord = {
-  readonly id: string
-  readonly contentId: string
-  readonly visible: boolean
-  readonly navigation: { readonly params?: unknown; readonly revision: number }
+type SidebarTabRecord = Pick<ReturnType<UseSidebarRightTabInfo>['tab'], 'id' | 'contentId' | 'visible'> & {
+  readonly navigation: Pick<ReturnType<UseSidebarRightTabInfo>['tab']['navigation'], 'params' | 'revision'>
+}
+
+/** Live title projection also covers empty viewer records restored from older layouts. */
+export function SidebarFileTitle({ useTabInfo, t }: Pick<SidebarFilePreviewProps, 'useTabInfo' | 't'>): ReactNode {
+  return desktopFileTitle(useTabInfo().tab.contentId, t)
 }
 
 const RENDER_MARKDOWN_KEY = 'dshd.renderMarkdown'
@@ -92,11 +93,10 @@ export function SidebarFilePreview(props: SidebarFilePreviewProps): ReactNode {
     readFileBuffer, writeFileBuffer, registerFileSave, t,
   } = props
   const { tab } = useTabInfo()
-  const parsed = parseFileAddress(tab.contentId)
-  const sessionId = parsed?.scope === 'session' ? parsed.sessionId : undefined
-  const relativePath = parsed?.path ?? tab.contentId
+  const parsed = parseDesktopFileAddress(tab.contentId)
+  const sessionId = parsed?.sessionId
+  const relativePath = parsed?.path
   const revealLine = typeof tab.navigation.params === 'object'
-    && tab.navigation.params !== null
     && 'line' in tab.navigation.params
     && typeof tab.navigation.params.line === 'number'
     ? tab.navigation.params.line
@@ -105,6 +105,9 @@ export function SidebarFilePreview(props: SidebarFilePreviewProps): ReactNode {
     ? undefined
     : state.byId[sessionId as SessionId]?.cwd || undefined)
   const address = tab.contentId
+  // Earlier guide entries persisted a page address for this resource viewer.
+  // Reuse the directory body without changing its layout or reading that URI.
+  if (relativePath === undefined) return <SidebarFilesPanel {...props} />
   return (
     <FilePreview
       key={address}

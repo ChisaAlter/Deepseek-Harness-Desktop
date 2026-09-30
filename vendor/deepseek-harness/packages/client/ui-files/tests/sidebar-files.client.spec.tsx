@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { SidebarFilePreview, type SidebarFilePreviewProps } from '../src/client/FilePreview.tsx'
@@ -40,8 +41,8 @@ function shell(text = 'one\ntwo\nthree'): FilesShellInjected {
 
 function fileProps(state: DesktopFileState, injected = shell(), visible = true): SidebarFilePreviewProps {
   return {
-    ...injected, t, useSessions,
-    useTabInfo: () => ({ tab: { id: 'tab-a', contentId: ADDRESS, visible, navigation: { revision: 0 } } }),
+    ...injected, t, useSessions, sessionId: SID, openWorkspaceFile: vi.fn(async () => {}),
+    useTabInfo: () => ({ tab: { id: 'tab-a' as TabId, contentId: ADDRESS, visible, navigation: { params: undefined, revision: 0 } } }),
     readFileBuffer: address => state.read(address),
     writeFileBuffer: (address, buffer) => { state.write(address, buffer) },
     registerFileSave: (tabId, address, save) => { state.registerSave(tabId, address, save) },

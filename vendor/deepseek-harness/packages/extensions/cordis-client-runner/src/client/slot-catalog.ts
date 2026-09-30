@@ -3921,6 +3921,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: 'SidebarRightTabInjected',
     declaredBy: 'an entry in \'rightbar.session\' (client-ui-sidebar-right), so it exists while that entry is mounted',
     occupants: [
+      'client-ui-files SidebarFileTitle',
       'client-ui-plan PlanTitle',
       'client-ui-preview SidebarPreviewTitle',
       'client-ui-schedule ScheduleTaskTabTitle',

@@ -9,7 +9,7 @@
 
 1. `Ctrl+\` 打开右栏。  
 2. 对话文件提及、工具行和产物芯片通过 `workspaces.openPath` 进入发起 Session 的 DSHD 工作环；交付卡片中的 HTML / HTM / XHTML / PDF 经桌面 token URL 先进入聊天区 Browser 悬浮预览，浮层“在右侧栏打开”才展开右栏 Browser。其他文件在右栏打开；工作区根目录打开 Files。缺 cwd 或不在工作区内的路径交回 Host 打开。
-3. Files：搜文件、预览、Mention / 加入对话；文件预览头部的“独立窗口预览”按钮把当前**已保存**文件送入单实例置顶只读原生窗口。点击对话引用不会直接创建原生窗口。
+3. Files：从唯一的「文件」目录入口搜文件、打开具体文件预览、Mention / 加入对话；文件预览头部的“独立窗口预览”按钮把当前**已保存**文件送入单实例置顶只读原生窗口。点击对话引用不会直接创建原生窗口。
 4. Browser：URL 导航、可选截图 / PiP / 录制；交付卡片中的浏览器文档先浮在聊天区，浮层“在右侧栏打开”再展开 Browser 右栏。右栏 Browser 工具栏仍可将预览移回聊天区，来回切换保留 URL / history。
 5. Tab 关闭在标题右侧。栏内分栏、全屏和收起按钮隐藏；标题栏按钮与快捷键仍可开合右栏。
 
@@ -20,6 +20,7 @@
 - 右栏展开会减少会话标题行的实际内容宽度；`ConversationRoot.module.css` 在扣除 AppFrame 尾簇预留后的标题行上做局部容器查询，窄到 520px 时收起次级 Agent 操作。AppFrame 对尾簇的实测小数宽度向上取整，保留打开方式与尾簇至少 8px 间距。整列宽度决定的尾簇密度不改，以免测量宽度反馈振荡。几何验收用 `node scripts/verify-titlebar-fit.mjs` 连到带 CDP 端口的源码 Electron 普通工作区会话。
 - 无页签时使用 DSHD 原有的居中两列方形入口；终端入口选择 shell。
 - Files 由原生 Sidebar 的 `files` / `desktop-file` 类型承载。文件主体 `keepMounted`，树与搜索携带所属 Session 经 `workspaces.openPath`，HTML/PDF 保持 Files 与 Browser 打开链。插件内 `DesktopFileState` 按 Session 资源地址逐次持久化脏草稿，接管关闭/替换确认；`FileSaveCoordinator` 保留串行保存，确认中的保存失败或新增输入不会关闭页签。Sidebar 的一次性 `proceed()` 回调只提交原 occurrence 的移除，过期确认保留恢复页签的草稿。
+- `files` 提供唯一目录 guide，`desktop-file` 只在打开具体文件时使用。旧查看器的 `sidebar://` 等无文件地址不进入编辑器或文件读取；标准 Files 目录主体与本地化标题原位兼容呈现，Session 来自槽位标准 share。没有替换或持久布局重写，pane、展开与浮窗状态不变；有效文件和草稿保留原身份。理由见 [Files 地址恢复](../../decisions/implemented/bug-fix/2026-10-01-sidebar-files-guide-address.md)。
 - Browser 悬浮预览复用同一原生 guest。顶部 28px 窄条展示文件名与右栏、关闭按钮；网页视口从其下方铺满。由于 BrowserView 会盖住网页矩形内的 renderer 事件，四边与四角缩放命中区放在该矩形外侧，使用 pointer capture 并由几何函数限制在聊天可视区。
 - Feature card：[../../features/surfaces-work-loops.md](../../features/surfaces-work-loops.md)
 

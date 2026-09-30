@@ -4,15 +4,16 @@
 | --- | --- |
 | **id** | `surfaces-work-loops` |
 | **status** | `active` |
+| **last verified (Files guide)** | 2026-10-01 — 真实 Guide / registry / controller / keyed body 与持久布局恢复 9/9，既有 adapter / apply 16/16；窄 lint、ui-files 类型构建与 client catalog 检查通过。唯一目录 guide、旧查看器兼容目录标题、所属 Session 与隐藏/浮窗状态、有效草稿边界通过。 |
 | **last verified (native paths)** | 2026-09-28 — b061501e5b4 的 Windows/macOS 桌面 CI 全绿，预览短名一致性与越界拒绝通过；同 SHA 安装树冒烟通过。完整生产验收未完成。 |
 | **last verified (source launch)** | 2026-09-24 — `titlebar-fit.e2e.ts` 归入 host 类型检查并从 client Web 项目排除；清理失效的 TypeScript 增量记录后，`apps/web` 定向类型构建和 `npm start` 的 host/client/web 全量构建通过，源码 Electron 已启动。 |
-| **last verified** | 2026-09-30 — Files 草稿逐次持久化、原生 Sidebar 关闭/替换确认、隐页保存生命周期、选区原文进对话与树/搜索统一 Session 打开链修复；相关 Files / Sidebar close / Terminal 兼容 / surfaces opener 单测 268/268 通过。源码构建与实机验证见[本轮审查修复记录](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)。 |
+| **last verified** | 2026-10-01 — Files 唯一目录入口与旧无文件查看器原位兼容，真实注册/恢复 9/9、adapter/apply 16/16；见 [Files guide 修复](../decisions/implemented/bug-fix/2026-10-01-sidebar-files-guide-address.md)。此前 2026-09-30 — Files 草稿逐次持久化、原生 Sidebar 关闭/替换确认、隐页保存生命周期、选区原文进对话与树/搜索统一 Session 打开链修复，相关单测 268/268；源码构建与实机验证见[项目审查修复](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)。 |
 
 ## User paths
 
 最近验证：2026-09-28，预览绝对路径与 authority 同用原生 realpath；Windows 短名反例先红后绿，预览/编辑器/工作区/登记监听 200/200 通过，越界拒绝保持。
 
-1. `Ctrl+\` 打开右栏 → Files 搜索 / 预览 / 送对话。
+1. `Ctrl+\` 打开右栏 → 点唯一的「文件」目录入口 → Files 搜索 / 预览 / 送对话；具体文件打开编辑页签。
 2. 点击对话文件提及、工具路径或产物芯片 → 发起点击的 Session 在 DSHD 工作环打开文件；交付卡片中的 HTML / HTM / XHTML / PDF 经桌面 token URL 先进入聊天区 Browser 悬浮预览，点击浮层“在右侧栏打开”后才展开右栏 Browser。其余点击在右栏打开或聚焦文件页；点工作区根目录打开 Files。缺少 cwd 的文件路径交回 Host 打开。
 3. 收尾正文里的行内代码文件名与某一轮成功产出或交付的文件唯一匹配（精确路径，或唯一 basename）→ 保持代码芯片外观，点击后在发起该消息的 Session 右栏打开该文件；PTC 子调用成功写入的文件同样进入该词表。同名路径不唯一时保持不可点击。
 4. Files：在文件预览头部点“独立窗口预览” → 当前已保存文件在单独的置顶只读原生窗口展示；继续打开文件会复用该窗口。
@@ -27,6 +28,7 @@
 
 - 桌面只有一个全高右栏容器，外观保持 DSHD，入口与所有功能共用 `sidebarRight` 的页签状态；`ui-surfaces` 只保留工作区文件和预览事件的路由适配，不再挂载独立栏体。`Ctrl+\` 与标题栏按钮读取/切换同一开合状态。后台会话打开请求只写目标 Session。
 - 居中两列入口保留 320px 内宽、8px 间距和 12px 圆角，清单来自上游 guide 注册表。点击原位替换 guide，内容页签关闭键在标题右侧；关闭最后内容页签原位返回 guide，栏宽与聊天区域不变。mini 预览可挂载 Browser 而不展开右栏。
+- Files guide 只提供「文件」目录入口，`desktop-file` 只承载具体 Session 文件资源。旧无文件查看器、内部 Sidebar 地址、absolute/畸形地址和空根资源不挂载编辑器、不执行文件读取；主体原位复用标准 Files 目录面板，标题显示本地化 Files，所属 Session 取槽位标准 share。页签记录、pane、expanded 与浮窗状态不变；有效文件资源、页签身份及缺 cwd 时的草稿不变，没有持久布局迁移。
 - `ui-preview` 必须把 `sidebarRightTabs` 列入 `inject` 声明 —— apply 内 `ctx.get` 的时序在 apply 顺序倒置时会静默漏注册（兼容轨与 mini 呈现都要它）。
 - 不做 note 标明的范围外能力：GPU 终端嵌入、worktree、turn-diff、review-comment pick（勿假装已有）。
 - Tab 关闭在标题右侧，未经用户明确要求不挪到左侧。
@@ -80,6 +82,8 @@
 | Manual / QA | `TC-SURF-001` … `TC-SURF-008`；Files 图片 / 文本 / PDF 悬浮预览；`TC-CHAT-007`、`TC-CHAT-008` |
 
 ## Sources
+
+- Decision: [Files 目录入口与旧查看器地址恢复](../decisions/implemented/bug-fix/2026-10-01-sidebar-files-guide-address.md)
 
 - Decision: [项目审查修复：Files 生命周期与预览路径编码](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)
 

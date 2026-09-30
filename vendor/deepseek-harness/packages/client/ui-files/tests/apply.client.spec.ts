@@ -26,6 +26,11 @@ function declare(slots: SlotRegistry): () => void {
         scope: 'session',
         inject: { hooks: { tabInfo: () => () => ({}) } },
       },
+      'sidebar.right.pane.tab.title': {
+        kind: 'keyed',
+        scope: 'session',
+        inject: { hooks: { tabInfo: () => () => ({}) } },
+      },
       'sidebar.right.tab.document.actions': {
         kind: 'list',
         scope: 'session',
@@ -86,7 +91,8 @@ describe('ui-files apply', () => {
     const file = b.tabs.entries().find(entry => entry.id === DESKTOP_FILE_ID)
     expect(files).toMatchObject({ kind: 'files', priority: 'extension' })
     expect(file).toMatchObject({ kind: 'desktop-file', priority: 'extension', keepMounted: true })
-    expect(file?.guide?.[0]).toMatchObject({ id: 'desktop-file' })
+    expect(file?.guide).toBeUndefined()
+    expect(b.tabs.guide().map(entry => entry.kind)).toEqual(['files'])
     expect(b.slots.entries('sidebar.right.pane.tab').map(entry => entry.options.key)).toEqual([
       DESKTOP_FILES_ID, DESKTOP_FILE_ID,
     ])
