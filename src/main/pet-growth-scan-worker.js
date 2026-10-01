@@ -20,8 +20,8 @@ parentPort.on('message', (msg) => {
     return;
   }
   try {
-    const { total, sessions } = scanSessionTokens(msg.sessionsDir || '', cache);
-    parentPort.postMessage({ id: msg.id, ok: true, total, sessions });
+    const { total, sessions, sampleTotals } = scanSessionTokens(msg.sessionsDir || '', cache, true);
+    parentPort.postMessage({ id: msg.id, ok: true, total, sessions, sampleTotals });
   } catch (err) {
     parentPort.postMessage({ id: msg.id, ok: false, error: String(err && err.message || err) });
   }

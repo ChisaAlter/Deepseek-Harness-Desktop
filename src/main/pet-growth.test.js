@@ -400,6 +400,51 @@ test('upgrade: pre-watermark fed credit folds into baseline, no food debt', asyn
   assert.equal(tracker.feedable(g2), 200);
 });
 
+test('deleted logs do not starve new usage or refeed restored settlements', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pet-growth-deleted-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const old = [{ type: 'assistant/message', data: { turn: 0, step: 0, usage: { inputTokens: 1000 } } }];
+  writeLog(root, 'old', 'session.jsonl.zstd', old);
+  let stored = { points: 400, tokensFed: 400, tokensSeen: 1000, baseline: 600, today: null };
+  const make = () => createGrowthTracker({ sessionsDir: root, getGrowth: () => stored, saveGrowth: next => { stored = next; } });
+  let tracker = make();
+  t.after(() => tracker.close());
+  await tracker.refresh();
+  fs.rmSync(path.join(root, 'old'), { recursive: true, force: true });
+  await tracker.refresh();
+  const fresh = [{ type: 'assistant/message', data: { turn: 0, step: 0, usage: { inputTokens: 50 } } }];
+  writeLog(root, 'new', 'session.jsonl.zstd', fresh);
+  assert.equal(tracker.feedable(await tracker.refresh()), 50, 'new consumption is usable immediately despite historical fed credit');
+  assert.equal(tracker.feed().fed, 50);
+  assert.equal(stored.points, 450);
+  assert.equal(stored.tokensFed, 450);
+  await tracker.close();
+  tracker = make();
+  writeLog(root, 'old', 'session.jsonl.zstd', old);
+  assert.equal(tracker.feedable(await tracker.refresh()), 0, 'restoring old logs after a restart must not mint food');
+  assert.equal(tracker.snapshot().todayUsed, 50, 'restoration is not new consumption');
+  fresh.push({ type: 'assistant/message', data: { turn: 1, step: 0, usage: { inputTokens: 20 } } });
+  writeLog(root, 'new', 'session.jsonl.zstd', fresh);
+  assert.equal(tracker.feedable(await tracker.refresh()), 20);
+});
+
+test('issue 120 legacy food debt migrates without resetting growth or minting backlog', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pet-growth-legacy-debt-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  writeLog(root, 'old', 'session.jsonl.zstd', [{ type: 'assistant/message', data: { turn: 0, step: 0, usage: { inputTokens: 719295480 } } }]);
+  let stored = { points: 350576917, tokensFed: 46861950, tokensSeen: 719295480, baseline: 712422075, today: null };
+  const tracker = createGrowthTracker({ sessionsDir: root, getGrowth: () => stored, saveGrowth: next => { stored = next; } });
+  t.after(() => tracker.close());
+  assert.equal(tracker.feedable(await tracker.refresh()), 0);
+  assert.equal(stored.points, 350576917);
+  assert.equal(stored.tokensFed, 46861950);
+  writeLog(root, 'new', 'session.jsonl.zstd', [{ type: 'assistant/message', data: { turn: 0, step: 0, usage: { outputTokens: 25 } } }]);
+  assert.equal(tracker.feedable(await tracker.refresh()), 25);
+  const result = tracker.feed();
+  assert.equal(result.fed, 25);
+  assert.equal(result.points, 350576942);
+});
+
 // ── off-thread scan (regression: 60s rescan used to decode whole logs on
 // the Electron main thread — every changed session log froze all windows) ──
 
@@ -414,7 +459,7 @@ test('the scan worker reports the same totals as scanSessionTokens', async (t) =
   ]);
   const worker = createScanWorker();
   t.after(() => worker.close());
-  const expected = scanSessionTokens(root);
+  const expected = scanSessionTokens(root, undefined, true);
   assert.deepEqual(await worker.scan(root), expected);
   // The unchanged-file cache lives inside the worker across scans.
   assert.deepEqual(await worker.scan(root), expected);
@@ -422,7 +467,7 @@ test('the scan worker reports the same totals as scanSessionTokens', async (t) =
   writeLog(root, 'b', 'session.jsonl.zstd', [
     { type: 'assistant/message', data: { turn: 2, step: 0, usage: { inputTokens: 5 } } },
   ]);
-  assert.deepEqual(await worker.scan(root), scanSessionTokens(root));
+  assert.deepEqual(await worker.scan(root), scanSessionTokens(root, undefined, true));
 });
 
 test('a closed scan worker rejects instead of hanging', async (t) => {

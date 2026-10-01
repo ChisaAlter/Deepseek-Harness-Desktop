@@ -19,6 +19,7 @@
 - `desktop-live2d.js` 管理 Live2D 宠物：覆盖虚拟屏的透明 `alwaysOnTop` BrowserWindow，窗口本身永不 `setPosition`（分层透明窗移动会闪空）；默认 `setIgnoreMouseEvents` 穿透，主进程 ~30Hz 轮询 `screen.getCursorScreenPoint()` 推 `shell:live2d-cursor`，渲染器按角色 alpha bounds 决定交互。页面经特权 `pet://` scheme 加载，渲染进程内跑 onnxruntime-web（WebGPU→WASM 回落）。
 - `harness-chrome-inject.js` / `chrome.js` 把桌面 chrome 接到官方页。
 - `closing-overlay.js` 关闭过渡。
+- `pet-growth.js` 的版本化 food 账本将投喂余额与当前日志存量分离；worker 返回按会话与 turn/step 摘要的用量桶，重复扫描、删除或恢复日志不重复发放。旧状态迁移保留等级与原有可用余额，新增消费立即可投喂。见[投喂账本决定](../../decisions/implemented/bug-fix/2026-10-02-pet-feed-ledger.md)。
 
 ## 实现入口
 

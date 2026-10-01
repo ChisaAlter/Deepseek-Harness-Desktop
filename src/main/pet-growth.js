@@ -7,6 +7,7 @@
 // numeric usage buckets on usage-bearing events.
 
 const fs = require('node:fs');
+const { createHash } = require('node:crypto');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { Worker } = require('node:worker_threads');
@@ -193,11 +194,14 @@ function zstdDecompressAll(buf) {
 // the caller across scans: a file whose size+mtime are unchanged replays its
 // folded usage map without re-reading or re-decompressing — the steady-state
 // 60s rescan costs one stat per log instead of a full corpus decode.
-function scanSessionTokens(sessionsDir, cache) {
+// includeSamples adds hashed settlement identities for durable food accounting;
+// the ordinary total-only scanner interface remains available to other callers.
+function scanSessionTokens(sessionsDir, cache, includeSamples = false) {
   const fileCache = cache instanceof Map ? cache : null;
   const seen = fileCache ? new Set() : null;
   let total = 0;
   let sessions = 0;
+  const sampleTotals = {};
   const stack = [sessionsDir];
   while (stack.length) {
     const dir = stack.pop();
@@ -262,8 +266,14 @@ function scanSessionTokens(sessionsDir, cache) {
     }
     if (files > 0) {
       sessions += 1;
-      for (const n of lastWins.values()) {
+      for (const [key, n] of lastWins) {
         total += n;
+        if (includeSamples) {
+          // Session identity remains stable when its workspace is moved.
+          const id = createHash('sha256')
+            .update(JSON.stringify([path.basename(dir), key])).digest('hex');
+          sampleTotals[id] = n;
+        }
       }
     }
   }
@@ -274,7 +284,7 @@ function scanSessionTokens(sessionsDir, cache) {
       }
     }
   }
-  return { total, sessions };
+  return { total, sessions, ...(includeSamples ? { sampleTotals } : {}) };
 }
 
 // Local calendar day key — "今日" means the user's own midnight boundary,
@@ -289,6 +299,10 @@ function normalizeGrowthState(value) {
   const source = value && typeof value === 'object' ? value : {};
   const num = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
   const todaySrc = source.today && typeof source.today === 'object' ? source.today : null;
+  const ledger = source.food;
+  const validLedger = ledger?.version === 1 && Number.isFinite(ledger.available) && ledger.available >= 0
+    && ledger.seen && typeof ledger.seen === 'object' && !Array.isArray(ledger.seen)
+    && Object.entries(ledger.seen).every(([key, amount]) => /^[a-f0-9]{64}$/.test(key) && Number.isFinite(amount) && amount >= 0);
   return {
     points: num(source.points),
     tokensFed: num(source.tokensFed),
@@ -300,6 +314,8 @@ function normalizeGrowthState(value) {
     // first refresh plants it (the historical corpus is NOT today's burn).
     today: todaySrc && typeof todaySrc.day === 'string' && todaySrc.day
       ? { day: todaySrc.day, used: num(todaySrc.used) } : null,
+    ...(validLedger ? { food: { version: 1, available: num(ledger.available),
+      seen: Object.fromEntries(Object.entries(ledger.seen).map(([key, amount]) => [key, num(amount)])) } } : {}),
   };
 }
 
@@ -342,7 +358,7 @@ function createScanWorker({ workerFile } = {}) {
       }
       pending.delete(msg.id);
       if (msg.ok) {
-        p.resolve({ total: msg.total, sessions: msg.sessions });
+        p.resolve({ total: msg.total, sessions: msg.sessions, ...(msg.sampleTotals ? { sampleTotals: msg.sampleTotals } : {}) });
       } else {
         p.reject(new Error(msg.error || 'session scan failed'));
       }
@@ -395,11 +411,10 @@ function createScanWorker({ workerFile } = {}) {
   };
 }
 
-// Owns growth bookkeeping: `tokensSeen` tracks the scan's cumulative total,
-// `baseline` the food watermark planted at first scan, and `tokensFed` how
-// much above that watermark she has already eaten. Only tokens burned AFTER
-// the feature first scanned are food — the historical backlog is not feed
-// stock. Idempotent across restarts and rescan-safe.
+// Lifetime feeding and current log totals have different units. Versioned
+// food accounting retains an available balance and observed settlement maxima;
+// removing/restoring logs cannot revoke earned food or credit it twice.
+// baseline remains for migration of old state, never as a lifetime food debt.
 //
 // `scanTokens` (optional) injects the corpus scan — sync or Promise of
 // {total, sessions}. Production default is the worker-backed scanner so the
@@ -424,7 +439,7 @@ function createGrowthTracker({ sessionsDir, getGrowth, saveGrowth, scanTokens })
   function refresh() {
     if (!inFlight) {
       inFlight = (async () => {
-        const { total } = await scanner.scan(sessionsDir);
+        const { total, sampleTotals } = await scanner.scan(sessionsDir);
         const g = read();
         // First scan plants the watermark at corpus-minus-eaten so already-fed
         // credit survives the upgrade; later the watermark only follows the
@@ -432,17 +447,32 @@ function createGrowthTracker({ sessionsDir, getGrowth, saveGrowth, scanTokens })
         const baseline = g.baseline === null
           ? Math.max(0, total - g.tokensFed)
           : Math.min(g.baseline, total);
-        // tokensFed deliberately stays put when the corpus shrinks: feedable
-        // clamps at zero below, and keeping the fed credit prevents re-feeding
-        // the same tokens if the logs ever come back.
-        const delta = Math.max(0, total - g.tokensSeen);
+        let delta = Math.max(0, total - g.tokensSeen);
+        let food = g.food;
+        if (sampleTotals) {
+          if (!food) {
+            // Seed historical buckets without retroactive food. Preserve only
+            // the legacy balance; neither growth nor lifetime feeding resets.
+            food = { version: 1, available: Math.max(0, total - baseline - g.tokensFed), seen: { ...sampleTotals } };
+          } else {
+            const seen = { ...food.seen };
+            delta = 0;
+            for (const [key, amount] of Object.entries(sampleTotals)) {
+              const previous = seen[key] || 0;
+              delta += Math.max(0, amount - previous);
+              seen[key] = Math.max(previous, amount);
+            }
+            food = { version: 1, available: food.available + delta, seen };
+          }
+        }
         const day = dayKey();
         const today = g.baseline === null
           ? { day, used: 0 }
           : { day, used: (g.today && g.today.day === day ? g.today.used : 0) + delta };
-        const next = { ...g, tokensSeen: total, baseline, today };
+        const next = { ...g, tokensSeen: total, baseline, today, ...(food ? { food } : {}) };
         if (next.tokensSeen !== g.tokensSeen || next.baseline !== g.baseline
-            || !g.today || next.today.used !== g.today.used || next.today.day !== g.today.day) {
+            || !g.today || next.today.used !== g.today.used || next.today.day !== g.today.day
+            || (food && (!g.food || delta > 0))) {
           write(next);
         }
         return next;
@@ -457,6 +487,7 @@ function createGrowthTracker({ sessionsDir, getGrowth, saveGrowth, scanTokens })
 
   function feedable(state) {
     const g = state || read();
+    if (g.food) return g.food.available;
     const pool = g.baseline === null ? 0 : Math.max(0, g.tokensSeen - g.baseline);
     return Math.max(0, pool - g.tokensFed);
   }
@@ -511,6 +542,7 @@ function createGrowthTracker({ sessionsDir, getGrowth, saveGrowth, scanTokens })
       points: before.points + fed,
       tokensFed: before.tokensFed + fed,
       tokensSeen: before.tokensSeen,
+      ...(before.food ? { food: { ...before.food, available: before.food.available - fed } } : {}),
     };
     write(next);
     const snap = snapshot(next);

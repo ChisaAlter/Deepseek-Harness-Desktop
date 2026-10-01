@@ -398,7 +398,7 @@ function growthDeps(t, overrides = {}) {
       sessionsDir,
       // In-process scan keeps these tests deterministic and worker-free;
       // the default worker path is covered in pet-growth.test.js.
-      scanTokens: (dir) => petGrowth.scanSessionTokens(dir, scanCache),
+      scanTokens: (dir) => petGrowth.scanSessionTokens(dir, scanCache, true),
       // Pre-planted watermark: the fixture corpus counts as post-baseline
       // food — the backlog-exclusion path is covered in pet-growth.test.js.
       loadConfig: () => ({ live2dPet: { growth: { baseline: 0 } } }),
@@ -478,6 +478,28 @@ test('live2d-growth returns a snapshot and live2d-feed pushes it', async (t) => 
   // The bowl is empty now.
   const res2 = await deps.electron.ipcMain.handlers.get('shell:live2d-feed')(event, {});
   assert.equal(res2.fed, 0);
+});
+
+test('a failed feed save preserves the balance for a single retry', async (t) => {
+  let failNext = false;
+  const { deps } = growthDeps(t, { saveConfig: () => {
+    if (failNext) { failNext = false; throw new Error('temporary config lock'); }
+  } });
+  const manager = createLive2dPetManager(deps);
+  t.after(() => manager.dispose());
+  manager.show();
+  const event = authorizedEvent(deps);
+  const inspect = deps.electron.ipcMain.handlers.get('shell:live2d-growth');
+  const feed = deps.electron.ipcMain.handlers.get('shell:live2d-feed');
+  assert.equal((await inspect(event)).feedable, 25500);
+  failNext = true;
+  await assert.rejects(feed(event, { amount: 100 }), /temporary config lock/);
+  assert.equal(manager.getState().growth.points, 0);
+  assert.equal((await inspect(event)).feedable, 25500);
+  const result = await feed(event, { amount: 100 });
+  assert.equal(result.points, 100);
+  assert.equal(result.tokensFed, 100);
+  assert.equal(result.feedable, 25400);
 });
 
 test('settings-get reads; applySettings persists and pushes the normalized shape', (t) => {

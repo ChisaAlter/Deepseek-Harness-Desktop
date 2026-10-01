@@ -157,8 +157,14 @@ function createLive2dPetManager(options = {}) {
     sessionsDir: options.sessionsDir || '',
     getGrowth: () => state.growth,
     saveGrowth: (next) => {
+      const previous = state.growth;
       state.growth = next;
-      persist();
+      try {
+        persist();
+      } catch (error) {
+        state.growth = previous;
+        throw error;
+      }
     },
     scanTokens: options.scanTokens,
   });

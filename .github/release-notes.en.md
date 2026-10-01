@@ -21,6 +21,7 @@
 - **Windows windows and desktop pet**: The main window and launcher retain both 20px transparent corners and native window animations. The pet adapts to screen density, and clicks pass through the gap between the character and chat card.
 - **Windows taskbar icon**: Windows set the Whale Isle icon, name and relaunch command before the AppID, so complete branding is available when the taskbar refreshes. Installed startup identifies the exact old notification-generated Electron shortcut, keeps a complete backup without the shortcut extension, and notifies the system that the old entry was deleted within a bounded wait. Source runs prevent notification registration from recreating the entry, installed notifications remain available, and user pins are retained.
 - **Normal quit**: Closing feedback waits at most 500ms, preventing a hidden page without paint callbacks from stalling quit. Task inspection, draining, and normal shutdown remain in place.
+- **Pet feeding recovery**: New consumption remains available for feeding after session logs are cleaned up. Restoring old logs does not grant food twice. Upgrading preserves growth, lifetime feeding and the existing available balance; a retry after a failed save does not consume it twice.
 - **Harness baseline**: Updated to `dsh-v0.1.7-rc.2` while retaining desktop work loops and plugin capabilities.
 
 ## Technical contract
