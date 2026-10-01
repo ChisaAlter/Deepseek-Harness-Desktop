@@ -2,6 +2,8 @@
 
 [中文](design-language.md) | English
 
+Complete Windows taskbar branding before first display: submit the icon, product name and relaunch command before the window AppUserModelID, so the taskbar refresh reads the complete branding information.
+
 DSHD (Deepseek-Harness-Desktop — the desktop application in this repository; distinct from the `dsh` CLI and from the dshd daemon in `src/main`) defines its design language in this document: it is the sole visual authority for every visible surface of DSHD. The language's baseline is pinned to the vendored `vendor/deepseek-harness` Web UI — currently `dsh-v0.1.7-rc.2` (`477b4f420553e8a52c2fbccc464d7561b239c443`), recorded in [`vendor/harness-upstream.json`](../vendor/harness-upstream.json) and updated by `npm run sync:harness`. The desktop chrome, closing overlay, title-bar injection, right-hand surfaces, the Web UI page opened by phone remote, and any new frontend all implement the same language. Do not invent a second skin.
 
 "Matching the baseline" is not a judgement call. It is three hard criteria, all anchored in real artifacts:

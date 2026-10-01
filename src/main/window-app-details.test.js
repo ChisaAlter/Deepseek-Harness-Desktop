@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
-const { windowsAppDetails } = require('./window-app-details');
+const { windowsAppDetails, applyWindowsAppDetails } = require('./window-app-details');
 
 const sourceOptions = {
   isPackaged: false,
@@ -66,7 +66,17 @@ function shellFactoryFixture({ platform, launcher, isPackaged }) {
     }
     isDestroyed() { return false; }
     isMinimized() { return false; }
-    setAppDetails(details) { this.details = details; events.push('details'); }
+    setAppDetails(details) {
+      // Model Chromium's ID-first write and the refresh it triggers.
+      if (details.appId) {
+        this.details = { ...this.details, appId: details.appId };
+        this.refresh = { ...this.details };
+        events.push('identity');
+      } else {
+        events.push('relaunch');
+      }
+      this.details = { ...this.details, ...details };
+    }
     loadFile() { return Promise.resolve(); }
     show() { events.push('show'); }
     focus() {}
@@ -75,7 +85,7 @@ function shellFactoryFixture({ platform, launcher, isPackaged }) {
     app: { isPackaged, getAppPath: () => sourceOptions.appPath },
     process: { platform, execPath: sourceOptions.execPath, argv: ['--auth-token=private', '--qa'] },
     require: () => ({ isLauncherPackage: () => launcher }),
-    windowsAppDetails,
+    applyWindowsAppDetails,
     assetFile: () => sourceOptions.iconPath,
     iconImage: () => 'whale-icon',
     BrowserWindow: Window,
@@ -100,16 +110,18 @@ for (const launcher of [false, true]) {
     test(`Windows ${launcher ? 'slim' : 'desktop'} ${isPackaged ? 'package' : 'source'} shell windows declare identity before show`, async () => {
       const { api, events } = shellFactoryFixture({ platform: 'win32', launcher, isPackaged });
       const main = api.createMainWindow();
-      assert.deepEqual(events, ['construct', 'details', 'chrome']);
+      assert.deepEqual(events, ['construct', 'relaunch', 'identity', 'chrome']);
       main.emit('ready-to-show');
-      assert.deepEqual(events, ['construct', 'details', 'chrome', 'show']);
+      assert.deepEqual(events, ['construct', 'relaunch', 'identity', 'chrome', 'show']);
       assert.equal(api.createMainWindow(), main, 'reuse retains the already declared identity');
       const expected = windowsAppDetails({ ...sourceOptions, launcher, isPackaged });
       assert.deepEqual(main.details, expected);
+      assert.deepEqual(main.refresh, expected, 'all branding exists at the ID-triggered refresh');
       events.length = 0;
       const launch = await api.showLauncher();
-      assert.deepEqual(events, ['construct', 'details', 'chrome', 'show']);
+      assert.deepEqual(events, ['construct', 'relaunch', 'identity', 'chrome', 'show']);
       assert.deepEqual(launch.details, expected);
+      assert.deepEqual(launch.refresh, expected);
       assert.equal(main.options.show, false);
       assert.equal(launch.options.show, false);
     });
@@ -121,7 +133,7 @@ test('other platform shell windows do not call the Windows-only API', async () =
     const { api, events } = shellFactoryFixture({ platform, launcher: false, isPackaged: false });
     api.createMainWindow().emit('ready-to-show');
     await api.showLauncher();
-    assert.equal(events.includes('details'), false);
+    assert.equal(events.includes('relaunch') || events.includes('identity'), false);
     assert.equal(events.filter(event => event === 'show').length, 2);
   }
 });

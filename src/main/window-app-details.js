@@ -33,4 +33,12 @@ function windowsAppDetails({ launcher = false, isPackaged, execPath, appPath, ic
   };
 }
 
-module.exports = { windowsAppDetails };
+function applyWindowsAppDetails(win, options) {
+  const { appId, ...relaunch } = windowsAppDetails(options);
+  // Setting the ID refreshes the taskbar. Electron writes it first within a
+  // single call, so submit the relaunch properties before triggering refresh.
+  win.setAppDetails(relaunch);
+  win.setAppDetails({ appId });
+}
+
+module.exports = { windowsAppDetails, applyWindowsAppDetails };

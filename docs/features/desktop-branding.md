@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `desktop-branding` |
 | **status** | `active` |
-| **last verified (window icon)** | 2026-10-01 — 非快捷方式备份 / FLUSH 修复定向 62/62，其中旧条目恢复 33/33，含 Windows 真实 TEMP fixture；500ms 期限、迟到 / 缺失 / 异常回调及原字节保全通过。原 CI 36804159162 经人工精确恢复后 PID 29108 的 66×72 样本为鲸鱼，不认证自动恢复。CI 36820230025 自动字节恢复通过，但首次启动 PID 23668 的白色文档图标为 Fail，第二次冷启动 PID 18420 的鲸鱼样本仅为诊断 Pass；本次组合修复的新安装候选尚待首启验收，见 [执行记录](../qa/results/2026-10-01-release-candidate/README.md)。 |
+| **last verified (window icon)** | 2026-10-01 — 属性顺序与通知定向测试 23/23；Electron 43.4.0 真实 HWND 验证两次调用保留全部属性。仅修改属性顺序的本地诊断包，在同一旧通知条目冲突下首次启动 PID 27184 的 66×72 样本显示鲸鱼；诊断包已退出并恢复原文件，不作为正式候选认证。原 CI 36820230025 与 36828909041 首启均为 Fail；新原始 CI 安装包尚待首启验收。历史证据见 [执行记录](../qa/results/2026-10-01-release-candidate/README.md)。 |
 | **last verified** | 2026-09-25 — 已恢复定稿的中文主字标及原字号，仅应用其他入口使用英文主名；品牌与侧栏定向测试 25/25、官方 profile 完整构建、`check:governance` 与 `doc-sync` 通过。桌面应用已重启。 |
 
 ## User paths
@@ -16,6 +16,7 @@
 
 ## Invariants
 
+- Windows 窗口先提交图标、重启命令与产品名，再单独声明 AppUserModelID；不得合并为一次 `setAppDetails`，Electron 的原生实现会先写 ID 并过早触发任务栏刷新。
 - 侧栏头像复用 `assets/whale-head.png` 的透明图像，不显示方形底板。沿用既有字标比例与顺序：中文「鲸屿」为主，第二字为品牌蓝；英文「WHALE ISLE」位于同一行作为辅字，完整「BASED ON DEEPSEEK HARNESS」来源说明位于下一行且始终可读。
 - `appId`、仓库名、包名与数据目录路径保持稳定；安装与更新识别旧版 Deepseek-Harness-Desktop 资产及可执行文件。
 - Windows 主窗和启动器在首次显示前声明既有 Shell 身份、同源图标、成对的产品名与重启命令。源码图标为真实 ICO，安装版为 EXE 内嵌图标；重启不携带会话、认证、调试或 QA 参数。Windows 原始 Electron 源码运行在通知 presenter 初始化前拒绝系统通知注册，安装版通知保持可用。

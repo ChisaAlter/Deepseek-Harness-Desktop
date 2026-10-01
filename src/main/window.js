@@ -1,7 +1,7 @@
 const { app, BrowserView, BrowserWindow, shell, nativeImage, screen } = require('electron');
 const { attachRendererConsoleTail, RendererConsoleTail, writeCrashReport, desktopErrorState } = require('./crash-report');
 const { rendererFile, assetFile, preloadFile } = require('./paths');
-const { windowsAppDetails } = require('./window-app-details');
+const { applyWindowsAppDetails } = require('./window-app-details');
 const { REMOTE_FEATURE_ENABLED } = require('./config');
 const { shellWindowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, markWindowTransparent, paintBackground } = require('./chrome');
 const { normalizeSettingsSection, buildSettingsSectionScript } = require('./settings-jump');
@@ -190,13 +190,13 @@ function iconImage() {
 
 function attachWindowsAppDetails(win) {
   if (process.platform !== 'win32') return;
-  win.setAppDetails(windowsAppDetails({
+  applyWindowsAppDetails(win, {
     launcher: require('../launcher/product').isLauncherPackage(),
     isPackaged: app.isPackaged,
     execPath: process.execPath,
     appPath: app.getAppPath(),
     iconPath: assetFile('icon.ico'),
-  }));
+  });
 }
 
 function createMainWindow() {

@@ -15,6 +15,7 @@
 ## 架构要点
 
 - `whenReady` 预建隐藏启动器并进入冷启动门；更新检查不阻塞正常自动启动，可选导入来源也不占用启动路径。
+- Windows 主窗与启动器通过 `applyWindowsAppDetails` 先写图标、重启命令和产品名，再仅写 AppID；第二次调用触发读取完整品牌信息的任务栏刷新，两次均在首次显示前完成。
 - 安装版 Windows 在预建窗口前检查旧通知自动生成、与正式 GUI ID 冲突的 `Electron.lnk`。固定当前用户开始菜单路径及普通文件 / Electron 目标 / 空参数 / 默认图标全部匹配后，将原字节移入 userData 唯一 `Electron.lnk.backup` 备份，不保留 `.lnk` 扩展名；读错或身份不符不修改。只有完成移动才异步通知 Shell 该旧路径 → 备份路径（`SHCNE_RENAMEITEM`、`SHCNF_PATHW | SHCNF_FLUSH`），等待事件投递；原生回调最多等待 500ms，通知失败或超时仍保留备份并继续启动。期限只结束启动等待，不取消原生调用，迟到回调不翻转超时结果；投递完成不证明任务栏像素正确。不匹配分支不加载原生桥，不清全局缓存、不重启 Explorer。原始 Electron 源码通知已禁止重新注册，用户固定项及其它快捷方式保留。见[任务栏身份决定](../../decisions/implemented/bug-fix/2026-10-01-windows-taskbar-identity.md)。
 - `HarnessController` 拥有子进程与揭示时机；boot 只消费事件。  
 - 运行时链接的批量检查、恢复与清理由异步文件 API 执行，避免同步循环占住 Electron 主线程；每五秒向既有日志报告完成数/总数。准备阶段可在文件操作之间取消，目录替换开始后完成最终链接或回滚才返回。详见[安装恢复决定](../../decisions/implemented/bug-fix/2026-09-29-installation-recovery.md)。

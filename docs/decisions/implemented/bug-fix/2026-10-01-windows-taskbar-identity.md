@@ -16,6 +16,8 @@ Electron 43.4.0 的系统通知 presenter 在初始化时注册 activator，按 
 
 ## Decision
 
+候选 `36828909041` 的非快捷方式备份和 FLUSH 仍未解决首次启动的白色文档图标。进一步核对发现，Electron 43.4.0 所用 Chromium 在单次 `setAppDetails` 内先写 AppID，再写图标与名称；[微软规定其它属性应在 AppID 前提交](https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-id)，因为设置 AppID 即触发任务栏刷新。因此所有 Windows 主窗和启动器共用两次调用：先写重启属性，随后仅写 AppID。最终属性齐全不能代替刷新时顺序正确；新安装包首次像素仍需实测。
+
 - 主窗口与启动器在首次显示前调用 `setAppDetails`，写既有 AppUserModelID、同源图标和成对的产品名 / 重启命令。源码使用磁盘 ICO，命令只包含 Electron EXE 与绝对项目入口；安装包使用已安装 EXE 的内嵌图标（index 0）和该 EXE 命令，不复制会话、认证、调试或 QA 参数。Windows Shell 不能读取 ASAR 虚拟图标路径。
 - Windows 原始 Electron 开发运行在任何 `Notification.isSupported` / 构造前短路系统通知，浏览器 notification 权限也拒绝。安装版及其它平台沿用通知能力；源码仍有既有应用内更新确认、注意提示与未读状态。
 - 安装版 Windows 桌面启动在首次创建 / 显示窗口或初始化通知前检查当前用户开始菜单的固定 `Electron.lnk`。仅当普通文件、正式 GUI AppID、绝对 Electron EXE 目标、空参数、默认图标及 index 0 全部匹配时，保留原字节并移到 userData 下唯一的 `Electron.lnk.backup` 恢复备份，不保留 `.lnk` 扩展名；无法读取、身份不符或备份失败时保留原条目。只有实际移动完成后，异步发送该旧路径到备份路径的 Shell `SHCNE_RENAMEITEM` 通知，使用 `SHCNF_PATHW | SHCNF_FLUSH` 等待事件投递；原生回调最多等待 500ms，失败或超时仍保留备份并继续启动。期限只结束启动等待，不取消原生调用；迟到回调不翻转超时结果。只处理旧通知生成的条目，不扫描开始菜单或固定项，不改 Whale Isle 快捷方式。
