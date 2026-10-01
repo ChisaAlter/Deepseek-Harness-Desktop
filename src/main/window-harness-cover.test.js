@@ -377,6 +377,7 @@ test('showBoot cancels a plugin boot watch before its first probe', { timeout: 1
     getBrowserViews() { return this.views; }
     setTopBrowserView() {}
     show() {}
+    setAppDetails(details) { this.appDetails = details; }
 
     addBrowserView(view) {
       if (!this.views.includes(view)) this.views.push(view);
@@ -397,6 +398,7 @@ test('showBoot cancels a plugin boot watch before its first probe', { timeout: 1
     filename: electronPath,
     loaded: true,
     exports: {
+      app: { isPackaged: false, getAppPath: () => 'C:/app' },
       BrowserView: FakeBrowserView,
       BrowserWindow: FakeBrowserWindow,
       shell: { openExternal() {} },

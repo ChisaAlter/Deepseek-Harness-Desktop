@@ -6,6 +6,7 @@
 // and the launcher IPC surface exist here.
 
 const { app, dialog, Notification } = require('electron');
+const { systemNotificationsSupported } = require('../main/system-notifications');
 const { LAUNCHER_NAME, LEGACY_LAUNCHER_USER_DATA, preserveUserDataPath } = require('../shared/product-identity');
 preserveUserDataPath(app, LEGACY_LAUNCHER_USER_DATA);
 app.setName(LAUNCHER_NAME);
@@ -99,7 +100,7 @@ function bindLauncherClose(win) {
     // First hide only: explain where the window went. Persisted under the
     // launcher config; written via saveConfig (not the renderer whitelist).
     try {
-      if (!loadConfig().trayHintShown && Notification.isSupported()) {
+      if (!loadConfig().trayHintShown && systemNotificationsSupported(Notification)) {
         new Notification({
           title: '已最小化到托盘',
           body: '双击托盘图标可重新打开启动器；从托盘菜单可完全退出。',

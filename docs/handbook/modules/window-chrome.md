@@ -27,6 +27,7 @@
 
 ## 不变量
 
+- Windows 任务栏品牌由窗口首次显示前的 Shell 属性声明：既有 AppUserModelID、应用 ICO、正确的重启入口与产品名；WM_GETICON 正确不能替代此项验证。原始 Electron 源码运行不初始化系统通知 presenter，以免自动生成同身份的 Electron 快捷方式；安装版系统通知保持可用，源码保留应用内提示。见 [任务栏身份修复](../../decisions/implemented/bug-fix/2026-10-01-windows-taskbar-identity.md)。
 - 栏是 `AppFrame`，不是卡片网格。
 - Surface Tab 关闭控件在标题**右侧**。
 - 两种宠物形态不得同时可见；宠物 preload/IPC 面收窄，不暴露 Harness workspace/Git/文件/远程/插件权限。

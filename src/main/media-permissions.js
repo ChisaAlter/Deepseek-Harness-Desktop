@@ -1,5 +1,7 @@
 'use strict';
 
+const { systemNotificationsAllowed } = require('./system-notifications');
+
 /**
  * Microphone access belongs to the primary harness frame and the OS.
  * Ported from upstream apps/desktop/microphone-permissions.ts; the trusted
@@ -18,7 +20,8 @@ function isHarnessOrigin(url) {
 
 /**
  * Narrow `media` permission to the primary harness view's main frame, audio
- * only; every other permission keeps Electron's defaults.
+ * only; raw Windows source notifications are denied before presenter setup.
+ * Every other permission keeps Electron's defaults.
  * @param {any} ses - the session hosting the harness view (defaultSession).
  * @param {() => any} primary - current primary harness webContents, or undefined.
  * @param {any} [systemPreferences]
@@ -27,12 +30,17 @@ function installMediaPermissions(ses, primary, systemPreferences) {
   const darwinAccess = () => process.platform !== 'darwin'
     || (systemPreferences && systemPreferences.getMediaAccessStatus('microphone') === 'granted');
   ses.setPermissionCheckHandler((contents, permission, origin, details) => {
+    if (permission === 'notifications' && !systemNotificationsAllowed()) return false;
     if (permission !== 'media') return true;
     return contents != null && contents === primary() && details.isMainFrame
       && isHarnessOrigin(origin) && details.mediaType === 'audio'
       && darwinAccess();
   });
   ses.setPermissionRequestHandler((contents, permission, callback, details) => {
+    if (permission === 'notifications' && !systemNotificationsAllowed()) {
+      callback(false);
+      return;
+    }
     if (permission !== 'media') {
       callback(true);
       return;

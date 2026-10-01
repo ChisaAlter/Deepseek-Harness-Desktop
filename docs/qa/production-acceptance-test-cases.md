@@ -106,7 +106,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 **步骤：**
 
-1. 打开该次 `release.yml` windows job 的 Actions run，下载 artifact `DeepSeek-Harness-windows-x64`。  
+1. 打开该次 `release.yml` windows job 的 Actions run，下载 artifact `Whale-Isle-windows-x64`。
 2. 记录 run URL、文件名、SHA256。此文件即拟发布文件。  
 3. 用**该文件**默认路径安装；确认桌面与开始菜单快捷方式。  
 4. 从快捷方式启动；观察启动页仪器画布（品牌名、状态章、日志）。  
@@ -277,13 +277,13 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 2. 用**本轮 CI Setup** `/S` 覆盖同一桌面版本（或冷启动已含 stamp 修复的本轮包）。  
 3. 看启动日志与 `runtime/<version>/package.json`。  
 
-**期望：** 无戳或戳不匹配则重新解压；启动日志**不得**出现 `unknown option '--no-open'`；解压树 / About 所述 harness 与该 SHA 包内 pin 一致（现为 `dsh-v0.1.1-rc.1` / npm `0.1.1-rc.1`），不得仍是 `0.1.0-rc.7`。
+**期望：** 无戳或戳不匹配则重新解压；启动日志**不得**出现 `unknown option '--no-open'`；解压树 / About 所述 harness 与该 SHA 包内 `vendor/harness-upstream.json` pin 一致（当前 `dsh-v0.1.7-rc.2` / npm `0.1.7-rc.2`），不得复用旧 pin 的解压树。
 
 ### TC-INST-013 · 安装包内 Node 与 CI 一致 · P0
 
 **步骤：** 打开安装目录（默认 `%LOCALAPPDATA%\Programs\Deepseek-Harness-Desktop\`）运行 `resources\node.exe -v`。
 
-**期望：** 主版本为 Node **22**（与 `release.yml` `setup-node` `node-version: 22` 一致）。若为 24.x，说明 afterPack 打进了本机 `process.execPath`，该包不是 CI 包，本表整份作废。
+**期望：** 完整版本与该候选 SHA 的 `.nvmrc` 及 `release.yml` 的 `setup-node` 日志一致（当前 **24.21.0**，`node-version-file: .nvmrc`）；版本不一致则该包验收失败。Electron 内置 Node 与 Office 独立锁定的 Node 不替代这里的随包 Harness Node 核对，见 [Node 24 发布基线](../decisions/implemented/process/2026-09-29-node24-release-runtime.md)。
 
 ---
 

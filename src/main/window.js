@@ -1,6 +1,7 @@
-const { BrowserView, BrowserWindow, shell, nativeImage, screen } = require('electron');
+const { app, BrowserView, BrowserWindow, shell, nativeImage, screen } = require('electron');
 const { attachRendererConsoleTail, RendererConsoleTail, writeCrashReport, desktopErrorState } = require('./crash-report');
 const { rendererFile, assetFile, preloadFile } = require('./paths');
+const { windowsAppDetails } = require('./window-app-details');
 const { REMOTE_FEATURE_ENABLED } = require('./config');
 const { shellWindowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, markWindowTransparent, paintBackground } = require('./chrome');
 const { normalizeSettingsSection, buildSettingsSectionScript } = require('./settings-jump');
@@ -187,6 +188,17 @@ function iconImage() {
   return svg.isEmpty() ? undefined : svg;
 }
 
+function attachWindowsAppDetails(win) {
+  if (process.platform !== 'win32') return;
+  win.setAppDetails(windowsAppDetails({
+    launcher: require('../launcher/product').isLauncherPackage(),
+    isPackaged: app.isPackaged,
+    execPath: process.execPath,
+    appPath: app.getAppPath(),
+    iconPath: assetFile('icon.ico'),
+  }));
+}
+
 function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     return mainWindow;
@@ -211,6 +223,7 @@ function createMainWindow() {
     },
   });
 
+  attachWindowsAppDetails(mainWindow);
   markWindowTransparent(mainWindow);
   attachIntegratedChrome(mainWindow);
   mainWindow.once('ready-to-show', () => {
@@ -848,6 +861,7 @@ function createLauncherWindow() {
       spellcheck: false,
     },
   });
+  attachWindowsAppDetails(launcherWindow);
   markWindowTransparent(launcherWindow);
   attachIntegratedChrome(launcherWindow, { role: 'launcher' });
   launcherWindow.once('ready-to-show', () => {

@@ -12,12 +12,20 @@
 - Files guide 只保留目录入口，具体文件继续进入编辑页；旧无文件查看器原位显示所属 Session 目录，不迁移布局、浮窗或有效文件草稿。决定见 [Files 地址恢复](../../../decisions/implemented/bug-fix/2026-10-01-sidebar-files-guide-address.md)。
 - 使用 `.nvmrc` 钉定的 Node 24.21.0。新真实 Guide / registry / controller / keyed body / 恢复布局回归 9/9，独立复跑 9/9；既有 adapter / apply 16/16。窄 lint 无错误或警告，client aggregate `tsc -b tsconfig.client.json` exit 0，官方 client catalog 检查通过。
 - `scripts/prestart-ensure.mjs` 官方 native / host / client / web 构建 exit 0，记录 372 个 client 产物；构建日志为本机 `%TEMP%/dshd-files-guide-build-final.log`。
+- 关闭按钮与夹具修复提交 `9c4572b6582f69abe734b45b4982bc4c20a7f0f9` 的官方构建再次 exit 0，记录 372 个 client 产物，公开构建身份 `9c4572b`；`npm start` 重启后 protected peer 实际返回 `kernel: ready`、`webReady: true`。日志 `%TEMP%/dshd-alignment-official-build.log`、`%TEMP%/dshd-alignment-restart-out.log`。
 - 本机全量 GUI 首轮受待机恢复影响出现多条超时和 worker 终止异常，未取得有效全组汇总，另有文件 symlink 夹具权限失败；未修改 timeout、断言或 skip，不宣称本机全组通过。该提交在 CI 的完整 GUI 结果见下节。
 - 首次源码 QA 因 `ERR_NETWORK_IO_SUSPENDED` 后超过 600 秒而失败，未生成可通过的走查结果；保留 `%TEMP%/dshd-files-guide-source-qa.log` 和 `%TEMP%/dsh-source-qa-vlFYC8/` 供复查，不把该次启动写成通过。
 - 第二次源码 QA 执行 77 步：68 通过、8 必需项失败、1 可选项跳过；Files 工作环 8/8 通过。隔离仓缺本地 Git author、账户/远程旧入口与文案、未解析 `aria-labelledby`、模型确认与页面等待等夹具问题正在修正；推理停止后的输入状态与技能装配仍须复跑排除，未将静态诊断记为 Pass。证据为 `%TEMP%/dsh-source-qa-DLnGCu/`，不得将含隔离会话 token 的原始结果全文发布。
 - 隔离 Git fixture 已写入仅该仓库的 author，`smoke-workspace.test.mjs` 7/7 通过，既有真实 workspace 模式仍不做 Git 修改。未改全局 Git 身份。
 - 用户随后指出右栏关闭按钮偏低；24px 桌面 tab 仍使用共享 28px tab 的固定顶部定位，导致下偏 2 CSS px。已改为随标题 cross-axis 居中，保持关闭在标题右侧及原命中区。隔离真实 Electron 12 组宽度/字号/缩放下盒中心差不超过 0.006 CSS px，关闭一次、未触发拖拽；既有 DockKit 组件 87/87。证据 `%TEMP%/dshd-tab-close-alignment/`，新候选须包含该修复。
-- 源码 UI 走查接线已按现行账户入口、可访问名称和保存凭据状态修正，并严格等待停止后输入与技能页内容就绪；原 required 项和超时保留。VM 反例/正例 12/12 通过，真实 UI 重跑待执行；见 [走查契约](../../../decisions/implemented/process/2026-10-01-release-ui-walk-contract.md)。
+- 源码 UI 走查接线已按现行账户入口、可访问名称和保存凭据状态修正，并严格等待停止后输入与技能页内容就绪；原 required 项和超时保留。VM 反例/正例 12/12 通过，真实 UI 重跑见下一条；见 [走查契约](../../../decisions/implemented/process/2026-10-01-release-ui-walk-contract.md)。
+- 第三次源码 QA（`9c4572b`）77 步：73 通过、3 必需项失败、1 可选项跳过。Git 提交、账户 / 远程实际弹窗、技能页和 Off → Low 推理切换已通过；剩余自定义模型保存 UI 确认、MCP 搜索与会话日志开关仍在诊断，未标 Pass。证据 `%TEMP%/dsh-source-qa-zbLvTV/`、`%TEMP%/dshd-alignment-source-qa.log`。
+- 第四次源码 QA 77 步：75 通过、1 必需项失败、1 可选项跳过。MCP 就绪等待和原生 checkbox 状态已修正；剩余自定义模型确认。随后确认旧 helper 在提交按钮变成 `Creating… / 创建中…` 时把仍存在的表单误判为关闭，提前 dismiss / 重开设置。已补忙碌态反例并修正判断，15/15 单测通过，12 秒总预算不变；此前“47ms 已关闭”及产品热刷新故障归因撤回。证据 `%TEMP%/dsh-source-qa-AAsEOO/`、`%TEMP%/dshd-qa-fixture-source-qa.log`。
+- 生产验收表三处旧示例已机械同步：artifact 名为 `Whale-Isle-windows-x64`，Harness 比较候选包内 pin，随包 Harness Node 的完整版本比较候选 SHA `.nvmrc` 与 CI 日志（当前 24.21.0）。原步骤、P0、同 CI Setup 与正式安装验收要求保持，历史 §15 / §16 签字不继承到本轮。
+- 第五次源码 QA 仍为 75 通过、1 必需项失败、1 可选项跳过，自定义模型重开设置后的确认未通过；忙碌态误判修正不能独自解释该结果。证据 `%TEMP%/dsh-source-qa-QSIRqS/`、`%TEMP%/dshd-qa-busy-fix-source-qa.log`。用户随后要求以安装包正确为准，源码专用问题不阻断发行；此项不写 Pass，是否影响安装版由同一 CI Setup 实测决定。
+- 用户报告任务栏再次显示 Electron。已声明首次显示前的 Shell 身份、真实 ICO / 安装 EXE 内嵌图标及安全重启命令，并阻止原始 Windows Electron 源码系统通知再次注册同身份快捷方式。定向 71/71；真实隐藏 desktop / slim 共四窗口的同进程 Shell 属性通过，旧 WM 图标保持鲸鱼；同进程未声明对照属性为空。跨进程属性探针在本机不可靠，已撤回该空值解释。证据 `%TEMP%/dshd-taskbar-icon-readonly/IMPLEMENTATION-VERIFICATION.md`，见 [任务栏身份决定](../../../decisions/implemented/bug-fix/2026-10-01-windows-taskbar-identity.md)。
+- 本次任务栏代码批次源码已通过 protected peer 自然退出后正常 `npm start` 重启，PID 20496，实际返回 `kernel: ready`、`webReady: true`。安装版 / 用户任务栏实显尚未据此标 Pass。
+- 原生窗口 QA 主窗 / 启动器的生产工厂与 IPC 最大化、还原、最小化及页角 alpha 通过。合成桌面检查 `main-active` 未通过：角落 inset 0 / 1 有两像素边缘，2–4 透明；证据 `%TEMP%/dshd-taskbar-composed-corners/`。该结果不能认证可见圆角或 DWM 动画，正在对照旧工厂，并须在同一 CI 安装版复测。
 
 ## 候选身份与晋级
 
@@ -29,5 +37,7 @@
 - macOS 的 13 条失败来自旧 Windows `.exe` 夹具未声明目标平台；仅修正 `runtime-install.test.js` / `update.test.js` 的逐测试平台与三个直接安装参数，保留所有断言，新增 2 条默认 API 的 arm64 DMG 回归。定向四文件原生 Windows 86/86、模拟 darwin/arm64 86/86，均无跳过；实际 macOS CI 必须由新 SHA 重新证明。
 
 待新候选 `release.yml` 与同 SHA 的 `test.yml` 完成后，记录源提交、运行 URL、原始 artifact、Setup SHA256、离线资产校验和包内 Node / Harness 身份。不得沿用旧候选摘要。
+
+`9c4572b6582f69abe734b45b4982bc4c20a7f0f9` 的 [Desktop tests 36798464888](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36798464888) 整体成功：Windows 2894 项，2888 通过、6 跳过、0 失败；macOS 2894 项，2878 通过、16 跳过、0 失败。vendor GUI 748 文件、11089 通过、1 跳过；核心 215 文件、5009 通过、5 跳过。该 SHA 尚不包含本次任务栏及后续 QA helper 修复，不能认证更新后的工作树。
 
 正式生产安装版验收和 §16 签字尚未执行。晋级必须绑定同一 CI Setup SHA，使用 `publish.yml` 下载原始候选并验证；当前没有新增 tag 或正式发布证明。

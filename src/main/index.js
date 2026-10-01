@@ -99,6 +99,7 @@ const { showClosingOverlay } = require('./closing-overlay');
 const { installShortcutService, getShortcutService } = require('./shortcuts');
 const { hideOnClose } = require('./close-behavior');
 const { TrayHideNotice } = require('./background-notice');
+const { systemNotificationsSupported } = require('./system-notifications');
 const { installMediaPermissions } = require('./media-permissions');
 const { attachRendererConsoleTail, RendererConsoleTail, writeCrashReport, pruneCrashReports, desktopErrorState } = require('./crash-report');
 const { UpdateJournal } = require('./update-journal');
@@ -269,7 +270,7 @@ const trayHideNotice = new TrayHideNotice({
   markerPath: require('node:path').join(app.getPath('userData'), 'tray-hide-acknowledged'),
   notify: () => {
     const { Notification } = require('electron');
-    if (!Notification.isSupported()) return;
+    if (!systemNotificationsSupported(Notification)) return;
     new Notification({
       title: '已最小化到托盘',
       body: '点击托盘图标可重新打开窗口，托盘菜单可完全退出。关闭行为见「设置 → 通用 → 关闭窗口时」。',

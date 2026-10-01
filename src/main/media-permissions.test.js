@@ -2,16 +2,20 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 const { installMediaPermissions, isHarnessOrigin } = require('./media-permissions');
+const { systemNotificationsAllowed } = require('./system-notifications');
 
-function fixture(primaryContents = {}) {
+function fixture(primaryContents = {}, install = installMediaPermissions) {
   let checkHandler;
   let requestHandler;
   const ses = {
     setPermissionCheckHandler(fn) { checkHandler = fn; },
     setPermissionRequestHandler(fn) { requestHandler = fn; },
   };
-  installMediaPermissions(ses, () => primaryContents, {
+  install(ses, () => primaryContents, {
     getMediaAccessStatus: () => 'granted',
     askForMediaAccess: async () => true,
   });
@@ -44,3 +48,28 @@ test('media audio from the primary main frame is allowed; other media denied', a
     { isMainFrame: true, requestingUrl: 'http://127.0.0.1:3080', mediaTypes: ['audio', 'video'] }));
   assert.equal(grant, false);
 });
+
+for (const environment of [
+  { platform: 'win32', defaultApp: true },
+  { platform: 'win32', defaultApp: false },
+  { platform: 'linux', defaultApp: true },
+  { platform: 'darwin', defaultApp: true },
+]) {
+  test(`${environment.platform} ${environment.defaultApp ? 'source' : 'package'} notification permission checks and requests agree`, async () => {
+    const permissionModule = { exports: {} };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'media-permissions.js'), 'utf8'), {
+      module: permissionModule, process: environment, URL,
+      require: () => ({ systemNotificationsAllowed: () => systemNotificationsAllowed(environment) }),
+    });
+    const primary = {};
+    const { checkHandler, requestHandler } = fixture(primary, permissionModule.exports.installMediaPermissions);
+    const expected = systemNotificationsAllowed(environment);
+    assert.equal(checkHandler(primary, 'notifications', 'http://127.0.0.1:3080', {}), expected);
+    assert.equal(await new Promise(resolve => requestHandler(primary, 'notifications', resolve, {})), expected);
+    assert.equal(checkHandler(primary, 'clipboard-read', 'http://127.0.0.1:3080', {}), true);
+    assert.equal(await new Promise(resolve => requestHandler(primary, 'clipboard-read', resolve, {})), true);
+    assert.equal(checkHandler(primary, 'media', 'http://127.0.0.1:3080', { isMainFrame: true, mediaType: 'audio' }), true);
+    assert.equal(await new Promise(resolve => requestHandler(primary, 'media', resolve,
+      { isMainFrame: true, requestingUrl: 'http://127.0.0.1:3080', mediaTypes: ['audio', 'video'] })), false);
+  });
+}

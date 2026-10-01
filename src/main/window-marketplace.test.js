@@ -102,6 +102,7 @@ function loadWindowModule() {
     isMinimized() { return this.minimized; }
     restore() { this.minimized = false; }
     show() {}
+    setAppDetails(details) { this.appDetails = details; }
     focus() {}
     setBackgroundColor() {}
     getContentBounds() { return { width: 1_440, height: 920 }; }
@@ -128,6 +129,7 @@ function loadWindowModule() {
     filename: electronPath,
     loaded: true,
     exports: {
+      app: { isPackaged: false, getAppPath: () => 'C:/app' },
       BrowserView: FakeBrowserView,
       BrowserWindow: FakeBrowserWindow,
       shell: { openExternal() {} },

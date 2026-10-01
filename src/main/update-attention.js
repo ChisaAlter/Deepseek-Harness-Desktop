@@ -6,6 +6,7 @@
  */
 
 const { app, Notification } = require('electron');
+const { systemNotificationsSupported } = require('./system-notifications');
 
 /** Owns one reminder per downloaded version until reset for a new download. */
 class UpdateAttention {
@@ -48,7 +49,7 @@ class UpdateAttention {
       console.warn('dshd update: attention unavailable', error);
     }
     try {
-      if (!Notification.isSupported()) return;
+      if (!systemNotificationsSupported(Notification, { platform: this.platform })) return;
       const notification = new Notification({ title: this.text.title, body: this.text.body, silent: true });
       this.notification = notification;
       notification.on('failed', () => {

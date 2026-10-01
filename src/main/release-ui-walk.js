@@ -25,6 +25,12 @@ function dshLabel(el) {
   return (labelled || el.getAttribute('aria-label') || el.textContent || '')
     .replace(/\\s+/g, ' ').trim();
 }
+function dshSwitchChecked(el) {
+  if (!el) return null;
+  if (el.tagName === 'INPUT' && el.type === 'checkbox') return el.checked;
+  const value = el.getAttribute('aria-checked');
+  return value === 'true' ? true : value === 'false' ? false : null;
+}
 function dshFind(pattern, root) {
   const re = new RegExp(pattern, 'i');
   const scope = root || document;
@@ -177,8 +183,11 @@ function dshCustomProviderCard(root) {
   if (!route) return null;
   let node = route.parentElement;
   while (node && node !== document.body) {
+    // EditorFooter replaces the submit label while the write is in flight.
+    // The unique Provider ID field still belongs to the same creation card.
     const hasCreate = Array.from(node.querySelectorAll('button')).some((btn) =>
-      /创建提供商|create provider/i.test(dshLabel(btn)));
+      /^(创建提供商|create provider|创建中|正在创建|creating)$/i.test(
+        dshLabel(btn).replace(/[.…]+$/, '').trim()));
     if (hasCreate) return node;
     node = node.parentElement;
   }
@@ -220,6 +229,35 @@ function dshSkillsSnapshot() {
     dialog: Boolean(dialog),
     heading: Boolean(dialog && dshHeading('^skills$|^技能$', dialog)),
     add: Boolean(dialog && dshFind('^add skill$|^添加技能$', dialog)),
+  };
+}
+function dshMcpSnapshot() {
+  const dialog = dshDialogNamed('^设置$|^settings$');
+  const nav = document.querySelector('[data-dsh-settings-section="mcp"]');
+  const search = dialog && dialog.querySelector('input[type="search"], [role="searchbox"]');
+  return {
+    nav: Boolean(nav),
+    active: nav?.getAttribute('aria-current') === 'true',
+    dialog: Boolean(dialog),
+    heading: Boolean(dialog && dshHeading('mcp servers|mcp 服务器', dialog)),
+    search: Boolean(search && dshShown(search)),
+    add: Boolean(dialog && dshFind('add server|添加服务器', dialog)),
+  };
+}
+function dshModelsDiagnostic(route, name) {
+  const dialog = dshDialogNamed('^设置$|^settings$');
+  const nav = document.querySelector('[data-dsh-settings-section="models"]');
+  const rows = dialog ? Array.from(dialog.querySelectorAll('li')) : [];
+  const identity = (el) => (el.innerText || '').includes(name) || (el.innerText || '').includes(route);
+  return {
+    dialog: Boolean(dialog),
+    active: nav?.getAttribute('aria-current') === 'true',
+    rows: rows.length,
+    shownRows: rows.filter(dshShown).length,
+    identityRows: rows.filter(identity).length,
+    identityShown: rows.some((el) => identity(el) && dshShown(el)),
+    identityText: Boolean(dialog && identity(dialog)),
+    alerts: dialog?.querySelectorAll('[role="alert"]').length || 0,
   };
 }
 function dshSavedCustomProvider(route, name) {
@@ -1812,11 +1850,13 @@ async function runReleaseUiWalk(wc, helpers) {
       });
       const providerState = customFormOk ? null : await pageEval(wc, () =>
         dshSavedCustomProvider('dshdqa', 'Dshd QA'));
+      const providerDiagnostic = customFormOk ? '' : JSON.stringify(await pageEval(wc, () =>
+        dshModelsDiagnostic('dshdqa', 'Dshd QA')));
       const fillDetail = `route=${filled?.route} name=${filled?.name} url=${filled?.url} key=${filled?.key} model=${Boolean(modelFilled)} createReady=${Boolean(createReady)} closed=${Boolean(createClosed)} listed=${Boolean(providerState?.listed)} configured=${Boolean(providerState?.configured)}`;
       rec(
         'models.customForm',
         customFormOk,
-        saved?.leak ? 'key echoed' : (customFormOk ? 'provider saved without plaintext key' : `form did not persist dshdqa (${fillDetail}) ${inventory || ''}`.slice(0, 400)),
+        saved?.leak ? 'key echoed' : (customFormOk ? 'provider saved without plaintext key' : `provider UI confirmation failed (${fillDetail}) ${providerDiagnostic} ${inventory || ''}`.slice(0, 400)),
       );
     } else {
       rec('models.customForm', false, `custom provider form did not open (mode=${Boolean(customMode)})`);
@@ -1827,17 +1867,13 @@ async function runReleaseUiWalk(wc, helpers) {
 
   const mcpOpened = await openSettings('mcp');
   const mcp = await waitUntil(() => pageEval(wc, () => {
-    const dialog = dshDialog();
-    if (!dialog) return null;
-    return {
-      heading: Boolean(dshHeading('mcp servers|mcp 服务器', dialog)),
-      search: Boolean(dshFind('search name|搜索名称', dialog) || dialog.querySelector('input[type="search"], [role="searchbox"]')),
-      add: Boolean(dshFind('add server|添加服务器', dialog)),
-    };
+    const state = dshMcpSnapshot();
+    return state.active && state.heading && state.search && state.add ? state : null;
   }), 10_000);
-  rec('mcp.heading', Boolean(mcpOpened && mcp?.heading), mcpOpened ? '' : 'mcp section missing');
-  rec('mcp.search', Boolean(mcp?.search), '');
-  rec('mcp.add', Boolean(mcp?.add), '');
+  const mcpDetail = mcp ? '' : JSON.stringify(await pageEval(wc, () => dshMcpSnapshot()));
+  rec('mcp.heading', Boolean(mcpOpened && mcp?.active && mcp?.heading), mcpDetail);
+  rec('mcp.search', Boolean(mcp?.active && mcp?.search), mcpDetail);
+  rec('mcp.add', Boolean(mcp?.active && mcp?.add), mcpDetail);
 
   const skillsOpened = await openSettings('skills');
   const skills = await waitUntil(() => pageEval(wc, () => {
@@ -1935,8 +1971,10 @@ async function runReleaseUiWalk(wc, helpers) {
     const dialog = dshDialog();
     const control = dialog && Array.from(dialog.querySelectorAll('[role="switch"]'))
       .find((el) => /(会话日志|session log)/i.test(dshLabel(el)));
-    if (!dialog || !control) return null;
-    const off = control.getAttribute('aria-checked') === 'false';
+    if (!dialog || !control || !dshShown(control) || control.disabled) return null;
+    const checked = dshSwitchChecked(control);
+    if (checked === null) return null;
+    const off = checked === false;
     if (off) control.click();
     return { off };
   }), 10_000);
@@ -1952,7 +1990,7 @@ async function runReleaseUiWalk(wc, helpers) {
     const dialog = dshDialog();
     const control = dialog && Array.from(dialog.querySelectorAll('[role="switch"]'))
       .find((el) => /(会话日志|session log)/i.test(dshLabel(el)));
-    if (control && control.getAttribute('aria-checked') === 'true') control.click();
+    if (control && dshSwitchChecked(control) === true) control.click();
     return true;
   });
   await dismiss();

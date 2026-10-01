@@ -56,6 +56,42 @@ test('page names resolve ordered aria-labelledby references before label or text
   assert.equal(fallback.eval("Boolean(dshFind('^feedback$'))"), false);
 });
 
+test('switch state reads native checked and controlled aria state without guessing unknown controls', () => {
+  const native = pageNode({ 'aria-labelledby': 'log-title' });
+  native.tagName = 'INPUT';
+  native.type = 'checkbox';
+  native.checked = false;
+  native.click = () => { native.checked = !native.checked; };
+  const world = pageWorld({ '[role="switch"]': [native] }, { 'log-title': pageNode({}, '会话日志导出') });
+  const state = () => world.eval("dshSwitchChecked(document.querySelector('[role=\"switch\"]'))");
+  assert.equal(state(), false);
+  native.click();
+  assert.equal(state(), true);
+  native.click();
+  assert.equal(state(), false);
+  const controlledAttrs = { 'aria-checked': 'false' };
+  const controlled = pageWorld({ '[role="switch"]': [pageNode(controlledAttrs)] });
+  assert.equal(controlled.eval("dshSwitchChecked(document.querySelector('[role=\"switch\"]'))"), false);
+  controlledAttrs['aria-checked'] = 'true';
+  assert.equal(controlled.eval("dshSwitchChecked(document.querySelector('[role=\"switch\"]'))"), true);
+  delete controlledAttrs['aria-checked'];
+  assert.equal(controlled.eval("dshSwitchChecked(document.querySelector('[role=\"switch\"]'))"), null);
+});
+
+test('MCP readiness waits for the loaded search control and active target navigation', () => {
+  const navAttrs = { 'aria-current': 'true' };
+  const dialogQueries = { 'h1, h2, h3': [pageNode({}, 'MCP 服务器')],
+    controls: [pageNode({ 'aria-label': '添加服务器' })] };
+  const world = pageWorld({ '[role="dialog"]': [pageNode({ 'aria-label': '设置' }, '', dialogQueries)],
+    '[data-dsh-settings-section="mcp"]': [pageNode(navAttrs)] });
+  const ready = () => world.eval('(() => { const s = dshMcpSnapshot(); return s.active && s.heading && s.search && s.add; })()');
+  assert.equal(ready(), false, 'the loading page has heading and Add but no search');
+  dialogQueries['input[type="search"], [role="searchbox"]'] = [pageNode({ 'aria-label': '搜索名称、ID、命令或 URL' })];
+  assert.equal(ready(), true);
+  navAttrs['aria-current'] = 'false';
+  assert.equal(ready(), false);
+});
+
 test('skills readiness rejects content from another active settings section', () => {
   const attrs = { 'aria-label': '设置' };
   const navAttrs = { 'aria-current': 'false' };
@@ -90,6 +126,30 @@ test('custom provider confirmation requires a saved row and configured credentia
   assert.equal(saved().configured, false);
   dialogQueries.li = [];
   assert.equal(saved(), null, 'a draft name elsewhere in the dialog is not persistence');
+});
+
+test('custom provider card stays present through the real busy labels until its Provider ID field leaves', () => {
+  const button = pageNode({}, 'Create provider');
+  const card = pageNode({}, '', { button: [button] });
+  const fieldRow = pageNode();
+  fieldRow.parentElement = card;
+  const route = pageNode({ 'aria-label': 'Provider ID' });
+  route.parentElement = fieldRow;
+  const queries = { 'input, textarea': [route], button: [button] };
+  const dialog = pageNode({}, '', queries);
+  const world = pageWorld({ '[role="dialog"]': [dialog] });
+  const present = () => world.eval('dshCustomProviderCard(document.querySelector(\'[role="dialog"]\'))');
+  assert.equal(present(), card);
+  button.disabled = true;
+  for (const label of ['Creating\u2026', '创建中\u2026']) {
+    button.textContent = label;
+    assert.equal(present(), card, 'busy submit text must not be mistaken for form closure');
+  }
+  queries['input, textarea'] = [];
+  assert.equal(present(), null, 'a detached Provider ID is actual closure');
+  queries['input, textarea'] = [pageNode({ 'aria-label': 'Provider' })];
+  button.textContent = 'Create provider';
+  assert.equal(present(), null, 'a different provider editor cannot become a custom creation card');
 });
 
 test('composer idle waits reject disabled send, disabled editor and an active turn', async () => {

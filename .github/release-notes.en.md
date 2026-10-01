@@ -19,6 +19,7 @@
 - **Update failure recovery**: A differential-download timeout cancels the download. If the installer cannot start, the app reports the error, keeps the current app and component services running, and allows a retry without claiming success or quitting early.
 - **Accurate statistics and responsive switches**: Fixed missing usage in restored sessions and totals doubling on repeated refreshes. Session statistics, cost, and peak/off-peak switches respond immediately and retain the latest choice during rapid changes.
 - **Windows windows and desktop pet**: The main window and launcher retain both 20px transparent corners and native window animations. The pet adapts to screen density, and clicks pass through the gap between the character and chat card.
+- **Windows taskbar icon**: Windows declare the Whale Isle icon and relaunch identity to prevent the taskbar from reverting to Electron. Source runs avoid notification registration recreating an Electron shortcut with the same identity; installed notifications remain available.
 - **Harness baseline**: Updated to `dsh-v0.1.7-rc.2` while retaining desktop work loops and plugin capabilities.
 
 ## Technical contract
