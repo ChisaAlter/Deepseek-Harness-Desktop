@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 const { overlayCss, closingCopy } = require('./closing-overlay');
 
 test('overlayCss uses the supplied light theme colors instead of a dark fallback', () => {
@@ -48,4 +51,73 @@ test('closingCopy is Chinese by default and English when locale is en', () => {
     title: 'Closing',
     detail: 'Stopping the local Harness service…',
   });
+});
+
+function paintFixture({ insertCSS = async () => {}, executeJavaScript = async () => {} } = {}) {
+  const timers = [];
+  const cleared = [];
+  const calls = [];
+  const module = { exports: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'closing-overlay.js'), 'utf8'), {
+    module,
+    require: () => ({ currentTheme: () => ({ bg: '#151517', fg: '#f5f5f5', scheme: 'dark' }) }),
+    setTimeout: (callback, milliseconds) => { const timer = { callback, milliseconds }; timers.push(timer); return timer; },
+    clearTimeout: timer => { cleared.push(timer); },
+  });
+  const win = {
+    isDestroyed: () => false, isMinimized: () => false, isVisible: () => true,
+    setBackgroundColor: () => {}, focus: () => {},
+    webContents: {
+      insertCSS: css => { calls.push('css'); return insertCSS(css); },
+      executeJavaScript: script => { calls.push('eval'); return executeJavaScript(script); },
+    },
+  };
+  return { show: module.exports.showClosingOverlay, win, timers, cleared, calls };
+}
+
+test('successful closing paint keeps CSS/eval order and clears the 500ms host timer', async () => {
+  const f = paintFixture();
+  await f.show(f.win, 'en');
+  assert.deepEqual(f.calls, ['css', 'eval']);
+  assert.equal(f.timers.length, 1); assert.equal(f.timers[0].milliseconds, 500);
+  assert.deepEqual(f.cleared, f.timers);
+});
+
+test('a never-resolving insertCSS cannot block closing beyond its host deadline', async () => {
+  const f = paintFixture({ insertCSS: () => new Promise(() => {}) });
+  let settled = false;
+  const closing = f.show(f.win).then(() => { settled = true; });
+  await Promise.resolve(); assert.equal(settled, false);
+  assert.deepEqual(f.calls, ['css']); assert.equal(f.timers[0].milliseconds, 500);
+  f.timers[0].callback(); await closing;
+  assert.equal(settled, true); assert.deepEqual(f.cleared, f.timers);
+});
+
+test('suspended renderer animation frames cannot block closing beyond its host deadline', async () => {
+  const f = paintFixture({ executeJavaScript: () => new Promise(() => {}) });
+  let settled = false;
+  const closing = f.show(f.win).then(() => { settled = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(f.calls, ['css', 'eval']); assert.equal(settled, false);
+  f.timers[0].callback(); await closing;
+  assert.equal(settled, true); assert.deepEqual(f.cleared, f.timers);
+});
+
+for (const failed of ['insertCSS', 'executeJavaScript']) {
+  test(`${failed} rejection remains best effort and clears the host timer`, async () => {
+    const f = paintFixture({ [failed]: () => Promise.reject(new Error('renderer gone')) });
+    await assert.doesNotReject(f.show(f.win));
+    assert.deepEqual(f.cleared, f.timers);
+  });
+}
+
+test('a renderer rejection after the host deadline remains handled', async () => {
+  let rejectPaint;
+  const f = paintFixture({ executeJavaScript: () => new Promise((_resolve, reject) => { rejectPaint = reject; }) });
+  const closing = f.show(f.win);
+  await new Promise(resolve => setImmediate(resolve));
+  f.timers[0].callback(); await closing;
+  rejectPaint(new Error('late renderer destruction'));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(f.cleared, f.timers);
 });

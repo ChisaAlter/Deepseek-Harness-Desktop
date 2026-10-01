@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `task-protection` |
 | **status** | `active` |
+| **last verified (paint deadline)** | 2026-10-01 — 原 CI 36804159162 实际退出长时间卡在隐藏 boot 页双帧等待，记 Fail；修复定向 43/43，其中遮罩 9/9。隔离真实 Electron 隐藏页中旧 helper 超过 700ms 未完成，新 helper 511ms 返回并正常退出、无强杀或未处理拒绝。新 CI 安装版未验收，见 [执行记录](../qa/results/2026-10-01-release-candidate/README.md)。 |
 | **last verified (audit update)** | 2026-09-30 — 差量与整包共享 spawn commit；失败后二次准入、附属清理保留、显式下载取消令牌、macOS 手动安装回归通过，未做真实 NSIS/DMG 安装。 |
 | **last verified (installer failure)** | 2026-09-29 — 实际 update 整包调用链 + 真实协调器 + 消失安装器回归验证：spawn ENOENT 拒绝、Host release 执行、committed 保持 false；取消在安装前异步准入后仍阻止 spawn。见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，未做 CI Setup 实机安装。 |
 | **last verified (plugin links)** | 2026-09-29 — 内置插件复用有效链接、保留读取错误，EEXIST 只接受复查为正确目标的链接；未知目录不删除。定向 95/95、真实 Electron 200 次准备（199 次复用）、隔离源码启动/PTY/标题栏通过。安装版未更新，原现场触发条件未完整复现。 |
@@ -18,6 +19,8 @@
 3. Launcher 侧的「停止桌面」与运行时装对**外部桌面**先走同义握手；旧桌面无握手时要求正常退出并确认进程结束，不回退直接 taskkill /F。launcher 发起的停止带 `preConfirmed`——点击即同意，inspect→acquire→commit 照跑但两道确认门整体跳过，永远零弹窗。
 
 ## Invariants
+
+- 关闭遮罩绘制是尽力显示；主进程等待 CSS / 脚本 / 画帧最多 500ms 后继续既有正常关停。隐藏或无响应的 renderer 不得卡住已通过任务保护的退出；不以 app.exit / 强杀替换正常 cleanup / shutdown。
 
 - 2026-09-30：差量下载和整包安装共用可观测 spawn commit；updater 只下载，不调用 quitAndInstall。安装失败后释放锁且下一次尝试重新 inspect/acquire；macOS 打开 DMG 不提交退出。
 - 终止操作的附属清理只在 commit 成功后执行；commit 失败保留运行中的组件服务及清理钩子，后续退出仍正常清理。
@@ -38,6 +41,8 @@
 
 ## Allowed touch
 
+- 2026-10-01 用户全面修复授权下的安装版退出本地修复：`src/main/closing-overlay.js` 与对应测试 — 只限制遮罩绘制等待，不改变主题、任务检查、接纳锁、排空和 Harness 正常关停合同。
+
 - 本次启动链接修复（2026-09-29 用户确认）：`src/main/desktop-plugin-link.js` 与共用测试、`task-control-overlay.js`、`platform-session-overlay.js`、`usage-panel-preset.js`、`dsh-im-desktop.js`、`dshbot-desktop.js`、`dsh-whale-desktop.js`、`dsh-remote-desktop.js` 的链接处理；本卡、配套决策与 QA 证据。
 
 - `src/main/task-protection*.js`（新，协调器 + 与入口接线）
@@ -57,9 +62,12 @@
 | Kind | What |
 | --- | --- |
 | Automated | `src/main/task-protection*.test.js`、`src/launcher/launcher-confirm.test.js`、`vendor/dsh-task-control` 单测、相关定向回归 |
+| Automated | `src/main/closing-overlay.test.js`：隐藏帧 / 无响应 CSS 或脚本等待有界，正常完成清 timer，renderer 失败继续正常关停 |
 | Manual / QA | quit/安装/更新/启动器停止无工作清单二次确认；重启/重载活动任务确认；失败 drain 不提交 |
 
 ## Sources
+
+- Decision: [关闭遮罩绘制等待有界](../decisions/implemented/bug-fix/2026-10-01-closing-overlay-paint-deadline.md)
 
 - Decision: [项目审查修复](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)
 

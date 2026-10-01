@@ -26,6 +26,7 @@
 - 用户报告任务栏再次显示 Electron。已声明首次显示前的 Shell 身份、真实 ICO / 安装 EXE 内嵌图标及安全重启命令，并阻止原始 Windows Electron 源码系统通知再次注册同身份快捷方式。定向 71/71；真实隐藏 desktop / slim 共四窗口的同进程 Shell 属性通过，旧 WM 图标保持鲸鱼；同进程未声明对照属性为空。跨进程属性探针在本机不可靠，已撤回该空值解释。证据 `%TEMP%/dshd-taskbar-icon-readonly/IMPLEMENTATION-VERIFICATION.md`，见 [任务栏身份决定](../../../decisions/implemented/bug-fix/2026-10-01-windows-taskbar-identity.md)。
 - 本次任务栏代码批次源码已通过 protected peer 自然退出后正常 `npm start` 重启，PID 20496，实际返回 `kernel: ready`、`webReady: true`。安装版 / 用户任务栏实显尚未据此标 Pass。
 - 原生窗口 QA 主窗 / 启动器的生产工厂与 IPC 最大化、还原、最小化及页角 alpha 通过。合成桌面检查 `main-active` 未通过：角落 inset 0 / 1 有两像素边缘，2–4 透明；证据 `%TEMP%/dshd-taskbar-composed-corners/`。该结果不能认证可见圆角或 DWM 动画，正在对照旧工厂，并须在同一 CI 安装版复测。
+- 同环境未声明 metadata 对照两窗八阶段通过；声明后的第一次复采 `main-restored` 左上被含字形的黑色矩形遮挡，且延伸到窗口外，样本标为无效，不能推断 DWM 回归。仅将自有 QA 窗口位置右移、保持尺寸和全部断言后，有效声明复采两窗八阶段通过，160 个角落采样 delta 均为 0。首次细边线失败仍保留，不以反复运行挑选结果；见 `%TEMP%/dshd-taskbar-full-tests-summary.md`。源码合成结果不代替安装版和人工可见动画验收。
 
 ## 候选身份与晋级
 
@@ -40,4 +41,54 @@
 
 `9c4572b6582f69abe734b45b4982bc4c20a7f0f9` 的 [Desktop tests 36798464888](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36798464888) 整体成功：Windows 2894 项，2888 通过、6 跳过、0 失败；macOS 2894 项，2878 通过、16 跳过、0 失败。vendor GUI 748 文件、11089 通过、1 跳过；核心 215 文件、5009 通过、5 跳过。该 SHA 尚不包含本次任务栏及后续 QA helper 修复，不能认证更新后的工作树。
 
-正式生产安装版验收和 §16 签字尚未执行。晋级必须绑定同一 CI Setup SHA，使用 `publish.yml` 下载原始候选并验证；当前没有新增 tag 或正式发布证明。
+首轮任务栏身份修复源提交为 `953bb20a16a0ea8becf63bd5311c1feae7f35279`，已推送并核对远端 main 相同。[Windows 候选 36804159162](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36804159162) 与同 SHA [Desktop tests 36804047677](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36804047677) 均为 `completed / success`。Windows 2924 项：2918 通过、0 失败、6 跳过；macOS 2924 项：2908 通过、0 失败、16 跳过。vendor GUI 748 文件、11089 通过、1 跳过；核心 215 文件、5009 通过、5 跳过。Windows 的 6 跳过包括 POSIX 信号分支及 5 个未准备 remote dist / dependencies 的分支，不把真实 daemon e2e 写为 CI Pass；该 daemon 本机独立串行复跑通过。
+
+候选仅构建 Windows，macOS job 按 dispatch 参数跳过。NSIS、afterPack、阻断式 packaged smoke 和 artifact 上传成功；日志中的实际 smoke 仅执行一次且首轮通过，UI / titlebar hits / PTY 正常、`pageErrors: []`。这仍是 CI unpacked 检查，不替代正式安装版、任务栏持续正确、合成圆角及可见动画验收。原始 artifact `Whale-Isle-windows-x64` ID `11137831307`，归档大小 `593569940` 字节、未过期、关联精确 SHA `953bb20a16a0ea8becf63bd5311c1feae7f35279`。原始日志与计数证据 `%TEMP%/dshd-ci-953-summary.md`。无新增 tag / Release。
+
+## 原始 CI 安装包离线核对
+
+首轮下载因 `unexpected EOF` 失败，第二轮未取得数据；改为可续传下载后，完整 ZIP SHA256 与 GitHub artifact API 的 `5dce2989903dc30f9f10530fb660fc695d8511120fa7f9927320ff357493fa5b` 一致。ZIP 只有预期的三个平面文件，ZIP / NSIS / x64 内层 7z 完整性检查通过；本节为当时的离线阶段，仅解压且没有运行 Setup 或 Whale Isle；后续实际执行另记在下一节。
+
+| 原始文件 | 字节数 / 本轮结果 |
+| --- | --- |
+| `Whale-Isle-Setup-0.3.3.exe` | 594836810；SHA256 `18dbc8421c4ad960d7f17065408f8f7cbf9e9a553894e3eb0078f98d48fe6701` |
+| `Whale-Isle-Setup-0.3.3.exe.blockmap` | 583541；对应同一 Setup 文件名，未捏造元数据不提供的 blockmap 摘要字段 |
+| `latest.yml` | 349；版本、文件名、Setup size、SHA512 均与实际文件一致 |
+
+`check-release-version v0.3.3` 与 `check-release-assets` 通过；原始三件套的下载目录副本再次通过相同摘要和资产校验：`C:\Users\48818\Downloads\Whale-Isle-CI-36804159162`。这些离线检查不认证安装版；实际安装后的失败与恢复见下一节。
+
+- 实际 `app.asar` 的版本 / 产品为 `0.3.3` / `Whale Isle`；七个任务栏身份与通知相关模块逐文件匹配 `953bb20a`，仅归一化换行。首次离线 helper 用 POSIX 分隔符调用 Windows ASAR API 导致读取失败；改用 `path.normalize` 后实际文件读取并比对通过，未改变包内字节或产品代码。
+- 实际 `resources/node.exe --version` 为 `v24.21.0`；随包 Harness pin 为 `dsh-v0.1.7-rc.2` / `477b4f420553e8a52c2fbccc464d7561b239c443` / `0.1.7-rc.2`。运行时 tar 为 1166144512 字节，SHA256 `79c708e03a5f4131402cdff54848ce5df0e8bd83b54123fba0cfbfa07261f2f0` 与随包 manifest 相同。
+- 实际 `Whale Isle.exe` 为 x64，PE 产品名 / 描述是 `Whale Isle`、文件版本 `0.3.3`，图标索引 0 的 32px / 16px 资源均成功提取并释放 HICON；人工查看 32px PNG 是鲸鱼头像。见 [CI EXE 图标](ci-exe-icon-32.png)。这只证明内嵌图标，不认证 Windows 当前分组、快捷方式或可见任务栏。
+- 随包 official build record 为 `953bb20` / `official` / `Whale Isle` / `0.1.7-rc.2`，构建前裁剪记录 372 个 client 产物；没有对剥除 maps 的运行时重算该构建前摘要。实际物理模块在 `packages/client`，`.dsh-runtime-links.json` 将公开 package alias 指向这些目录，启动后才重建链接。最初按 `node_modules` 物理路径取样无文件，按真实计划核对后通过；不能将这一预期布局写成缺包。
+- 实际 `ui-files/lib/client.js` 含唯一目录 guide，文件 viewer 仅认 Session 文件资源且不再提供空 viewer guide；旧空 / 内部地址回退 `SidebarFilesPanel`。实际 DockKit CSS 的关闭控件按标题轴居中并保留 `right: 4px`，全文换行归一化后匹配 `953bb20a` 源码；对应组件及右栏入口确实消费该样式和包。此为修复打包存在性证据，不代替实际 UI 工作环。
+
+完整只读结果见 [原始包证明](ARTIFACT-PROOF.json)。其中未运行安装器 / 应用的字段记录离线核对阶段，不代表后续安装状态；后续执行见下一节。安装版 P0、Models 保存复测和 §16 签字仍未完成。
+
+## 原始 CI 安装版执行与任务栏失败
+
+用户明确同意安装并操作窗口验收后，源码实例经 authenticated protected peer 正常退出。原始 Setup 安装到用户指定的安装目录，安装器退出码 0，已安装 EXE / app.asar 与原始 CI 载荷字节一致；已有配置和凭据文件在安装后摘要不变。桌面和开始菜单快捷方式均指向已安装 EXE、无参数、图标 index 0、正式 GUI AppID。
+
+首次启动带了隐藏参数，早期没有有效的任务栏样本，不能将该次不可见窗口诊断记为产品图标失败。后续从正常快捷方式启动，精确安装 EXE / CDP socket owner / peer PID 与 generation 均匹配，实际 kernel ready、webReady true。Codex 宿主的 APPDATA 文件观察者视图重定向到 LocalCache；仅凭观察者 realpath 不等于逻辑路径不能给默认 profile 验收下结论。后续已以实际主窗 IPC 的 dshHome / 版本、随包 Node CLI 的运行时路径及 peer / socket 身份证明同一默认 profile，不复制到隔离用户目录作为正式安装验收。
+
+用户截图确认该安装版任务栏仍显示 Electron 原子，记 Fail。只读检查找到同 AppID 的旧开始菜单 Electron.lnk，目标为源码 Electron、空参数、默认图标；与新 Whale Isle.lnk 冲突。此候选未覆盖存量恢复，不可用之前正确的窗口属性 / EXE 图标证明宣称问题已修。
+
+对精确匹配的旧条目保留完整字节备份并移出开始菜单，再通知 Shell 已完成的精确旧路径 → 备份路径并冷启动。PID 29108 的生产 AppID 任务栏按钮得到有效 66×72 像素，截图前后安装 EXE / socket owner / peer PID 与 generation 相同，人工查看确为鲸鱼头像，见 [恢复后的实际任务栏](ci-taskbar-after-recovery.png)。早期自动定位无结果 / 全黑图片 / helper 取摘要错误均为无效取样，不能作为图标 Pass 或 Fail。该有效样本只证明人工恢复后的当次像素，不证明原候选自动恢复；没有重启 Explorer、清全局缓存或修改用户固定项。此为历史捕获记录，不把 PID 29108 写成持续存活保证。
+
+后续持久修复按 [任务栏身份决定](../../../decisions/implemented/bug-fix/2026-10-01-windows-taskbar-identity.md)补存量恢复：严格匹配、唯一原字节备份，只在成功移动后异步通知精确路径，不匹配分支不加载原生桥，通知失败保留备份并继续启动。Shell 通知等待自身也有 500ms 期限。此前身份及存量恢复定向累计 97/97，加入原生通知与期限后的旧条目最终定向 32/32；真实 Electron 读取旧用户备份的 TEMP 副本，原字节恢复及精确 SHCNE_RENAMEITEM / SHCNF_PATHW | SHCNF_FLUSHNOWAIT 通知成功（16ms），原用户备份不变，未改实际开始菜单或初始化通知。这不替代新安装版的自动恢复验收。
+
+## 原始安装版退出失败与绘制等待修复
+
+原候选 PID 2188 完成 protected peer 退出确认且 peer 文件已删除，但主窗和 Harness Node 仍长时间存活，记 Fail。精确 EXE / socket owner 绑定下，boot 页面已隐藏且关闭遮罩存在；500ms 与 700ms 只读探针均未收到第一帧或第二帧。退出链在正常 Harness shutdown 之前无限等待遮罩的双 requestAnimationFrame。代码核对撤回“before-quit 监听器注册迟到”假设，监听器在 whenReady Promise 外同步注册。
+
+修复在主进程对 CSS / 脚本 / 两帧的整个等待设置 500ms 期限，继续原任务检查、接纳锁、排空、资源清理和正常关停，不使用 app.exit 或强杀。定向 43/43，其中遮罩 9/9，包含不响应 CSS / 脚本、正常清 timer、错误和迟到拒绝。真实隔离 Electron 隐藏页中，旧包 helper 超过 700ms 未完成，新 helper 511ms 返回且遮罩存在、正常关停继续、无未处理拒绝或强制退出；未展示窗口、改用户 profile 或操作原安装应用。见 [绘制等待决定](../../../decisions/implemented/bug-fix/2026-10-01-closing-overlay-paint-deadline.md)。隔离夹具通过不能写成新安装版退出 Pass。
+
+## 本机全量结果与下一候选边界
+
+原 SHA 953 的本机 Node 24.21.0 全量为 2924 项、2897 通过、18 失败、9 跳过；不得宣称本机全量通过。14 项涉及链接权限（其中部分 EPERM 被导入错误包装为缺失文件）；其余 4 项窄复跑后预览清理、personality 重试和真实 daemon 通过，启动器 zoom 原夹具几何断言仍失败。新增 27 项任务栏 / notification permission 回归在全量中通过。上述本机失败在精确 SHA 的 Windows CI 中实际执行通过。
+
+加入旧条目恢复、尚未加入绘制期限与最终 Shell 通知测试时，本机全量为 2950 项、2927 通过、14 失败、9 跳过；失败均为本机 Windows 文件 symlink 权限夹具。原额外 4 项在此轮实际通过；没有修改断言、跳过或降低超时。日志只作该批次记录，不覆盖随后工作树。后续最终批次必须重新核对同 SHA CI 与必要的本机测试。
+
+最终产品批次的本机 Node 24.21.0 全量为 2962 项、2939 通过、14 失败、9 跳过，耗时 195454ms；不宣称全量通过。失败仍是相同的 14 个文件 symlink 权限夹具：Setup 1 项、config / mcp-settings / credentials 各 4 项、gitCheckLargeFiles 1 项。新遮罩期限与旧快捷方式恢复没有新增失败；日志为本机 `%TEMP%/dshd-final-0.3.3-root-tests.log`。最终 SHA 的新 CI 仍须实际证明这些用例通过。官方 source prestart 构建通过并记录 372 个 client 产物，源码启动器已启动本批代码；尚未据此宣称 kernel ready 或安装版验收通过。
+
+安全执行摘要见 [执行证明](EXECUTION-PROOF.json)，与 [离线原始包证明](ARTIFACT-PROOF.json)分阶段保留。原 36804159162 实际任务栏与退出均失败，不再晋级。持久存量恢复与绘制期限是新增产品改动，必须生成新的 CI 原始 Setup、核对完整身份和摘要，并完成同一安装包的生产 P0、Models / 实际工作环、合成圆角 / 可见动画以及 §16 签字。目前新候选安装版未验收，未创建 v0.3.3 tag 或 Release；publish.yml 必须下载并验证最终实际验收的原始候选字节。

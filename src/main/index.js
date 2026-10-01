@@ -23,6 +23,7 @@ const { ensureDesktopDshRemote } = require('./dsh-remote-desktop');
 const { ensureDesktopMarket } = require('./dsh-market-desktop');
 const { ensureDesktopOfficeRuntime } = require('./office-runtime');
 const { removeLegacyDshbotPreset } = require('./legacy-dshbot-preset');
+const { migrateLegacyNotificationShortcut } = require('./legacy-notification-shortcut');
 const { ensureWorkspace } = require('./workspace-rpc');
 const { registerIpc } = require('./ipc');
 const { safeStorage } = require('electron');
@@ -1019,6 +1020,16 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
+    const shortcutMigration = await migrateLegacyNotificationShortcut({
+      isPackaged: app.isPackaged,
+      launcher: require('../launcher/product').isLauncherPackage(),
+      appDataDir: app.getPath('appData'),
+      userDataDir: app.getPath('userData'),
+      readShortcutLink: path => shell.readShortcutLink(path),
+    });
+    if (shortcutMigration.status === 'migrated' || shortcutMigration.status === 'failed') {
+      dsh.log(`[legacy-notification-shortcut] ${shortcutMigration.status}`, 'app');
+    }
     const homeEnv = sanitizePackagedDshHomeEnv({ isPackaged: app.isPackaged });
     if (homeEnv.dropped) {
       dsh.log(`忽略继承的 DSHD_HOME=${homeEnv.value}（packaged 下需要 DSHD_ALLOW_ENV_HOME=1）`, 'app');

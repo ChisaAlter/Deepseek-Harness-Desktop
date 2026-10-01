@@ -1,0 +1,146 @@
+{
+  "verification": "Historical original CI installation and manually recovered taskbar; not acceptance of the new fixes",
+  "date": "2026-10-01",
+  "candidateRun": 36804159162,
+  "candidateSha": "953bb20a16a0ea8becf63bd5311c1feae7f35279",
+  "setupSha256": "18dbc8421c4ad960d7f17065408f8f7cbf9e9a553894e3eb0078f98d48fe6701",
+  "installer": {
+    "executed": true,
+    "exitCode": 0,
+    "installedAsarMatchesOriginal": true,
+    "existingConfigPreserved": true,
+    "existingCredentialsPreserved": true
+  },
+  "application": {
+    "executed": true,
+    "version": "0.3.3",
+    "installedExecutableBoundByCim": true,
+    "cdpSocketOwnerBound": true,
+    "peerPidAndGenerationBound": true,
+    "kernelReady": true,
+    "webReady": true,
+    "liveProfileBindingProven": true,
+    "historicalCapture": true,
+    "currentLiveIdentityCertified": false,
+    "historicalBindingBasis": "Actual window IPC dshHome and version, bundled Node CLI runtime path, profile alias, and matching peer/socket identity"
+  },
+  "originalTaskbar": {
+    "result": "Fail",
+    "userObservedElectronAtom": true,
+    "embeddedIconWasWhale": true,
+    "windowShellPropertiesWereCorrect": true,
+    "oldNotificationShortcutSharedProductionAppId": true,
+    "originalCandidateAutomaticallyRecoveredShortcut": false
+  },
+  "manualRecovery": {
+    "exactGeneratedShortcutGuardMatched": true,
+    "originalBytesPreserved": true,
+    "onlyKnownShortcutMoved": true,
+    "targetedCompletedRenameNotificationSent": true,
+    "explorerRestarted": false,
+    "globalCachesCleared": false,
+    "userPinsModified": false,
+    "coldLaunchAfterRecovery": true
+  },
+  "taskbarAfterManualRecovery": {
+    "result": "Pass for captured pixels only",
+    "capturePid": 29108,
+    "uniqueProductionAppIdButtonBound": true,
+    "sameInstalledPidAndPeerGenerationBeforeAndAfter": true,
+    "image": "ci-taskbar-after-recovery.png",
+    "width": 66,
+    "height": 72,
+    "sha256": "049c1763e0a59e44100ca2012c5b2fbdd903c0220decc98d165a524bebb0763a",
+    "allBlack": false,
+    "visualReview": "Whale avatar on the expected white rounded square; no Electron atom",
+    "automatedRecoveryCertified": false,
+    "captureSource": "Historical direct tool output retained in the task conversation and frozen receipt",
+    "manualEnvironmentRecoveryOnly": true,
+    "wholeAcceptancePassed": false
+  },
+  "originalQuit": {
+    "result": "Fail",
+    "protectedQuitAcknowledged": true,
+    "peerFileRemoved": true,
+    "mainWindowAndHarnessRemainedAlive": true,
+    "hiddenBootPageHadClosingOverlay": true,
+    "firstAndSecondRafMissingInReadOnlyProbes": true,
+    "unboundedOverlayWaitLocated": true,
+    "lateListenerHypothesisWithdrawn": true
+  },
+  "isolatedNewShortcutFix": {
+    "status": "migrated",
+    "realBackupShortcutRead": true,
+    "sameGuiAppId": true,
+    "sourceElectronTarget": true,
+    "emptyArgs": true,
+    "defaultIcon": true,
+    "readerMatchesNarrowGuard": true,
+    "sourceAbsent": true,
+    "backupExactBytes": true,
+    "originalUserBackupModified": false,
+    "actualProgramsModified": false,
+    "notificationInitialized": false,
+    "windowsCreated": false,
+    "requestSingleInstanceLockCalled": false,
+    "proofScope": "Real Electron reads a TEMP copy of the historical shortcut; no actual Start Menu or notifications changed",
+    "installedAcceptance": false,
+    "nativeShellNotification": {
+      "status": "migrated",
+      "realOriginalBackupReaderMatches": true,
+      "exactBytesPreserved": true,
+      "sourceAbsent": true,
+      "shellNotified": true,
+      "elapsedMs": 16,
+      "shellEvent": "SHCNE_RENAMEITEM",
+      "shellFlags": "SHCNF_PATHW|SHCNF_FLUSHNOWAIT",
+      "actualProgramsModified": false,
+      "notificationInitialized": false,
+      "windowsCreated": false,
+      "originalUserBackupUnchanged": true,
+      "installedAcceptance": false,
+      "callbackWaitDeadlineMs": 500
+    }
+  },
+  "isolatedNewOverlayFix": {
+    "kind": "isolated-hidden-real-Electron",
+    "electronVersion": "43.4.0",
+    "nodeVersion": "24.18.1",
+    "nativePageInitiallyHidden": true,
+    "oldInstalledHelperPendingAfter700ms": true,
+    "oldInstalledHelperStillPendingBeforeClose": true,
+    "boundedPaintElapsedMs": 511,
+    "boundedPaintWithin1000ms": true,
+    "overlayPresent": true,
+    "shutdownContinuationReached": true,
+    "normalFixtureQuitObserved": true,
+    "forcedExitUsed": false,
+    "windowsShown": false,
+    "windowsFocused": false,
+    "notificationInitialized": false,
+    "userProfileUsed": false,
+    "originalInstalledApplicationOperated": false,
+    "unhandledRejections": 0,
+    "proofScope": "Real hidden Electron fixture; not the installed candidate application",
+    "installedAcceptance": false
+  },
+  "newCandidate": {
+    "required": true,
+    "installedP0Acceptance": "Not Run",
+    "formalProductionSignoffComplete": false
+  },
+  "releasePublished": false,
+  "newFixTargetedTests": {
+    "shortcut": {
+      "tests": 32,
+      "pass": 32,
+      "fail": 0
+    },
+    "overlayAndTaskProtection": {
+      "tests": 43,
+      "pass": 43,
+      "fail": 0,
+      "overlayCases": 9
+    }
+  }
+}

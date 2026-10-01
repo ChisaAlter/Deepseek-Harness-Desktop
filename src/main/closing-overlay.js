@@ -139,11 +139,21 @@ async function showClosingOverlay(win, locale) {
   }
   win.setBackgroundColor(theme.bg);
   win.focus();
+  let paintTimeout;
   try {
-    await win.webContents.insertCSS(overlayCss(theme));
-    await win.webContents.executeJavaScript(overlayScript(closingCopy(locale)));
+    // Covered/hidden boot pages can suspend animation frames indefinitely.
+    // Painting is best effort; its host deadline must never hold shutdown.
+    await Promise.race([
+      (async () => {
+        await win.webContents.insertCSS(overlayCss(theme));
+        await win.webContents.executeJavaScript(overlayScript(closingCopy(locale)));
+      })(),
+      new Promise(resolve => { paintTimeout = setTimeout(resolve, 500); }),
+    ]);
   } catch {
     // The page may already be gone; quit continues without the overlay.
+  } finally {
+    clearTimeout(paintTimeout);
   }
 }
 

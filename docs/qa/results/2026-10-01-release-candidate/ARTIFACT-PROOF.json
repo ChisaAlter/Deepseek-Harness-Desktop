@@ -1,0 +1,195 @@
+{
+  "verification": "read-only original CI artifact inspection; installed acceptance pending",
+  "candidateRun": 36804159162,
+  "candidateRunUrl": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36804159162",
+  "candidateSha": "953bb20a16a0ea8becf63bd5311c1feae7f35279",
+  "testRun": 36804047677,
+  "testRunUrl": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36804047677",
+  "artifact": {
+    "id": 11137831307,
+    "name": "Whale-Isle-windows-x64",
+    "zipBytes": 593569940,
+    "zipSha256": "5dce2989903dc30f9f10530fb660fc695d8511120fa7f9927320ff357493fa5b",
+    "verifiedAgainstGitHubDigest": true,
+    "originalZipCrcPassed": true,
+    "nsisIntegrityPassed": true,
+    "x64PayloadCrcPassed": true
+  },
+  "setup": {
+    "name": "Whale-Isle-Setup-0.3.3.exe",
+    "bytes": 594836810,
+    "sha256": "18dbc8421c4ad960d7f17065408f8f7cbf9e9a553894e3eb0078f98d48fe6701",
+    "versionValidatorPassed": true,
+    "assetsValidatorPassed": true,
+    "downloadedReviewCopyValidatorPassed": true
+  },
+  "package": {
+    "candidateRun": 36804159162,
+    "candidateSha": "953bb20a16a0ea8becf63bd5311c1feae7f35279",
+    "packageVersion": "0.3.3",
+    "productName": "Whale Isle",
+    "nodeVersion": "v24.21.0",
+    "harness": {
+      "ref": "dsh-v0.1.7-rc.2",
+      "sha": "477b4f420553e8a52c2fbccc464d7561b239c443",
+      "npm": "0.1.7-rc.2"
+    },
+    "code": [
+      {
+        "file": "src/main/window-app-details.js",
+        "matchesCandidateAfterNewlineNormalization": true
+      },
+      {
+        "file": "src/main/system-notifications.js",
+        "matchesCandidateAfterNewlineNormalization": true
+      },
+      {
+        "file": "src/main/window.js",
+        "matchesCandidateAfterNewlineNormalization": true
+      },
+      {
+        "file": "src/main/media-permissions.js",
+        "matchesCandidateAfterNewlineNormalization": true
+      },
+      {
+        "file": "src/main/index.js",
+        "matchesCandidateAfterNewlineNormalization": true
+      },
+      {
+        "file": "src/main/update-attention.js",
+        "matchesCandidateAfterNewlineNormalization": true
+      },
+      {
+        "file": "src/shared/product-identity.js",
+        "matchesCandidateAfterNewlineNormalization": true
+      }
+    ],
+    "installerExecuted": false,
+    "proofKind": "original CI Setup extracted offline; not installed acceptance"
+  },
+  "runtime": {
+    "RuntimeBytes": 1166144512,
+    "RuntimeSha256": "79c708e03a5f4131402cdff54848ce5df0e8bd83b54123fba0cfbfa07261f2f0",
+    "OriginalPayloadCrcPassed": true,
+    "InstallerExecuted": false
+  },
+  "staticRuntime": {
+    "candidateRun": 36804159162,
+    "candidateSha": "953bb20a16a0ea8becf63bd5311c1feae7f35279",
+    "buildEnvironment": {
+      "DSH_CLIENT_BUILD_PROFILE": "official",
+      "DSH_CLIENT_COMMIT_HASH": "953bb20",
+      "DSH_CLIENT_TITLE": "Whale Isle",
+      "DSH_CLIENT_VERSION": "0.1.7-rc.2"
+    },
+    "prePruneBuildArtifactCount": 372,
+    "prePruneDigestRevalidatedOverPrunedTar": false,
+    "aliases": [
+      {
+        "alias": "node_modules/@deepseek-ai/dsh-client-ui-files",
+        "target": "packages/client/ui-files",
+        "exports": {
+          ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/index.js"
+          },
+          "./client": {
+            "types": "./lib/types/client/index.d.ts",
+            "default": "./lib/client.js"
+          },
+          "./src/*": "./src/*",
+          "./package.json": "./package.json"
+        }
+      },
+      {
+        "alias": "node_modules/@deepseek-ai/dsh-client-ui-dockkit",
+        "target": "packages/client/ui-dockkit",
+        "exports": {
+          ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/index.js"
+          },
+          "./src/*": "./src/*",
+          "./package.json": "./package.json"
+        }
+      },
+      {
+        "alias": "node_modules/@deepseek-ai/dsh-client-ui-sidebar-right",
+        "target": "packages/client/ui-sidebar-right",
+        "exports": {
+          ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/index.js"
+          },
+          "./client": {
+            "types": "./lib/types/client/index.d.ts",
+            "default": "./lib/client.js"
+          },
+          "./src/*": "./src/*",
+          "./package.json": "./package.json"
+        }
+      }
+    ],
+    "sidebarConsumerAlias": "node_modules/@deepseek-ai/dsh-client-ui-dockkit",
+    "files": {
+      "treeGuidePresent": true,
+      "viewerResourceOnly": true,
+      "legacyViewerFallsBackToDirectory": true
+    },
+    "close": {
+      "alignmentRulePresent": true,
+      "widgetConsumesStyle": true,
+      "exactCssMatchesCandidateAfterNewlineNormalization": true
+    },
+    "actualFileHashes": [
+      {
+        "file": "packages/client/ui-files/lib/client.js",
+        "sha256": "a0721790d064e2440550058d1e8aee204ec12f208bccf6bf5820e6d3c541f50a"
+      },
+      {
+        "file": "packages/client/ui-dockkit/lib/components/dockkit.module.css",
+        "sha256": "e1c914364e7e883a65cecfc6bf4825bb5d5df400fb9f3efa86ebb465e5f277c8"
+      },
+      {
+        "file": "packages/client/ui-dockkit/lib/index.js",
+        "sha256": "b0dfc7a34afb9daee9d433dd8f732fe13abc5f3aea8879f945660a8afa185ff6"
+      },
+      {
+        "file": "packages/client/ui-sidebar-right/lib/client.js",
+        "sha256": "3e909e8bb08e20d600069b063f28567f30d0b75597643a944c112a4d997d41f2"
+      }
+    ],
+    "installerExecuted": false,
+    "proofKind": "actual CI runtime bytes inspected offline; not installed UI acceptance"
+  },
+  "executable": {
+    "bytes": 225594880,
+    "machine": "0x8664",
+    "version": {
+      "productName": "Whale Isle",
+      "fileDescription": "Whale Isle",
+      "productVersion": "0.3.3.0",
+      "fileVersion": "0.3.3",
+      "originalFilename": "",
+      "companyName": "Chisa"
+    },
+    "groupIconCount": 1,
+    "iconIndex": 0,
+    "largeIcon": {
+      "width": 32,
+      "height": 32,
+      "sha256": "413f4161b6a3ebca708126a530c653812a3caca07f13d4190e8205281e686629"
+    },
+    "smallIcon": {
+      "width": 16,
+      "height": 16,
+      "sha256": "281e4e79c569b9974fe84c5400964f899e08c9c312066a34a95bd64254779253"
+    },
+    "handlesReleased": true,
+    "visualReview": "32px extracted PNG shows whale avatar"
+  },
+  "installerExecuted": false,
+  "applicationExecuted": false,
+  "installedP0Acceptance": "Not Run",
+  "releasePublished": false
+}
