@@ -36,4 +36,6 @@ The desktop right panel uses one full-height Sidebar host for guide and content;
 
 The desktop Files guide exposes only the directory entry. Legacy fileless viewer tabs show the owning Session's standard directory body and localized title without passing internal Sidebar addresses to file reads. Tab records, pane, expansion, and floating state remain unchanged; valid file tabs and drafts keep their identity. See [Files guide address recovery](../docs/decisions/implemented/bug-fix/2026-10-01-sidebar-files-guide-address.md).
 
+DockKit tab close buttons use the title's flex cross-axis centre instead of a fixed top inset, preserving alignment in both the desktop's 24px tabs and the shared 28px tabs. Their right-side position, hit area and close/drag behaviour are unchanged. See [surfaces work loops](../docs/features/surfaces-work-loops.md).
+
 Release repairs preserve modal focus ownership, retained exits and desktop role geometry through shared tokens; regression fixtures follow the current service and provider contracts. See [GUI and core reconciliation](../docs/decisions/implemented/bug-fix/2026-09-28-release-gui-contract-reconciliation.md). Packaging preserves source module instances through a relocatable directory-link manifest; see [runtime instance layout](../docs/decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md).

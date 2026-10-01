@@ -413,10 +413,12 @@
 }
 
 /* A 20px icon button inset 4px from the chip's end, holding a 14px glyph in
-   the tertiary ink, so it sits back from the title beside it. */
+   the tertiary ink, so it sits back from the title beside it. Its absolute
+   flex-item static position shares the title's cross-axis centre, including
+   when an embedder changes the chip height. */
 .tabClose {
   position: absolute;
-  top: 4px;
+  align-self: center;
   right: 4px;
   display: flex;
   align-items: center;

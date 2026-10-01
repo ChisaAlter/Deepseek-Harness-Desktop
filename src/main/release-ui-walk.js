@@ -20,7 +20,9 @@ function dshShown(el) {
   return st.visibility !== 'hidden' && st.display !== 'none';
 }
 function dshLabel(el) {
-  return ((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
+  const labelled = (el.getAttribute('aria-labelledby') || '').trim().split(/\\s+/)
+    .map((id) => document.getElementById(id)?.textContent || '').join(' ').trim();
+  return (labelled || el.getAttribute('aria-label') || el.textContent || '')
     .replace(/\\s+/g, ' ').trim();
 }
 function dshFind(pattern, root) {
@@ -107,6 +109,11 @@ function dshComposerReady() {
     && el.getAttribute('contenteditable') === 'true'
     && el.getAttribute('aria-disabled') !== 'true'
   );
+}
+function dshComposerIdle() {
+  const stop = dshFind('stop generating|停止生成|deep diving|深潜');
+  const send = dshComposerSend();
+  return dshComposerReady() && Boolean(send && !send.disabled) && (!stop || stop.disabled);
 }
 function dshComposerText() {
   const el = dshComposerInput();
@@ -203,6 +210,32 @@ function dshHeading(pattern, root) {
   const scope = root || document;
   return Array.from(scope.querySelectorAll('h1, h2, h3')).find((el) =>
     dshShown(el) && re.test((el.textContent || '').trim())) || null;
+}
+function dshSkillsSnapshot() {
+  const dialog = dshDialogNamed('^设置$|^settings$');
+  const nav = document.querySelector('[data-dsh-settings-section="skills"]');
+  return {
+    nav: Boolean(nav),
+    active: nav?.getAttribute('aria-current') === 'true',
+    dialog: Boolean(dialog),
+    heading: Boolean(dialog && dshHeading('^skills$|^技能$', dialog)),
+    add: Boolean(dialog && dshFind('^add skill$|^添加技能$', dialog)),
+  };
+}
+function dshSavedCustomProvider(route, name) {
+  const dialog = dshDialogNamed('^设置$|^settings$');
+  const nav = document.querySelector('[data-dsh-settings-section="models"]');
+  if (!dialog || nav?.getAttribute('aria-current') !== 'true') return null;
+  const row = Array.from(dialog.querySelectorAll('li')).find((el) =>
+    dshShown(el) && ((el.innerText || '').includes(name) || (el.innerText || '').includes(route)));
+  if (!row) return null;
+  const credential = Array.from(row.querySelectorAll('[role="img"]')).find((el) =>
+    dshShown(el) && /credential configured|已配置|api key configured/i.test(dshLabel(el)));
+  return {
+    listed: true,
+    configured: Boolean(credential),
+    leak: /sk-dshd-qa-placeholder/.test(dialog.innerText || ''),
+  };
 }
 `;
 
@@ -496,8 +529,10 @@ async function typeIntoDialogTextarea(wc, dialogPattern, value) {
   `, { dialogPattern, value });
 }
 
-async function typeIntoComposer(wc, value) {
-  const ready = await waitUntil(() => pageEval(wc, () => dshComposerReady()), 8_000);
+async function typeIntoComposer(wc, value, timeoutMs) {
+  const deadline = timeoutMs == null ? Infinity : Date.now() + timeoutMs;
+  const remaining = (cap) => Math.max(0, Math.min(cap, deadline - Date.now()));
+  const ready = await waitUntil(() => pageEval(wc, () => dshComposerReady()), remaining(8_000));
   if (!ready) return false;
   const expected = String(value || '');
   const box = await pageEval(wc, () => {
@@ -621,8 +656,9 @@ async function typeIntoComposer(wc, value) {
   const written = await waitUntil(async () => {
     const text = await pageEval(wc, () => dshComposerText());
     return text === expected ? true : null;
-  }, 2_000);
+  }, remaining(2_000));
   if (written) return true;
+  if (Date.now() >= deadline) return false;
   return pageScript(wc, 'return dshSetComposerText(args.value);', { value: expected });
 }
 
@@ -686,6 +722,56 @@ async function closeComposerModelMenu(wc, pressEscape) {
     if (trigger && trigger.getAttribute('aria-expanded') === 'true') trigger.click();
     return true;
   });
+}
+
+async function waitForComposerIdle(wc, timeoutMs = 10_000, readinessDraft) {
+  const deadline = Date.now() + timeoutMs;
+  if (readinessDraft != null) {
+    // A healthy empty draft disables Send. First prove that the empty
+    // composer has left its Stop state, then fill an unsent draft to require
+    // enabled Send as well. All phases share the existing timeout budget.
+    const stopped = await waitUntil(() => pageEval(wc, () => {
+      const stop = dshFind('stop generating|停止生成|deep diving|深潜');
+      return dshComposerReady() && dshComposerSend() && (!stop || stop.disabled) ? true : null;
+    }), Math.max(0, deadline - Date.now()));
+    if (!stopped || !await typeIntoComposer(wc, readinessDraft, Math.max(0, deadline - Date.now()))) return false;
+  }
+  return Boolean(await waitUntil(() => pageEval(wc, () => dshComposerIdle() ? true : null),
+    Math.max(0, deadline - Date.now())));
+}
+
+/** Verify the current account entry or its documented sidebar fallback. */
+async function probeRemoteEntry(wc, timeoutMs = 5_000) {
+  const entry = await pageEval(wc, () => {
+    const account = dshFind('^account menu|^账号菜单');
+    const footer = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
+    const footerShown = Boolean(footer && dshShown(footer));
+    if (account) account.click();
+    else if (footerShown) footer.click();
+    return { account: Boolean(account), footerShown };
+  });
+  let menuEntry = false;
+  if (entry.account) {
+    menuEntry = Boolean(await waitUntil(() => pageEval(wc, () => {
+      const menu = Array.from(document.querySelectorAll('[role="menu"]')).find(dshShown);
+      const remote = menu && dshFind('^remote$|^远程$', menu);
+      if (!remote || remote.disabled) return null;
+      remote.click();
+      return true;
+    }), timeoutMs));
+  }
+  const popup = Boolean((entry.account ? menuEntry : entry.footerShown) && await waitUntil(() =>
+    pageEval(wc, () => {
+      const panel = document.querySelector('[data-dsh-remote-panel]');
+      return panel && dshShown(panel) && panel.getAttribute('role') === 'dialog'
+        && /^remote$|^远程$/i.test(dshLabel(panel)) && dshHeading('^remote$|^远程$', panel) ? true : null;
+    }), timeoutMs));
+  return {
+    ok: REMOTE_FEATURE_ENABLED
+      ? popup && (entry.account ? menuEntry && !entry.footerShown : entry.footerShown)
+      : !menuEntry && !entry.footerShown && !popup,
+    detail: `account=${entry.account} footer=${entry.footerShown} menu=${menuEntry} popup=${popup}`,
+  };
 }
 
 /**
@@ -757,12 +843,14 @@ async function switchComposerThinking(wc, helpers) {
       return true;
     }, label), 6_000);
     if (!clicked) return `effort ${label} not clickable`;
-    await waitUntil(() => pageEval(wc, (want) => {
+    const selected = await waitUntil(() => pageEval(wc, (want) => {
       const trigger = composerModelTrigger();
       const aria = (trigger && trigger.getAttribute('aria-label')) || '';
       return aria.includes(want) ? true : null;
     }, label), 8_000);
-    const typed = await typeIntoComposer(wc, `只回复一个词：ok（${label}）`);
+    if (!selected) return `effort ${label} did not settle`;
+    const pingText = `只回复一个词：ok（${label}）`;
+    const typed = await typeIntoComposer(wc, pingText);
     if (!typed) return `composer rejected ping for ${label}`;
     let sent = await pageEval(wc, () => {
       const btn = dshComposerSend();
@@ -781,14 +869,10 @@ async function switchComposerThinking(wc, helpers) {
       const stop = dshFind('stop generating|停止生成|deep diving|深潜');
       if (stop && !stop.disabled) return 'engaged';
       const send = dshComposerSend();
-      return send && !send.disabled ? 'idle' : null;
+      return send && dshComposerIdle() ? 'idle' : null;
     }), 30_000);
     if (settled === 'engaged') {
-      await waitUntil(() => pageEval(wc, () => {
-        const stop = dshFind('stop generating|停止生成|deep diving|深潜');
-        const send = dshComposerSend();
-        return (!stop || stop.disabled) && send && !send.disabled ? true : null;
-      }), 20_000);
+      await waitForComposerIdle(wc, 20_000, pingText);
       // Still engaged (credential-less world sits in provider retries): stop
       // the turn so the next ping starts from an idle composer.
       await pageEval(wc, () => {
@@ -796,12 +880,8 @@ async function switchComposerThinking(wc, helpers) {
         if (stop && !stop.disabled) stop.click();
         return true;
       });
-      await waitUntil(() => pageEval(wc, () => {
-        const stop = dshFind('stop generating|停止生成|deep diving|深潜');
-        const send = dshComposerSend();
-        return (!stop || stop.disabled) && Boolean(send) ? true : null;
-      }), 10_000);
-      return '';
+      const idleAfterStop = await waitForComposerIdle(wc, 10_000, pingText);
+      return idleAfterStop ? '' : `composer did not become idle after stopping ${label}`;
     }
     return settled === 'idle' ? '' : `ping for ${label} neither engaged nor settled`;
   };
@@ -1117,16 +1197,13 @@ async function runReleaseUiWalk(wc, helpers) {
     remoteSnap != null && remoteSnap.listening !== true,
     remoteSnap ? `listening=${remoteSnap.listening}` : 'helpers.probeRemote missing',
   );
-  const remoteFooter = await pageEval(wc, () => {
-    const trigger = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
-    if (trigger && dshShown(trigger)) return 'trigger';
-    return dshFind('^remote$|^远程$') ? 'label' : null;
-  });
+  const remoteEntry = await probeRemoteEntry(wc);
   rec(
     'remote.footerPresent',
-    REMOTE_FEATURE_ENABLED ? remoteFooter != null : remoteFooter == null,
-    remoteFooter || (REMOTE_FEATURE_ENABLED ? 'remote trigger missing' : 'parked hidden'),
+    remoteEntry.ok,
+    REMOTE_FEATURE_ENABLED ? remoteEntry.detail : `parked hidden; ${remoteEntry.detail}`,
   );
+  await dismiss();
 
   const commandsClicked = await clickNamed(wc, 'add files or run commands|添加文件或调用指令');
   if (commandsClicked) {
@@ -1457,11 +1534,11 @@ async function runReleaseUiWalk(wc, helpers) {
     if (!menu) return null;
     return {
       signIn: Boolean(dshFind('^sign in$|^登录$', menu)),
-      feedback: Boolean(dshFind('^feedback$|^意见反馈$', menu)),
+      contact: Boolean(dshFind('^contact us$|^联系我们$', menu)),
     };
   }), 5_000) : null;
-  rec('account.signedOutMenu', Boolean(accountMenu?.signIn && accountMenu?.feedback),
-    accountMenu ? `signIn=${accountMenu.signIn} feedback=${accountMenu.feedback}` : 'account menu missing');
+  rec('account.signedOutMenu', Boolean(accountMenu?.signIn && accountMenu?.contact),
+    accountMenu ? `signIn=${accountMenu.signIn} contact=${accountMenu.contact}` : 'account menu missing');
   await dismiss();
   const settingsTrigger = await pageEval(wc, () =>
     Boolean(document.querySelector('[data-dsh-settings-trigger]')));
@@ -1711,22 +1788,31 @@ async function runReleaseUiWalk(wc, helpers) {
           return true;
         });
       }
-      const saved = await waitUntil(() => pageEval(wc, () => {
-        const dialog = dshDialog();
-        const text = dialog ? (dialog.innerText || '') : '';
-        if (/sk-dshd-qa-placeholder/.test(text)) return { leak: true };
-        if (/dshdqa|Dshd QA/i.test(text) && /credential configured|已配置|api key configured/i.test(text)) {
-          return { saved: true };
-        }
-        return /dshdqa|Dshd QA/i.test(text) ? { listed: true } : null;
-      }), 12_000);
-      customFormOk = Boolean(saved && !saved.leak && (saved.saved || saved.listed));
+      // Keep the original 12s save budget across closure, reopening and the
+      // refreshed provider row. A draft field or a name elsewhere is not proof
+      // that the profile and credential both survived the write.
+      const saveDeadline = Date.now() + 12_000;
+      const createClosed = createReady && await waitUntil(() => pageEval(wc, () => {
+        const dialog = dshDialogNamed('^设置$|^settings$');
+        return dialog && !dshCustomProviderCard(dialog) ? true : null;
+      }), Math.max(0, saveDeadline - Date.now()));
+      if (createClosed) {
+        await dismiss();
+        await openSettings('models');
+      }
+      const saved = createClosed && await waitUntil(() => pageEval(wc, () => {
+        const state = dshSavedCustomProvider('dshdqa', 'Dshd QA');
+        return state?.leak || state?.configured ? state : null;
+      }), Math.max(0, saveDeadline - Date.now()));
+      customFormOk = Boolean(saved && !saved.leak && saved.listed && saved.configured);
       const inventory = customFormOk ? '' : await pageEval(wc, () => {
         const dialog = dshDialogNamed('^设置$|^settings$') || dshDialog();
         const card = dialog && dshCustomProviderCard(dialog);
         return JSON.stringify(dshInputInventory(card || dialog));
       });
-      const fillDetail = `route=${filled?.route} name=${filled?.name} url=${filled?.url} key=${filled?.key} model=${Boolean(modelFilled)} createReady=${Boolean(createReady)}`;
+      const providerState = customFormOk ? null : await pageEval(wc, () =>
+        dshSavedCustomProvider('dshdqa', 'Dshd QA'));
+      const fillDetail = `route=${filled?.route} name=${filled?.name} url=${filled?.url} key=${filled?.key} model=${Boolean(modelFilled)} createReady=${Boolean(createReady)} closed=${Boolean(createClosed)} listed=${Boolean(providerState?.listed)} configured=${Boolean(providerState?.configured)}`;
       rec(
         'models.customForm',
         customFormOk,
@@ -1755,15 +1841,12 @@ async function runReleaseUiWalk(wc, helpers) {
 
   const skillsOpened = await openSettings('skills');
   const skills = await waitUntil(() => pageEval(wc, () => {
-    const dialog = dshDialog();
-    if (!dialog) return null;
-    return {
-      heading: Boolean(dshHeading('^skills$|^技能$', dialog)),
-      add: Boolean(dshFind('add skill|添加技能', dialog)),
-    };
+    const state = dshSkillsSnapshot();
+    return state.active && state.heading && state.add ? state : null;
   }), 10_000);
-  rec('skills.heading', Boolean(skillsOpened && skills?.heading), '');
-  rec('skills.add', Boolean(skills?.add), '');
+  const skillsDetail = skills ? '' : JSON.stringify(await pageEval(wc, () => dshSkillsSnapshot()));
+  rec('skills.heading', Boolean(skillsOpened && skills?.active && skills?.heading), skillsDetail);
+  rec('skills.add', Boolean(skills?.active && skills?.add), skillsDetail);
 
   const pluginsOpened = await openSettings('plugins');
   const plugins = await waitUntil(() => pageEval(wc, () => {
@@ -1922,4 +2005,6 @@ module.exports = {
   summarizeRemoteQaDetail,
   typeIntoComposer,
   clickNewSession,
+  waitForComposerIdle,
+  probeRemoteEntry,
 };

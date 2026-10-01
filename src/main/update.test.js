@@ -28,7 +28,21 @@ const {
   CHECKSUM_ASSET_NAME,
 } = require('./update');
 
-test('summarizeRelease skips drafts and marks a missing installer', () => {
+// Metadata entry points select assets for the host, so Windows release fixtures
+// must declare that platform even when the suite runs on macOS.
+function useReleasePlatform(t, platform, arch = process.arch) {
+  const previousPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const previousArch = Object.getOwnPropertyDescriptor(process, 'arch');
+  Object.defineProperty(process, 'platform', { ...previousPlatform, value: platform });
+  Object.defineProperty(process, 'arch', { ...previousArch, value: arch });
+  t.after(() => {
+    Object.defineProperty(process, 'platform', previousPlatform);
+    Object.defineProperty(process, 'arch', previousArch);
+  });
+}
+
+test('summarizeRelease skips drafts and marks a missing installer', (t) => {
+  useReleasePlatform(t, 'win32');
   assert.equal(summarizeRelease({ draft: true, tag_name: 'v0.2.7' }, '0.2.6'), null);
   const listed = summarizeRelease({
     draft: false,
@@ -49,6 +63,20 @@ test('summarizeRelease skips drafts and marks a missing installer', () => {
   assert.equal(sourceOnly.installable, false);
   assert.equal(sourceOnly.newer, false);
   assert.equal(sourceOnly.older, true);
+});
+
+test('summarizeRelease selects the host-compatible macOS DMG and rejects a foreign-only release', (t) => {
+  useReleasePlatform(t, 'darwin', 'arm64');
+  const assets = ['Setup.exe', 'Whale-Isle-mac-x64.dmg', 'Whale-Isle-mac-arm64.dmg']
+    .map((name) => ({ name, browser_download_url: `https://example.test/${name}` }));
+  const listed = summarizeRelease({ tag_name: 'v0.2.8', assets }, '0.2.7');
+  assert.equal(listed.installable, true);
+  assert.equal(listed.assetName, 'Whale-Isle-mac-arm64.dmg');
+  assert.equal(listed.assetUrl, 'https://example.test/Whale-Isle-mac-arm64.dmg');
+  const incompatible = summarizeRelease({ tag_name: 'v0.2.8', assets: assets.slice(0, 2) }, '0.2.7');
+  assert.equal(incompatible.installable, false);
+  assert.equal(incompatible.assetName, '');
+  assert.equal(incompatible.assetUrl, '');
 });
 
 test('getInstalledAppInfo reports version and source-run uninstall guidance when unpackaged', () => {
@@ -453,7 +481,8 @@ test('downloadFile fails and cleans up when the response is aborted', async () =
   }
 });
 
-test('summarizeRelease exposes the SHA512SUMS.txt checksum manifest when present', () => {
+test('summarizeRelease exposes the SHA512SUMS.txt checksum manifest when present', (t) => {
+  useReleasePlatform(t, 'win32');
   const listed = summarizeRelease({
     draft: false,
     tag_name: 'v0.2.8',
@@ -541,7 +570,7 @@ test('installer reuses a freshly verified cache, but never launches a corrupt re
   };
   t.after(() => { global.fetch = previousFetch; https.get = previousGet; fs.rmSync(dir, { recursive: true, force: true }); });
   const info = { assetUrl: 'https://example.test/setup.exe', assetName: 'Setup.exe', checksumUrl: 'https://example.test/sums' };
-  const options = { userDataDir: dir, beforeInstall: () => { installs++; return { ok: false, cancelled: true }; } };
+  const options = { platform: 'win32', userDataDir: dir, beforeInstall: () => { installs++; return { ok: false, cancelled: true }; } };
   const result = await installFromAsset(info, null, options);
   assert.equal(result.cancelled, true);
   assert.equal(downloads, 0);
@@ -583,7 +612,7 @@ test('cancel after the pre-install gate cannot launch a verified installer', asy
   const controller = new AbortController();
   let launches = 0;
   await assert.rejects(installFromAsset({ assetUrl: 'https://example.test/Setup.exe', assetName: 'Setup.exe', checksumUrl: 'https://example.test/sums' }, null, {
-    userDataDir: dir, signal: controller.signal, quitAfterInstall: false,
+    platform: 'win32', userDataDir: dir, signal: controller.signal, quitAfterInstall: false,
     beforeInstall: async () => { controller.abort(); return { ok: true }; },
     onInstallerLaunch: () => { launches++; },
   }), { name: 'AbortError' });
@@ -612,14 +641,15 @@ test('an installer removed after verification rejects spawn instead of claiming 
   global.fetch = async () => ({ ok: true, text: async () => `${digest}  Setup.exe` });
   t.after(() => { global.fetch = previous; fs.rmSync(dir, { recursive: true, force: true }); });
   await assert.rejects(installFromAsset({ assetUrl: 'https://example.test/Setup.exe', assetName: 'Setup.exe', checksumUrl: 'https://example.test/sums' }, null, {
-    userDataDir: dir, quitAfterInstall: true, taskProtection: protection,
+    platform: 'win32', userDataDir: dir, quitAfterInstall: true, taskProtection: protection,
     beforeInstall: async () => { fs.unlinkSync(file); return { ok: true }; },
   }), { code: 'ENOENT' });
   assert.equal(protection.isCommitted(), false);
   assert.deepEqual(calls, ['inspect', 'acquire', 'inspect', 'release']);
 });
 
-test('installRelease refuses a tag with no Setup.exe', async () => {
+test('installRelease refuses a tag with no Setup.exe', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   global.fetch = async () => ({
     ok: true,
@@ -656,7 +686,8 @@ function releaseWithoutChecksum() {
   };
 }
 
-test('installRelease without SHA512SUMS.txt fails closed when no confirmation is wired', async () => {
+test('installRelease without SHA512SUMS.txt fails closed when no confirmation is wired', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   const fetched = [];
   global.fetch = async (url) => {
@@ -675,7 +706,8 @@ test('installRelease without SHA512SUMS.txt fails closed when no confirmation is
   }
 });
 
-test('installRelease without SHA512SUMS.txt asks confirmUnverified and stops on decline', async () => {
+test('installRelease without SHA512SUMS.txt asks confirmUnverified and stops on decline', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   global.fetch = async () => ({ ok: true, status: 200, json: async () => releaseWithoutChecksum() });
   const asked = [];
@@ -735,7 +767,8 @@ test('update.js no longer spawns through a shell', () => {
 // M-3 回归护栏：两条安装入口的确认接线 + 非 Windows 分支
 // ---------------------------------------------------------------------------
 
-test('M-3: installUpdate 无 SHA512SUMS.txt 且未接确认时同样 fail-closed', async () => {
+test('M-3: installUpdate 无 SHA512SUMS.txt 且未接确认时同样 fail-closed', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   const fetched = [];
   global.fetch = async (url) => {
@@ -933,7 +966,8 @@ function fakeUpdaterChannel(overrides = {}) {
   return updater;
 }
 
-test('installUpdate uses the updater channel for the latest release and skips the whole-file download', async () => {
+test('installUpdate uses the updater channel for the latest release and skips the whole-file download', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   const previousGet = https.get;
   const fetched = [];
@@ -982,7 +1016,8 @@ test('installUpdate uses the updater channel for the latest release and skips th
   }
 });
 
-test('installUpdate falls back to the verified whole-file path when the updater channel fails', async () => {
+test('installUpdate falls back to the verified whole-file path when the updater channel fails', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   const previousGet = https.get;
   const seenGet = [];
@@ -1018,7 +1053,8 @@ test('installUpdate falls back to the verified whole-file path when the updater 
   }
 });
 
-test('installRelease for a specific tag never touches the updater channel', async () => {
+test('installRelease for a specific tag never touches the updater channel', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   global.fetch = async () => ({ ok: true, status: 200, json: async () => releaseWithoutChecksum() });
   const fake = fakeUpdaterChannel();

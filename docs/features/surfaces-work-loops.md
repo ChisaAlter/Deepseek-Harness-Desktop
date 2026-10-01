@@ -5,6 +5,7 @@
 | **id** | `surfaces-work-loops` |
 | **status** | `active` |
 | **last verified (Files guide)** | 2026-10-01 — 真实 Guide / registry / controller / keyed body 与持久布局恢复 9/9，既有 adapter / apply 16/16；窄 lint、ui-files 类型构建与 client catalog 检查通过。唯一目录 guide、旧查看器兼容目录标题、所属 Session 与隐藏/浮窗状态、有效草稿边界通过。 |
+| **last verified (tab alignment)** | 2026-10-01 — 既有 DockKit components 87/87；隔离真实 Electron 使用生产 TabStrip、DockKit / SidebarRight CSS 与主题表，通用 28px / 桌面 24px、短标题 / 窄长标题、字号 13 / 18 与缩放 100% / 150% / 200% 共 12 组，标题 / 按钮 / SVG 垂直盒中心差最大 0.006 CSS px，关闭仍在右侧；关闭 press / click 仅调用关闭 1 次、拖拽 0 次。修前桌面中心下偏 2 CSS px，截图墨迹中心差从 4.5 降为 1.5 原生像素（保留字体本身的字面分布，无固定光学偏移）。源码整包重建与运行由发布验证另行记录。 |
 | **last verified (native paths)** | 2026-09-28 — b061501e5b4 的 Windows/macOS 桌面 CI 全绿，预览短名一致性与越界拒绝通过；同 SHA 安装树冒烟通过。完整生产验收未完成。 |
 | **last verified (source launch)** | 2026-09-24 — `titlebar-fit.e2e.ts` 归入 host 类型检查并从 client Web 项目排除；清理失效的 TypeScript 增量记录后，`apps/web` 定向类型构建和 `npm start` 的 host/client/web 全量构建通过，源码 Electron 已启动。 |
 | **last verified** | 2026-10-01 — Files 唯一目录入口与旧无文件查看器原位兼容，真实注册/恢复 9/9、adapter/apply 16/16；见 [Files guide 修复](../decisions/implemented/bug-fix/2026-10-01-sidebar-files-guide-address.md)。此前 2026-09-30 — Files 草稿逐次持久化、原生 Sidebar 关闭/替换确认、隐页保存生命周期、选区原文进对话与树/搜索统一 Session 打开链修复，相关单测 268/268；源码构建与实机验证见[项目审查修复](../decisions/implemented/bug-fix/2026-09-30-project-audit-fixes.md)。 |
@@ -31,7 +32,7 @@
 - Files guide 只提供「文件」目录入口，`desktop-file` 只承载具体 Session 文件资源。旧无文件查看器、内部 Sidebar 地址、absolute/畸形地址和空根资源不挂载编辑器、不执行文件读取；主体原位复用标准 Files 目录面板，标题显示本地化 Files，所属 Session 取槽位标准 share。页签记录、pane、expanded 与浮窗状态不变；有效文件资源、页签身份及缺 cwd 时的草稿不变，没有持久布局迁移。
 - `ui-preview` 必须把 `sidebarRightTabs` 列入 `inject` 声明 —— apply 内 `ctx.get` 的时序在 apply 顺序倒置时会静默漏注册（兼容轨与 mini 呈现都要它）。
 - 不做 note 标明的范围外能力：GPU 终端嵌入、worktree、turn-diff、review-comment pick（勿假装已有）。
-- Tab 关闭在标题右侧，未经用户明确要求不挪到左侧。
+- Tab 关闭在标题右侧，并与标题按实际页签高度垂直居中；未经用户明确要求不挪到左侧。
 - 栏内分栏、全屏和收起三个按钮隐藏；保留页签新增/关闭及标题栏的右栏开合入口。
 - 右栏展开后，会话标题行按扣除尾簇后的实际可用宽度收起次级 Agent 操作；头部动作与打开方式、打开方式与尾簇不能覆盖，至少留 8px。关闭右栏后自动恢复，不写持久偏好。
 - 显式保存与防抖落盘走同一 `FileSaveCoordinator` 队列，保存期间敲入的字符保持未保存；搜索会话只走一次树、键击内存过滤（Refresh 重走）。
@@ -59,6 +60,7 @@
 
 - `vendor/deepseek-harness/packages/util/native-command/src/{path-opener,runner}.ts` 与对应测试（交付文件原生定位）
 - Harness surfaces 相关 client 包（`ui-surfaces`、`ui-files`、`ui-preview`、`ui-diff`、`ui-agents-panel`、`ui-user-terminal`、`ui-titlebar`、`ui-sidebar-right`、`ui-chat`）
+- `ui-dockkit/src/components/dockkit.module.css` 的页签关闭控件机械垂直对齐（保持标题右侧、既有尺寸与交互）
 - 共享 Diff 呈现层：`ui-primitives` 的 `ReviewDiff*` 与 `markdown/highlight*`（engine/worker/jobs）、`ui-diff` 的 `DiffPanel`/`review-hunks` 适配、`ui-deliverables` 的 `FileDiff` 适配、`vendor/deepseek-harness/benchmarks/review-diff/`
 - `ui-deliverables` 的交付卡片点击意图与 `ui-chat` / `ui-surfaces` 的打开选项（2026-09-24 浏览器文档浮层优先）
 - 右栏展开时的会话头部避让：vendor `ui-conversation` 的标题行样式与回归测试、`ui-layout` 的尾簇测量取整与回归测试、`apps/web/tests/titlebar-fit.e2e.ts`；`scripts/verify-titlebar-fit.mjs` 实机几何门禁

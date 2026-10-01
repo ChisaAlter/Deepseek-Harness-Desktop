@@ -6,7 +6,158 @@ const {
   assertReleaseQaResult,
   QA_REQUIRED_STEPS,
   PAGE_HELPERS,
+  waitForComposerIdle,
+  probeRemoteEntry,
 } = require('./release-ui-walk');
+const vm = require('node:vm');
+
+/** Small DOM face: execute the real injected helpers and click callbacks. */
+function pageNode(attributes = {}, text = '', queries = {}) {
+  return {
+    disabled: false,
+    textContent: text,
+    innerText: text,
+    getAttribute: (name) => attributes[name] ?? null,
+    closest: () => null,
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 100, height: 30 }),
+    querySelector: (selector) => (queries[selector] || [])[0] || null,
+    querySelectorAll: (selector) => queries[selector] || (selector.startsWith('button, ') ? queries.controls || [] : []),
+    click() {},
+    focus() {},
+    scrollIntoView() {},
+    dispatchEvent() {},
+  };
+}
+
+function pageWorld(queries = {}, ids = {}) {
+  const document = pageNode({}, '', queries);
+  document.getElementById = (id) => ids[id] || null;
+  const context = vm.createContext({ document,
+    window: { getSelection: () => null },
+    KeyboardEvent: class {},
+    getComputedStyle: () => ({ visibility: 'visible', display: 'block' }) });
+  vm.runInContext(PAGE_HELPERS, context);
+  return {
+    eval: (script) => vm.runInContext(script, context),
+    wc: { executeJavaScript: async (script) => vm.runInContext(script, context) },
+  };
+}
+
+test('page names resolve ordered aria-labelledby references before label or text', () => {
+  const control = pageNode({ 'aria-labelledby': 'title detail', 'aria-label': 'outdated' });
+  // The injected helper gets the same aria-labelledby-only Switch as the UI.
+  const labelledWorld = pageWorld({ controls: [control] }, {
+    title: pageNode({}, '会话日志导出'), detail: pageNode({}, '开关'),
+  });
+  assert.equal(labelledWorld.eval("dshLabel(document.querySelectorAll('button, ')[0])"), '会话日志导出 开关');
+  assert.equal(labelledWorld.eval("Boolean(dshFind('会话日志'))"), true);
+  const fallback = pageWorld({ controls: [pageNode({ 'aria-labelledby': 'missing', 'aria-label': 'Contact us' }, 'other')] });
+  assert.equal(fallback.eval("Boolean(dshFind('^contact us$'))"), true);
+  assert.equal(fallback.eval("Boolean(dshFind('^feedback$'))"), false);
+});
+
+test('skills readiness rejects content from another active settings section', () => {
+  const attrs = { 'aria-label': '设置' };
+  const navAttrs = { 'aria-current': 'false' };
+  const dialogQueries = { 'h1, h2, h3': [pageNode({}, '技能')], controls: [pageNode({ 'aria-label': '添加技能' })] };
+  const world = pageWorld({ '[role="dialog"]': [pageNode(attrs, '', dialogQueries)],
+    '[data-dsh-settings-section="skills"]': [pageNode(navAttrs)] });
+  const ready = () => world.eval('(() => { const s = dshSkillsSnapshot(); return s.active && s.heading && s.add; })()');
+  assert.equal(ready(), false);
+  navAttrs['aria-current'] = 'true';
+  assert.equal(ready(), true);
+  dialogQueries.controls = [];
+  assert.equal(ready(), false);
+  assert.equal(world.eval('dshSkillsSnapshot().heading'), true);
+});
+
+test('custom provider confirmation requires a saved row and configured credential accessible name', () => {
+  const rowQueries = { '[role="img"]': [] };
+  const dialogQueries = { li: [pageNode({}, 'Dshd QA 自定义', rowQueries)] };
+  const dialog = pageNode({ 'aria-label': '设置' }, 'Dshd QA', dialogQueries);
+  const world = pageWorld({ '[role="dialog"]': [dialog],
+    '[data-dsh-settings-section="models"]': [pageNode({ 'aria-current': 'true' })] });
+  const saved = () => world.eval("dshSavedCustomProvider('dshdqa', 'Dshd QA')");
+  assert.equal(saved().listed, true);
+  assert.equal(saved().configured, false);
+  rowQueries['[role="img"]'] = [pageNode({ 'aria-label': 'API 密钥已配置' })];
+  assert.equal(saved().configured, true);
+  dialog.innerText = 'Dshd QA\nstatus elsewhere: sk-dshd-qa-placeholder';
+  assert.equal(saved().leak, true, 'plaintext outside the provider row must still fail');
+  dialog.innerText = 'Dshd QA';
+  assert.equal(saved().leak, false);
+  rowQueries['[role="img"]'] = [pageNode({ 'aria-label': 'API key missing' })];
+  assert.equal(saved().configured, false);
+  dialogQueries.li = [];
+  assert.equal(saved(), null, 'a draft name elsewhere in the dialog is not persistence');
+});
+
+test('composer idle waits reject disabled send, disabled editor and an active turn', async () => {
+  const editorAttrs = { contenteditable: 'true', 'aria-disabled': 'false' };
+  const editor = pageNode(editorAttrs);
+  const send = pageNode({ 'aria-label': '发送消息' });
+  const cardQueries = { controls: [send] };
+  const queries = { '[data-composer-card]': [pageNode({}, '', cardQueries)], '[data-composer-input]': [editor], controls: [send] };
+  const world = pageWorld(queries);
+  assert.equal(await waitForComposerIdle(world.wc, 20), true);
+  send.disabled = true;
+  assert.equal(await waitForComposerIdle(world.wc, 20), false);
+  send.disabled = false;
+  editorAttrs.contenteditable = 'false';
+  assert.equal(await waitForComposerIdle(world.wc, 20), false);
+  editorAttrs.contenteditable = 'true';
+  queries.controls = [send, pageNode({ 'aria-label': '停止生成' })];
+  assert.equal(await waitForComposerIdle(world.wc, 20), false);
+});
+
+test('stopped empty composers prove enabled Send with an unsent readiness draft', async () => {
+  const editor = pageNode({ contenteditable: 'true', 'aria-disabled': 'false' });
+  const send = pageNode({ 'aria-label': '发送消息' });
+  send.disabled = true;
+  const queries = { '[data-composer-card]': [pageNode({}, '', { controls: [send] })],
+    '[data-composer-input]': [editor], controls: [send] };
+  const world = pageWorld(queries);
+  let writes = 0;
+  world.wc.insertText = (text) => { writes += 1; editor.innerText = text; send.disabled = false; };
+  assert.equal(await waitForComposerIdle(world.wc, 1_000, 'QA readiness'), true);
+  assert.equal(editor.innerText, 'QA readiness');
+  assert.equal(writes, 1);
+  editor.innerText = '';
+  send.disabled = true;
+  queries.controls = [send, pageNode({ 'aria-label': '停止生成' })];
+  assert.equal(await waitForComposerIdle(world.wc, 20, 'QA readiness'), false);
+  assert.equal(writes, 1, 'do not hide an active turn by typing into its composer');
+});
+
+test('remote gate clicks the account menu and requires its actual pairing dialog', async () => {
+  const queries = { controls: [], '[role="menu"]': [], '[data-dsh-remote-panel]': [] };
+  const account = pageNode({ 'aria-label': '账号菜单' });
+  const remote = pageNode({}, '远程');
+  const panel = pageNode({ role: 'dialog', 'aria-label': '远程' }, '', { 'h1, h2, h3': [pageNode({}, '远程')] });
+  let accountClicks = 0;
+  let remoteClicks = 0;
+  account.click = () => { accountClicks += 1; queries['[role="menu"]'] = [pageNode({}, '', { controls: [remote] })]; };
+  remote.click = () => { remoteClicks += 1; queries['[data-dsh-remote-panel]'] = [panel]; };
+  queries.controls = [account];
+  const world = pageWorld(queries);
+  assert.equal((await probeRemoteEntry(world.wc, 20)).ok, true);
+  assert.equal(accountClicks, 1);
+  assert.equal(remoteClicks, 1);
+  queries['[data-dsh-remote-panel]'] = [];
+  remote.click = () => { remoteClicks += 1; };
+  assert.equal((await probeRemoteEntry(world.wc, 20)).ok, false, 'the menu label alone cannot pass');
+  remote.click = () => { queries['[data-dsh-remote-panel]'] = [panel]; };
+  queries['[data-dsh-remote-trigger], [data-sidebar-action="remote"]'] = [pageNode()];
+  assert.equal((await probeRemoteEntry(world.wc, 20)).ok, false, 'duplicate standalone footer violates the account contract');
+  queries.controls = [];
+  queries['[role="menu"]'] = [];
+  const footer = pageNode();
+  footer.click = () => { queries['[data-dsh-remote-panel]'] = [panel]; };
+  queries['[data-dsh-remote-trigger], [data-sidebar-action="remote"]'] = [footer];
+  assert.equal((await probeRemoteEntry(world.wc, 20)).ok, true, 'account-absent sidebar fallback still opens the pairing popup');
+  queries['[data-dsh-remote-trigger], [data-sidebar-action="remote"]'] = [];
+  assert.equal((await probeRemoteEntry(world.wc, 20)).ok, false, 'missing every launcher must fail');
+});
 
 test('assertReleaseQaResult passes when every required step is present and ok', () => {
   const steps = QA_REQUIRED_STEPS.map((name) => ({ name, ok: true, detail: '' }));

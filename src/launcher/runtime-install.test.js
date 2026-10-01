@@ -13,6 +13,19 @@ const runtimeInstall = require('./runtime-install');
 const installDetect = require('./install-detect');
 const update = require('../main/update');
 
+// Release summaries read the host platform; each asset fixture pins its target
+// and restores the real host before the next test.
+function useReleasePlatform(t, platform, arch = process.arch) {
+  const previousPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const previousArch = Object.getOwnPropertyDescriptor(process, 'arch');
+  Object.defineProperty(process, 'platform', { ...previousPlatform, value: platform });
+  Object.defineProperty(process, 'arch', { ...previousArch, value: arch });
+  t.after(() => {
+    Object.defineProperty(process, 'platform', previousPlatform);
+    Object.defineProperty(process, 'arch', previousArch);
+  });
+}
+
 // --- release-source routes --------------------------------------------------
 
 test('normalizeRoute accepts known ids only', () => {
@@ -32,7 +45,8 @@ test('listRoutes exposes both mirrors; both verified after anonymous parity evid
   assert.match(gitee.page, /gitee\.com/);
 });
 
-test('latestFor(github) normalizes a release snapshot against installedVersion', async () => {
+test('latestFor(github) normalizes a release snapshot against installedVersion', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   global.fetch = async (url) => {
     assert.match(String(url), /api\.github\.com/);
@@ -64,7 +78,8 @@ test('latestFor(github) normalizes a release snapshot against installedVersion',
   }
 });
 
-test('latestFor(gitee) only touches gitee hosts and normalizes download_url assets', async () => {
+test('latestFor(gitee) only touches gitee hosts and normalizes download_url assets', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   const seen = [];
   global.fetch = async (url) => {
@@ -101,7 +116,8 @@ test('latestFor(gitee) only touches gitee hosts and normalizes download_url asse
   }
 });
 
-test('listFor rows attach delta info only for the installed→to pair', async () => {
+test('listFor rows attach delta info only for the installed→to pair', async (t) => {
+  useReleasePlatform(t, 'win32');
   const previousFetch = global.fetch;
   global.fetch = async () => ({
     ok: true,
@@ -143,6 +159,28 @@ test('listFor rows attach delta info only for the installed→to pair', async ()
   } finally {
     global.fetch = previousFetch;
   }
+});
+
+test('macOS release routes select the matching DMG from mixed-platform assets', async (t) => {
+  useReleasePlatform(t, 'darwin', 'arm64');
+  const previousFetch = global.fetch;
+  t.after(() => { global.fetch = previousFetch; });
+  const assets = ['Setup.exe', 'Whale-Isle-mac-x64.dmg', 'Whale-Isle-mac-arm64.dmg']
+    .map((name) => ({ name, download_url: `https://example.test/${name}`, size: name.endsWith('arm64.dmg') ? 200 : 100 }));
+  const release = { tag_name: 'v2.0.0', assets };
+  global.fetch = async (url) => ({
+    ok: true,
+    status: 200,
+    json: async () => String(url).includes('/latest') ? release : [release],
+  });
+  const latest = await releaseSource.latestFor('github', { installedVersion: '1.0.0' });
+  assert.equal(latest.status, 'available');
+  assert.equal(latest.assetName, 'Whale-Isle-mac-arm64.dmg');
+  assert.equal(latest.assetUrl, 'https://example.test/Whale-Isle-mac-arm64.dmg');
+  const list = await releaseSource.listFor('gitee', { installedVersion: '1.0.0' });
+  assert.equal(list.releases[0].assetName, latest.assetName);
+  assert.equal(list.releases[0].assetUrl, latest.assetUrl);
+  assert.equal(list.releases[0].assetSize, 200);
 });
 
 test('releaseFor returns null on 404 and an error shape on failure', async () => {

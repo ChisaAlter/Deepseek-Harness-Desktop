@@ -159,10 +159,11 @@ export function initGitWorkspace(workspace, options = {}) {
     ? options.branch.trim()
     : ''
   git(branch ? ['init', '-b', branch] : ['init'])
+  // UI-driven follow-up commits must not depend on the host's global identity.
+  git(['config', '--local', 'user.name', 'dsh-smoke'])
+  git(['config', '--local', 'user.email', 'smoke@example.test'])
   git(['add', '.'])
   git([
-    '-c', 'user.name=dsh-smoke',
-    '-c', 'user.email=smoke@example.test',
     'commit',
     '-m',
     'smoke',
