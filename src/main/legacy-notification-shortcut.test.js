@@ -133,14 +133,15 @@ test('requiring the migration and taking no-op paths never loads Koffi', async (
   assert.equal(nativeLoads, 0);
 });
 
-test('a matching ordinary shortcut is moved intact into its unique app-owned backup', async () => {
+test('a matching shortcut is moved intact into a unique backup without a shortcut extension', async () => {
   const f = fixture(); const original = f.entries.get(f.key(source));
   const unknown = 'C:\\AppData\\Microsoft\\Windows\\Start Menu\\Programs\\Other Electron.lnk';
   const pinned = 'C:\\AppData\\Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar\\Electron.lnk';
   f.set(unknown); f.set(pinned);
   const result = await migrateLegacyNotificationShortcut(f.options);
   assert.equal(result.status, 'migrated');
-  assert.equal(result.backupPath, userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk');
+  assert.equal(result.backupPath, userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup');
+  assert.equal(path.win32.extname(result.backupPath), '.backup');
   assert.equal(f.entries.has(f.key(source)), false);
   assert.equal(f.entries.get(f.key(result.backupPath)), original);
   assert.equal(f.entries.has(f.key(unknown)), true); assert.equal(f.entries.has(f.key(pinned)), true);
@@ -151,8 +152,8 @@ test('a matching ordinary shortcut is moved intact into its unique app-owned bac
   assert.equal(f.calls.filter(([name]) => name === 'notify').length, 1);
 });
 
-test('Shell rename delivery uses only the completed paths and targeted asynchronous flags', async () => {
-  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk';
+test('Shell rename delivery uses only the completed paths and targeted asynchronous FLUSH', async () => {
+  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup';
   const calls = [];
   const result = await notifyShortcutMoved(source, destination, {
     platform: 'win32', loadApi: () => ({ async(...args) {
@@ -160,11 +161,11 @@ test('Shell rename delivery uses only the completed paths and targeted asynchron
     } }),
   });
   assert.equal(result, true);
-  assert.deepEqual(calls, [[1, 0x2005, source, destination]]);
+  assert.deepEqual(calls, [[1, 0x1005, source, destination]]);
 });
 
 test('non-Windows, unsafe and same-path Shell delivery never loads the native library', async () => {
-  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk';
+  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup';
   const loadApi = () => { throw new Error('native library must not load'); };
   for (const [from, to, platform] of [[source, destination, 'linux'], [source, destination, 'darwin'],
     ['Electron.lnk', destination, 'win32'], [source, '\\\\server\\Electron.lnk', 'win32'],
@@ -184,7 +185,7 @@ test('a failed or missing Shell callback never loses the completed backup', asyn
 });
 
 test('Shell loading and callback errors return safe false and clear the deadline', async () => {
-  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk';
+  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup';
   for (const loadApi of [() => { throw new Error('private path'); }, () => ({ async() { throw new Error('private path'); } }),
     () => ({ async(...args) { setImmediate(() => args.at(-1)(new Error('private path'))); } })]) {
     assert.equal(await notifyShortcutMoved(source, destination, { platform: 'win32', loadApi }), false);
@@ -192,13 +193,40 @@ test('Shell loading and callback errors return safe false and clear the deadline
 });
 
 test('a late Shell callback after the deadline cannot turn a timeout into success', async () => {
-  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk';
+  const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup';
   let callback;
   const result = await notifyShortcutMoved(source, destination, {
     platform: 'win32', loadApi: () => ({ async(...args) { callback = args.at(-1); } }),
   });
   assert.equal(result, false); callback(null); callback(new Error('late failure'));
   await new Promise(resolve => setImmediate(resolve));
+});
+
+test('FLUSH startup waiting ends at 500ms while preserving bytes and rejecting late delivery success', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(); const original = f.entries.get(f.key(source));
+  let entered, callback; const reachedNative = new Promise(resolve => { entered = resolve; });
+  f.options.notifyShortcutMoved = (from, to) => notifyShortcutMoved(from, to, {
+    platform: 'win32', loadApi: () => ({ async(event, flags, oldPath, newPath, done) {
+      assert.deepEqual([event, flags, oldPath, newPath], [1, 0x1005, source,
+        userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup']);
+      callback = done; entered();
+    } }),
+  });
+  let settled = false;
+  const pending = migrateLegacyNotificationShortcut(f.options).then(result => { settled = true; return result; });
+  await reachedNative;
+  t.mock.timers.tick(499); await Promise.resolve();
+  assert.equal(settled, false);
+  t.mock.timers.tick(1);
+  const result = await pending;
+  assert.equal(result.status, 'migrated'); assert.equal(result.shellNotified, false);
+  assert.equal(f.entries.has(f.key(source)), false);
+  assert.equal(f.entries.get(f.key(result.backupPath)), original);
+  callback(null); callback(new Error('late failure'));
+  await Promise.resolve();
+  assert.equal(result.shellNotified, false);
+  assert.equal(f.entries.get(f.key(result.backupPath)), original);
 });
 
 test('missing, unreadable and non-regular shortcut entries never move', async () => {
@@ -237,7 +265,7 @@ test('unsafe backup roots and occupied unique backup directories cannot overwrit
     assert.equal(f.calls.some(([name]) => name === 'rename'), false);
   }
   const f = fixture(); f.set(root, 'directory'); f.set(root + '\\unique-backup', 'directory');
-  const existing = root + '\\unique-backup\\Electron.lnk'; f.set(existing);
+  const existing = root + '\\unique-backup\\Electron.lnk.backup'; f.set(existing);
   const originalBackup = f.entries.get(f.key(existing));
   assert.deepEqual(await migrateLegacyNotificationShortcut(f.options), { status: 'failed', reason: 'backup-failed' });
   assert.equal(f.entries.get(f.key(existing)), originalBackup);
@@ -304,6 +332,7 @@ test('Windows real Electron shortcut API and async migration preserve exact fixt
       const original = await fs.readFile(shortcut);
       const result = await migrateLegacyNotificationShortcut({ isPackaged: true, appDataDir, userDataDir, readShortcutLink: file => shell.readShortcutLink(file) });
       assert.equal(result.status, 'migrated'); assert.deepEqual(await fs.readFile(result.backupPath), original);
+      assert.equal(path.basename(result.backupPath), 'Electron.lnk.backup');
       assert.equal(result.shellNotified, true);
       await assert.rejects(fs.stat(shortcut), { code: 'ENOENT' });
       console.log('DSHD_SHORTCUT_FIXTURE ' + JSON.stringify({ realReaderMatched: true, exactBytesPreserved: true, sourceGone: true, shellNotified: true, notificationsInitialized: false, windowsCreated: false }));

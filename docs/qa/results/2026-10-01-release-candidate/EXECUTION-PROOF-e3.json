@@ -1,0 +1,223 @@
+{
+  "verification": "Actual original e3 CI installation, guarded legacy-link migration, first-launch taskbar failure and later cold-launch diagnostic; not whole production acceptance",
+  "date": "2026-10-01",
+  "candidateRun": 36820230025,
+  "candidateSha": "e3cdc4dd34b4763dcc110e05889a213bad105b94",
+  "setupSha256": "070a2a60cbb2da53aa9ecc6363a21d4e07bda9e1c8c7817722bbf82baaf6135b",
+  "installer": {
+    "result": "Pass",
+    "executed": true,
+    "exitCode": 0,
+    "installedFiles": [
+      {
+        "file": "Whale Isle.exe",
+        "matchesOriginal": true
+      },
+      {
+        "file": "resources\\app.asar",
+        "matchesOriginal": true
+      },
+      {
+        "file": "resources\\node.exe",
+        "matchesOriginal": true
+      },
+      {
+        "file": "resources\\vendor\\deepseek-harness.tar",
+        "matchesOriginal": true
+      },
+      {
+        "file": "resources\\vendor\\deepseek-harness-runtime.json",
+        "matchesOriginal": true
+      },
+      {
+        "file": "resources\\vendor\\harness-upstream.json",
+        "matchesOriginal": true
+      }
+    ],
+    "installedExeSha256": "dbaf9016cd260d91717f8aaa253875659370987d4490c1c1e56567d7729332fe",
+    "installedAsarSha256": "8dd2c77b58102e6c738aafd12b9895b70da8a2c4b73bee0e00757c44e859b7a2",
+    "existingConfigPreserved": true,
+    "existingCredentialsPreserved": true,
+    "sessionStorageFilesChecked": 5,
+    "sessionStorageFilesPreserved": true,
+    "installerStartedApplication": false
+  },
+  "automaticLegacyShortcutRecovery": {
+    "result": "Pass for file backup contract only",
+    "actualInstalledCandidate": true,
+    "fixtureKind": "Owned byte-identical copy of historical matching Electron notification shortcut in the real Start Menu location",
+    "seedCreated": true,
+    "noExistingFileOverwritten": true,
+    "originalSourceAbsent": true,
+    "newBackupDirectoryCount": 1,
+    "newBackupFileCount": 1,
+    "backupBasename": "Electron.lnk",
+    "originalBytesPreservedExactly": true,
+    "backupBytes": 1413,
+    "backupSha256": "76680ad8fcb3dee884342e56e787c2464c723d7bba642bc2bc3d66a5fd20691d",
+    "historicalOriginalBackupUnchanged": true,
+    "taskbarCorrectnessCertified": false,
+    "shellAssociationRemovalCertified": false
+  },
+  "application": {
+    "executed": true,
+    "coldLaunchFromInstalledDesktopShortcut": true,
+    "desktopShortcutTargetIconAndAppIdVerified": true,
+    "customProfileArgumentUsed": false,
+    "exactInstalledExeAndCdpOwnerBound": true,
+    "kernelReady": true,
+    "webReady": true,
+    "defaultProfileBinding": "Pass for actual e3 default-profile binding"
+  },
+  "taskbarInitialProbe": {
+    "result": "Fail: selection produced no valid image",
+    "code": "capture-exact-appid-not-unique",
+    "oldRectangleNotReused": true,
+    "earlierFailurePreserved": true
+  },
+  "taskbarFirstLaunch": {
+    "coldLaunchOrdinal": 1,
+    "result": "Fail",
+    "targetPid": 23668,
+    "hwnd": "0x70CD2",
+    "publicAppId": "Appid: ai.deepseek.harness.gui",
+    "uniqueProductionAppIdButton": true,
+    "nameClass": "electron-name",
+    "rect": {
+      "left": 1225,
+      "width": 66,
+      "top": 1368,
+      "height": 72
+    },
+    "samePidAndPeerGenerationBeforeAfter": true,
+    "kernelReadyBeforeAndAfter": true,
+    "webReadyBeforeAndAfter": true,
+    "captureBoundedBy": {
+      "beforeUtc": "2026-10-01T06:36:14.454Z",
+      "afterUtc": "2026-10-01T06:36:30.412Z"
+    },
+    "receiptUtc": "2026-10-01T06:36:30.412Z",
+    "image": "ci-taskbar-e3-first-launch.png",
+    "width": 66,
+    "height": 72,
+    "sha256": "54f573dd926d46b2fa5233658e4456912b08f1c82378c5a38065dc37181ae943",
+    "allBlack": false,
+    "readOnly": true,
+    "inputPerformed": false,
+    "visualReview": "Root visually confirmed a blank white document icon instead of the product avatar",
+    "wholeAcceptancePassed": false
+  },
+  "protectedQuitFirstLaunch": {
+    "result": "Pass for this protected quit",
+    "targetPid": 23668,
+    "protectedQuitAcknowledged": true,
+    "exactExeBound": true,
+    "peerGenerationBound": true,
+    "mainGone": true,
+    "directHarnessChildrenGone": true,
+    "elapsedMs": 905,
+    "forcedExitUsed": false,
+    "trayQuitCertified": false
+  },
+  "taskbarSecondColdLaunch": {
+    "coldLaunchOrdinal": 2,
+    "result": "Pass for this diagnostic capture only",
+    "targetPid": 18420,
+    "hwnd": "0x130C6C",
+    "publicAppId": "Appid: ai.deepseek.harness.gui",
+    "uniqueProductionAppIdButton": true,
+    "nameClass": "product-name",
+    "rect": {
+      "left": 1177,
+      "width": 66,
+      "top": 1368,
+      "height": 72
+    },
+    "samePidAndPeerGenerationBeforeAfter": true,
+    "kernelReadyBeforeAndAfter": true,
+    "webReadyBeforeAndAfter": true,
+    "captureBoundedBy": {
+      "beforeUtc": "2026-10-01T06:41:25.782Z",
+      "afterUtc": "2026-10-01T06:41:42.723Z"
+    },
+    "receiptUtc": "2026-10-01T06:41:42.723Z",
+    "image": "ci-taskbar-e3-second-cold-launch.png",
+    "width": 66,
+    "height": 72,
+    "sha256": "cb875fe3e7959c9a256b269ee85af82b5fc0a6baef6a34f7cec2e860992801c7",
+    "allBlack": false,
+    "readOnly": true,
+    "inputPerformed": false,
+    "visualReview": "Root visually confirmed the product avatar in this second normal cold-launch capture; first-launch failure remains",
+    "wholeAcceptancePassed": false,
+    "visualSignoffBy": "root"
+  },
+  "environment": {
+    "noManualCacheClearing": true,
+    "manualShellNotificationPerformed": false,
+    "explorerRestarted": false,
+    "userPinsModified": false,
+    "windowActionsDuringReadOnlyCapture": false
+  },
+  "remainingAcceptance": {
+    "modelsSave": "Pass only for the owned custom-model UI fixture recorded above",
+    "filesWorkLoops": "Not Run",
+    "closeButtonAlignment": "Not Run",
+    "composedCorners": "Not Run",
+    "visibleDwmAnimation": "Not Run",
+    "trayQuit": "Not Run",
+    "productionP0": "Not Run",
+    "formalProductionSignoffComplete": false
+  },
+  "firstLaunchTaskbarFailureResolved": false,
+  "wholeAcceptancePassed": false,
+  "releasePublished": false,
+  "historicalCandidatePassesInherited": false,
+  "defaultProfileBinding": {
+    "result": "Pass for actual e3 default-profile binding",
+    "targetPid": 23668,
+    "profileBindingProven": true,
+    "matchingRuntimeChildren": 1,
+    "runtimeProfileAliasMatches": true,
+    "runtimeUsesBundledNode": true,
+    "peerIdentityStillMatches": true,
+    "liveHomeDefaultLogical": true,
+    "appVersionMatches": true,
+    "bindingBasis": "Unpackaged installed process, bundled Node runtime CLI alias and actual window configuration",
+    "earlierFailedProbeRetained": true,
+    "proofScope": "Actual e3 installed candidate; not inherited by a new candidate"
+  },
+  "modelsSave": {
+    "result": "Pass for owned custom-model UI create, saved state after closing/reopening settings, and owned cleanup",
+    "targetPid": 23668,
+    "acceptedAfterCreateMs": 2343,
+    "budgetMs": 12000,
+    "settingsClosed": true,
+    "reopened": true,
+    "accepted": true,
+    "withinBudget": true,
+    "operationTimedOut": false,
+    "installedIdentityStillMatches": true,
+    "cleanup": {
+      "ownedRouteOnly": true,
+      "exactRowConfirmed": true,
+      "exactDeleteConfirmation": true,
+      "providerRemoved": true,
+      "managedCredentialRemoved": true,
+      "rawConfigWritten": false
+    },
+    "wholeAcceptancePassed": false
+  },
+  "protectedQuitSecondColdLaunch": {
+    "result": "Pass for this protected quit",
+    "targetPid": 18420,
+    "protectedQuitAcknowledged": true,
+    "exactExeBound": true,
+    "peerGenerationBound": true,
+    "mainGone": true,
+    "directHarnessChildrenGone": true,
+    "elapsedMs": 895,
+    "forcedExitUsed": false,
+    "trayQuitCertified": false
+  }
+}

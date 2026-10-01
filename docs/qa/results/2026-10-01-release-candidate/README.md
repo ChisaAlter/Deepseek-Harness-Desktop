@@ -92,3 +92,48 @@
 最终产品批次的本机 Node 24.21.0 全量为 2962 项、2939 通过、14 失败、9 跳过，耗时 195454ms；不宣称全量通过。失败仍是相同的 14 个文件 symlink 权限夹具：Setup 1 项、config / mcp-settings / credentials 各 4 项、gitCheckLargeFiles 1 项。新遮罩期限与旧快捷方式恢复没有新增失败；日志为本机 `%TEMP%/dshd-final-0.3.3-root-tests.log`。最终 SHA 的新 CI 仍须实际证明这些用例通过。官方 source prestart 构建通过并记录 372 个 client 产物，源码启动器已启动本批代码；尚未据此宣称 kernel ready 或安装版验收通过。
 
 安全执行摘要见 [执行证明](EXECUTION-PROOF.json)，与 [离线原始包证明](ARTIFACT-PROOF.json)分阶段保留。原 36804159162 实际任务栏与退出均失败，不再晋级。持久存量恢复与绘制期限是新增产品改动，必须生成新的 CI 原始 Setup、核对完整身份和摘要，并完成同一安装包的生产 P0、Models / 实际工作环、合成圆角 / 可见动画以及 §16 签字。目前新候选安装版未验收，未创建 v0.3.3 tag 或 Release；publish.yml 必须下载并验证最终实际验收的原始候选字节。
+
+## 新候选 e3：同 SHA CI 与原始包静态核验
+
+本节对应精确产品提交 `e3cdc4dd34b4763dcc110e05889a213bad105b94`，包含旧通知快捷方式自动恢复、定向 Shell rename 通知的 500ms 期限，以及关闭遮罩绘制等待的 500ms 期限。[Windows 候选 36820230025](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36820230025) 与同 SHA [Desktop tests 36820208830](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36820208830) 均经 GitHub CLI 重新核对为 `completed / success`，两者 `headSha` 均等于该完整 SHA。测试运行的 Windows、macOS、vendor GUI jobs 均成功；候选只构建 Windows，macOS job 按参数跳过。
+
+候选 Windows job 的 NSIS 构建、阻断式 win-unpacked packaged smoke 和原始 artifact 上传均成功。CI smoke 属于安装树检查，不认证正式安装版工作环、任务栏、圆角或可见 DWM 动画。原始 artifact `Whale-Isle-windows-x64` 的 ID 为 `11143147766`，完整 ZIP 为 `593574528` 字节，实际 SHA256 `8fda10f6afef3249508ec38a0ea76fa55e7470b589a0d424938abf8d3a3cce9f` 与 GitHub artifact digest 一致。ZIP 只含以下原始三件套，ZIP、NSIS、内嵌 x64 `app-64.7z` 的完整 7Zip 检查均通过。
+
+| 原始文件 | 字节数 / 本次核验 |
+| --- | --- |
+| `Whale-Isle-Setup-0.3.3.exe` | 594842754；SHA256 `070a2a60cbb2da53aa9ecc6363a21d4e07bda9e1c8c7817722bbf82baaf6135b` |
+| `Whale-Isle-Setup-0.3.3.exe.blockmap` | 582512；SHA256 `e55f2f7928721d9fbb6a69a84d39accb03937251ae4dc418fda9e3e6998383b1`；元数据未提供独立 blockmap 对应摘要，不据此认证其与 Setup 的密码学对应 |
+| `latest.yml` | 349；版本、文件名、Setup size、`files[].sha512` 和顶层 `sha512` 均与实际 Setup 一致 |
+
+`check-release-version v0.3.3`、`check-release-assets` 和全量只读静态 verifier 均退出 0。静态阶段未运行安装器或 Whale Isle；仅执行随包 `resources/node.exe --version`。可公开的字段与完整摘要见 [e3 原始包证明](ARTIFACT-PROOF-e3.json)，未附本机绝对路径、用户配置或原始日志。
+
+- 实际 `app.asar` 为 `63705746` 字节，SHA256 `8dd2c77b58102e6c738aafd12b9895b70da8a2c4b73bee0e00757c44e859b7a2`，产品 / 版本为 `Whale Isle` / `0.3.3`。九个实际模块逐个读取并仅归一化换行后匹配精确 e3 源码：`window-app-details`、`system-notifications`、`window`、`media-permissions`、`index`、`update-attention`、`product-identity`、`legacy-notification-shortcut`、`closing-overlay`。
+- 随包 Node 实际为 `v24.21.0`，与候选 `.nvmrc` 一致。Harness pin 为 `dsh-v0.1.7-rc.2` / `477b4f420553e8a52c2fbccc464d7561b239c443` / `0.1.7-rc.2`，与候选 pin 一致。运行时 tar 为 `1166144512` 字节，SHA256 `3a73173b15ba0500a8cbebb998eb7d82aee1617d26195cf5041e657bb428b992` 与随包 manifest 一致。
+- 从当前已核对摘要的 tar 直接取出的 official build record 为 `e3cdc4d` / `official` / `Whale Isle` / `0.1.7-rc.2`，记录裁剪前 372 个 client 产物；没有以剥除 maps 的 tar 重算裁剪前摘要。Files、DockKit、右栏的物理 package 与运行时 alias 计划一致。实际编译结果包含唯一目录 guide、资源限定的 viewer、旧空地址目录回退；关闭控件按标题轴居中、保留右侧定位，实际 CSS 全文匹配候选源码。
+- 实际 EXE 为 x64，SHA256 `dbaf9016cd260d91717f8aaa253875659370987d4490c1c1e56567d7729332fe`；产品名 / 描述为 `Whale Isle`，Windows 四段 `ProductVersion` 为 `0.3.3.0`，`FileVersion` 为 `0.3.3`。首次 verifier 将 ProductVersion 与三段 package version 直接比较，导致 helper 断言失败；修正为分别精确检查四段 / 三段后整体验证通过，候选字节未改。
+- 从本次 EXE 新提取的图标 index 0 为 32px / 16px，两个 HICON 均释放。32px PNG SHA256 为 `413f4161b6a3ebca708126a530c653812a3caca07f13d4190e8205281e686629`，人工重新查看为产品头像，且与已保存的 [图标资源参考图](ci-exe-icon-32.png) 字节一致。这只认证资源存在与正确，不能认证实际任务栏分组或持续显示。
+
+本节只完成新候选的 CI 身份和离线静态核验。离线 JSON 中安装及 UI 的 `Not Run` 记录该阶段的边界，后续实际执行见下节。旧 `953bb20a` 的原始任务栏 / 退出 Fail、手动环境恢复和隔离夹具结果保留在前文及旧 JSON；任何历史 Pass 均不继承为 e3 安装版 Pass。尚未发布新 Release。
+
+## 新候选 e3：实际安装、自动备份与首启任务栏 Fail
+
+同一原始 CI Setup 实际安装退出码 0。已安装 EXE、app.asar、随包 Node、Harness tar、runtime manifest、Harness pin 六个文件均与原始载荷完整摘要一致；既有配置、凭据以及 5 个 session / storage 文件保持原字节。安装器未自行启动应用。随后从正式桌面快捷方式正常冷启动，实际 EXE、CDP socket owner、protected peer PID / generation 绑定一致，`kernel: ready`、`webReady: true`；无自定义 profile 参数。完整执行摘要见 [e3 执行证明](EXECUTION-PROOF-e3.json)。
+
+实际默认 profile 绑定另行通过：已安装非 packaged-host 进程、随包 Node 的唯一 Harness runtime CLI、实际配置的默认 dshHome 与 profile 路径别名一致，前后 peer 身份保持。此前未能完成的探针保留，成功 receipt 才用于本项签字；这些结果不继承到后续新候选。
+
+实际 Models UI 自有夹具创建后，关闭 / 重开设置确认保存状态通过，耗时 2343ms，保留原 12000ms 预算，未超时；实际安装身份仍匹配。随后仅通过 UI 删除已确认归属的该夹具，精确行与删除确认均匹配，provider 与托管凭据条目已移除，未直接写原始配置。此项只认证该创建、重开确认及归属夹具清理，不认证 Models 全部操作或整表 P0。
+
+为验证存量自动恢复，将历史已匹配旧通知快捷方式的原字节复制为本轮自有 fixture，未覆盖既有文件，保留原历史备份。实际新安装应用启动后，原位置的该条目已不存在，新增恰好一个备份目录、一个 `Electron.lnk`；1413 字节逐字节等于原 fixture，SHA256 `76680ad8fcb3dee884342e56e787c2464c723d7bba642bc2bc3d66a5fd20691d`，原历史备份摘要保持。此项只记文件匹配与可恢复备份契约 Pass，不认证 Shell 关联已解除或任务栏图标正确。
+
+首个旧 capture helper 的任务栏选择阶段报 `capture-exact-appid-not-unique`，没有有效图片，保留该 Fail。重新只读枚举公开 AppID、按钮矩形和标题分类后，正式 `Appid: ai.deepseek.harness.gui` 按钮唯一；没有输出原始窗口标题，也没有沿用旧固定坐标。新 capture helper 只按精确 AppID 与新观测矩形绑定，前后重新验证实际 PID / peer generation 与 ready 状态。
+
+| 实际阶段 | 绑定与结果 |
+| --- | --- |
+| 首次自动恢复后的任务栏 | PID 23668、HWND `0x70CD2`；新观测矩形 `1225,1368,66,72`；有效非全黑小图 SHA256 `54f573dd926d46b2fa5233658e4456912b08f1c82378c5a38065dc37181ae943`。主验收者视觉确认白色空白文档图标，记 **Fail**；见 [首启任务栏](ci-taskbar-e3-first-launch.png) |
+| 首次 protected quit | 同一已安装 EXE / peer generation 下退出确认通过，主进程与直接 Harness 子进程自然消失，耗时 905ms；未强杀，记此次 protected quit Pass，不认证托盘退出 |
+| 第二次正常快捷方式冷启动 | PID 18420、HWND `0x130C6C`；重新观测正式 AppID 唯一、矩形 `1177,1368,66,72`；有效非全黑小图 SHA256 `cb875fe3e7959c9a256b269ee85af82b5fc0a6baef6a34f7cec2e860992801c7`。主验收者视觉确认产品头像，记本次诊断图片 Pass；见 [第二次冷启动任务栏](ci-taskbar-e3-second-cold-launch.png)。首启 Fail 保持 |
+| 第二次 protected quit | 同一第二次已安装 EXE / peer generation 下退出确认通过，主进程与直接 Harness 子进程自然消失，耗时 895ms；未强杀，记此次 protected quit Pass，不认证托盘退出 |
+
+两次采集仅保存目标按钮的 66×72 像素，均无输入、激活或窗口动作；期间没有手工 Shell 通知、全局缓存清理、Explorer 重启或用户 pin 修改。第二次冷启动是诊断结果，不能抹掉第一次自动恢复后的正式 Fail，也不认证后续持续显示。原因仍在调查，不依据备份扩展名或第二次正确显示先行作根因结论。
+
+默认 profile 绑定及上述 Models 自有夹具已分别取得实际结果；Files 工作环、关闭按钮实显、合成圆角、可见 DWM 动画、托盘退出、生产 P0 和 §16 签字仍未据本节完成。首启图标问题未闭环，不能将 e3 整体生产验收记 Pass 或晋级发布。

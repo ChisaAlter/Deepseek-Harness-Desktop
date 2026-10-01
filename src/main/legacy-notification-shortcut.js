@@ -5,7 +5,7 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const DESKTOP_APP_ID = 'ai.deepseek.harness.gui';
 const SHCNE_RENAMEITEM = 1;
-const SHCNF_PATHW_FLUSHNOWAIT = 0x2005;
+const SHCNF_PATHW_FLUSH = 0x1005;
 const SHELL_NOTIFICATION_DEADLINE_MS = 500;
 let shellChangeNotify;
 
@@ -23,7 +23,7 @@ function canonicalWindowsPath(value) {
   return value.slice(3).split('\\').every(part => part && !/[. ]$/.test(part));
 }
 
-/** Deliver just the completed rename, without waiting for every Shell component. */
+/** Wait for delivery of just this completed rename, within the startup budget. */
 async function notifyShortcutMoved(oldPath, newPath, { platform = process.platform, loadApi = windowsShortcutApi } = {}) {
   if (platform !== 'win32' || !canonicalWindowsPath(oldPath) || !canonicalWindowsPath(newPath)
       || oldPath.toLowerCase() === newPath.toLowerCase()) return false;
@@ -34,10 +34,10 @@ async function notifyShortcutMoved(oldPath, newPath, { platform = process.platfo
         clearTimeout(deadline);
         resolve(success);
       };
-      // Shell delivery is best effort: even an absent native callback must not
-      // hold the already safe backup or the desktop's first window hostage.
+      // FLUSH waits for event delivery, not a correct taskbar image. The startup
+      // budget does not cancel the native call; late callbacks cannot change it.
       deadline = setTimeout(() => finish(false), SHELL_NOTIFICATION_DEADLINE_MS);
-      loadApi().async(SHCNE_RENAMEITEM, SHCNF_PATHW_FLUSHNOWAIT, oldPath, newPath, error => finish(!error));
+      loadApi().async(SHCNE_RENAMEITEM, SHCNF_PATHW_FLUSH, oldPath, newPath, error => finish(!error));
     });
   } catch {
     clearTimeout(deadline);
@@ -121,7 +121,7 @@ async function migrateLegacyNotificationShortcut({
       return { status: 'preserved', reason: 'shortcut-changed' };
     }
     stage = 'move';
-    const backupPath = path.win32.join(backupDirectory, 'Electron.lnk');
+    const backupPath = path.win32.join(backupDirectory, 'Electron.lnk.backup');
     await io.rename(shortcut, backupPath);
     let shellNotified = false;
     try { shellNotified = await notifyMoved(shortcut, backupPath); } catch { /* The backup is already safe. */ }

@@ -50,7 +50,7 @@
 
 **每次发布前**（GitHub Release 或分发该 SHA 的 Setup）：先由 `release.yml` 产出候选，记录 candidate run ID、commit SHA、artifact 名和 Setup SHA256；再对 **该 CI SHA** 走完本表，写下 `docs/qa/results/<日期>/` 执行报告，填 §16 且勾「Release 将上传同一 SHA」。最后只能用 `publish.yml` 晋级这次候选。没有这份绑定 CI SHA 的报告，**禁止发版**。
 
-**「可交付」= 全部 P0 = Pass（或合法 Blocked+书面豁免），且 §16 绑定 CI artifact SHA。** dshbot 已回归桌面内置：TC-EXT-007 升为 **P0**（默认内置：Bots 页签必须出现）。当前没有远程书面豁免条。P1 失败记入发布说明或豁免单。P2 记入后续迭代。
+**「可交付」= 全部 P0 = Pass（或合法 Blocked+书面豁免），且 §16 绑定 CI artifact SHA。** dshbot 已回归桌面内置：TC-EXT-007 保持 **P0**（随包交付、默认关闭；在设置中启用后必须自动重启 Harness 并出现 Bots 页签，无需安装）。本条与 [dshbot feature 卡](../features/dshbot.md)的现行开关契约一致，不将默认关闭判为缺包，也不把启用后的入口缺失判为可接受。当前没有远程书面豁免条。P1 失败记入发布说明或豁免单。P2 记入后续迭代。
 
 **造障类 P0**（插件弄挂、杀子进程、强制升级包）：能造则测；本轮无法安全造障时标 **Blocked**，附原因，由产品负责人决定是否豁免，**不得静默标 Pass**。
 
@@ -805,9 +805,14 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-EXT-007 · dshbot 桌面内置与升级迁移 · P0
 
-**步骤：** 全新安装确认侧栏出现 Bots 页签且无需安装任何插件；「跳过用户插件」恢复启动后 Bots 页签仍在。旧预置升级确认受管装载块被迁移、由内置 overlay 接管；机器人设置、记忆、房间 preset、会话保留。确认插件排查不提供 dshbot 的禁用/卸载入口（desktop-builtin）。
+**步骤：**
 
-**期望：** 桌面随包交付 dshbot（`vendor/dshbot` + `desktop-dshbot.patch.yml` overlay，每次启动挂载）；用户数据不因迁移而删除；vendor 源缺损判内置组件损坏并阻断启动（feature 卡 `dshbot`）。
+1. 全新安装使用默认设置，确认「机器人（Bots）」关闭，侧栏不出现 Bots 页签；随包已有 dshbot，无需安装任何插件。
+2. 在 设置 → 界面设置 打开带「测试中」徽标的「机器人（Bots）」，确认 Harness 自动重启、重新就绪后 Bots 页签出现并可打开。保持开启，正常重启及「跳过用户插件」恢复启动后页签仍在。
+3. 旧预置升级确认受管装载块被迁移清理、开启时由内置 overlay 接管；机器人设置、记忆、房间 preset、会话保留。关闭 Bots 后确认 Harness 自动重启、页签消失，既有数据仍保留；重新开启后原数据可读。
+4. 确认插件排查不提供 dshbot 的禁用/卸载入口（desktop-builtin）；挂载只由上述设置开关控制。造障时核对缺损归因为内置组件损坏：关闭状态不因 dshbot vendor 缺损阻断启动，开启状态的源、声明入口或运行时依赖缺损须阻断启动，「跳过用户插件」不得绕过。按造障类 P0 约定保留证据并恢复现场，不能安全执行的子路径如实标 Blocked。
+
+**期望：** 桌面随包交付 `vendor/dshbot`，`dshbotEnabled` 默认 false；关闭时移除受管旧块 / overlay，不校验 vendor、不阻断启动、不删用户数据。开启时 `desktop-dshbot.patch.yml` overlay 在每次启动（全量及 skip）挂载，切换自动重启 Harness，Bots 页签可达且旧数据保全；启用时 vendor 源、声明入口或运行时依赖缺损必须 fail closed。契约见 [dshbot feature 卡](../features/dshbot.md)及[内置插件适配决定](../decisions/implemented/bug-fix/2026-09-25-vendored-plugins-017-contract-drift.md)。默认关闭不是本条 Pass 的充分证据，启用、升级、skip、排查归因与数据保全子路径均须按实测记录。
 
 **2026-08-26 源码实机（不填本表 Pass）：** 云端 Linux X11 GUI 对源码 Electron 完整轮换 A/B(自动)/C 三相：未装分支 walk 全绿 → `dsh plugin add github:…#path:/vendor/dshbot`（钉到 `7972a34`）后探针翻转（Bots 页签出现、已安装列出、`dshbot-room` preset 自装）→ remove + 重启回未装分支且三处残留全净。9 个 dshbot 套件 95/95、全仓 1099/0。B 相手工建群因无 `DEEPSEEK_API_KEY` BLOCKED；Windows 安装包三相维持 BLOCKED。报告：[results/2026-08-26/tc-ext-007-dshbot.md](results/2026-08-26/tc-ext-007-dshbot.md)。
 

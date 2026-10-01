@@ -1,0 +1,311 @@
+{
+  "verification": "Original e3 CI candidate inspected offline; installation and UI acceptance are separate pending gates",
+  "date": "2026-10-01",
+  "candidateRun": 36820230025,
+  "candidateRunUrl": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36820230025",
+  "candidateSha": "e3cdc4dd34b4763dcc110e05889a213bad105b94",
+  "testRun": 36820208830,
+  "testRunUrl": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36820208830",
+  "ci": {
+    "candidate": {
+      "status": "completed",
+      "conclusion": "success",
+      "exactCandidateShaMatched": true,
+      "windows": "success",
+      "macos": "skipped"
+    },
+    "desktopTests": {
+      "status": "completed",
+      "conclusion": "success",
+      "exactCandidateShaMatched": true,
+      "windows": "success",
+      "macos": "success",
+      "vendorGui": "success"
+    },
+    "packagedSmoke": {
+      "result": "Pass",
+      "scope": "CI win-unpacked blocking smoke; not installed UI acceptance"
+    },
+    "metadataVerifiedWithGitHubCli": true
+  },
+  "artifact": {
+    "id": 11143147766,
+    "name": "Whale-Isle-windows-x64",
+    "zipBytes": 593574528,
+    "zipSha256": "8fda10f6afef3249508ec38a0ea76fa55e7470b589a0d424938abf8d3a3cce9f",
+    "verifiedAgainstGitHubDigest": true,
+    "originalZipCrcPassed": true,
+    "nsisIntegrityPassed": true,
+    "x64PayloadCrcPassed": true,
+    "exactlyThreeOriginalAssets": true
+  },
+  "setup": {
+    "name": "Whale-Isle-Setup-0.3.3.exe",
+    "bytes": 594842754,
+    "sha256": "070a2a60cbb2da53aa9ecc6363a21d4e07bda9e1c8c7817722bbf82baaf6135b",
+    "sha512": "ahe3BJFPLz7S0ADeclcYvUUmNiqXtLcTS6mOH2t5YLCpZSGPDZrccJXnwOPj/WXD71jvrajENGRc4Agd6uwUtQ==",
+    "expectedSha256Matched": true,
+    "latestSizeAndSha512Matched": true,
+    "blockmap": {
+      "name": "Whale-Isle-Setup-0.3.3.exe.blockmap",
+      "bytes": 582512,
+      "sha256": "e55f2f7928721d9fbb6a69a84d39accb03937251ae4dc418fda9e3e6998383b1",
+      "independentMetadataDigestAvailable": false
+    },
+    "versionValidatorPassed": true,
+    "assetsValidatorPassed": true
+  },
+  "package": {
+    "version": "0.3.3",
+    "productName": "Whale Isle"
+  },
+  "asar": {
+    "bytes": 63705746,
+    "sha256": "8dd2c77b58102e6c738aafd12b9895b70da8a2c4b73bee0e00757c44e859b7a2",
+    "file": "resources\\app.asar"
+  },
+  "code": [
+    {
+      "file": "src/main/window-app-details.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "1d7bbb3494ac1d3d65f6c52769ac09592e3886f548a223e7ac909080d8abd306"
+    },
+    {
+      "file": "src/main/system-notifications.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "b504ca910d6a269585fb73ce9c9482fbfd19a2350ddd0df483db1f4c069e4969"
+    },
+    {
+      "file": "src/main/window.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "9c4e45196a57ab6b7f83099be805ad846f9221bff315432e263ccc1e261d04fa"
+    },
+    {
+      "file": "src/main/media-permissions.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "3d986649173ae542eaf13170946df9aa5bdc31f12d42269734efc1d7569f0eb7"
+    },
+    {
+      "file": "src/main/index.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "d4c56f4c8f91d55d91dcff31f08357dff300865de702e669eee2314320ad587b"
+    },
+    {
+      "file": "src/main/update-attention.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "6e0fda3117faa66d6ab0a1e648efbb6c3e16f939e0760c8dcb1f77fa6569cf18"
+    },
+    {
+      "file": "src/shared/product-identity.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "bbf4b4d29678d1066a1c44c0534cfaf058ed0df9ce21ca156ac8307b7fbba6ea"
+    },
+    {
+      "file": "src/main/legacy-notification-shortcut.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "909e475465b1c45c0eaed5414d960d6bb4986e5490d7571f75b1f55f94c531fb"
+    },
+    {
+      "file": "src/main/closing-overlay.js",
+      "matchesCandidateAfterNewlineNormalization": true,
+      "normalizedSha256": "96a067ea7f42ef9090d9bc9e75655582de8bce1e36b76968179ae0767648e87f"
+    }
+  ],
+  "packagedFixes": {
+    "strictLegacyMigrationSourceMatchesCandidate": true,
+    "targetedAsyncShellRename": true,
+    "shellNotificationDeadlineMs": 500,
+    "closingPaintDeadlineMs": 500
+  },
+  "node": {
+    "pinFromCandidate": "24.21.0",
+    "actualVersion": "v24.21.0",
+    "versionCommandExecuted": true,
+    "bytes": 93580104,
+    "sha256": "ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32"
+  },
+  "runtime": {
+    "pin": {
+      "repo": "https://github.com/deepseek-ai/deepseek-harness.git",
+      "ref": "dsh-v0.1.7-rc.2",
+      "sha": "477b4f420553e8a52c2fbccc464d7561b239c443",
+      "npm": "0.1.7-rc.2"
+    },
+    "bytes": 1166144512,
+    "sha256": "3a73173b15ba0500a8cbebb998eb7d82aee1617d26195cf5041e657bb428b992",
+    "manifestMatched": true
+  },
+  "staticRuntime": {
+    "environment": {
+      "DSH_CLIENT_BUILD_PROFILE": "official",
+      "DSH_CLIENT_COMMIT_HASH": "e3cdc4d",
+      "DSH_CLIENT_TITLE": "Whale Isle",
+      "DSH_CLIENT_VERSION": "0.1.7-rc.2"
+    },
+    "inspectedDirectlyFromCurrentHashedTar": true,
+    "suppliedRuntimeRootMatched": false,
+    "prePruneArtifactCount": 372,
+    "prePruneDigestRevalidatedOverPrunedTar": false,
+    "aliases": [
+      {
+        "alias": "node_modules/@deepseek-ai/dsh-client-ui-files",
+        "target": "packages/client/ui-files"
+      },
+      {
+        "alias": "node_modules/@deepseek-ai/dsh-client-ui-dockkit",
+        "target": "packages/client/ui-dockkit"
+      },
+      {
+        "alias": "node_modules/@deepseek-ai/dsh-client-ui-sidebar-right",
+        "target": "packages/client/ui-sidebar-right"
+      }
+    ],
+    "sidebarConsumerAlias": "node_modules/@deepseek-ai/dsh-client-ui-dockkit",
+    "treeGuidePresent": true,
+    "viewerResourceOnly": true,
+    "legacyViewerFallsBackToDirectory": true,
+    "closeAlignmentRulePresent": true,
+    "exactCssMatchesCandidateAfterNewlineNormalization": true,
+    "actualFileHashes": [
+      {
+        "file": ".dsh-build/client-build-environment.json",
+        "sha256": "1b9b5030c4cc33be912b6af11c197414f2c5d9d3580a2d6b4e41fd85bbd64571"
+      },
+      {
+        "file": ".dsh-runtime-links.json",
+        "sha256": "58e63bcf5ae5aaefa9af73b3d802eceb4d32ea50fd331227fad3fa920b6e8390"
+      },
+      {
+        "file": "packages/client/ui-files/package.json",
+        "sha256": "a89c3b21e452668782a29962f209bf2b46abd6edfc316d9b3ba25edb526ed48c"
+      },
+      {
+        "file": "packages/client/ui-dockkit/package.json",
+        "sha256": "74143ecf134bf0005cf2b379f9b0b225c000a145aa10c4d0ce2d10d0d49eed8f"
+      },
+      {
+        "file": "packages/client/ui-sidebar-right/package.json",
+        "sha256": "6309acbb30d2161398905b42624439420ec00d9c23c42426891028abaa4658a1"
+      },
+      {
+        "file": "packages/client/ui-files/lib/client.js",
+        "sha256": "a0721790d064e2440550058d1e8aee204ec12f208bccf6bf5820e6d3c541f50a"
+      },
+      {
+        "file": "packages/client/ui-dockkit/lib/components/dockkit.module.css",
+        "sha256": "e1c914364e7e883a65cecfc6bf4825bb5d5df400fb9f3efa86ebb465e5f277c8"
+      },
+      {
+        "file": "packages/client/ui-dockkit/lib/index.js",
+        "sha256": "b0dfc7a34afb9daee9d433dd8f732fe13abc5f3aea8879f945660a8afa185ff6"
+      },
+      {
+        "file": "packages/client/ui-sidebar-right/lib/client.js",
+        "sha256": "3e909e8bb08e20d600069b063f28567f30d0b75597643a944c112a4d997d41f2"
+      }
+    ]
+  },
+  "executable": {
+    "bytes": 225594880,
+    "sha256": "dbaf9016cd260d91717f8aaa253875659370987d4490c1c1e56567d7729332fe",
+    "machine": "0x8664",
+    "version": {
+      "productName": "Whale Isle",
+      "fileDescription": "Whale Isle",
+      "productVersion": "0.3.3.0",
+      "fileVersion": "0.3.3",
+      "originalFilename": "",
+      "companyName": "Chisa"
+    },
+    "largeIconSha256": "413f4161b6a3ebca708126a530c653812a3caca07f13d4190e8205281e686629",
+    "smallIconSha256": "281e4e79c569b9974fe84c5400964f899e08c9c312066a34a95bd64254779253",
+    "iconIndex": 0,
+    "whale32MatchesVisuallyReviewedOriginalCiGolden": true,
+    "handlesReleased": true,
+    "largeIconSize": {
+      "width": 32,
+      "height": 32
+    },
+    "smallIconSize": {
+      "width": 16,
+      "height": 16
+    },
+    "referenceImage": "ci-exe-icon-32.png",
+    "referenceImageExactBytesMatched": true,
+    "visualReview": "Freshly extracted index-0 32px PNG matches the reviewed product avatar"
+  },
+  "payloadFiles": [
+    {
+      "bytes": 225594880,
+      "sha256": "dbaf9016cd260d91717f8aaa253875659370987d4490c1c1e56567d7729332fe",
+      "file": "Whale Isle.exe"
+    },
+    {
+      "bytes": 63705746,
+      "sha256": "8dd2c77b58102e6c738aafd12b9895b70da8a2c4b73bee0e00757c44e859b7a2",
+      "file": "resources\\app.asar"
+    },
+    {
+      "bytes": 93580104,
+      "sha256": "ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32",
+      "file": "resources\\node.exe"
+    },
+    {
+      "bytes": 1166144512,
+      "sha256": "3a73173b15ba0500a8cbebb998eb7d82aee1617d26195cf5041e657bb428b992",
+      "file": "resources\\vendor\\deepseek-harness.tar"
+    },
+    {
+      "bytes": 123,
+      "sha256": "06e91c4e5d303f396641566f26ea624eb3e83a2340f5c367c315e962bc3c1435",
+      "file": "resources\\vendor\\deepseek-harness-runtime.json"
+    },
+    {
+      "bytes": 172,
+      "sha256": "34df616d433a08810e78949b6e6e797645ca166730cd798374fa2baac7445fe6",
+      "file": "resources\\vendor\\harness-upstream.json"
+    }
+  ],
+  "staticInspection": {
+    "result": "Pass",
+    "installerExecuted": false,
+    "applicationExecuted": false,
+    "bundledNodeVersionCommandExecuted": true
+  },
+  "verifierCorrection": {
+    "firstResult": "Fail",
+    "firstFailureCode": "pe-whale-icon-proof-failed",
+    "cause": "Verifier compared Windows ProductVersion to three-part package version; actual PE ProductVersion is 0.3.3.0 and FileVersion is 0.3.3",
+    "finalVersionChecks": "ProductVersion exactly 0.3.3.0 and FileVersion exactly 0.3.3",
+    "finalResult": "Pass",
+    "candidateBytesChanged": false
+  },
+  "installedAcceptance": {
+    "installation": "Not Run",
+    "defaultProfileBinding": "Not Run",
+    "automaticLegacyShortcutRecovery": "Not Run",
+    "taskbarPixelsAndPersistence": "Not Run",
+    "protectedQuit": "Not Run",
+    "modelsSave": "Not Run",
+    "filesWorkLoops": "Not Run",
+    "closeButtonAlignment": "Not Run",
+    "composedCorners": "Not Run",
+    "visibleDwmAnimation": "Not Run",
+    "productionP0": "Not Run",
+    "formalProductionSignoffComplete": false,
+    "wholeAcceptancePassed": false
+  },
+  "historicalCandidate": {
+    "candidateRun": 36804159162,
+    "candidateSha": "953bb20a16a0ea8becf63bd5311c1feae7f35279",
+    "taskbarResult": "Fail",
+    "quitResult": "Fail",
+    "promotionEligible": false,
+    "passesInheritedByNewCandidate": false,
+    "originalRecordsPreserved": [
+      "ARTIFACT-PROOF.json",
+      "EXECUTION-PROOF.json"
+    ]
+  },
+  "releasePublished": false
+}

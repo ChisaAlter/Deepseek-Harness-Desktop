@@ -12,6 +12,8 @@ Status: implemented
 
 放宽 `vendor/dsh-whale` 与 `vendor/dshbot` 的 peer 钉为 `^0.1.5-rc.2`（兼容门 `includePrerelease` 下覆盖 0.1.x 后续线），并在桌面测试内用 vendored `app-boot` 的真实 `evaluatePluginCompatibility` 对两份 manifest 建回归。`dsh-usage-panel` 的设置读写移植到新模型：读走 `describe()`（ns 为 profile 条目 id，值为 volatile 字段投影）、写仍走 `update`、事件改 `document-updated` 后以重读取代载荷取值，测试 fake 同步换形。诊断以生产等价 `dsh web` spawn（junction + `--patch` overlay 全量复刻）直接观察激活结果而非静态推断。
 
+保持既有 dshbot 开关契约：随包交付但 `dshbotEnabled` 默认 false；设置 → 界面设置的「机器人（Bots）」（「测试中」）启用后自动重启 Harness，正常及 skip 启动均挂载内置 overlay。关闭时只清旧受管块 / overlay，不校验 vendor、不阻断启动，数据保留；开启时源、声明入口或依赖缺损属于内置组件损坏且阻断启动，skip 不可绕过。
+
 `dshbot` catalog 的落地形态：catalog 七个字段作为插件自身 `Config` 的 `.volatile().hidden()` 字段，`describe()` 将其投影为命名空间 `dsh-bot`（Loader insert id），读路径、revision、`document-updated` 失效全部原生工作。写路径不能走 `settings.update`——`configEditor.edit` 的一致性校验只组态 profile 本地层，overlay insert 不可见即拒写（实测 `Configuration for "dsh-bot" is overridden by a home patch or command-line overlay`）。改为：`catalog-scope` 先把 catalog 原子写入 `$DSH_HOME/dshbot-catalog.json`（tmp+rename，文件名带计数器防同毫秒碰撞），再经 `entry.update({config})` 走 Loader 的 volatile-only 原地提交（`equalExceptVolatile` + `_commitVolatile`，不重启、不触 profile patch），随后一次 `describe()` 发布失效事件。激活时 `internal/status` 钩子先 restore 文件再跑 blob-avatar 迁移；restore 遇坏文件（JSON 损坏、schema 拒绝、合法但非对象）隔离为 `dshbot-catalog.rejected-*` 留证后继续以默认目录运行，不反复 warn。客户端写从 `remote.settings.mutate` 改道插件自有 `/dshbot` RPC（`catalog/items`，沿用 `checkRevision` CAS 与 `{view}` 回执，且显式校验 `items` 为数组——schema `.default([])` 会把缺失值落成空数组清表）。
 
 验收实机又抓出三个 0.1.7 契约漂移与一个持久化缺口，同批修复：
@@ -31,3 +33,5 @@ Status: implemented
 ## Consequences
 
 内置行在 0.1.7-rc.2 下全部通过兼容门并激活，`dshbot` 的 catalog 读写往返已实机验证（UI 建 bot → `/dshbot` RPC → 原子落盘 → 重启 restore → reconcile 抹除后重播种存活 → UI 删除回写，鲸鱼娘设置字段与用量统计/计费写路径同批实证）；`dshbotEnabled` 默认关仍控制挂载，禁用时 overlay 剥离、catalog 文件与 bot 会话均保留。上游合并后再有 peer 钉漂移会在 `npm test` 立刻红。实机 spawn 诊断成为审计 vendored 漂移的固定手段。关联：扩展 `2026-09-23-harness-017-desktop-adaptation` 的适配面到 vendored 一方插件；鲸鱼娘槽位恢复见 `2026-09-23-whale-pet-settings-recovery`。
+
+2026-10-01 对齐[生产安装验收表](../../../qa/production-acceptance-test-cases.md)残留的“默认出现 Bots”表述：其与现行开关和上述实现不符。TC-EXT-007 保持 P0，并要求默认关闭、设置启用 / 自动重启 / 可达、升级迁移、skip、排查归因与数据保全的实际安装版证据。此为文档纠漂，不改变产品默认值、放宽启用后的行为要求或给未执行子路径写 Pass；不能安全造障时仍按原 P0 Blocked / 书面豁免流程处理。
