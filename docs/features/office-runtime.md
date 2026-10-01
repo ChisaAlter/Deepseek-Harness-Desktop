@@ -47,7 +47,7 @@
 
 ## Sources
 
-- Decision: `../decisions/implemented/architecture/2026-09-25-desktop-office-runtime.md`
+- Decision: [桌面文档运行时](../decisions/implemented/architecture/2026-09-25-desktop-office-runtime.md)
 - Plan: `docs/superpowers/plans/2026-09-25-upstream-adoption-plan.md` §5/P3/F7
 - Engine resolution: `vendor/deepseek-harness/scripts/libreoffice-packages.mjs` + `prebuilds.json`
 - Upstream composition: `vendor/deepseek-harness/apps/desktop-host/src/office.ts`

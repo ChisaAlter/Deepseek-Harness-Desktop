@@ -1,107 +1,100 @@
 #!/usr/bin/env node
-// Archive a decision record in one command:
-//   node scripts/archive-decision.mjs docs/decisions/implemented/<class>/<slug>.md [--superseded-by <new record>]
-// Steps: move the triplet to archived/<class>/, insert `Archived: <today>`
-// below Status in both md sides, rewrite inbound links across docs/.cursor/
-// root md, re-record the i18n sidecars and the sealed manifest. With
-// --superseded-by, inserts a `Supersedes:` pointer line into BOTH sides of
-// the replacement record (archived notes stay frozen — the pointer lives in
-// the successor, per contract) and re-records that pair too.
-import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
+// Validate the complete archive operation and restore originals on failure.
+import { existsSync, mkdirSync, readdirSync, writeFileSync, unlinkSync } from 'node:fs'
 import { join, dirname, basename, relative, sep } from 'node:path'
 import { repoRoot, walk, rel, read, isMain } from './lib/gate.mjs'
-import { writeManifest } from './verify-archived-decisions.mjs'
-import { writePair } from './verify-translation-pairing.mjs'
-
-const TODAY = new Date().toISOString().slice(0, 10)
-
-function stemOf(p) {
-  return p.replace(/\.en\.md$/, '').replace(/\.i18n\.yaml$/, '').replace(/\.md$/, '')
+import { writeManifest, collect as sealedViolations } from './verify-archived-decisions.mjs'
+import { writePair, pairs } from './verify-translation-pairing.mjs'
+const stemOf = p => p.replace(/\.en\.md$|\.i18n\.yaml$|\.md$/, '')
+const RECORD = /^docs\/decisions\/implemented\/[a-z-]+\/\d{4}-\d{2}-\d{2}-[a-z0-9-]+$/
+function members(root, stem) {
+  if (!existsSync(join(root, `${stem}.md`))) throw new Error(`missing record ${stem}.md`)
+  const paired = ['.en.md', '.i18n.yaml'].some(ext => existsSync(join(root, stem + ext))) || read(join(root, `${stem}.md`)).includes(`${basename(stem)}.en.md`)
+  const extensions = paired ? ['.md', '.en.md', '.i18n.yaml'] : ['.md']
+  for (const ext of extensions) if (!existsSync(join(root, stem + ext))) throw new Error(`missing triplet member ${stem}${ext}`)
+  return extensions
 }
-
 export function archive(root, targetRel, { supersededBy } = {}) {
-  const norm = targetRel.replace(/\\/g, '/')
-  const m = norm.match(/^docs\/decisions\/(implemented|rejected)\/([^/]+)\/(.+)$/)
-  if (!m) throw new Error(`not an archivable record path: ${targetRel} (needs docs/decisions/{implemented|rejected}/<class>/<slug>.*)`)
-  const [, life, cls, file] = m
-  const slug = stemOf(file)
-  const srcDir = `docs/decisions/${life}/${cls}`
-  const dstDir = `docs/decisions/archived/${cls}`
-  const moved = []
-
-  for (const ext of ['.md', '.en.md', '.i18n.yaml']) {
-    const src = join(root, srcDir, slug + ext)
-    if (!existsSync(src)) throw new Error(`missing triplet member ${srcDir}/${slug}${ext}`)
-    mkdirSync(join(root, dstDir), { recursive: true })
-    const dst = join(root, dstDir, slug + ext)
-    if (existsSync(dst)) throw new Error(`already exists: ${dstDir}/${slug}${ext}`)
-    renameSync(src, dst)
-    moved.push(`${dstDir}/${slug}${ext}`)
-  }
-
-  for (const ext of ['.md', '.en.md']) {
-    const p = join(root, dstDir, slug + ext)
-    const lines = read(p).replace(/\r\n/g, '\n').split('\n')
-    const si = lines.findIndex((l) => l.startsWith('Status: '))
-    if (si === -1) throw new Error(`${dstDir}/${slug}${ext}: no Status line`)
-    if (!/^Archived: /.test(lines[si + 1] ?? '')) lines.splice(si + 1, 0, '', `Archived: ${TODAY}`)
-    writeFileSync(p, lines.join('\n'))
-  }
-
-  // Inbound links: rewrite `implemented|rejected/<class>/<slug>` targets to
-  // `archived/<class>/<slug>` in every markdown file outside the moved files.
-  let rewired = 0
-  const oldSeg = `${life}/${cls}/${slug}`
-  const newSeg = `archived/${cls}/${slug}`
-  const rootMds = readdirSync(root).filter((f) => f.endsWith('.md')).map((f) => join(root, f))
-  for (const p of [...walk(join(root, 'docs')), ...walk(join(root, '.cursor')), ...rootMds]) {
-    if (!p.endsWith('.md') && !p.endsWith('.mdc')) continue
-    const text = read(p)
-    if (!text.includes(oldSeg)) continue
-    writeFileSync(p, text.replaceAll(oldSeg, newSeg))
-    rewired++
-  }
-
-  if (supersededBy) {
-    const supNorm = supersededBy.replace(/\\/g, '/')
-    for (const ext of ['.md', '.en.md']) {
-      const p = join(root, stemOf(supNorm) + ext)
-      if (!existsSync(p)) throw new Error(`--superseded-by triplet member missing: ${stemOf(supNorm)}${ext}`)
-      const text = read(p)
-      const pointer = `> Supersedes [${slug}](${relative(dirname(stemOf(supNorm)), `${dstDir}/${slug}`).split(sep).join('/')}${ext})`
-      if (!text.includes('> Supersedes ')) {
-        const lines = text.split('\n')
-        const sw = lines.findIndex((l) => /^\[?中文.*\||.*\| English$/.test(l.trim()) && l.includes('|'))
-        lines.splice(sw > -1 ? sw + 1 : 4, 0, '', pointer)
-        writeFileSync(p, lines.join('\n'))
-      }
+  const source = stemOf(targetRel.replaceAll('\\', '/'))
+  if (!RECORD.test(source)) throw new Error(`not an archivable record path: ${targetRel} (implemented only; rejected records keep their verdict)`)
+  const destination = source.replace('/implemented/', '/archived/')
+  const extensions = members(root, source)
+  const successor = supersededBy && stemOf(supersededBy.replaceAll('\\', '/'))
+  if (successor && (!RECORD.test(successor) || successor === source)) throw new Error('Invalid --superseded-by record')
+  const successorExtensions = successor ? members(root, successor) : []
+  if (sealedViolations(root).length) throw new Error('Existing archive seal is invalid; refusing to reseal changed history')
+  for (const ext of extensions) if (existsSync(join(root, destination + ext))) throw new Error(`already exists: ${destination}${ext}`)
+  const edits = new Map()
+  const moved = extensions.map(ext => destination + ext)
+  for (const ext of extensions) {
+    let content = read(join(root, source + ext))
+    if (ext.endsWith('.md')) {
+      const lines = content.replace(/\r\n/g, '\n').split('\n')
+      if (lines[2] !== 'Status: implemented') throw new Error(`${source}${ext}: expected Status: implemented`)
+      lines.splice(3, 0, '', `Archived: ${new Date().toISOString().slice(0, 10)}`)
+      content = lines.join('\n')
     }
-    writePair(root, dirname(stemOf(supNorm)).split(sep).join('/'), basename(stemOf(supNorm)))
+    edits.set(source + ext, null)
+    edits.set(destination + ext, content)
   }
-
-  writePair(root, dstDir, slug)
-  writeManifest(root)
+  let rewired = 0
+  const oldSeg = source.slice('docs/decisions/'.length)
+  const newSeg = destination.slice('docs/decisions/'.length)
+  const rootMds = readdirSync(root).filter(f => f.endsWith('.md')).map(f => join(root, f))
+  const files = [...walk(join(root, 'docs')), ...walk(join(root, '.cursor')), ...walk(join(root, '.devin/skills')), ...rootMds]
+  for (const p of files) {
+    const file = rel(root, p)
+    if (!/\.(md|mdc)$/.test(file) || /^docs\/(decisions\/archived|superpowers|qa\/results)\//.test(file) || edits.has(file)) continue
+    const content = read(p)
+    if (content.includes(oldSeg)) { edits.set(file, content.replaceAll(oldSeg, newSeg)); rewired++ }
+  }
+  for (const file of ['scripts/i18n-pairs.manifest.json', 'scripts/i18n-pending.manifest.json']) {
+    if (!existsSync(join(root, file))) continue
+    const content = read(join(root, file))
+    if (content.includes(source)) edits.set(file, content.replaceAll(source, destination))
+  }
+  for (const ext of successorExtensions.filter(ext => ext.endsWith('.md'))) {
+    const file = successor + ext
+    const targetExt = ext === '.en.md' && extensions.includes(ext) ? ext : '.md'
+    const link = relative(dirname(successor), destination + targetExt).split(sep).join('/')
+    const pointer = `> Supersedes [${basename(source)}](${link})`
+    const content = edits.get(file) ?? read(join(root, file))
+    if (!content.includes(pointer)) edits.set(file, content.replace(/\n## Problem/, `\n${pointer}\n\n## Problem`))
+  }
+  const originals = new Map()
+  const remember = file => { if (!originals.has(file)) originals.set(file, existsSync(join(root, file)) ? read(join(root, file)) : null) }
+  const put = (file, content) => {
+    const path = join(root, file)
+    if (content === null) { if (existsSync(path)) unlinkSync(path) }
+    else { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, content) }
+  }
+  try {
+    for (const [file, content] of edits) { remember(file); put(file, content) }
+    for (const { dir, stem } of pairs(root)) {
+      const base = `${dir ? dir + '/' : ''}${stem}`
+      if (!edits.has(`${base}.md`) && !edits.has(`${base}.en.md`)) continue
+      remember(`${base}.i18n.yaml`)
+      writePair(root, dir, stem)
+    }
+    remember('scripts/archived-decisions.manifest.json')
+    writeManifest(root)
+  } catch (error) {
+    for (const [file, content] of [...originals].reverse()) put(file, content)
+    throw error
+  }
   return { moved, rewired }
 }
-
 if (isMain(import.meta.url)) {
   try {
+    const args = process.argv.slice(2)
+    const option = name => { const i = args.indexOf(name); if (i < 0) return; if (!args[i + 1] || args[i + 1].startsWith('--')) throw new Error(`${name} needs a value`); return args[i + 1] }
+    option('--root')
     const root = repoRoot()
-    const args = process.argv.slice(2).filter((a) => a !== '--root' && a !== root)
-    const supIdx = args.indexOf('--superseded-by')
-    const supersededBy = supIdx > -1 ? args[supIdx + 1] : undefined
-    const target = args.find((a, i) => !a.startsWith('--') && i !== supIdx + 1)
-    if (!target) {
-      console.error('usage: archive-decision.mjs <record path> [--superseded-by <new record>]')
-      process.exit(2)
-    }
-    const relTarget = rel(root, join(root, target))
-    const { moved, rewired } = archive(root, relTarget, { supersededBy })
-    for (const f of moved) console.log(`moved    ${f}`)
-    console.log(`rewired  ${rewired} file(s) pointing at the record`)
-    console.log('sealed   scripts/archived-decisions.manifest.json — run npm run doc-sync')
-  } catch (e) {
-    console.error(`archive-decision: ${e.message}`)
-    process.exit(1)
-  }
+    const supersededBy = option('--superseded-by')
+    const target = args.find((arg, i) => !arg.startsWith('--') && !['--root', '--superseded-by'].includes(args[i - 1]))
+    if (!target) throw new Error('usage: archive-decision.mjs <record path> [--superseded-by <record>] [--root <dir>]')
+    const { moved, rewired } = archive(root, rel(root, join(root, target)), { supersededBy })
+    for (const file of moved) console.log(`moved    ${file}`)
+    console.log(`rewired  ${rewired} file(s); archive sealed — run npm run doc-sync`)
+  } catch (error) { console.error(`archive-decision: ${error.message}`); process.exitCode = 1 }
 }

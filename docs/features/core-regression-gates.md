@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `core-regression-gates` |
 | **status** | `active` |
+| **last verified (release process)** | 2026-10-02 — 发布策略与工作流定向验证、文档门禁通过，详见 [发布流程验证记录](release-process.md)。新 CI 工作流尚未在 GitHub 执行，不继承历史候选结果。 |
 | **last verified** | 2026-09-28 — 候选 b061501e5b4 的 Desktop tests 36460670559 全绿：Windows 2768/6 跳过、macOS 2763/11 跳过，均无失败；GUI 11049/1 跳过、核心 5009/5 跳过。Node 22 本地 2772/2 跳过；同 SHA 候选构建 36460702057 与资产校验通过。完整生产安装验收仍未完成，见发布准备报告。 |
 
 ## User paths
@@ -13,7 +14,8 @@
 
 ## Invariants
 
-- 复用既有 Desktop tests workflow，不修改发布或权限策略。
+- Desktop tests 保留完整源码矩阵；治理和生成目录前置，纯文档/验收记录提交只执行快速门禁。候选必须具有同 SHA 实际执行成功的目标平台与共享 job，不把 skipped 当成功。
+- 晋级资格按 [发布操作流程](../handbook/modules/release-process.md) 判断；Windows 交付要求快速、Windows 与共享 job 成功，交付 DMG 时额外要求 macOS。
 - 使用真实关键链路测试，不以源码字符串存在代替行为验证。
 - 冷历史测试夹具必须提供生产控制器声明的 agents 依赖。
 - 客户端目录与第三方声明各用独立 CI 步骤检查，后续成功不得覆盖前一个失败退出码。

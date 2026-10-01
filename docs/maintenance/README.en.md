@@ -2,53 +2,65 @@
 
 [中文](README.md) | English
 
-This repository's executable governance system: rules are written for agents to read, decisions settle as managed documents, and every mechanically checkable discipline is a script. This file is the single overview; each layer's details live in its own README.
+The maintenance system helps the next change happen correctly. It preserves current contracts, consequential decisions and reviewable evidence; document counts, test counts and process repetitions are not quality measures. This file defines current maintenance policy; publication follows the [release process](../handbook/modules/release-process.md).
 
-## Five layers
+## When it matters
 
-| Layer | Location | Role | Gates |
-| --- | --- | --- | --- |
-| Contract | [docs/features/](../features/README.md) + `.cursor/rules/` | Product behavior contracts: user paths, invariants, allowed touch, gates | `verify-feature-cards`, `verify-rules-sync` |
-| Decision | [docs/decisions/](../decisions/README.en.md) | The why: motivation, rejected alternatives, cost; lifecycle encoded in the path | `verify-decision-tree`, `verify-decision-format`, `verify-archived-decisions` |
-| Narrative | [docs/postmortem/](../postmortem/README.md) | Incident narratives — the only tier allowed to tell stories | none (narrative is not gated) |
-| Locale | [docs/i18n/](../i18n/README.en.md) | Bilingual pairing: triplets, blob hashes, structural signature, pending ratchet | `verify-translation-pairing` |
-| Execution | `scripts/` + `.github/` | Gate aggregation, git hooks, merge driver, PR/issue templates, dependabot | `run-gates.mjs`, `verify-md-links` |
+| Moment | Question | Necessary output |
+| --- | --- | --- |
+| Before a change | What did the user observe, which module owns it, and what is promised? | Read the relevant feature card and handbook; define reproduction and direct observation |
+| During a change | Does a lasting contract change, and why choose this implementation? | Update affected facts; record decisions only for lasting tradeoffs |
+| Before commit and release | Does the fix work, are relevant risks covered, and does the package match the evidence? | Behavioral validation and CI; installed acceptance for the original release package |
+| After an incident or at handoff | Why was this missed, how will it be detected, and what remains unresolved? | Keep the shortest reproduction, verification entry and current status; review systemic incidents when useful |
 
-Agent entry points: root [AGENTS.md](../../AGENTS.md) holds the standing orders; `.devin/skills/` carries `dshd-maintenance` (decision-record operations) and `dshd-checks` (change surface → minimal check set) as executable procedures.
+An ordinary fix does not require a proposal, decision and postmortem before work starts. Proceed with already authorized work; file lists locate code and are not additional approval boundaries. Only missing material product choices, irreversible actions or actual release signoff require the corresponding decision.
 
-## Knowledge reflow
+## One maintained home per fact
 
-```
-incident → docs/postmortem/
-         → guardrails: tests / rules / gates
-         → AGENTS.md / docs/features/ / .cursor/rules/
-         → scripts/verify-* + *.test.mjs
-         → .devin/skills/<name>/SKILL.md
-         → rule links back to owning docs/decisions/ record
-```
+| Content | Authoritative location | Update trigger |
+| --- | --- | --- |
+| User paths and lasting invariants | [Feature cards](../features/README.md) | A public contract or real verification result changes |
+| Implementation entry, architecture and operations | [Handbook](../handbook/README.md) | Current implementation or operation changes |
+| Consequential tradeoffs and reasons | [Decision records](../decisions/README.en.md) | A lasting architecture, compatibility, data-format or release-policy decision changes |
+| Incident timeline and missed detection | [Postmortems](../postmortem/README.md), existing issue / QA records | Systemic, costly or recurring failures need evidence across changes |
+| Agent entry points and hints | Root AGENTS, maintenance skills, rule links | Navigation or execution principles change |
 
-The reverse holds too: before a new decision, search `rejected/` and the active tree — do not re-propose a rejected route.
+Read the relevant module first; traversing the entire decision history is not required. Update an existing record for the same decision. Ordinary bug fixes, mechanical edits and implementation changes within an existing contract need only a commit or PR explanation and validation. New internal decisions default to one language; keep existing bilingual records maintained and synchronize public docs under the [pairing rules](../i18n/README.en.md).
 
-## Commands
+Feature cards hold current facts, the latest relevant verification and evidence links, without accumulating release journals. Rule files keep necessary hints and card entry points. Resolve contradictions instead of expanding work because an old file says “must.” New decisions may supersede old ones; historical evidence retains its original success and failure boundaries.
+
+## How fixes prevent recurrence
+
+1. Pin the specific failure, version, data and environment. Distinguish a regression, an earlier fix that never closed the issue, similar symptoms with another cause, and observer errors. Mark unresolved attribution as unknown.
+2. Keep an executable reproduction in the owning module and assert observable behavior. Add automatable examples to existing tests; use the original defective revision or a controlled defect restoration to show that the test fails. If this comparison is unavailable, disclose the gap instead of claiming recurrence prevention.
+3. Run the same scenario and directly relevant boundaries after fixing it. Confirm discovery by the actual CI command, without skip or environment bypasses. Source strings, mocked calls and property assertions establish local mechanisms, not the final observable result.
+4. Preserve real-environment validation for installation, upgrades, system caches, permissions and timing. Record clean starts and polluted states separately. Keep an issue open while its failure remains. Change rules or record a decision only when the missed detection exposes a lasting policy issue.
+
+When failures recur, repair reproduction coverage or execution wiring first; another document does not close the issue. Stop repeating validation without a new change, failure or uncovered risk. Keep detailed logs in existing issue / QA records and necessary fixtures and rationale in tests; do not add another bug ledger.
+
+## What automated checks prove
+
+Structural gates check decision layout, format, archive seals, card fields and references. The compatibility name `verify-rules-sync` checks actual Markdown links, not semantic agreement. Pairing checks establish structural and confirmation-hash consistency, not translation accuracy. None certifies product behavior, installed builds or release quality.
+
+Module tests and CI check behavior, real environments check platform interactions, and the release process governs publication. Report these layers separately; green in one does not imply green in another. CI checks its exact checkout. Local hooks inspect the working directory as early feedback, not proof of partially staged content or commits being pushed.
+
+## Entry points
 
 ```sh
-npm run check:governance    # structural gates: decision tree/format/archive seal/cards/rules sync/remote flag
-npm run doc-sync            # full doc gates: decision tree/format/archive seal/cards/rules sync/links/pairing
-node scripts/verify-translation-pairing.mjs --list          # state of every pair
-node scripts/verify-translation-pairing.mjs --write <path>  # re-record after editing either side
-node scripts/verify-archived-decisions.mjs --write          # re-seal when archiving
-node scripts/archive-decision.mjs <record> [--superseded-by <new>]  # archive in one step
-node scripts/resolve-pairing-conflicts.mjs                  # clean up i18n merge conflicts
-DSHD_GATE_FAIL_FAST=1 npm run doc-sync                      # stop at first red
+npm run check:governance
+npm run doc-sync
+node scripts/install-git-integrations.mjs --check
+node scripts/install-git-integrations.mjs
+node scripts/verify-translation-pairing.mjs --write <path>
+node scripts/archive-decision.mjs <record> --superseded-by <new-record>
 ```
 
-`npm install` runs `prepare`, which installs the git integrations: `core.hooksPath` points at `scripts/git-hooks/` (pre-commit runs the structural gates, pre-push runs doc-sync), and `*.i18n.yaml` merges through the `dshd-translation-pairing` driver.
+Select local checks for the change and stop repeating suites after relevant checks pass. Maintenance checks are inexpensive; retain full CI documentation checks without a new cache or approval framework. Refresh pairing confirmation only after reviewing both sides; `--list` displays an inventory and is not a passing result.
 
-## Boundaries
+The prepare step of `npm install` attempts to install hooks and the merge driver; `--ignore-scripts` and source archives do not guarantee installation. Verify with `--check` and run the installer directly if missing, without reinstalling dependencies. Existing custom hooks / drivers are preserved for explicit integration. Pre-commit runs structural checks and pre-push runs documentation checks, without full product tests or builds.
 
-Desktop repository documentation has no word-count ceiling; length follows the content required. See [removing documentation word-count gates](../decisions/implemented/process/2026-09-29-remove-doc-word-limits.en.md).
+## History and scope
 
-- `docs/superpowers/` (process drafts), `docs/qa/results/` (historical acceptance records), and `vendor/` (upstream's own governance) are outside link and pairing checks.
-- External PRs and issues are welcome: see [CONTRIBUTING.en.md](../../CONTRIBUTING.en.md); cards and rules are maintainer-finished.
-- This system governs repository maintenance, not product UI — product changes go through feature cards and [design-language.en.md](../design-language.en.md).
-- No generated board or `// Note:` code anchors yet — the record count does not need an index; add them on the upstream build-board / check-note-anchors pattern when needed, not preemptively.
+`docs/superpowers/`, `docs/qa/results/` and sealed decisions are outside current link repair; sealed content retains hash protection. Archival handles implemented decisions, with or without translations. Failed preflight moves nothing and execution errors restore originals. Rejected proposals remain rejected instead of being relabeled implemented.
+
+Document length follows facts, without page or alternative-count quotas. Upstream governance applies when changing upstream-owned content; external contributions follow [CONTRIBUTING](../../CONTRIBUTING.en.md). Rationale and limitations are in the [maintenance feedback decision](../decisions/implemented/process/2026-10-02-maintenance-feedback.md).

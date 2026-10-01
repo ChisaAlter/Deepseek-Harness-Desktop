@@ -6,10 +6,10 @@ import { join, dirname } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 import { repoRoot, runGate, fail, walk, isMain, read } from './lib/gate.mjs'
 
-const SCOPE_DIRS = ['docs', '.github']
+const SCOPE_DIRS = ['docs', '.github', '.devin/skills/dshd-maintenance', '.devin/skills/dshd-checks']
 // Frozen historical/process docs are not link-maintained (they describe a
 // point-in-time state; plans/QA results age like upstream archived notes).
-const SKIP = /^(docs\/superpowers|docs\/qa\/results)\//
+const SKIP = /^(docs\/superpowers|docs\/qa\/results|docs\/decisions\/archived)\//
 const LINK = /!?\[[^\]]*\]\(([^)\s]+)\)/g
 
 function slugify(heading) {

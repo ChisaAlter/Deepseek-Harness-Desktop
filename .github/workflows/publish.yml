@@ -15,10 +15,19 @@ on:
         description: SHA256 of the Windows Setup executable from the candidate run
         required: true
         type: string
+      acceptance_commit:
+        description: Full main commit SHA containing docs/qa/releases/<tag>/<candidate_run_id>.json
+        required: true
+        type: string
 
 permissions:
   contents: write
   actions: read
+
+concurrency:
+  group: publish-release
+  queue: max
+  cancel-in-progress: false
 
 jobs:
   promote:
@@ -43,14 +52,21 @@ jobs:
           conclusion=$(jq -r '.conclusion' <<<"$run_json")
           event=$(jq -r '.event' <<<"$run_json")
           workflow_path=$(jq -r '.path' <<<"$run_json")
-          candidate_sha=$(jq -r '.head_sha' <<<"$run_json")
+          workflow_sha=$(jq -r '.head_sha' <<<"$run_json")
           head_branch=$(jq -r '.head_branch' <<<"$run_json")
           [[ "$status" == completed && "$conclusion" == success ]] || { echo "Candidate run must be completed and successful" >&2; exit 1; }
           [[ "$event" == workflow_dispatch ]] || { echo "Candidate run must be a manual workflow_dispatch" >&2; exit 1; }
           [[ "$workflow_path" == .github/workflows/release.yml ]] || { echo "Candidate run must come from release.yml" >&2; exit 1; }
           [[ "$head_branch" == main ]] || { echo "Candidate run must come from the main branch" >&2; exit 1; }
-          [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Candidate run has no valid commit SHA" >&2; exit 1; }
+          # Workflow head may include newer documentation. The frozen plan
+          # records the explicit commit checked out by every packaging job.
+          mkdir -p "$RUNNER_TEMP/release-evidence"
+          gh run download "$CANDIDATE_RUN_ID" --name Whale-Isle-release-plan --dir "$RUNNER_TEMP/release-evidence" --repo "$GITHUB_REPOSITORY"
+          candidate_sha=$(jq -r '.candidateSha' "$RUNNER_TEMP/release-evidence/release-plan.json")
+          plan_run=$(jq -r '.runId' "$RUNNER_TEMP/release-evidence/release-plan.json")
+          [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ && "$plan_run" == "$CANDIDATE_RUN_ID" ]] || { echo 'Candidate plan identity mismatch'; exit 1; }
           echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "workflow_sha=$workflow_sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout the exact candidate commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,6 +81,10 @@ jobs:
             package.json
             scripts/check-release-version.mjs
             scripts/check-release-assets.mjs
+            scripts/check-release-ci.mjs
+            scripts/check-release-acceptance.mjs
+            scripts/release-plan.mjs
+            docs/qa/production-acceptance-test-cases.md
           sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -84,17 +104,34 @@ jobs:
       - name: Verify tag matches candidate package version
         run: node scripts/check-release-version.mjs "${{ inputs.release_tag }}"
 
-      - name: Require green Desktop tests for the exact candidate SHA
+      - name: Inspect platforms and require eligible CI for the exact candidate SHA
+        id: platforms
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
           set -euo pipefail
-          count=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/test.yml/runs?head_sha=$CANDIDATE_SHA&status=success&per_page=100" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
-          if [ "${count:-0}" -lt 1 ]; then
-            echo "No green test.yml run found for $CANDIDATE_SHA." >&2
-            exit 1
-          fi
+          mac_count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "Whale-Isle-macos-arm64" and .expired == false)] | length')
+          include_macos=false
+          if [ "$mac_count" -gt 0 ]; then include_macos=true; fi
+          echo "include_macos=$include_macos" >> "$GITHUB_OUTPUT"
+          node scripts/check-release-ci.mjs "$GITHUB_REPOSITORY" "$CANDIDATE_SHA" "$include_macos"
+
+      - name: Download the frozen plan and immutable acceptance record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          ACCEPTANCE_COMMIT: ${{ inputs.acceptance_commit }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$ACCEPTANCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo 'acceptance_commit must be a full SHA'; exit 1; }
+          relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$ACCEPTANCE_COMMIT...main" --jq .status)
+          [[ "$relation" == ahead || "$relation" == identical ]] || { echo 'Acceptance must be committed on main'; exit 1; }
+          mkdir -p evidence-out
+          cp "$RUNNER_TEMP/release-evidence/release-plan.json" evidence-out/release-plan.json
+          gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/docs/qa/releases/$RELEASE_TAG/$CANDIDATE_RUN_ID.json?ref=$ACCEPTANCE_COMMIT" > evidence-out/release-acceptance.json
 
       - name: Download Windows artifacts from the supplied candidate run
         env:
@@ -103,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist-out
-          gh run download "$CANDIDATE_RUN_ID" --name Whale-Isle-windows-x64 --dir dist-out
+          gh run download "$CANDIDATE_RUN_ID" --name Whale-Isle-windows-x64 --dir dist-out --repo "$GITHUB_REPOSITORY"
 
       - name: Verify candidate assets, metadata and Setup SHA256
         env:
@@ -138,14 +175,27 @@ jobs:
           mac_count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "Whale-Isle-macos-arm64" and .expired == false)] | length')
           if [ "$mac_count" -gt 0 ]; then
             mkdir -p macos-out
-            gh run download "$CANDIDATE_RUN_ID" --name Whale-Isle-macos-arm64 --dir macos-out
+            gh run download "$CANDIDATE_RUN_ID" --name Whale-Isle-macos-arm64 --dir macos-out --repo "$GITHUB_REPOSITORY"
           fi
+
+      - name: Validate installed acceptance against the original assets
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          INCLUDE_MACOS: ${{ steps.platforms.outputs.include_macos }}
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import fs from "node:fs"; const plan=JSON.parse(fs.readFileSync("evidence-out/release-plan.json")); if (plan.platforms.includes("macos-arm64") !== (process.env.INCLUDE_MACOS === "true")) process.exit(1);'
+          node scripts/check-release-acceptance.mjs verify evidence-out/release-plan.json evidence-out/release-acceptance.json dist-out macos-out
 
       - name: Build checksums and provenance notes
         env:
           CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
           CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
           RELEASE_TAG: ${{ inputs.release_tag }}
+          ACCEPTANCE_COMMIT: ${{ inputs.acceptance_commit }}
+          WORKFLOW_SHA: ${{ steps.candidate.outputs.workflow_sha }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -165,15 +215,19 @@ jobs:
           cat .github/release-notes.md > release-body.md
           printf '\n\n---\n\n' >> release-body.md
           cat .github/release-notes.en.md >> release-body.md
+          cat acceptance-notes.md >> release-body.md
           {
             printf '\n\n## Release provenance\n\n'
             printf -- '- Release tag: `%s`\n' "$RELEASE_TAG"
             printf -- '- Candidate workflow: `release.yml` run `%s`\n' "$CANDIDATE_RUN_ID"
             printf -- '- Candidate commit: `%s`\n' "$CANDIDATE_SHA"
+            printf -- '- Build workflow commit: `%s`\n' "$WORKFLOW_SHA"
+            printf -- '- Acceptance record commit: `%s`\n' "$ACCEPTANCE_COMMIT"
             printf -- '- Verified Windows Setup SHA256: `%s`\n' "$setup_sha256"
             printf -- '- Release body combines the Chinese and English release notes above.\n'
             printf -- '- Assets were downloaded from that candidate run; this promotion does not rebuild them.\n'
           } >> release-body.md
+          sha512sum evidence-out/release-plan.json evidence-out/release-acceptance.json | sed 's@evidence-out/@@' >> dist-out/SHA512SUMS.txt
 
       - name: Re-verify Windows assets immediately before publication
         env:
@@ -202,8 +256,10 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
+          current_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          node scripts/check-release-version.mjs "$RELEASE_TAG" "$current_tag"
           shopt -s nullglob
-          assets=(dist-out/Whale-Isle-Setup-*.exe dist-out/Whale-Isle-Setup-*.exe.blockmap macos-out/Whale-Isle-*.dmg dist-out/latest.yml dist-out/SHA512SUMS.txt)
+          assets=(dist-out/Whale-Isle-Setup-*.exe dist-out/Whale-Isle-Setup-*.exe.blockmap macos-out/Whale-Isle-*.dmg dist-out/latest.yml dist-out/SHA512SUMS.txt evidence-out/release-plan.json evidence-out/release-acceptance.json)
           (( ${#assets[@]} >= 4 )) || { echo "Release assets are incomplete" >&2; exit 1; }
           gh release create "$RELEASE_TAG" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \

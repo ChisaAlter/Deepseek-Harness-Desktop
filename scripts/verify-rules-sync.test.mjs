@@ -20,3 +20,12 @@ test('a product rule with no card link or a dead link fails', (t) => {
   assert.match(v, /a-product.*must anchor a card/)
   assert.match(v, /b-product.*missing card/)
 })
+
+test('an existing card in the label cannot conceal a wrong destination or replace a link', (t) => {
+  for (const content of ['Full card: [docs/features/x.md](../../missing.md)', 'docs/features/x.md']) {
+    const root = makeFixture(t, { '.cursor/rules/x-product.mdc': content, 'docs/features/x.md': '# X\n' })
+    assert.match(collect(root).join('\n'), /must anchor a card/)
+  }
+  const root = makeFixture(t, { '.cursor/rules/x-product.mdc': '[契约](../../docs/features/x.md)', 'docs/features/x.md': '# X\n' })
+  assert.deepEqual(collect(root), [])
+})

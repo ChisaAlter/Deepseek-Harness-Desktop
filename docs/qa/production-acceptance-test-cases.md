@@ -1,8 +1,8 @@
 # Deepseek-Harness-Desktop 生产交付实机验收用例
 
-面向 **GitHub Actions 打出的 Windows x64 安装包** 的必过验收。macOS arm64 有机则测，不阻塞本轮 Windows 门禁。
+面向 **GitHub Actions 打出的安装包** 的完整回归用例库。当前执行和放行规则见 [发布操作流程](../handbook/modules/release-process.md)；本文件保存具体步骤及历史记录。macOS 仅在交付 DMG 时必须完成对应实机验收。
 
-**每次对外发布前必须对本表走完一遍。** 测的 Setup 必须与即将上传到 GitHub Release 的文件 **同一 SHA256**。源码 `qa:*`、本机 `npm run dist`、`qa:packaged` **都不能**给本表打 Pass，也不能代替走表。
+**每版执行固定核心集与候选影响计划选中的场景；跨模块、依赖、上游或未知源码变化执行完整库的适用场景。** Setup 必须与最终 Release **同一 SHA256**。源码 `qa:*`、本机 dist、unpacked 冒烟不能替代正式安装结果。未选用例属于本轮未执行，不伪记 Pass；历史 P0/P1/P2 是覆盖优先级，缺陷严重度按实际用户影响判断。
 
 ---
 
@@ -27,7 +27,7 @@
 | 网络 | 可访问模型网关与壁纸源（Bing / Wallhaven） |
 | 账号 | 无需产品登录；模型密钥见 §0.4 |
 
-**发布链约束：** 先手动运行 `release.yml` 的 `workflow_dispatch` 生成候选 artifact，记录 candidate run ID、候选 commit SHA 与 Setup SHA256；下载并对该批文件完成本表和 §16 签字后，才能手动运行 `publish.yml`，传入 candidate run ID、目标 `vMAJOR.MINOR.PATCH` tag 与已验收的 Setup SHA256。晋级只下载并发布原候选字节，不重新构建；先打 tag 或另起 workflow 生成新包再测，**不算发布前验收**。
+**发布链约束：** `release.yml` 先检查同 SHA 的相关 CI，再生成影响计划及原始 artifact。对该候选完成核心与影响场景，将脱敏结果和签字写入 `docs/qa/releases/v<version>/<run-id>.json`，提交到 main。`publish.yml` 接收 candidate run ID、tag、Setup SHA256 和报告完整提交 SHA，校验后晋级原始字节，不重新构建；报告提交不替换候选源码身份。
 
 ### 0.2 非法证据（出现则该格不得 Pass，整份报告不得勾可交付）
 
@@ -37,7 +37,7 @@
 - 只测 `config.json` 启动工作区，不打开 harness `storages/workspace.json` 里登记的兄弟目录
 - 源码 Electron 双开顶替「已装快捷方式第二次启动」
 
-**冲突条款：** 源码套件全绿而本表任一条 P0 Fail ⇒ **源码套件有漏洞**，同时本表 Fail，禁止解释成「源码没问题、只是安装包坑」。本机 dist 绿而 CI 包红 ⇒ 本机包无效，不得把本机包当 Release。
+**失败归因：** 安装版用户路径真实失败必须记录产品缺陷，源码绿灯不能否定它；先排除选择器、观察器和环境问题，再评价测试覆盖漏洞。工具或环境故障记 Blocked，原因未知保持阻塞。本机 dist 不能代替 CI 包。
 
 ### 0.3 缺陷分级与发版硬门禁
 
@@ -48,13 +48,13 @@
 | **Major** | 次要路径坏、可绕过、文案严重误导 | 发版需书面豁免 |
 | **Minor** | 视觉/动效/文案瑕疵 | 可进发版备注 |
 
-**每次发布前**（GitHub Release 或分发该 SHA 的 Setup）：先由 `release.yml` 产出候选，记录 candidate run ID、commit SHA、artifact 名和 Setup SHA256；再对 **该 CI SHA** 走完本表，写下 `docs/qa/results/<日期>/` 执行报告，填 §16 且勾「Release 将上传同一 SHA」。最后只能用 `publish.yml` 晋级这次候选。没有这份绑定 CI SHA 的报告，**禁止发版**。
+**每次发布前**：执行该 CI 候选计划，填写唯一 JSON 报告与真实签字，只用 `publish.yml` 晋级。缺少绑定候选 SHA/run/资产摘要的报告禁止发版；§15/§16 的旧签字仅作历史，不要求重填另一份全表。
 
-**「可交付」= 全部 P0 = Pass（或合法 Blocked+书面豁免），且 §16 绑定 CI artifact SHA。** dshbot 已回归桌面内置：TC-EXT-007 保持 **P0**（随包交付、默认关闭；在设置中启用后必须自动重启 Harness 并出现 Bots 页签，无需安装）。本条与 [dshbot feature 卡](../features/dshbot.md)的现行开关契约一致，不将默认关闭判为缺包，也不把启用后的入口缺失判为可接受。当前没有远程书面豁免条。P1 失败记入发布说明或豁免单。P2 记入后续迭代。
+**「可交付」= 核心全部 Pass、影响场景有完整结果、无未解决的 Blocker/Critical 产品缺陷、限制按规则审阅且签字绑定原始包。** 核心项不允许豁免；非核心项的 N/A 需要真实不适用依据，Fail/Blocked 需要明确限制及相应风险接受。dshbot 的随包、默认关闭、启用重启和 Bots 页签契约保持，见 [dshbot feature 卡](../features/dshbot.md)；影响计划选中时执行完整步骤，不能以默认关闭冒充启用成功。
 
-**造障类 P0**（插件弄挂、杀子进程、强制升级包）：能造则测；本轮无法安全造障时标 **Blocked**，附原因，由产品负责人决定是否豁免，**不得静默标 Pass**。
+**造障场景**在隔离的真实安装环境执行；无法安全造障记 Blocked，并按发布操作流程决定是否可接受该未验证边界，不能静默写 Pass。
 
-每条步骤默认在 **已安装的 CI 包**、真实 `%APPDATA%` 家目录里做。附录 A 必须在该安装包会话里跑，不得用冒烟 `userData`。
+每条步骤默认在 **已安装的 CI 包**和专用交互式测试用户的正常默认 profile 里做；升级夹具保留旧版数据。涉及用户实际 profile 时明确恢复边界。附录 A 必须在该安装包会话里跑，不得用冒烟 `userData`。
 
 ### 0.4 本轮模型网关（多轮对话必测）
 
@@ -87,7 +87,9 @@
 
 Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
-### 0.6 建议执行顺序（Windows，约 2～2.5 人日）
+### 0.6 完整回归顺序（跨模块候选；原估计 2～2.5 人日）
+
+普通候选只执行计划选中的核心与影响场景。此完整库估计不是每个局部修复的强制成本，也不是允许超时放行的期限。
 
 0. 从 Actions 下载 windows artifact，记录 SHA256；退出已装 `Deepseek-Harness-Desktop.exe`；用该文件安装。`qa:packaged` 仅 rehearsal，**不是**本步的放行条件。  
 1. §1 安装/升级/卸载抽检（含 TC-INST-012 同版本 overlay、TC-INST-013 bundled node）→ §2 模型 → §3 工作区（含 TC-WS-006）  
@@ -217,7 +219,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-LAUNCH-003 · 有更新点否仍能进桌面 · P0
 
-**前置：** GitHub latest 正式版高于当前安装包。
+**前置：** 在隔离升级环境或受控更新源提供高于当前包的版本；记录实际来源，不改公开 latest。
 
 **步骤：** 冷启动并自动进入桌面 → 从托盘打开启动器 → 询问更新 → 选「稍后」。
 
@@ -258,7 +260,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-LAUNCH-008 · 更新下载失败留在启动器 · P0（造障）
 
-**前置：** GitHub latest 正式版高于当前安装包；下载通道被掐断（断网 / 防火墙拦 `objects.githubusercontent.com` / 代理指向黑洞）。
+**前置：** 隔离升级环境或受控更新源提供高于当前包的版本；仅对测试下载链路制造失败，不更改全局网络设置。
 
 **步骤：**
 
@@ -917,7 +919,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-DESK-010 · 桌面宠物显示、拖拽与持久化 · P1
 
-**前置：** Harness ready；托盘「桌面宠物」默认开启。
+**前置：** Harness ready；新配置桌宠默认关闭，先通过托盘主动开启；已有明确开启配置保留。
 
 **步骤：**
 
@@ -934,7 +936,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-DESK-011 · Live2D 桌面宠物（鲸鱼娘）· P1
 
-**前置：** Harness ready；托盘「桌面宠物」默认开启（`live2dPet.enabled`）。
+**前置：** Harness ready；`live2dPet.enabled` 新配置默认 false，先通过托盘主动开启；已有明确开启配置保留。
 
 **步骤：**
 
@@ -1265,7 +1267,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ## 16. 签字
 
-每一轮候选都必须填入 `release.yml` 的 Actions run URL / candidate run ID、候选 commit SHA、已实测 Setup SHA256，并勾「Release 将上传同一 SHA」；不得用另一个 run、另一次本机构建或本机 `dist/` 替代。缺任一项不得勾可交付，**不得发该包**。新增的 `TC-SURF-008` 也是 P0，必须在该候选的已安装包上单独记录结果；不能以源码或旧包结果替代。下表保留上一轮 `0.2.7` 的历史签字，晋级 `0.3.1` 前必须用新候选记录完整替换。
+本节保留 `0.2.7` 的历史签字，不再覆盖或继承。新候选使用 [候选验收记录](releases/README.md) 的 JSON 签字，机器核对 run、SHA、原始资产和计划。`TC-SURF-008` 在工作区/Browser 影响集或完整回归中执行；不使用源码或旧包结果替代。
 
 | 项 | 内容 |
 | --- | --- |

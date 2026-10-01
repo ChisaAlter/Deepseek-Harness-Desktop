@@ -1,30 +1,35 @@
-# 双语配对契约
+# 双语配对
 
 中文 | [English](README.en.md)
 
-一对双语文档是三件套：`foo.md` 中文正本、`foo.en.md` 英文副本、`foo.i18n.yaml` 确认记录。本文件定义配对规则；机制动机见 [2026-09-17-bilingual-pairing-contract.md](../decisions/implemented/process/2026-09-17-bilingual-pairing-contract.md)。
+已有双语对使用 `foo.md`、`foo.en.md` 和 `foo.i18n.yaml` 保存正文与确认记录。内部新决定默认单语；范围调整见[维护系统决定](../decisions/implemented/process/2026-10-02-maintenance-feedback.md)。
 
 ## 适用范围
 
-- `docs/decisions/**`：每篇记录强制三件套（目录门禁另查 sibling 齐全）。
-- 其余对采用登记制：stem 路径列入 `scripts/i18n-pairs.manifest.json` 后进入门禁。
-- 反向约束：任何 `*.en.md` / `*.i18n.yaml` 必须属于某个已发现或已登记的对——不允许影子副本。
-- `docs/superpowers/`、`docs/qa/results/`、`vendor/` 不配对（过程稿与历史记录）。
+- 内部单语决定只需 `slug.md`，可使用中文或英文，不登记 pending，不建空译文。
+- 决策目录出现英文副本、确认记录或指向自身英文副本的切换链接时，自动作为配对检查；README 和模板继续双语。
+- 其他必须双语的文档登记在 `scripts/i18n-pairs.manifest.json`。已有对外配对和已有译文继续维护。
+- 未登记的副本、孤立 sidecar、不完整配对仍失败。pending 只暂缓摘要过期，不能放过缺失文件或结构差异。
+- 过程稿、历史 QA 和 vendor 内容不纳入本仓库双语治理。封存配对保持完整，单语归档不需要补译文。
 
-## 机检内容（verify-translation-pairing）
+## 检查内容
 
-1. 三件套齐全。
-2. 切换行：中文侧 `中文 | [English](<stem>.en.md)`、英文侧 `[中文](<stem>.md) | English`，各出现在文件头八个非空行内；带居中 HTML 头的文档（如根 README）可用等价的 `<a href="<stem>.en.md">English</a>` / `<a href="<stem>.md">中文</a>` 形式。
-3. `foo.i18n.yaml` 记录两侧 git blob hash 与结构签名 hash；任一侧改动后不重录即红。
-4. 结构签名：标题深度序、列表种类与条数、表行×列、code fence 序列逐字节等值、规范化相对链接序列——两侧必须相等（段落文字不计，译文措辞自由）。链接各指各语言侧：中文侧不得链 `.en.md`；英文侧对已有英文副本的目标必须链 `.en.md`。
-5. 棘轮：stale 对可登记进 `scripts/i18n-pending.manifest.json` 换取过渡期；恢复一致的对必须移出清单（登记失效即红）。pending 只减不增是约定，新增登记在 diff 里可见、需 PR 里说明。
+1. 配对文件齐全；单语决定不进入配对检查。
+2. 切换行位于前 14 个非空行内；中文侧 `中文 | [English](<stem>.en.md)`，英文侧 `[中文](<stem>.md) | English`，现有 HTML 形式也可。
+3. 确认记录中的正文摘要与结构摘要对应当前内容；修改任一侧需核对后重录。
+4. 标题、列表、表格、代码块和相对链接结构一致；措辞不要求逐字相同。英文有对应目标时链接英文，中文链接中文。
+5. pending 对恢复一致后必须移出清单；新增 pending 必须说明原因，不能作为修复缺失译文的替代品。
 
 ## 操作
 
-- 改任一侧后：`node scripts/verify-translation-pairing.mjs --write <对内任一路径>` 重录 sidecar。重录是「我确认两侧在此内容上一致」的可审查动作。
-- `node scripts/verify-translation-pairing.mjs --list` 列所有对状态（ok / stale / pending / incomplete / violations），不失败。
-- 门禁全量跑在 `npm run doc-sync` 内。
+```sh
+node scripts/verify-translation-pairing.mjs --list
+node scripts/verify-translation-pairing.mjs --write <path>
+npm run doc-sync
+```
 
-## 诚实边界
+`--list` 只展示状态，退出成功不代表配对通过。`--write` 在缺少正文或结构不一致时拒绝更新确认记录；机器不能确认译文语义，维护者仍需阅读核对。不得仅为消除红灯批量刷新摘要。
 
-绿灯只证明：两侧在这份内容时被确认过一致、结构骨架相同。它不证明翻译质量——那是评审的另一半合同。
+## 能证明与不能证明
+
+通过表示文件、结构和确认摘要一致，不表示翻译正确或产品通过。新内部单语决定不降低产品测试要求。旧[配对决定](../decisions/implemented/process/2026-09-17-bilingual-pairing-contract.md)中内部记录强制双语的执行范围由当前维护规则取代。

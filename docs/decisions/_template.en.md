@@ -1,25 +1,23 @@
 # Decision: <title>
 
-Status: proposed
+Status: implemented
 
 [中文](_template.md) | English
 
+Remove the switcher and this instruction when copying a single-language record. Use proposed and proposal sections only for an undecided choice; remove alternatives if none were actually considered.
+
 ## Problem
 
-<Motivation; must stand without the solution>
+<A problem requiring a lasting decision>
 
-## Proposal
+## Decision
 
-<What to do; future tense is fine here>
+<Implemented choice and rationale; link current contracts and implementation instead of duplicating them>
 
 ## Alternatives considered
 
-- **<option X>** — rejected: <why it lost>
+<Optional: options actually considered and reasons for not selecting them>
 
-## Acceptance criteria
+## Consequences
 
-<What observable state means done>
-
-## Risks
-
-<What could go wrong; what is knowingly given up>
+<Benefits, costs, validation evidence and uncovered limits>

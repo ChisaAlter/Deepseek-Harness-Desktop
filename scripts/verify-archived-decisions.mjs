@@ -27,7 +27,8 @@ export function collect(root) {
       }
     }
   }
-  // Triplet completeness inside the frozen tree (pairing gate skips archived).
+  // Single-language records stay single-language. A translated record must
+  // keep its complete pair; the seal independently catches deleted members.
   const slugs = new Map()
   for (const rel of onDisk.keys()) {
     const base = rel.slice(rel.lastIndexOf('/') + 1)
@@ -36,13 +37,14 @@ export function collect(root) {
     else if (base.endsWith('.i18n.yaml')) { slug = base.slice(0, -10); kind = 'i18n.yaml' }
     else if (base.endsWith('.md')) { slug = base.slice(0, -3); kind = 'md' }
     else continue
+    slug = rel.slice(0, rel.lastIndexOf('/') + 1) + slug
     const s = slugs.get(slug) || new Set()
     s.add(kind)
     slugs.set(slug, s)
   }
   for (const [slug, parts] of slugs) {
-    for (const need of ['md', 'en.md', 'i18n.yaml']) {
-      if (!parts.has(need)) fail(violations, `docs/decisions/archived/**/${slug}.${need}`, 'incomplete archived triplet')
+    for (const need of parts.has('en.md') || parts.has('i18n.yaml') ? ['md', 'en.md', 'i18n.yaml'] : ['md']) {
+      if (!parts.has(need)) fail(violations, `${slug}.${need}`, 'incomplete archived triplet')
     }
   }
   for (const [rel, hash] of onDisk) {

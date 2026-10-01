@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { collect, pairState, blobHash, signature } from './verify-translation-pairing.mjs'
+import { collect, pairState, blobHash, signature, writePair, pairs } from './verify-translation-pairing.mjs'
 import { makeFixture, DECISION_TREE } from './lib/fixture.mjs'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ZH = '# 标题\n\n中文 | [English](x.en.md)\n\n## 问题\n\n段一。\n\n- a\n- b\n\n```js\ncode\n```\n\n[l](l.md)\n'
@@ -87,4 +87,38 @@ test('missing switcher line and zh→en link are red', (t) => {
   const v = collect(root).join('\n')
   assert.match(v, /switcher line/)
   assert.match(v, /zh side must not link/)
+})
+
+test('single-language internal records pass, but an opted-in incomplete pair fails', (t) => {
+  const root = makeFixture(t, { [`${DEC}/2026-10-02-solo.md`]: '# Decision: single language\n\nStatus: implemented\n' })
+  assert.deepEqual(pairs(root), [])
+  assert.deepEqual(collect(root), [])
+  writeFileSync(join(root, DEC, '2026-10-02-solo.en.md'), '# Translation\n')
+  assert.match(collect(root).join('\n'), /incomplete pair/)
+})
+
+test('a remaining switcher or orphan counterpart cannot silently opt out', (t) => {
+  const root = makeFixture(t, {
+    [`${DEC}/2026-10-02-solo.md`]: '中文 | [English](2026-10-02-solo.en.md)\n',
+    [`${DEC}/2026-10-02-orphan.en.md`]: '# Orphan\n',
+  })
+  const errors = collect(root).join('\n')
+  assert.match(errors, /solo.*incomplete pair/)
+  assert.match(errors, /orphan.*missing.*orphan.md/)
+})
+
+test('confirmation refuses structural drift without overwriting the previous record', (t) => {
+  const root = makeFixture(t, {
+    'docs/x.md': ZH, 'docs/x.en.md': EN,
+    'scripts/i18n-pairs.manifest.json': JSON.stringify({ pairs: ['docs/x'] }),
+  })
+  writePair(root, 'docs', 'x')
+  assert.deepEqual(collect(root), [])
+  const original = readFileSync(join(root, 'docs/x.i18n.yaml'), 'utf8')
+  writeFileSync(join(root, 'docs/x.en.md'), EN + '\n## Additional section\n')
+  assert.throws(() => writePair(root, 'docs', 'x'), /structural signature drift/)
+  assert.equal(readFileSync(join(root, 'docs/x.i18n.yaml'), 'utf8'), original)
+  const solo = makeFixture(t, { 'docs/x.md': ZH })
+  assert.throws(() => writePair(solo, 'docs', 'x'), /Cannot confirm/)
+  assert.equal(existsSync(join(solo, 'docs/x.i18n.yaml')), false)
 })

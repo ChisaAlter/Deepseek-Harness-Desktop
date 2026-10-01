@@ -31,10 +31,13 @@ Architecture, flows, and module maps live in [docs/handbook/README.md](docs/hand
 
 ## Maintenance system（治理）
 
+发布工作以 [发布操作流程](docs/handbook/modules/release-process.md) 为唯一当前执行规则：固定范围与候选，局部诊断先分类，核心加影响验收，最终原包晋级。历史报告、旧全表要求和技能中冲突的执行约定不覆盖该流程。不得替用户签署放行或编造偏好；用户当前明确要求优先。
+
 [docs/maintenance/README.md](docs/maintenance/README.md) 是系统总览：契约层（feature 卡 + rules）、决策层（[docs/decisions/](docs/decisions/README.md)）、叙事层（docs/postmortem/）、语言层（docs/i18n/）、执行层（`scripts/verify-*` + git hooks）。
 
-- 非平凡改动（行为/架构/契约/流程/测试策略/落盘格式）同批写或更新决策记录；纯机械改动不写。操作流见 `.devin/skills/dshd-maintenance`。
-- 配对文档改任一侧后 `verify-translation-pairing --write` 重录 sidecar。
+- 只为长期架构、兼容性、持久格式或流程取舍写/更新决策；普通修复用提交说明和行为证据即可。新内部记录默认单语，已授权工作可直接实施，不必先走提案。操作流见 `.devin/skills/dshd-maintenance`。
+- 已配对文档在核对两侧后 `verify-translation-pairing --write` 重录 sidecar；内部单语记录不要求翻译。
+- Bug 修复保留能发现旧故障的行为复现，并核对 CI 发现范围。反复出现时先区分回归、未闭环和相似症状；文档、字符串或属性门禁不代表用户实际结果通过。
 - 本地门禁：`npm run check:governance`（结构）/ `npm run doc-sync`（全量文档）；选检查见 `.devin/skills/dshd-checks`。外部 PR/issue 开放，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## Feature Spine
@@ -42,8 +45,8 @@ Architecture, flows, and module maps live in [docs/handbook/README.md](docs/hand
 Product behavior that ships and will be re-edited lives under [docs/features/](docs/features/README.md): one card per feature binds user paths, invariants, allowed touch, gates, and source links. Specs and plans stay in `docs/superpowers/`; cards hold shipped invariants only. The handbook does not replace cards.
 
 1. Before changing product behavior, open `docs/features/<id>.md`. If there is no card, add one first or state explicitly that this is a local fix that does not change the product contract.
-2. Start the session with `Touching: <id>` (template in [docs/features/README.md](docs/features/README.md)). Keep the diff inside that card’s **Allowed touch**; expanding scope needs user confirmation.
-3. After the change, update the card’s `last verified`. If invariants or user paths changed, edit the card and keep any matching short `.cursor/rules` entry in sync.
+2. Identify the relevant card when useful. **Allowed touch** locates the expected implementation; it is not an approval boundary. Within authorized work, update it when necessary files change; ask only for a missing material product decision.
+3. Update affected current facts and the latest relevant `last verified` evidence, linking history instead of appending release journals. Rules should point to the owning card and avoid duplicating detailed contracts. Reference checks do not certify semantic agreement.
 4. Prefer commit subjects `feature(<id>): …` so regressions are traceable against the card.
 
 ## Running the app from source (agent workflow)

@@ -1,25 +1,23 @@
 # Decision: <标题>
 
-Status: proposed
+Status: implemented
 
 中文 | [English](_template.en.md)
 
+复制为单语记录时删除本切换行和这段提示。只有方案尚未确定时才改用 proposed 和提案章节；没有真实备选时删除备选节。
+
 ## Problem
 
-<动机；脱离方案也能成立>
+<需要长期解决的问题>
 
-## Proposal
+## Decision
 
-<打算做什么；可以用将来时>
+<已实施的决定及理由；链接当前契约和实现，不复制它们>
 
 ## Alternatives considered
 
-- **<方案 X>** — rejected：<为什么输>
+<可选：真正考虑过的方案和未采用原因>
 
-## Acceptance criteria
+## Consequences
 
-<什么可观察状态算完成>
-
-## Risks
-
-<可能出什么错； knowingly 放弃什么>
+<收益、代价、验证证据及未覆盖边界>

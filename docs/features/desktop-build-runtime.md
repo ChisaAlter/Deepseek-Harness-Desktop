@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `desktop-build-runtime` |
 | **status** | `proposed` |
+| **last verified (release process)** | 2026-10-02 — 固定源码 SHA、CI 前置和原包晋级定向验证、文档门禁通过，详见 [发布流程验证记录](release-process.md)。未重建正式发行包，未运行新的 GitHub Actions。 |
 | **last verified (archive and stage identity)** | 2026-09-30 — 提取/装配/归档摘要定向 73/73、阶段凭据 15/15；同长度 tar 内容变更刷新、旧戳迁移、无变化启动不读大归档、摘要损坏保留旧树、helper/vendor 输入失效与平台 native 产物归属通过。未重建正式发行包。 |
 | **last verified (CI candidate)** | 2026-09-29 — `47222716ae8` 的 Desktop tests 与 Windows 构建均成功；CI packaged smoke、原始 artifact 摘要与发布资产校验通过。完整安装版验收未执行，身份见 [候选记录](../qa/results/2026-09-29-release-candidate/README.md)。 |
 | **last verified (release preflight)** | 2026-09-29 — Node 24.21.0 桌面 2863 通过/2 跳过；治理 6/6、文档 7/7；主窗与启动器四角合成检查通过。新候选与正式验收状态见 [发布记录](../qa/results/2026-09-29-release-candidate/README.md)。 |
@@ -19,6 +20,8 @@
 3. 应用更新读取 `build.publish` 的 GitHub 元数据与 `dependencies.electron-updater`，与安装器 artifact 命名保持一致。
 
 ## Invariants
+
+- 发布范围、候选影响计划、安装验收和晋级按 [发布操作流程](../handbook/modules/release-process.md) 执行；本卡的历史验证不替代当前候选。纯报告提交不重建，跨模块/依赖变化保留完整适用回归。
 
 - 阶段输入覆盖根构建清单、`scripts/**` 构建 helper、`vendor/**` 源与 native 声明；`vendor/*/lib/**`、`native/system/packages/*/lib/**` 是 host 产物，native 二进制按当前 `platform-arch/bin` 归属。精确产物根不计为源输入；位于 `src/lib/**` 的真实源码仍须失效。
 

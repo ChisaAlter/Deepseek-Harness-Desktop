@@ -2,46 +2,42 @@
 
 [中文](README.md) | English
 
-One kind of design document lives here: a record of a decision or proposal that affects this repository — the motivation, the rejected alternatives, and the cost, i.e. the "why" that code and docs cannot carry. This file defines where decision records live, their lifecycle, format, and when to write one.
+Record lasting tradeoffs that future maintainers need to understand. Intervention points and recurrence prevention are defined by the [maintenance system](../maintenance/README.en.md).
 
-## Layout and naming
+## When to write
 
-Every decision record has two axes, both encoded in its **path**: `{lifecycle}/{class}/yyyy-mm-dd-slug.md`:
+- Update an existing record when architecture, compatibility, persistent data formats or release / testing responsibilities change in a lasting way and the reason is not apparent from the implementation. Create one only if none owns the decision.
+- Ordinary bug fixes, mechanical edits and implementation changes within an existing contract need no new record. Explain reproduction, cause and validation in the commit / PR.
+- Proceed with authorized work. Use proposed only for an unresolved material choice; write a completed decision directly as implemented, without a mandatory proposal review.
+- Maintain each fact once. Cards describe current contracts, handbooks current implementation, and decisions rationale; do not duplicate validation journals.
 
-- **lifecycle** (the top-level folder) is the record's status, and a record moves between folders as that status changes:
-  - `proposed/` — proposals reviewed before implementation; may speak in future tense and carry plans
-  - `implemented/` — the decision shipped; kept current with code facts (facts only: paths, names, defaults — never rewriting the decision itself)
-  - `rejected/` — considered and declined; worth keeping only while its rationale prevents a repeat mistake, otherwise delete the whole triplet
-  - `archived/` — a **frozen** zone for implemented records whose future guidance value is low; never edited, never treated as current authority, sealed by `verify-archived-decisions` through a hash manifest
-- **class** (the nested folder) is a closed set defined in `scripts/decision-tree.json`: `product` user-visible behavior / `architecture` structure and mechanisms / `process` tooling and workflow / `bug-fix` defect corrections / `testing` test infrastructure and strategy. Adding a class requires updating both the JSON and this section.
-- The filename date is the **first-proposed** date (per git history); cross-references between records always use relative markdown links so `verify-md-links` can check them.
+## Layout and lifecycle
 
-## When to write one
+Use `docs/decisions/{lifecycle}/{class}/yyyy-mm-dd-slug.md`; the date is when the idea was first proposed.
 
-- Every non-trivial change (behavior, contracts, structure, process, on-disk/wire/config formats) MUST add or update at least one decision record in the same PR; purely mechanical or local edits are exempt.
-- Updating the owning record satisfies the rule; never create a duplicate for one decision. Reversing a decision means a new cross-linked record — do not rewrite an old record into its opposite.
-- A fully superseded implemented record may be consolidated and deleted: the deleting change must preserve every unique rationale, alternative, and verification of the old record, repair every inbound link, and delete its `.en.md` and `.i18n.yaml` in the same commit.
-- Archival is one command: `node scripts/archive-decision.mjs <record path> [--superseded-by <new record>]` — it moves the triplet into `archived/`, stamps `Archived:` on both sides, rewires inbound links, and re-records sidecars plus the sealed manifest; `--superseded-by` inserts a `Supersedes:` pointer into the successor (the archived record stays frozen — the pointer only ever lives in the new one). Archived content is frozen forever.
+| lifecycle | Meaning |
+| --- | --- |
+| proposed | A choice that remains undecided |
+| implemented | An implemented decision, retaining tradeoffs and limits |
+| rejected | An unchosen option with its real reason in Status; retain only useful warnings |
+| archived | Frozen history of implemented decisions; never current policy |
 
-## File format
+Classes come from `scripts/decision-tree.json`: product, architecture, process, bug-fix, testing. Update facts in place; a reversal gets a new cross-linked record rather than rewriting the earlier decision into its opposite.
 
-`verify-decision-format` (part of `doc-sync`) mechanically checks:
+Archive with `node scripts/archive-decision.mjs <record> [--superseded-by <new-record>]`. Only implemented records are archived, preserving single-language or paired form, updating active inbound links and sealing content. Historical QA, drafts and sealed records remain unchanged. Failed preflight moves nothing; execution failure restores original files. Rejected decisions keep their lifecycle.
 
-- The first three lines are fixed: `# Decision: <title>`, a blank line, `Status: <status>`; the machine-checked tokens (`# Decision:`, `Status:`) stay English verbatim in both language files.
-- Status agrees with the folder: `proposed` / `implemented` / `rejected — <one-line reason>`; files under `archived/` keep `Status: implemented` plus the `Archived:` line.
-- The body opens with `## Problem`; `## Alternatives considered` is mandatory — one paragraph per genuinely considered alternative: what it was and why it lost. Alternatives are recorded, never invented.
-- The skeleton follows the lifecycle: proposed uses `Problem → Proposal → Alternatives considered → Acceptance criteria → Risks`; implemented uses `Problem → Decision → Alternatives considered → Consequences` (present tense, proposal-era headings such as `## Proposal` / `## Plan` / `## Acceptance criteria` / `## Risks` are rejected); rejected freezes the proposal skeleton with the verdict on the Status line.
-- Bespoke technical sections (topology, wire contracts, schemas) stay free-form between the required ones.
+## Content format
 
-## Division of labor with feature cards
+- First three lines: `# Decision: <title>`, blank, `Status: <lifecycle>`. Rejected adds ` — reason`; archived retains implemented and adds the archival date.
+- Open with `## Problem`. Implemented / archived require `## Decision` and `## Consequences`; proposed requires `## Proposal`, `## Acceptance criteria`, `## Risks`; rejected retains the problem and rejection reason.
+- `## Alternatives considered` is optional. Record only genuinely considered options, without a minimum count. Omit empty sections instead of inventing tradeoffs.
+- Implemented records do not retain Proposal or Plan sections. Disclose unfinished operations and tests as consequences or evidence limitations.
+- Add technical sections when useful; length follows facts without word or page quotas.
 
-- Cards (`docs/features/`): the **current contract** — user paths, invariants, allowed touch, gates. They state only what is.
-- Decision records: **why it is so** — motivation, rejected alternatives, cost, required verification; proposals also carry planning text.
-- A card's `Sources` section links its owning record with a `Decision:` row; a declined proposal lives only in `rejected/` and never gets a card; a `status: killed` card is a negative contract against reintroduction and should trace to a decision record or spec.
+The [template](_template.en.md) provides an implemented-record outline, not a form required for ordinary edits.
 
-## Writing rules
+## Language and sources
 
-- One home per fact; link from everywhere else. Document current state, not change history — history lives in git, PRs, these records, and postmortems.
-- Write directly: name actors and facts, no metaphors; before reaching for `contract`/`boundary`/`shape`, ask whether a more exact term names the subject.
-- Wire mechanically checkable invariants into gates rather than leaving them as conventions held up by review memory.
-- Bilingual: `slug.md` is the Chinese source of truth, `slug.en.md` the English counterpart, `slug.i18n.yaml` the confirmation record; the contract lives in [../i18n/README.en.md](../i18n/README.en.md).
+New internal records default to a single `slug.md`, in Chinese or English, without translation placeholders or sidecars. Existing pairs and explicitly bilingual public docs continue under the [pairing rules](../i18n/README.en.md); do not delete existing translations to bypass checks.
+
+A [feature card](../features/README.md) may use `Decision: none` in Sources; link the actual file when a lasting decision exists. A valid link only establishes existence, not correctness, verification or continued applicability.

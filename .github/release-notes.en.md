@@ -19,7 +19,7 @@
 - **Update failure recovery**: A differential-download timeout cancels the download. If the installer cannot start, the app reports the error, keeps the current app and component services running, and allows a retry without claiming success or quitting early.
 - **Accurate statistics and responsive switches**: Fixed missing usage in restored sessions and totals doubling on repeated refreshes. Session statistics, cost, and peak/off-peak switches respond immediately and retain the latest choice during rapid changes.
 - **Windows windows and desktop pet**: The main window and launcher retain both 20px transparent corners and native window animations. The pet adapts to screen density, and clicks pass through the gap between the character and chat card.
-- **Windows taskbar icon**: Windows set the Whale Isle icon, name and relaunch command before the AppID, so complete branding is available when the taskbar refreshes. Installed startup identifies the exact old notification-generated Electron shortcut, keeps a complete backup without the shortcut extension, and notifies the system of that move within a bounded wait. Source runs prevent notification registration from recreating the entry, installed notifications remain available, and user pins are retained.
+- **Windows taskbar icon**: Windows set the Whale Isle icon, name and relaunch command before the AppID, so complete branding is available when the taskbar refreshes. Installed startup identifies the exact old notification-generated Electron shortcut, keeps a complete backup without the shortcut extension, and notifies the system that the old entry was deleted within a bounded wait. Source runs prevent notification registration from recreating the entry, installed notifications remain available, and user pins are retained.
 - **Normal quit**: Closing feedback waits at most 500ms, preventing a hidden page without paint callbacks from stalling quit. Task inspection, draining, and normal shutdown remain in place.
 - **Harness baseline**: Updated to `dsh-v0.1.7-rc.2` while retaining desktop work loops and plugin capabilities.
 
@@ -32,7 +32,7 @@
 - Legacy fileless viewers show their owning conversation's directory body and title in place, preserving the tab record, panel expansion, and floating state. Valid files and drafts retain their identity without a persisted-layout migration.
 - Differential and full-file installs share target-version, release-manifest SHA512, and task-admission checks. An installer-start failure releases the admission lock, and a retry checks work again.
 - Runtime archives use SHA256 content identity; older extraction markers migrate once. Normal reuse reads only a small digest manifest, and replacement verifies the actual archive. Build credentials also track script helpers, vendored sources, and native outputs for the current platform while excluding generated directories.
-- The old notification entry retains its original bytes in `Electron.lnk.backup`. Only a completed move sends the exact asynchronous `SHCNE_RENAMEITEM` / `SHCNF_PATHW | SHCNF_FLUSH` event; after 500ms the backup is retained and startup continues. Event delivery does not prove correct taskbar pixels; first cold-launch acceptance remains separate.
+- The old notification entry retains its original bytes in `Electron.lnk.backup`. Only a completed move sends the exact asynchronous `SHCNE_DELETE` / `SHCNF_PATHW | SHCNF_FLUSH` event for the original path; after 500ms the backup is retained and startup continues. Event delivery does not prove correct taskbar pixels; first cold-launch acceptance remains separate.
 - The macOS update path selects a DMG for the current architecture, verifies it, and opens it with instructions to drag the app into Applications. Opening the image does not mean installation is complete and does not quit the app. This Windows release does not include a DMG.
 
 ## Install and upgrade
@@ -42,6 +42,10 @@ Windows 10 or later x64 users can download the installer from [Releases](https:/
 ## Platform scope
 
 This release includes only a Windows x64 installer. Android, macOS, and the second Web client are outside this installer set. Remote access requires an explicit pairing opt-in. The LAN static page uses HTTP; Settings explains the scope of end-to-end encryption and relay TLS.
+
+## Known limitations
+
+If the current Windows Explorer session has cached an older notification-generated Electron shortcut, the taskbar may retain the old name or a white file icon after upgrading. Once the old entry has been migrated, signing in again or restarting Explorer can restore it; the app does not restart Explorer itself. Correct pixels in a clean session do not certify the first display on this upgrade path.
 
 ## Verification scope
 

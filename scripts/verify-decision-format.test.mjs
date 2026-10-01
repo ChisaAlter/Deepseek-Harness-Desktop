@@ -16,10 +16,12 @@ test('rejects proposal-era sections in implemented notes', (t) => {
   assert.match(collect(root).join('\n'), /Proposal.*not allowed/)
 })
 
-test('rejects missing Alternatives considered', (t) => {
-  const bad = GOOD_NOTE.replace(/## Alternatives considered[\s\S]*?## Consequences/, '## Consequences')
-  const root = makeFixture(t, { [N]: bad })
-  assert.match(collect(root).join('\n'), /Alternatives considered/)
+test('allows a concise decision without invented alternatives but still requires consequences', (t) => {
+  const concise = GOOD_NOTE.replace(/## Alternatives considered[\s\S]*?## Consequences/, '## Consequences')
+  const root = makeFixture(t, { [N]: concise })
+  assert.deepEqual(collect(root), [])
+  const missing = makeFixture(t, { [N]: concise.replace('## Consequences', '## Notes') })
+  assert.match(collect(missing).join('\n'), /Consequences/)
 })
 
 test('rejects a Status that disagrees with the folder', (t) => {

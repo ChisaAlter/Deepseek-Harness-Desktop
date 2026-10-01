@@ -137,3 +137,38 @@
 两次采集仅保存目标按钮的 66×72 像素，均无输入、激活或窗口动作；期间没有手工 Shell 通知、全局缓存清理、Explorer 重启或用户 pin 修改。第二次冷启动是诊断结果，不能抹掉第一次自动恢复后的正式 Fail，也不认证后续持续显示。原因仍在调查，不依据备份扩展名或第二次正确显示先行作根因结论。
 
 默认 profile 绑定及上述 Models 自有夹具已分别取得实际结果；Files 工作环、关闭按钮实显、合成圆角、可见 DWM 动画、托盘退出、生产 P0 和 §16 签字仍未据本节完成。首启图标问题未闭环，不能将 e3 整体生产验收记 Pass 或晋级发布。
+
+## 6c 原始候选与删除通知的单变量对照
+
+原始候选 `36839675533` / `6c641868632cd11771e676cb99bb829ed5ae45d0` 的构建和测试成功。Setup SHA256 为 `e348846dc431792fe375d8d2f28f95554871f245ea2b33d7d4901e4f8cc2eccc`，安装退出码 0；六个已安装载荷与原始 CI 文件一致，现有配置、凭据与会话保留。Windows 解锁后，首次启动 PID 1748 的实际任务栏仍为白色文档图标，记 **Fail**。原生窗口图标与已安装 EXE 图标均为产品头像，不以这些静态结果替代任务栏验收。
+
+随后仅用已确认归属、原字节保留的旧通知快捷方式夹具，在同一安装目录、正式 GUI AppID、默认 profile 与正常桌面快捷方式启动下进行 A/B/A。各次均正常退出后重新播种同一夹具，无全局缓存清理、Explorer 重启或用户固定项修改：
+
+| 对照 | 实际任务栏结果 |
+| --- | --- |
+| 原始 ASAR `435383970cea2496d447850a5679932e7e64973309f37d64884e8358a0d08e25`，PID 36124 | 白色文档图标，**Fail**；[图像](ci-taskbar-6c-rename-control.png)，PNG SHA256 `53a88766d7e68f19844145fe4e7762ae8397083893ab203bc682942c54558013` |
+| 仅改变旧条目通知为 `SHCNE_DELETE=2`、第二项为 `null` 的本地诊断 ASAR `363c0de7e09c71cf7920bf5e673b97fd389c4582d5ef0973c13b6dbe97d32bd3`，PID 27840 | 同一旧条目冲突下首次启动为产品头像，**诊断 Pass**；[图像](diag-taskbar-delete-first.png)，PNG SHA256 `4c2741fd6f0090ccea022d9381e7ad858e2f12df5cf332b6acebde57b2d2c905` |
+| 恢复原始 ASAR并重新播种，PID 1284 | 再次为白色文档图标，**Fail**；[图像](ci-taskbar-6c-rename-restored.png)，PNG SHA256 与首行相同 |
+
+诊断包仅改变该模块的两个通知参数及 ASAR 对应完整性字段，EXE、资源和其余模块不变。采集限定正式 AppID 的唯一 66×72 按钮，实际 EXE / CDP owner / 默认 profile 绑定已验证；人工查看图像作上述结论。该对照支持将移出开始菜单的旧入口通知为删除，而不是把其身份延续到不再是快捷方式的备份文件。现已正常退出诊断与对照实例，安装目录恢复原始 ASAR。诊断 Pass 不认证正式新安装包；新候选首启、生产验收和发布签字仍待完成。
+
+## 会话内缓存复核（同日收尾）
+
+A/B/A 之后在本机继续实验：重新播种同一旧条目夹具 → 未修改的 6c 安装版首启仍为白色文档且按钮名回退为 "Electron"；对已迁移完成的会话逐一手发 `SHCNE_ASSOCCHANGED`、`SHCNE_UPDATEITEM`（旧路径）、`SHCNE_DELETE`（备份路径）与 `SHCNE_UPDATEDIR`（Programs）均不能刷新 taskband 的 AppID→快捷方式会话内缓存；重启 Explorer 后同一存活进程即显示鲸鱼头像与 "Whale Isle" 名称，未重启应用。结论：DELETE 修复对干净会话与未污染机器成立；会话已污染的机器需一次 Explorer 重启或注销恢复，产品代码不做会话内强制刷新。种子条目由源码运行期通知注册产生，现已被通知边界阻止再生。
+
+## 新候选 3af7fb6c：正式安装版实测与缓存时机收窄
+
+本节对应精确提交 `3af7fb6c2000383de4edcc6e7d06d7b14e39bdbd`（`SHCNE_DELETE` 旧条目迁移及契约文档同步）。[Windows 候选 36864734935](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36864734935)（workflow_dispatch）与同 SHA [Desktop tests 36864709937](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36864709937) 均 `completed / success`；候选只构建 Windows，macOS job 按参数跳过。
+
+原始 artifact `Whale-Isle-windows-x64` ID `11164417902`，593574854 字节，SHA256 `b777b1e4e6c1a95beee6609930b190f06826e4675568373e3c99e30a5c575dc9` 与 GitHub artifact digest 一致。本机经 4 路 HTTP Range 并行、逐段断点续传取得；ZIP、NSIS、内层 `app-64.7z` 完整性检查均通过，`Whale-Isle-Setup-0.3.3.exe` SHA256 `60ae76ba9eccba795c6bd106cce2891a83b0bf3969dc7096f2286bdcf57d43b4`。流水线证明 `%TEMP%/dshd-ci-36864734935-extract-wrqtdl/PIPELINE-PROOF.json`。
+
+`/S` 静默安装落在默认每用户目录 `%LOCALAPPDATA%\Programs\Whale Isle`（静默模式不沿用此前自定义的 `C:\软件\Whale Isle`，该旧安装仍为 6c 字节未动，两安装并存）。新安装 `resources\app.asar` SHA256 `3e99d6f2a6806ea590d0f72260d3f0944bb032d7d0b55b58d6afbc9ff2e7496e` 与原始载荷逐字节一致；其中 `legacy-notification-shortcut.js` 归一化后等于提交字节、含 `SHCNE_DELETE` 且无 `SHCNE_RENAMEITEM`，`system-notifications.js` 的源码通知阻断在场。安装 EXE SHA256 `bcb4b99c5eda167ec8a0af00f62b23aa635b608c63a60672d78d5b1712274866`。
+
+| 实际阶段 | 绑定与结果 |
+| --- | --- |
+| 会话 A（Explorer 启动时磁盘上已存在种子 `Electron.lnk`）首启 | 迁移实际发生：原条目消失，原字节备份 `legacy-system-shortcuts\3667d769…\Electron.lnk.backup`（1279B，22:15:57）落盘；但任务栏按钮为 "Electron - 1 个运行窗口"、白色文档图标，记 **Fail（污染会话边界）** |
+| 干净会话 B（会话起始无该条目）内写入种子后启动 | 迁移再次发生（备份 `3562087c…`，22:26:35），任务栏仍显示 "Electron"——证明会话内缓存于 `.lnk` 写入事件或会话起始即建立，不等到窗口映射；delete-before-window 不能驱逐 |
+| 干净会话 C（磁盘无该条目）正常启动 | 唯一 `Appid: ai.deepseek.harness.gui` 按钮名 "Whale Isle - 1 个运行窗口"，66×72 图像经人工查看为鲸鱼头像，记 **Pass**；见 [干净会话任务栏](ci-taskbar-3af7f-clean-session.png)，PNG SHA256 `16C66FDED9A3DBF291629CD44E278B305ED367230279DBE51B4548521C0AE67F` |
+| 会话 D 前再次播种启动（证据复核） | 迁移第三次发生（备份 `15c97f78…`，22:30:06），任务栏仍 "Electron" + 白色文档；见 [污染会话任务栏](ci-taskbar-3af7f-poisoned-session.png)，PNG SHA256 `8E047136C54F57D9D177FD9A46F8818BE00C61380264AA29F943046F6CC57BAE` |
+
+结论：候选在文件与通知层面行为正确（精确迁移、原字节备份、`SHCNE_DELETE`、源码侧不再产生 `Electron.lnk`）；但 Explorer 会话内 AppID→快捷方式缓存无法被产品代码驱逐，被污染过的会话首启图标必然保持错误直至 Explorer 重启/下次登录，此后永久正常。真实用户自旧版升级即此路径：迁移当次会话可能仍显示旧图标，重启资源管理器或下次登录即恢复。污染会话首启不计 Pass，亦不以干净会话结果宣称首启通过；发布签字仍待生产 P0 与其余验收项。

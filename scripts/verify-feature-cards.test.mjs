@@ -93,3 +93,20 @@ test('killed cards need the underscore prefix and vice versa', (t) => {
   assert.match(v, /status killed requires `_`/)
   assert.match(v, /reserved for status killed/)
 })
+
+test('decision sources validate real destinations, every row, and the decision tree', (t) => {
+  const record = 'docs/decisions/implemented/process/2026-10-02-real.md'
+  const link = '../decisions/implemented/process/2026-10-02-real.md'
+  const fixture = source => makeFixture(t, {
+    'docs/features/x-card.md': CARD.replace('- Decision: none', source),
+    'docs/features/README.md': '| [x-card](x-card.md) | a | b | c |\n',
+    [record]: '# Decision: real\n',
+    'docs/other.md': '# Not a decision\n',
+  })
+  assert.deepEqual(collect(fixture(`- Decision: [real](${link})`)), [])
+  for (const source of [
+    '- Decision: [real](../decisions/implemented/process/2026-10-02-missing.md)',
+    `- Decision: [real](${link})\n- Decision: [missing](../decisions/implemented/process/2026-10-02-gone.md)`,
+    '- Decision: [docs/decisions/implemented/process/2026-10-02-real.md](../other.md)',
+  ]) assert.match(collect(fixture(source)).join('\n'), /Decision link missing record or outside/)
+})

@@ -2,53 +2,65 @@
 
 中文 | [English](README.en.md)
 
-本仓库的可执行治理系统：规则写给 agent 读、决策沉淀为受管文档、能机械检查的纪律全部拧成脚本。本文档是系统的唯一总览；各层细节去各层自己的 README。
+维护系统帮助下一次修改正确发生。它保存当前契约、关键决定和可复核证据，不以文档数量、测试数量或流程次数衡量质量。本文件定义当前维护规则；发布操作见[发布流程](../handbook/modules/release-process.md)。
 
-## 五层
+## 什么时候发挥作用
 
-| 层 | 位置 | 职责 | 机检 |
-| --- | --- | --- | --- |
-| 契约层 | [docs/features/](../features/README.md) + `.cursor/rules/` | 产品行为契约：用户路径、不变量、默认可改面、门槛 | `verify-feature-cards`、`verify-rules-sync` |
-| 决策层 | [docs/decisions/](../decisions/README.md) | 为什么：动机、被否方案、代价；路径编码生命周期 | `verify-decision-tree`、`verify-decision-format`、`verify-archived-decisions` |
-| 叙事层 | [docs/postmortem/](../postmortem/README.md) | 事故叙事——唯一允许讲故事的层 | 无（叙事不机检） |
-| 语言层 | [docs/i18n/](../i18n/README.md) | 双语配对：三件套、blob hash、结构签名、pending 棘轮 | `verify-translation-pairing` |
-| 执行层 | `scripts/` + `.github/` | 门禁聚合、git hooks、merge driver、PR/issue 模板、dependabot | `run-gates.mjs`、`verify-md-links` |
+| 时点 | 要回答的问题 | 必要产出 |
+| --- | --- | --- |
+| 修改前 | 用户实际遇到了什么，哪个模块负责，目前承诺什么？ | 阅读对应功能卡和手册；确定复现条件与直接观察方式 |
+| 修改中 | 是否改变长期契约，为什么选择这种实现？ | 更新受影响事实；有长期取舍时才记录决定 |
+| 提交与发布前 | 修复是否有效，是否遗漏相关风险，交付包是否对应证据？ | 行为验证和 CI；发布另核对原始安装包验收 |
+| 事故后或交接时 | 为什么漏检，下次如何发现，目前还有什么未解决？ | 保留最短复现、验证入口和当前状态；系统性事故按需复盘 |
 
-代理操作入口：根 [AGENTS.md](../../AGENTS.md) 是 standing orders；`.devin/skills/` 里 `dshd-maintenance`（决策记录操作流）与 `dshd-checks`（改动面→最小检查集）是可执行程序。
+普通修复不需要先建立提案、决策、复盘再动手。用户已经授权的工作直接推进；文件清单是定位线索，不是二次审批边界。只有缺失的实质产品取舍、不可逆操作或真实发布放行才需要对应的决定。
 
-## 知识回流管线
+## 一个事实一个维护位置
 
-```
-incident → docs/postmortem/
-         → guardrails: tests / rules / gates
-         → AGENTS.md / docs/features/ / .cursor/rules/
-         → scripts/verify-* + *.test.mjs
-         → .devin/skills/<name>/SKILL.md
-         → rule links back to owning docs/decisions/ record
-```
+| 内容 | 权威位置 | 更新条件 |
+| --- | --- | --- |
+| 用户路径与长期不变量 | [功能卡](../features/README.md) | 对外契约或真实验证结果改变 |
+| 实现入口、架构与操作 | [手册](../handbook/README.md) | 当前实现或操作方式改变 |
+| 关键取舍及理由 | [决策记录](../decisions/README.md) | 架构、兼容性、数据格式、发布策略等长期决定改变 |
+| 故障时间线与漏检原因 | [复盘](../postmortem/README.md)、已有 issue / QA 记录 | 系统性、昂贵或反复发生的问题需要跨修改保留证据 |
+| Agent 入口与提示 | 根 AGENTS、维护技能、规则链接 | 定位方式或执行原则改变 |
 
-反向同样成立：新决策先查 `rejected/` 与活跃树，别重提已否决路线。
+先读本次相关模块，不要求遍历整棵历史决策树。同一决定优先更新已有记录；普通缺陷修复、机械调整、现有契约下的实现变化，用提交或 PR 说明原因和验证即可。内部新决策默认单语，已有双语记录继续维护；对外文档按[配对规则](../i18n/README.md)同步。
 
-## 命令
+功能卡保留当前事实、最近一次相关验证和证据链接，不继续叠加历次发布流水账。规则文件只保留必要提示和卡片入口；内容冲突应修正，不能因某个旧文件写了“必须”就增加本次工作。新决定可以取代旧决定，历史证据仍保留原来的成功与失败边界。
+
+## Bug 修复如何防复发
+
+1. 固定具体失败、版本、数据与环境。先区分同一缺陷回归、上次未闭环、不同根因的相似症状、观察工具错误；无法区分时记为未知。
+2. 在实际负责模块保留可执行复现，断言用户可观察的行为。能自动化时将样例纳入已有测试；用原缺陷版本或受控缺陷还原确认它会失败。无法做此对照时明确缺口，不伪称已证明防复发。
+3. 修复后执行相同场景及直接相关边界，并确认测试确实在 CI 命令的发现范围内、没有被 skip 或环境开关绕过。源码字符串、mock 调用或属性检查只证明局部机制，不能替代实际结果。
+4. 安装、升级、系统缓存、权限和时序问题在对应真实环境保留验证；干净启动与已污染状态分别记录。失败仍存在就保持未关闭。只有证明漏检源于长期策略时才改规则或写决定。
+
+复发时优先修复复现覆盖或运行接线，不靠再加一份文档结案。阶段内无新改动、新失败或未覆盖风险时停止重复验证。详细日志放已有 issue / QA 记录，测试文件保留必要夹具和原因；不另建一套 bug 台账。
+
+## 自动检查能证明什么
+
+结构门禁检查决策目录、格式、归档封印、功能卡字段与引用。名称保留兼容的 `verify-rules-sync` 只检查实际 Markdown 链接，不验证语义一致。双语检查证明结构和确认摘要一致，不证明翻译准确。所有这些检查都不能认证产品行为、安装版或发布质量。
+
+产品行为由模块测试和 CI 检查，平台交互由真实环境验证，最终发行由发布流程约束。三个层次的结果分别报告；某一层绿色不继承为另一层通过。CI 对检出的提交执行完整文档检查；本地 hooks 检查工作目录，是提前反馈，不能证明部分暂存内容或待推送提交已经通过。
+
+## 操作入口
 
 ```sh
-npm run check:governance    # 结构门禁：决策树/格式/归档封印/卡/schema/规则同步/远程开关
-npm run doc-sync            # 全量文档门禁：决策树/格式/归档封印/卡/规则同步/死链/配对
-node scripts/verify-translation-pairing.mjs --list          # 所有配对状态
-node scripts/verify-translation-pairing.mjs --write <path>  # 改完双语任一侧后重录
-node scripts/verify-archived-decisions.mjs --write          # 归档动作时重录封印
-node scripts/archive-decision.mjs <record> [--superseded-by <new>]  # archive a decision in one step
-node scripts/resolve-pairing-conflicts.mjs                  # merge 后清理 i18n 冲突
-DSHD_GATE_FAIL_FAST=1 npm run doc-sync                      # 红一个即停
+npm run check:governance
+npm run doc-sync
+node scripts/install-git-integrations.mjs --check
+node scripts/install-git-integrations.mjs
+node scripts/verify-translation-pairing.mjs --write <path>
+node scripts/archive-decision.mjs <record> --superseded-by <new-record>
 ```
 
-`npm install` 经 `prepare` 自动装 git 集成：`core.hooksPath` 指到 `scripts/git-hooks/`（pre-commit 跑结构门禁、pre-push 跑 doc-sync），`*.i18n.yaml` 走 `dshd-translation-pairing` merge driver。
+本地按本次变更选择检查，相关检查通过后不反复执行整套。维护检查耗时低，保留完整 CI 文档检查，不增加缓存或审批框架。配对确认只在两侧内容已核对后更新；`--list` 是清单展示，不是通过证明。
 
-## 边界
+`npm install` 的 prepare 尝试安装 hooks 和 merge driver；使用 `--ignore-scripts` 或源码压缩包时不保证安装。用 `--check` 核实，缺失时直接运行安装脚本，无需重装依赖。现有自定义 hooks / driver 会被保留，需明确整合；不静默覆盖。pre-commit 运行结构检查，pre-push 运行文档检查，不启动产品全量测试或构建。
 
-桌面仓库文档不设字数上限；长度由内容需要决定。决策见[取消文档字数门禁](../decisions/implemented/process/2026-09-29-remove-doc-word-limits.md)。
+## 历史与范围
 
-- `docs/superpowers/`（过程稿）、`docs/qa/results/`（历史验收记录）、`vendor/`（上游自带治理）不进死链与配对检查。
-- 外部 PR/issue 开放：见 [CONTRIBUTING.md](../../CONTRIBUTING.md)；卡与规则由维护者收尾。
-- 本系统只管仓库维护，不管产品 UI——产品面变更走 feature 卡与 [design-language.md](../design-language.md)。
-- 暂无生成式看板与 `// Note:` 代码锚点（记录量未到需要索引的规模；需要时按上游 build-board / check-note-anchors 模式补，不先手建）。
+`docs/superpowers/`、`docs/qa/results/` 和封存决策不参与当前文档死链修复；封存内容仍有摘要保护。归档只处理已实施决定，支持单语和双语，预检失败不移动文件，执行异常恢复原文件；被否方案留在 rejected，不改写为已实施。
+
+文档按事实需要决定长度，不设页数或备选数量指标。上游治理仅适用于修改上游自身的内容；外部贡献遵循 [CONTRIBUTING](../../CONTRIBUTING.md)。本次调整的理由与已知边界见[维护系统收敛决定](../decisions/implemented/process/2026-10-02-maintenance-feedback.md)。

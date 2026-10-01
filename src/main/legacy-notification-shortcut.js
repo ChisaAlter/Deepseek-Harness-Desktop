@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const DESKTOP_APP_ID = 'ai.deepseek.harness.gui';
-const SHCNE_RENAMEITEM = 1;
+const SHCNE_DELETE = 2;
 const SHCNF_PATHW_FLUSH = 0x1005;
 const SHELL_NOTIFICATION_DEADLINE_MS = 500;
 let shellChangeNotify;
@@ -23,7 +23,7 @@ function canonicalWindowsPath(value) {
   return value.slice(3).split('\\').every(part => part && !/[. ]$/.test(part));
 }
 
-/** Wait for delivery of just this completed rename, within the startup budget. */
+/** Retire the old Shell entry after its bytes are backed up, within the startup budget. */
 async function notifyShortcutMoved(oldPath, newPath, { platform = process.platform, loadApi = windowsShortcutApi } = {}) {
   if (platform !== 'win32' || !canonicalWindowsPath(oldPath) || !canonicalWindowsPath(newPath)
       || oldPath.toLowerCase() === newPath.toLowerCase()) return false;
@@ -37,7 +37,7 @@ async function notifyShortcutMoved(oldPath, newPath, { platform = process.platfo
       // FLUSH waits for event delivery, not a correct taskbar image. The startup
       // budget does not cancel the native call; late callbacks cannot change it.
       deadline = setTimeout(() => finish(false), SHELL_NOTIFICATION_DEADLINE_MS);
-      loadApi().async(SHCNE_RENAMEITEM, SHCNF_PATHW_FLUSH, oldPath, newPath, error => finish(!error));
+      loadApi().async(SHCNE_DELETE, SHCNF_PATHW_FLUSH, oldPath, null, error => finish(!error));
     });
   } catch {
     clearTimeout(deadline);

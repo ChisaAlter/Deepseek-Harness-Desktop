@@ -12,22 +12,22 @@
 | [docs/handbook/](../handbook/README.md) | 蓝图、流程、模块当前态 | 否；卡片挂手册章 |
 | [design-language.md](../design-language.md) / [motion.md](../motion.md) | 视觉与动效语言 | 否；卡片只链接 |
 | [superpowers/specs](../superpowers/specs/) / [plans](../superpowers/plans/) | 设计与施工过程 | 否；定稿后把**不变量**收进卡片 |
-| [qa/production-acceptance-test-cases.md](../qa/production-acceptance-test-cases.md) | 发版实机验收：每次发布前对 CI windows 安装包走完 | 否；卡片 `gates` 挂用例 ID |
+| [qa/production-acceptance-test-cases.md](../qa/production-acceptance-test-cases.md) | 完整用例库：按候选核心/影响计划验收 CI 安装包 | 否；卡片 `gates` 挂用例 ID |
 | [docs/decisions/](../decisions/README.md) | 决策记录：动机、被否方案、代价（含 rejected/archived 生命周期） | 否；卡只写「是什么」，「为什么」链到决策记录 |
 | harness Agent Notes | 上游决策记录 | 否；桌面相关卡可链接 |
 | `.cursor/rules/*.mdc` | 短 always-on 不变量 | 否；文末链到本卡，细节以卡为准 |
 
-本树**不做**第二套 Wiki，不复制 harness doc-sync。卡片半页内；长文留在 handbook / spec / note。
+本树保存当前产品契约；架构细节链接到 handbook，历史验证链接到原记录，不重复维护同一事实。篇幅按必要内容决定，不设页数要求。
 
 ## 何时新建 / 更新
 
 - **新建：** 产品行为已定且会被反复改（尤其易被 Agent 冲掉）时，从 [_template.md](_template.md) 复制。
 - **status 取值：** `active` 现行契约；`proposed` 方案已定未落地；`killed` 负契约（防复活的死亡名单，文件名带 `_` 前缀）。被否提案不建卡，进 [decisions/rejected/](../decisions/README.md)。
-- **更新：** 不变量或关键路径变了；或改完后刷新 `last verified`。
+- **更新：** 不变量或关键路径变了才更新契约；完成相关验证后更新 `last verified` 的最近事实与证据链接，不叠加历次发布流水账。没有验证不改成已验证。
 - **局部修复不改契约：** 会话写明「无卡 / 不改产品契约」，diff 仍应尽量小。
-- **非琐碎改动**还须同 PR 新增/更新 [docs/decisions/](../decisions/README.md) 决策记录。
+- **长期取舍**才需要 [决策记录](../decisions/README.md)；普通修复在提交 / PR 中说明原因和行为验证即可。Allowed touch 是定位信息，不是用户已授权任务的二次审批边界。
 
-## 会话开场模板
+## 可选的工作定位
 
 ```text
 Touching: wallpaper-gallery
@@ -42,6 +42,7 @@ Gate: <卡上 gates>
 
 | id | 一句话 | 主入口 | gates 摘要 |
 | --- | --- | --- | --- |
+| [release-process](release-process.md) | 固定候选、影响验收、失败分级与原包晋级 | release/publish workflows | 计划、验收记录、CI 资格和工作流测试 |
 | [window-motion](window-motion.md) | 20px 透明圆角与 Windows 原生动画同时验收 | `shellWindowChrome` / window factories | 参数单测 + HWND/IPC 实机 + 可见过渡 |
 | [desktop-branding](desktop-branding.md) | 桌面与 Web 侧栏「鲸屿 · Whale Isle」，保留 Harness 归属 | `ui-brand-official` 品牌槽位 | 定向测试、官方构建、深浅色复核 |
 | [vision-fallback](vision-fallback.md) | 识图路由的图片准入、描述与主请求重写 | llm-vision-fallback / agent-loop | 无密钥组合与图片准入 |

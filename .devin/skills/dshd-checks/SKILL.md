@@ -1,36 +1,36 @@
 ---
 name: dshd-checks
-description: 按改动面选最小检查集：什么时候跑 npm test / doc-sync / check:governance / 单条 verify，hooks 已覆盖什么、还欠什么。改代码、改文档、改决策记录、提交推送前使用。
+description: 按修改风险选择有效验证，区分结构、行为与真实环境证据；核对 CI 和 Git 集成是否实际执行。
 ---
 
-# 选检查（改动面 → 最小证据）
+# 选择有效验证
 
-原则：本地轻、CI 重；先窄后宽，红一个先修一个。`DSHD_GATE_FAIL_FAST=1` 可让聚合器红即停。
+[维护系统](../../../docs/maintenance/README.md)定义职责；[发布流程](../../../docs/handbook/modules/release-process.md)定义候选和原包验收。结构检查不替代行为验证，测试数量不代替覆盖。
 
-## 映射表
+## 按修改选择
 
-| 改动面 | 最小检查 |
+| 修改 | 本地验证 |
 | --- | --- |
-| 只改 `docs/decisions/**` | `npm run check:governance`（树/格式/归档/切换行由 pairing 覆盖则再 `--list`） |
-| 改任一双语侧（配对对） | `verify-translation-pairing --write <path>` 重录 → `npm run doc-sync` |
-| 改 feature 卡 / `.cursor/rules` | `npm run check:governance`（卡 schema + 同步） |
-| 改 `docs/**` 其他文档 | `npm run doc-sync`（死链 + 配对） |
-| 改 `scripts/verify-*` / `run-gates` | `node --test scripts/*.test.mjs`（门禁自己的 spec） |
-| 改产品代码 `src/**` / `mobile/**` | 该 feature 卡 `## Gates` 里的定向测试 → `npm test` → 重启应用实测 |
-| 改 vendored `vendor/**` | vendor 自带治理（`vendor/*/AGENTS.md`）+ `npm test`；本地分歧须记 vendor README |
-| 归档决策记录 | `verify-archived-decisions --write` → `npm run doc-sync` |
+| 普通 bug | 最短行为复现、修复后的相关边界；核对回归能发现旧故障且进入 CI |
+| 产品模块 | 对应功能路径；共享底层改变时增加受影响集成 |
+| 安装、系统缓存、时序 | 保留真实环境条件；干净与污染状态分别记录，不能只查属性 |
+| 文档和功能卡 | 收尾运行 doc-sync；已配对内容经人工核对再更新确认 |
+| 维护脚本与工作流 | 针对真实失败和正常输入的脚本测试、执行接线验证 |
+| vendor | 对应模块测试与正确构建 profile；上游跨模块更新按稳定候选做完整回归 |
 
-## Hooks 已覆盖的（`npm install` 时装）
+完整源码与平台矩阵由 CI 执行；必要的发布门禁在稳定候选集中完成。无新改动、新失败或明确未覆盖风险时停止追加验证，不在每个局部修改后机械重跑全量。
 
-- `pre-commit`：`run-gates governance`（结构门禁，~秒级）
-- `pre-push`：`run-gates doc-sync`（全量文档门禁）
-- `*.i18n.yaml` merge 走 `dshd-translation-pairing` driver；冲突残留用 `node scripts/resolve-pairing-conflicts.mjs`
+## 防止无效证据
 
-**没覆盖的**：`npm test`（太重，hooks 不跑）——改代码后自己跑；CI 是全量矩阵。
+- 对旧故障版本或受控缺陷还原，测试应失败；无法作此对照时明确限制。源码字符串、mock 或属性断言只证明它们覆盖的机制。
+- 查看实际 CI 命令、匹配路径、skip 和环境开关。测试文件存在不等于被执行，工作流字符串检查不等于真实 CI 运行。
+- 先区分产品、工具、环境和未知失败；修工具后重新观察原始问题，不能直接宣称产品已通过。
+- 文档绿灯只证明结构与引用；配对绿灯不证明翻译质量。只报告实际运行的版本与结果。
 
-## 纪律
+## Git 集成
 
-- 绿了才说绿：报结果贴门禁输出，不贴印象。
-- 门禁红 → 修被检出的问题，不改门禁放水；确实要放宽规则 → 走 `docs/decisions/proposed/` 提案。
-- 每个 verify 脚本带同名 `.test.mjs`；写新门禁必须带 spec（正反两例起步）。
-- 产品代码改动后按用户偏好重启应用验证（见根 AGENTS.md）。
+用 `node scripts/install-git-integrations.mjs --check` 检查实际配置；缺失时直接运行安装脚本，无需重装依赖。安装保留已有自定义 hooks / driver。
+
+pre-commit 跑结构检查，pre-push 跑文档检查，都是对工作目录的提前反馈，不认证部分暂存或待推送提交。CI 检查自己的精确 checkout。不要把 hooks 或 `--list` 的成功误报为产品验证。
+
+新增或修正有行为的校验器，应覆盖接受合法输入、拒绝实际坏输入，复用现有测试设施；不为机械修改扩建测试框架。产品运行时代码修改按根 AGENTS 的应用验证要求执行；纯维护工具和文档不触发产品重启或打包。

@@ -1,30 +1,35 @@
-# Bilingual pairing contract
+# Bilingual pairing
 
 [中文](README.md) | English
 
-A bilingual pair is three files: `foo.md` the Chinese source, `foo.en.md` the English counterpart, and `foo.i18n.yaml` a confirmation record. This file defines the pairing rules; the rationale lives in [2026-09-17-bilingual-pairing-contract.en.md](../decisions/implemented/process/2026-09-17-bilingual-pairing-contract.en.md).
+Existing pairs use `foo.md`, `foo.en.md` and `foo.i18n.yaml` for content and confirmation. New internal decisions default to one language; the scope change is in the [maintenance decision](../decisions/implemented/process/2026-10-02-maintenance-feedback.md).
 
 ## Scope
 
-- `docs/decisions/**`: every record requires the full triplet (the tree gate separately checks siblings).
-- Other pairs are opt-in: a stem path listed in `scripts/i18n-pairs.manifest.json` enters the gate.
-- Reverse constraint: any `*.en.md` / `*.i18n.yaml` must belong to a discovered or registered pair — no shadow copies.
-- `docs/superpowers/`, `docs/qa/results/`, and `vendor/` are unpaired (process drafts and historical records).
+- An internal single-language decision needs only `slug.md`, in Chinese or English, without pending registration or an empty translation.
+- An English counterpart, confirmation file or switcher to the record's own English counterpart opts a decision into pairing checks. The README and template remain bilingual.
+- Other documents requiring both languages register in `scripts/i18n-pairs.manifest.json`. Maintain existing public pairs and translations.
+- Unregistered copies, orphan sidecars and incomplete pairs still fail. Pending only excuses stale hashes, not missing files or structural disagreement.
+- Drafts, historical QA and vendor content are outside this repository's bilingual governance. Archived pairs remain complete; single-language archives need no added translation.
 
-## What the gate checks (verify-translation-pairing)
+## Checks
 
-1. Triplet completeness.
-2. Switcher lines: `中文 | [English](<stem>.en.md)` on the Chinese side, `[中文](<stem>.md) | English` on the English side, each inside the first eight non-empty lines; documents with a centered HTML header (e.g. the root README) may use the equivalent `<a href="<stem>.en.md">English</a>` / `<a href="<stem>.md">中文</a>` form.
-3. `foo.i18n.yaml` records both sides' git blob hashes and the structural-signature hash; editing either side without re-recording is red.
-4. Structural signature: heading-depth sequence, list kinds and item counts, table rows×columns, byte-exact code-fence sequence, normalized relative-link sequence — the two sides must be equal (prose is not counted; phrasing is free). Links stay on their own locale side: the Chinese side never links `.en.md`; the English side must link `.en.md` when the target has an English counterpart.
-5. Ratchet: a stale pair may be registered in `scripts/i18n-pending.manifest.json` as a grace period; a pair that is fresh again must leave the list (a stale entry is red). Pending entries only shrink — adding one is visible in the diff and needs justification in the PR.
+1. Paired files are complete; single-language decisions are outside pairing checks.
+2. Switchers appear within the first 14 non-empty lines: `中文 | [English](<stem>.en.md)` on the Chinese side and `[中文](<stem>.md) | English` on the English side; existing HTML equivalents are accepted.
+3. Confirmation content and structural hashes match current files; review both sides before refreshing after edits.
+4. Heading, list, table, code-fence and relative-link structures agree without requiring identical wording. English links select existing English counterparts; Chinese links stay Chinese.
+5. Remove pending entries once consistent. Explain new pending entries; they do not replace missing translations.
 
 ## Operations
 
-- After editing either side: `node scripts/verify-translation-pairing.mjs --write <any path in the pair>` re-records the sidecar. Re-recording is the reviewable act of "I confirm both sides agree at this content".
-- `node scripts/verify-translation-pairing.mjs --list` reports every pair's state (ok / stale / pending / incomplete / violations) without failing.
-- The full gate runs inside `npm run doc-sync`.
+```sh
+node scripts/verify-translation-pairing.mjs --list
+node scripts/verify-translation-pairing.mjs --write <path>
+npm run doc-sync
+```
 
-## Honest boundary
+`--list` only displays states; successful exit does not certify pairing. `--write` refuses confirmation when content is missing or structure disagrees. Machines cannot confirm translated meaning; maintainers must review it. Do not batch-refresh hashes just to turn a check green.
 
-Green only proves: both sides were confirmed consistent at this content, with identical skeletons. It does not prove translation quality — that is the reviewer's half of the contract.
+## Evidence limits
+
+Passing establishes file, structural and confirmation-hash consistency, not translation accuracy or product acceptance. Single-language internal decisions do not reduce product-test requirements. Current maintenance rules replace the internal mandatory-bilingual scope of the earlier [pairing decision](../decisions/implemented/process/2026-09-17-bilingual-pairing-contract.en.md).

@@ -1,4 +1,5 @@
 #!/bin/sh
-# DSHD pre-push: full documentation governance (pairing freshness, links,
+# Early working-directory feedback; CI certifies its checked-out commit.
+# Full documentation governance (pairing freshness, links,
 # archive seals). `npm test` stays manual/CI — too heavy for a hook.
 exec node scripts/run-gates.mjs doc-sync

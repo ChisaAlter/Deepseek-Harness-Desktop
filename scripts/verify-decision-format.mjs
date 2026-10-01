@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Gate: in-file format of docs/decisions/ records — fixed header, folder-agreeing
-// Status, ## Problem opener, mandatory ## Alternatives considered, and the
+// Status, ## Problem opener and the
 // per-lifecycle section skeleton. Both .md and .en.md are checked; the
 // machine-checked tokens (# Decision:, Status:) stay English in both.
 import { join } from 'node:path'
@@ -14,10 +14,10 @@ const STATUS_OK = {
   archived: /^Status: implemented$/,
 }
 const REQUIRED = {
-  proposed: ['## Problem', '## Proposal', '## Alternatives considered', '## Acceptance criteria', '## Risks'],
-  implemented: ['## Problem', '## Decision', '## Alternatives considered', '## Consequences'],
-  rejected: ['## Problem', '## Alternatives considered'],
-  archived: ['## Problem', '## Decision', '## Alternatives considered', '## Consequences'],
+  proposed: ['## Problem', '## Proposal', '## Acceptance criteria', '## Risks'],
+  implemented: ['## Problem', '## Decision', '## Consequences'],
+  rejected: ['## Problem'],
+  archived: ['## Problem', '## Decision', '## Consequences'],
 }
 
 export function collect(root) {

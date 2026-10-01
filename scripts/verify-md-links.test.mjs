@@ -28,3 +28,14 @@ test('links inside fenced code and comments are not checked', (t) => {
   })
   assert.deepEqual(collect(root), [])
 })
+
+test('maintenance skill links are checked while frozen historical references remain untouched', (t) => {
+  const root = makeFixture(t, {
+    '.devin/skills/dshd-maintenance/SKILL.md': '[overview](../../../docs/maintenance/README.md)',
+    'docs/maintenance/README.md': '# Maintenance\n',
+    'docs/decisions/archived/process/old.md': '[historical](removed.md)',
+  })
+  assert.deepEqual(collect(root), [])
+  const bad = makeFixture(t, { '.devin/skills/dshd-checks/SKILL.md': '[bad](../../docs/maintenance/README.md)' })
+  assert.match(collect(bad).join('\n'), /dead link/)
+})

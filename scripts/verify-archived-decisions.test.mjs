@@ -21,9 +21,22 @@ test('sealed content passes; tampering fails', (t) => {
 })
 
 test('incomplete triplet inside archived fails', (t) => {
-  const root = makeFixture(t, { 'docs/decisions/archived/process/2026-09-17-a.md': SEALED })
+  const root = makeFixture(t, {
+    'docs/decisions/archived/process/2026-09-17-a.md': SEALED,
+    'docs/decisions/archived/process/2026-09-17-a.en.md': SEALED,
+  })
   writeManifest(root)
   assert.match(collect(root).join('\n'), /incomplete archived triplet/)
+})
+
+test('single-language archived records need no translation, and equal slugs in different classes stay separate', (t) => {
+  const root = makeFixture(t, { 'docs/decisions/archived/process/2026-09-17-a.md': SEALED })
+  writeManifest(root)
+  assert.deepEqual(collect(root), [])
+  mkdirSync(join(root, 'docs/decisions/archived/product'), { recursive: true })
+  writeFileSync(join(root, 'docs/decisions/archived/product/2026-09-17-a.en.md'), SEALED)
+  writeManifest(root)
+  assert.match(collect(root).join('\n'), /product\/2026-09-17-a.md.*incomplete/)
 })
 
 test('manifest entry for a missing file fails', (t) => {

@@ -96,12 +96,12 @@ test('release workflow builds artifacts without repeating test.yml quality gates
   assert.match(yml, /npm run dist:mac\b/);
 });
 
-test('windows release job smokes the packaged artifact: blocking, after dist, two attempts', () => {
+test('windows release job preserves the first packaged smoke result and blocks upload on failure', () => {
   // Not a repeated quality gate: smoke:packaged needs dist/win-unpacked,
   // which only exists in the release chain — it is artifact acceptance.
   // The step sits between `npm run dist` and the artifact upload so a
-  // Setup that cannot boot never reaches the publish job. Flake policy:
-  // two in-step attempts; only two consecutive failures fail the job.
+  // Setup that cannot boot never reaches the publish job. A retry requires
+  // classification and changed preconditions, not blind cache warming.
   const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
   const windowsJob = yml.slice(yml.indexOf('\n  windows:'), yml.indexOf('\n  macos:'));
   const distAt = windowsJob.indexOf('npm run dist');
@@ -111,7 +111,8 @@ test('windows release job smokes the packaged artifact: blocking, after dist, tw
   assert.ok(smokeAt > distAt, 'packaged smoke must run after npm run dist');
   assert.ok(uploadAt > smokeAt, 'a red smoke must block the artifact upload (and so the release)');
   const retryAt = windowsJob.indexOf('npm run smoke:packaged', smokeAt + 1);
-  assert.ok(retryAt > smokeAt, 'the documented two-attempt flake policy needs a second attempt');
+  assert.equal(retryAt, -1, 'first-boot failures must not be hidden by an automatic retry');
+  assert.match(windowsJob, /exit \$LASTEXITCODE/);
   assert.doesNotMatch(windowsJob, /continue-on-error/);
   // The macOS job stays best-effort and does not gate on the smoke.
   const macosJob = yml.slice(yml.indexOf('\n  macos:'));
@@ -145,7 +146,7 @@ test('publish workflow promotes only an explicit successful candidate run', () =
   assert.match(yml, /path.*release\.yml/);
   assert.match(yml, /head_branch/);
   assert.match(yml, /head_branch[\s\S]*== main/);
-  assert.match(yml, /actions\/workflows\/test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
+  assert.match(yml, /node scripts\/check-release-ci\.mjs "\$GITHUB_REPOSITORY" "\$CANDIDATE_SHA" "\$include_macos"/);
   assert.match(yml, /gh run download "\$CANDIDATE_RUN_ID" --name Whale-Isle-windows-x64/);
   // Setup naming, SHA256 and metadata agreement moved into the shared
   // read-only validator; the workflow must invoke it with the tag/version pair
@@ -230,7 +231,7 @@ test('publish workflow wires the release-asset validator before checksums and pu
   // Existing safety rails stay intact.
   assert.match(yml, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1/);
   assert.match(yml, /actions\/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020/);
-  assert.match(yml, /test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
+  assert.match(yml, /check-release-ci\.mjs/);
   assert.match(yml, /sha512sum/);
   assert.match(yml, /--target "\$CANDIDATE_SHA"/);
   assert.doesNotMatch(yml, /setup-harness/);

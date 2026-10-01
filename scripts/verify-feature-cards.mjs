@@ -2,7 +2,7 @@
 // Gate: docs/features/ card schema — field table (id/status/last verified),
 // status enum, `_` filename prefix <-> killed, required sections for live
 // cards, and README index <-> live-card sync.
-import { join } from 'node:path'
+import { join, dirname, resolve, relative } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 import { repoRoot, runGate, fail, isMain, read } from './lib/gate.mjs'
 
@@ -43,12 +43,23 @@ export function collect(root) {
       // `Decision:` is a declared field in ## Sources — `none` or a link to an
       // existing docs/decisions/ record (the card says WHAT, the record WHY).
       const src = text.split('\n## Sources')[1]?.split('\n## ')[0] ?? ''
-      const decision = src.split('\n').find((l) => /Decision/.test(l))
-      if (!decision) {
+      const decisions = src.split('\n').filter((l) => /^\s*-\s+Decision:/.test(l))
+      if (!decisions.length) {
         fail(violations, rel, 'missing `Decision:` line in ## Sources (`- Decision: none` or a docs/decisions/ link)')
       } else {
-        for (const m of decision.matchAll(/docs\/decisions\/(\S+?\.md)/g)) {
-          if (!existsSync(join(root, m[1]))) fail(violations, rel, `Decision link missing record ${m[1]}`)
+        for (const decision of decisions) {
+          if (/^\s*-\s+Decision:\s*none\s*$/.test(decision)) continue
+          const links = [...decision.matchAll(/\[[^\]]+\]\(([^)\s]+)\)/g)]
+          if (!links.length) fail(violations, rel, 'Decision must be `none` or a Markdown link to a decision record')
+          for (const m of links) {
+            let target
+            try { target = decodeURIComponent(m[1].split('#')[0]) } catch { target = '' }
+            const dest = resolve(dirname(join(root, rel)), target)
+            const record = relative(join(root, 'docs/decisions'), dest).replaceAll('\\', '/')
+            if (!/^(proposed|implemented|rejected|archived)\/[^/]+\/\d{4}-\d{2}-\d{2}-[a-z0-9-]+(?:\.en)?\.md$/.test(record) || !existsSync(dest)) {
+              fail(violations, rel, `Decision link missing record or outside decision tree: ${m[1]}`)
+            }
+          }
         }
       }
       // Allowed touch paths must exist — but only for repo-root-anchored paths.

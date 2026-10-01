@@ -8,16 +8,79 @@ on:
         required: false
         type: boolean
         default: false
+      candidate_sha:
+        description: Full tested main commit SHA to build; remains fixed if main advances
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
+
+# Never cancel a candidate being downloaded/accepted. Duplicate builds of the
+# same SHA queue; different candidates remain explicit release-owner decisions.
+concurrency:
+  group: candidate-${{ inputs.candidate_sha }}
+  queue: max
+  cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate the frozen main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main && "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Use a full main candidate SHA'; exit 1; }
+          relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$CANDIDATE_SHA...main" --jq .status)
+          [[ "$relation" == ahead || "$relation" == identical ]] || { echo 'Candidate must be on main'; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.candidate_sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+      - name: Require completed platform and shared CI before expensive packaging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INCLUDE_MACOS: ${{ inputs.include_macos }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Candidates must come from main'; exit 1; }
+          node scripts/check-release-ci.mjs "$GITHUB_REPOSITORY" "$CANDIDATE_SHA" "$INCLUDE_MACOS"
+      - name: Freeze the baseline and impact plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INCLUDE_MACOS: ${{ inputs.include_macos }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          baseline_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          [[ "$baseline_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'No stable release baseline'; exit 1; }
+          baseline_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$baseline_tag" --jq .sha)
+          [[ "$baseline_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          git fetch --no-tags --depth=1 origin "$baseline_sha"
+          node scripts/release-plan.mjs "$baseline_sha" "$CANDIDATE_SHA" "$GITHUB_RUN_ID" "$INCLUDE_MACOS" release-plan.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: Whale-Isle-release-plan
+          path: release-plan.json
+          retention-days: 30
+          if-no-files-found: error
+
   windows:
+    needs: preflight
     runs-on: windows-latest
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -45,23 +108,17 @@ jobs:
       # only exist after `npm run dist` produced the artifact, so it lives in
       # the release chain and BLOCKS publishing — a Setup that cannot boot
       # must not ship, and a red gate here never blocks PR merges (release is
-      # tag/dispatch-triggered).
-      # Flake policy: the step makes two attempts — one retry absorbs a
-      # single-shot flake (slow runner, first-boot caches); two consecutive
-      # failures fail the job. Re-run the job for infra-level noise;
-      # recurring red means a real packaging regression. Validate this step
-      # itself via workflow_dispatch before promoting a release candidate.
-      - name: Packaged smoke gate (win-unpacked, blocking, 2 attempts)
+      # dispatch-triggered).
+      # A failed observation needs classification; a blind retry can hide a
+      # first-boot defect by warming caches. Preserve it and stop the candidate.
+      - name: Packaged smoke gate (win-unpacked, blocking, one observation)
         shell: pwsh
         env:
           # CI cold starts are slower than the 300s local default.
           DSH_SMOKE_TIMEOUT_MS: '600000'
         run: |
           npm run smoke:packaged
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host '::warning::Packaged smoke attempt 1 failed; retrying once per the documented flake policy.'
-            npm run smoke:packaged
-          }
+          exit $LASTEXITCODE
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -72,8 +129,10 @@ jobs:
             dist/Whale-Isle-Setup-*.exe.blockmap
             dist/latest.yml
           if-no-files-found: error
+          retention-days: 30
 
   macos:
+    needs: preflight
     # Manual candidate builds are Windows-only unless explicitly requested.
     # macOS remains an optional artifact from the same candidate run.
     if: ${{ inputs.include_macos }}
@@ -83,6 +142,8 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
 
       - name: Reject macOS icon below electron-builder minimum
         run: node scripts/check-mac-icon.js
@@ -110,3 +171,4 @@ jobs:
           name: Whale-Isle-macos-arm64
           path: dist/Whale-Isle-*.dmg
           if-no-files-found: error
+          retention-days: 30

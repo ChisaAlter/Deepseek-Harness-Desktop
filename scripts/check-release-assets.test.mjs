@@ -417,7 +417,16 @@ test('rejects a symlinked Setup executable', async (t) => {
   const real = path.join(elsewhere, SETUP_NAME)
   writeFileSync(real, f.setupBytes)
   f.remove(SETUP_NAME)
-  symlinkSync(real, path.join(f.dir, SETUP_NAME), 'file')
+  try {
+    symlinkSync(real, path.join(f.dir, SETUP_NAME), 'file')
+  } catch (error) {
+    if (error.code === 'EPERM' && !process.env.CI && !process.env.GITHUB_ACTIONS) {
+      t.skip('environment blocked: file symlink privilege unavailable; required to execute in CI')
+      return
+    }
+    throw error
+  }
+  assert.equal(lstatSync(path.join(f.dir, SETUP_NAME)).isSymbolicLink(), true)
   await rejects(validate(f.dir), /exactly one Windows Setup|symlink|regular file/)
 })
 
@@ -457,7 +466,7 @@ test('rejects a matching extra file symlink beside a valid asset set', async (t)
   try {
     symlinkSync(target, link, 'file')
   } catch (error) {
-    if (error.code === 'EPERM') {
+    if (error.code === 'EPERM' && !process.env.CI && !process.env.GITHUB_ACTIONS) {
       // An unexercised fixture is a SKIP, never a pass: `return` here would
       // report success for a check that never ran.
       t.skip(`file-symlink creation unavailable (EPERM): ${error.message}`)
@@ -477,7 +486,7 @@ test('rejects a matching dangling file symlink beside a valid asset set', async 
   try {
     symlinkSync(path.join(f.dir, 'missing-target'), link, 'file')
   } catch (error) {
-    if (error.code === 'EPERM') {
+    if (error.code === 'EPERM' && !process.env.CI && !process.env.GITHUB_ACTIONS) {
       t.skip(`dangling-symlink creation unavailable (EPERM): ${error.message}`)
       return
     }

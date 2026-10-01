@@ -9,8 +9,55 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: desktop-tests-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  fast-checks:
+    name: Fast checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      code_changed: ${{ steps.scope.outputs.code_changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Detect documentation-only updates
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ || "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+            echo 'code_changed=true' >> "$GITHUB_OUTPUT"
+          else
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            git diff --name-only --no-renames "$BASE_SHA" HEAD > changed-paths.txt
+            if grep -qEv '^(docs/|\.devin/|\.cursor/|AGENTS\.md$|(CONTRIBUTING|README)(\.[a-z-]+)?\.(md|i18n\.yaml)$)' changed-paths.txt; then
+              echo 'code_changed=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'code_changed=false' >> "$GITHUB_OUTPUT"
+            fi
+          fi
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Documentation and structural governance
+        run: npm run doc-sync && node scripts/check-remote-flag-not-committed.mjs
+      - name: Release policy and validator regression
+        run: node --test scripts/release-plan.test.mjs scripts/check-release-acceptance.test.mjs scripts/check-release-ci.test.mjs scripts/release-download.test.mjs scripts/release-workflows.test.mjs
+      - name: Maintenance validator behavior
+        run: node --test scripts/verify-decision-tree.test.mjs scripts/verify-decision-format.test.mjs scripts/verify-archived-decisions.test.mjs scripts/verify-feature-cards.test.mjs scripts/verify-rules-sync.test.mjs scripts/verify-md-links.test.mjs scripts/verify-translation-pairing.test.mjs scripts/archive-decision.test.mjs scripts/install-git-integrations.test.mjs scripts/resolve-pairing-conflicts.test.mjs
+      - name: Check remote npm lock before compilation
+        if: steps.scope.outputs.code_changed == 'true'
+        run: npm ci --ignore-scripts --dry-run --no-audit --no-fund
+        working-directory: vendor/chisacode-remote
+
   desktop:
+    needs: fast-checks
+    if: needs.fast-checks.outputs.code_changed == 'true'
     name: Desktop unit tests (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -33,10 +80,6 @@ jobs:
         run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness install --frozen-lockfile
       - name: Build upstream bridge contracts
         run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run build:lib
-      - name: Structural governance (decision tree, feature cards, rules sync)
-        run: npm run check:governance
-      - name: Documentation governance (decisions, cards, pairing, links)
-        run: npm run doc-sync
       - name: Run desktop unit tests
         run: npm test
       - name: Native Windows shell motion contract (real Electron factories and IPC)
@@ -44,6 +87,8 @@ jobs:
         run: node scripts/run-window-motion-qa.mjs
 
   vendor-gui:
+    needs: fast-checks
+    if: needs.fast-checks.outputs.code_changed == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -56,6 +101,10 @@ jobs:
         run: npm ci
       - name: Install vendor dependencies
         run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness install --frozen-lockfile
+      - name: Client catalog up to date
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-client-catalog --check
+      - name: Third-party notices up to date
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-third-party-notices --check
       - name: Build vendor client + host libs
         run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run build:lib
       - name: Built desktop silhouette contract
@@ -70,7 +119,3 @@ jobs:
         run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run packages/core/agent-loop packages/core/session packages/core/tools packages/llm packages/api/session-controller packages/api/workspace-controller packages/fs/tool-fs packages/workspace packages/session/session-projection-cache packages/subagent/subagent --maxWorkers 2
       - name: Malformed tool recovery (keyless dsh replay)
         run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run --config vitest.snapshot.config.ts snapshots/session/headless.snapshot.ts -t "replays malformed-tool-call-retry"
-      - name: Client catalog up to date
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-client-catalog --check
-      - name: Third-party notices up to date
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-third-party-notices --check
