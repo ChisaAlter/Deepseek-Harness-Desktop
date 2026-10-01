@@ -38,4 +38,6 @@ Electron 43.4.0 的系统通知 presenter 在初始化时注册 activator，按 
 
 此外，Explorer 对 AppID→快捷方式的解析存在会话内缓存：同一 Explorer 会话已经学到被污染的关联时，DELETE 移走文件后按钮名与图标仍可停留在旧解析（白色文档 + "Electron" 名称），重启 Explorer 或注销后自然恢复。本修复不做会话内强制刷新（不清缓存、不重启 Explorer）；被污染过的机器至多需要一次 Explorer 重启，未污染机器不受影响。2026-10-01 本机实测：打 DELETE 补丁的安装包在种子条目存在时首启仍取到会话内旧解析（白文档），Explorer 重启后同进程即显示鲸鱼头像与 Whale Isle 名称；未打补丁的同安装包在干净会话下同样正常。
 
+新候选 `36864734935`（`3af7fb6c`）的正式安装版实测进一步收窄缓存时机：在干净 Explorer 会话内写入旧 `Electron.lnk` 后启动，迁移在首个窗口创建前即完成删除并发送 DELETE，按钮仍显示 "Electron" 与白色文档——会话内缓存于快捷方式写入事件或会话起始时已建立，并不等到窗口映射才解析。即被污染的会话在产品侧无会话内救济；文件层面修复保证关联不再延续到非快捷方式备份，自下一个会话起任务栏恢复鲸鱼头像与 Whale Isle 名称。
+
 沿用 [统一品牌资源](../product/2026-09-18-whale-brand-assets.md)与[产品名称](../product/2026-09-25-whale-isle-application-name.md)，不取代它们。[Electron 窗口 API](https://www.electronjs.org/docs/latest/api/browser-window#winsetappdetailsoptions-windows)、[固定版本通知注册实现](https://github.com/electron/electron/blob/v43.4.0/shell/browser/notifications/win/windows_toast_activator.cc)、[Microsoft 任务栏重启图标规则](https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-relaunchiconresource)与[Shell 事件投递规则](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shchangenotify)说明上述系统行为。
