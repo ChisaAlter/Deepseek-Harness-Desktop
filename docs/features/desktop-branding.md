@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `desktop-branding` |
 | **status** | `active` |
-| **last verified (window icon)** | 2026-10-01 — 属性顺序与通知定向测试 23/23；Electron 43.4.0 真实 HWND 验证两次调用保留全部属性。仅修改属性顺序的本地诊断包，在同一旧通知条目冲突下首次启动 PID 27184 的 66×72 样本显示鲸鱼；诊断包已退出并恢复原文件，不作为正式候选认证。原 CI 36820230025 与 36828909041 首启均为 Fail；新原始 CI 安装包尚待首启验收。历史证据见 [执行记录](../qa/results/2026-10-01-release-candidate/README.md)。 |
+| **last verified (window icon)** | 2026-10-01 — 属性顺序与通知定向测试 23/23；`36839675533` 安装版单变量 A/B/A 证实 `SHCNE_DELETE`（旧路径,NULL）首启为鲸鱼而 `SHCNE_RENAMEITEM` 为白色文档。新增边界：Explorer 会话内缓存 AppID→快捷方式解析，已在会话中被污染的机器在 DELETE 后仍保留旧读数（白文档+"Electron"），须重启 Explorer 或注销一次；本机实测打补丁安装包与未补丁安装包在干净会话下均显示鲸鱼。定向回归 42/42。新 CI 安装候选（含 DELETE）尚待首启验收。历史证据见 [执行记录](../qa/results/2026-10-01-release-candidate/README.md)。 |
 | **last verified** | 2026-09-25 — 已恢复定稿的中文主字标及原字号，仅应用其他入口使用英文主名；品牌与侧栏定向测试 25/25、官方 profile 完整构建、`check:governance` 与 `doc-sync` 通过。桌面应用已重启。 |
 
 ## User paths
@@ -20,7 +20,7 @@
 - 侧栏头像复用 `assets/whale-head.png` 的透明图像，不显示方形底板。沿用既有字标比例与顺序：中文「鲸屿」为主，第二字为品牌蓝；英文「WHALE ISLE」位于同一行作为辅字，完整「BASED ON DEEPSEEK HARNESS」来源说明位于下一行且始终可读。
 - `appId`、仓库名、包名与数据目录路径保持稳定；安装与更新识别旧版 Deepseek-Harness-Desktop 资产及可执行文件。
 - Windows 主窗和启动器在首次显示前声明既有 Shell 身份、同源图标、成对的产品名与重启命令。源码图标为真实 ICO，安装版为 EXE 内嵌图标；重启不携带会话、认证、调试或 QA 参数。Windows 原始 Electron 源码运行在通知 presenter 初始化前拒绝系统通知注册，安装版通知保持可用。
-- 安装版桌面启动前恢复旧通知生成的 `Electron.lnk`：固定当前用户开始菜单路径、正式 GUI AppID、普通文件、绝对 Electron EXE 目标、空参数及默认 index 0 图标必须全部匹配。原字节移到 userData 的唯一 `Electron.lnk.backup` 备份，不保留 `.lnk` 扩展名；仅在移动成功后异步通知 Shell 该精确旧路径 → 备份路径（`SHCNE_RENAMEITEM`、`SHCNF_PATHW | SHCNF_FLUSH`）。原生回调最多等待 500ms，失败或超时仍保留备份并继续启动；期限只结束启动等待，不取消原生调用。FLUSH 只保证事件投递，不证明任务栏像素正确，首次冷启动另行验收。不碰用户固定项、其它快捷方式或全局缓存；不匹配、读失败或备份失败时保留原条目且不调用原生桥。
+- 安装版桌面启动前恢复旧通知生成的 `Electron.lnk`：固定当前用户开始菜单路径、正式 GUI AppID、普通文件、绝对 Electron EXE 目标、空参数及默认 index 0 图标必须全部匹配。原字节移到 userData 的唯一 `Electron.lnk.backup` 备份，不保留 `.lnk` 扩展名；仅在移动成功后异步通知 Shell 该旧开始菜单条目已删除（`SHCNE_DELETE`：旧路径，第二项 NULL；`SHCNF_PATHW | SHCNF_FLUSH`），不把备份路径登记为新入口——RENAME 会让 Shell 把该 AppID 的快捷方式关联延续到不再是 `.lnk` 的备份文件，首启任务栏解析为白色文档（候选 `36839675533` 单变量 A/B/A 证实）。原生回调最多等待 500ms，失败或超时仍保留备份并继续启动；期限只结束启动等待，不取消原生调用。FLUSH 只保证事件投递，不证明任务栏像素正确，首次冷启动另行验收。不碰用户固定项、其它快捷方式或全局缓存；不匹配、读失败或备份失败时保留原条目且不调用原生桥。
 - 收起态只保留头像作为左上角品牌标记；它仍是既有展开按钮，保留可访问名称、快捷键与焦点反馈。展开态右上角的收起按钮继续显示原面板图标，不放头像。桌面标题栏与普通 Web 侧栏使用同一收起态。
 - 桌面壳与 Web 的官方构建共用鲸屿侧栏品牌槽位；聊天首屏品牌和应用图标保持原有契约。
 - 两端侧栏仍使用已有的品牌槽位、标题栏拖拽与新建会话行为。明暗颜色只在 `ui-theme` 主题 token 表定义。

@@ -152,7 +152,7 @@ test('a matching shortcut is moved intact into a unique backup without a shortcu
   assert.equal(f.calls.filter(([name]) => name === 'notify').length, 1);
 });
 
-test('Shell rename delivery uses only the completed paths and targeted asynchronous FLUSH', async () => {
+test('Shell retires the old entry without registering its backup, using targeted asynchronous FLUSH', async () => {
   const destination = userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup';
   const calls = [];
   const result = await notifyShortcutMoved(source, destination, {
@@ -161,7 +161,7 @@ test('Shell rename delivery uses only the completed paths and targeted asynchron
     } }),
   });
   assert.equal(result, true);
-  assert.deepEqual(calls, [[1, 0x1005, source, destination]]);
+  assert.deepEqual(calls, [[2, 0x1005, source, null]]);
 });
 
 test('non-Windows, unsafe and same-path Shell delivery never loads the native library', async () => {
@@ -208,8 +208,7 @@ test('FLUSH startup waiting ends at 500ms while preserving bytes and rejecting l
   let entered, callback; const reachedNative = new Promise(resolve => { entered = resolve; });
   f.options.notifyShortcutMoved = (from, to) => notifyShortcutMoved(from, to, {
     platform: 'win32', loadApi: () => ({ async(event, flags, oldPath, newPath, done) {
-      assert.deepEqual([event, flags, oldPath, newPath], [1, 0x1005, source,
-        userData + '\\legacy-system-shortcuts\\unique-backup\\Electron.lnk.backup']);
+      assert.deepEqual([event, flags, oldPath, newPath], [2, 0x1005, source, null]);
       callback = done; entered();
     } }),
   });
