@@ -2,6 +2,8 @@
 
 中文 | [English](release-notes.en.md)
 
+本包基于 DeepSeek Harness `0.1.7-rc.2`（上游提交 `477b4f420553e8a52c2fbccc464d7561b239c443`）；基线已从本轮原始安装负载核对。
+
 ## 这次更新
 
 - **远程工作区**：可管理 SSH 机器、选择远程目录，并在桌面会话中使用镜像工作区。
@@ -39,6 +41,8 @@
 ## 安装与升级
 
 Windows 10 及以上 x64 用户可从 [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) 获取安装包，并使用随附的 `SHA512SUMS.txt` 校验。安装器未进行 Authenticode 签名，Windows 可能显示安全提示。已有桌面安装可直接覆盖升级；迁移其他环境请使用启动器中的「导入」。
+
+Git 操作要求应用进程能找到 Git CLI。若系统尚未配置 Git，需先安装并确认从桌面启动的应用能够访问；开发终端中的 Git 可用不等于桌面进程已具备该依赖。
 
 ## 平台范围
 

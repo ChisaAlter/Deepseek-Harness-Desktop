@@ -2,6 +2,8 @@
 
 [中文](release-notes.md) | English
 
+This package uses DeepSeek Harness `0.1.7-rc.2` (upstream commit `477b4f420553e8a52c2fbccc464d7561b239c443`), verified from this candidate's original installer payload.
+
 ## What's new
 
 - **Remote workspaces**: Manage SSH machines, choose remote directories, and use mirrored workspaces in desktop sessions.
@@ -39,6 +41,8 @@
 ## Install and upgrade
 
 Windows 10 or later x64 users can download the installer from [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) and verify it with the accompanying `SHA512SUMS.txt`. The installer is not Authenticode-signed, so Windows may show a security warning. Existing desktop installations can be upgraded in place; use Import in the launcher when migrating from another environment.
+
+Git operations require a Git CLI that the application process can find. If Git is not configured, install it and confirm that the desktop-launched application can access it; Git availability in a development terminal does not establish that dependency for the desktop process.
 
 ## Platform scope
 

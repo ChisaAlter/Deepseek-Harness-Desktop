@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "trayExit": {
+    "mainExited": true,
+    "actualNativeRightClick": true,
+    "bundledNodeRemaining": 0,
+    "actualQuitMenuClicked": true
+  },
+  "ci": {
+    "macStandaloneNormal": "passed",
+    "requiredWindowsAndShared": "passed",
+    "dmgShipped": false,
+    "sourceRunId": "36910109226",
+    "nonShippingMacFullSuite": "pet renderer file failed; root cause unresolved",
+    "macSingleFileDiagnosticRunId": "36912473215",
+    "macStandaloneJitless": "passed"
+  },
+  "candidateRunId": "36912364842",
+  "candidateSha": "463b3455d05806cd725f835c9648fed63a54b5a2",
+  "freshInstall": {
+    "originalInstalledPayloadMatched": true,
+    "profileFixture": "complete original held; controlled copy at normal default path",
+    "shortcutInstalled": true,
+    "sourceInstanceUsed": false,
+    "normalDefaultProfile": true,
+    "version": "0.3.3",
+    "uiPaintObserved": true,
+    "directory": "%LOCALAPPDATA%\\Programs\\Whale Isle",
+    "pinVersion": "0.1.7-rc.2",
+    "installer": "original Actions NSIS Setup",
+    "enteredHarness": true,
+    "pinSha": "477b4f420553e8a52c2fbccc464d7561b239c443",
+    "pluginLoadingObserved": true,
+    "nodeVersion": "24.21.0"
+  },
+  "setupSha256": "ee2c8d12144e88129536ad68eac7c452353c60d3a0010afb99eb1e9ab73c6cdf",
+  "upgrade": {
+    "state": "partial",
+    "from": "v0.3.2",
+    "originalStableInstallerUsed": true,
+    "originalCandidateInstallerUsed": true,
+    "installedPayloadMatched": true,
+    "workspacePreserved": true,
+    "draftPreserved": true,
+    "oldConversationAndCredentialBaselineNotEstablished": true,
+    "remaining": "Establish an old-stable real conversation and model credential baseline before certifying the complete upgrade case."
+  },
+  "publication": {
+    "published": false,
+    "approved": false
+  },
+  "singleInstance": {
+    "secondOriginalShortcutOpened": true,
+    "oneMainPidRetained": true,
+    "focusReturned": true
+  },
+  "about": {
+    "displayedVersion": "0.3.3",
+    "aboutVersionObserved": true,
+    "payloadPinMatchesReleaseNotes": true,
+    "pinVersion": "0.1.7-rc.2",
+    "pinSha": "477b4f420553e8a52c2fbccc464d7561b239c443"
+  },
+  "workspace": {
+    "actualRegisteredSiblingWorkspaceOpened": true,
+    "selectedSessionCwdVerifiedThroughInstalledSessionList": true,
+    "workspaceClass": "owned disposable sibling repository; not Documents"
+  },
+  "terminal": {
+    "actualOwnedWorkspaceCommand": "echo dshd-qa-ok",
+    "visibleOutputReviewed": "dshd-qa-ok",
+    "wasmHttpStatus": 200,
+    "actualCanvasDoubleClick": true,
+    "selectionSource": "PowerShell prompt path in the owned QA terminal",
+    "actualAddToChatClicked": true,
+    "terminalFenceObserved": true,
+    "earlierDraftPreserved": true
+  },
+  "files": {
+    "loadingObservedBeforeList": true,
+    "prematureEmptyDirectoryObserved": false,
+    "search": "README",
+    "searchResultObserved": true,
+    "ownedReadmeSourceReadable": true,
+    "actualMentionClicked": true,
+    "mentionObserved": true,
+    "earlierDraftPreserved": true,
+    "actualSaveClicked": true,
+    "ownedFileSaved": true,
+    "systemOpenActionsNotRun": true
+  },
+  "git": {
+    "nativeDefaultEnvironmentHadNoGit": true,
+    "existingGitVersion": "2.53.0.windows.3",
+    "suppliedOnlyToTestProcess": true,
+    "systemEnvironmentChanged": false,
+    "actualInstalledCommitDialogUsed": true,
+    "repositoryClass": "owned disposable sibling repository",
+    "subject": "qa: installed 0.3.3 file save 36912364842",
+    "observedCommit": "35fe55654000063142883d28d05fc0239a29fcff",
+    "workingTreeClean": true,
+    "remotePushPerformed": false
+  },
+  "closeToTray": {
+    "actualTitlebarCloseClicked": true,
+    "mainWindowHidden": true,
+    "visibleOwnedWindowWasExistingTrayMenu": true,
+    "actualTrayTooltipStillPresent": true,
+    "mainAlive": true,
+    "samePeer": true,
+    "kernelReady": true,
+    "webReady": true
+  },
+  "restoration": {
+    "completeOriginalPreserved": true,
+    "heldOriginalInventoryAndImportantFileHashesMatchedBeforeRestore": true,
+    "originalDataDeleted": false,
+    "completeOriginalRestored": true,
+    "testCopyQuarantined": true,
+    "originalInstallationLocationRestored": true,
+    "originalInstalledShortcutUsed": true,
+    "candidateVersion": "0.3.3",
+    "normalDefaultProfileRebound": true,
+    "bundledNodeWebChildren": 1,
+    "userSecretsPublished": false,
+    "privateScreenshotsPublished": false
+  },
+  "blockers": {
+    "models": {
+      "kind": "environment",
+      "defaultApiKeyConfigured": false,
+      "managedCredentialReferenceValuesFound": 0,
+      "action": "Configure a usable gateway, model and key in the actual application; never put the key in chat or Git."
+    },
+    "remainingAcceptance": {
+      "selectedCases": 126,
+      "coreCases": 26,
+      "unexecutedCasesMustNotBeInherited": true,
+      "items": [
+        "Complete old-stable conversation/credential preservation",
+        "Complete Files system-open actions",
+        "Verify remote defaults with a fresh normal-profile configuration",
+        "Verify all specified configuration choices across restart",
+        "Complete remaining impacted cases, including update fixtures, visible window motion and relevant remote/device paths"
+      ]
+    }
+  },
+  "toolObservations": {
+    "packagedHostProfileViewExcluded": true,
+    "unpackagedObserverUsed": true,
+    "powershell5NonAsciiScriptsRequireCompatibleEncoding": true,
+    "existingNativePopupOccludedPhysicalMenuClicks": true,
+    "preparationQuitUsedNativeMenuAccessibilityInvocation": true,
+    "originalDefaultInstallActualPhysicalQuitEvidenceRetained": true,
+    "legacyWorkspacePreparationHelperProducedNoCompletedReceipt": true,
+    "legacyHelperResultNotUsedAsPass": true
+  },
+  "counts": {
+    "pass": 12,
+    "blocked": 12,
+    "not-run": 102,
+    "fail": 0,
+    "na": 0
+  }
+}

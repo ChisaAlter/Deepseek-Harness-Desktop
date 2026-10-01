@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `release-process` |
 | **status** | `active` |
-| **last verified** | 2026-10-02 — Node 24.21.0 下发布计划、验收、下载、版本、CI 资格和工作流定向验证通过；3 项资产符号链接测试因本机 EPERM 明确跳过，CI 仍强制执行。文档门禁 7/7 通过。未运行真实 GitHub Actions、签发安装验收或公开发布。 |
+| **last verified** | 2026-10-02 — 候选 `463b3455d05806cd725f835c9648fed63a54b5a2` 的必需 Windows/共享 CI `36910109226` 通过（含真实链接断言）；原始 Windows 构建与 packaged smoke `36912364842` 通过。安装验收为部分执行，12/126 项通过，完整原始资料已恢复；真实模型凭据及旧版会话基线缺失，未签字、未晋级、未公开发布。非发行 macOS 完整套件的 renderer 文件失败仍单独记录，单文件诊断通过不冒充修复。见本候选验收记录。 |
 
 ## User paths
 
@@ -33,4 +33,5 @@
 
 - Decision: [发布收敛](../decisions/implemented/process/2026-10-02-release-convergence.md)
 - Handbook: [构建与发布](../handbook/modules/build-release.md)
+- Acceptance: [v0.3.3 候选 36912364842](../qa/releases/v0.3.3/36912364842.json)
 - Implementation entry: `.github/workflows/release.yml`、`.github/workflows/publish.yml`

@@ -1,0 +1,934 @@
+{
+  "schemaVersion": 1,
+  "planSha256": "6720fb6b6f61039c75b60db7e075d79eace1b9bd2104f547986c64afd2da9bd3",
+  "candidateSha": "463b3455d05806cd725f835c9648fed63a54b5a2",
+  "candidateRunId": "36912364842",
+  "version": "0.3.3",
+  "artifacts": [
+    {
+      "name": "Whale-Isle-Setup-0.3.3.exe",
+      "sha256": "ee2c8d12144e88129536ad68eac7c452353c60d3a0010afb99eb1e9ab73c6cdf"
+    }
+  ],
+  "state": "testing",
+  "scopeReview": "",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200 x64",
+    "installationPath": "Installer default directory for fresh installation; existing user-chosen installation directory for upgrade and final restoration",
+    "profile": "Normal %APPDATA%/Deepseek-Harness-Desktop; intact original held while controlled copy occupied normal path; full original restored",
+    "shellSession": "Explorer PID 35948, started 2026-10-01T22:30:39.8248634+08:00; no Explorer restart; no clean-session taskbar claim",
+    "upgradeFrom": "v0.3.2, original Setup SHA256 a2b63a60fcf1b9a41b843e0780838068e41377fdfb2a5784ab4735e1ea03d3be",
+    "identityEvidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#freshInstall; #restoration; Git phase used installed EXE with process-local Git prerequisite",
+    "sourceInstancesStopped": true
+  },
+  "cases": [
+    {
+      "id": "TC-APP-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-009",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-010",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-011",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-012",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-013",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-014",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APP-015",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-APPROVE-001",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-APPROVE-002",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-APPROVE-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-CHAT-001",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-CHAT-002",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-CHAT-003",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-CHAT-004",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-CHAT-005",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-CHAT-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-CHAT-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-CHAT-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-CHAT-009",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-CHAT-010",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-CHAT-011",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-CHAT-012",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-CHAT-013",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-001",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#closeToTray",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-004",
+      "status": "pass",
+      "evidence": "36912364842-evidence.json#trayExit",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-009",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-010",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-DESK-011",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-EXT-009",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-GIT-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-GIT-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-GIT-003",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#git",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-GIT-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-GIT-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-GIT-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-GIT-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-001",
+      "status": "pass",
+      "evidence": "36912364842-evidence.json#freshInstall",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-002",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#singleInstance",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-003",
+      "status": "pass",
+      "evidence": "36912364842-evidence.json#freshInstall",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-008",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#about",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-009",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#upgrade",
+      "reason": "Workspace/draft preservation observed; complete old-version real conversation and credential baseline still required.",
+      "issueId": "QA-UPGRADE-BASELINE"
+    },
+    {
+      "id": "TC-INST-010",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-011",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-011b",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-012",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-INST-013",
+      "status": "pass",
+      "evidence": "36912364842-evidence.json#freshInstall",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-LAUNCH-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-MODEL-001",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-MODEL-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-MODEL-003",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-MODEL-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-MODEL-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-MODEL-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-MODEL-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-NEG-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-NEG-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-NEG-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-NEG-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-NEG-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-NEG-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-REM-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-REM-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-REM-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-RW-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SESS-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SESS-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SESS-003",
+      "status": "blocked",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
+      "issueId": "QA-REAL-MODEL"
+    },
+    {
+      "id": "TC-SURF-001",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#files",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SURF-002",
+      "status": "not-run",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#files",
+      "reason": "Actual file save verified; complete system-open actions before assigning Pass.",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SURF-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SURF-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SURF-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SURF-006",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SURF-007",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-SURF-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-TERM-001",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#terminal",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-TERM-002",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#terminal",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-TERM-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-TERM-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-WS-001",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-WS-002",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-WS-003",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-WS-004",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-WS-005",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-WS-006",
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#workspace",
+      "reason": "",
+      "issueId": ""
+    },
+    {
+      "id": "TC-WS-008",
+      "status": "not-run",
+      "evidence": "",
+      "reason": "",
+      "issueId": ""
+    }
+  ],
+  "issues": [
+    {
+      "id": "QA-REAL-MODEL",
+      "kind": "environment",
+      "severity": "major",
+      "status": "open",
+      "summary": "No usable real-model credentials are available for installed conversation/tool/approval acceptance.",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "owner": "Release owner",
+      "followUp": "Configure credentials in the application and execute the blocked cases on this exact original candidate."
+    },
+    {
+      "id": "QA-UPGRADE-BASELINE",
+      "kind": "environment",
+      "severity": "major",
+      "status": "open",
+      "summary": "Stable-to-candidate installer upgrade preserved the tested workspace/draft, but the full old-conversation/credential baseline is incomplete.",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#upgrade",
+      "owner": "Release owner",
+      "followUp": "Prepare the missing real old-stable baseline on a protected normal-profile fixture and complete TC-INST-009."
+    }
+  ],
+  "signoff": {
+    "approvedBy": "",
+    "approvedAt": ""
+  }
+}

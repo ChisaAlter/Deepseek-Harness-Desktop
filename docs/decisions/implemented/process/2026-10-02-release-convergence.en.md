@@ -16,6 +16,10 @@ Plans retain 26 mandatory installed core scenarios and select affected cases fro
 
 Each candidate has one current JSON record binding Setup/DMG and plan digests, environment, results, issues and approval. Missing core evidence, serious product defects and unclassified failures block publication. Non-core limitations require appropriate risk handling; waivers include owner, rationale, follow-up and expiry. Promotion reads a report at an immutable main commit, verifies original bytes, and publishes the plan, report, limitations and checksums. Evidence updates never rebuild binaries. Automation cannot certify the truth of evidence or substitute for human authorization.
 
+Installed acceptance prefers a separate test user. When unavailable, a reversible profile copy may occupy the normal default path after all product instances exit normally. Preserve the complete original directory, copy without following links, let the old version touch only the copy, and restore the original profile and user installation location afterwards. This changes environment preparation without waiving actual installation, stable-version upgrade or data-retention cases.
+
+A packaged tool host may virtualize the default profile. If directory and peer observations disagree, first bind an unpackaged observer's physical directory to the installed process before touching data. The host's copy supplies neither installed-profile identity nor evidence of a product fault.
+
 Related decision audit:
 
 | Existing record | Relationship and handling |
@@ -32,6 +36,8 @@ Related decision audit:
 - Inherit passes for unchanged modules from previous installers: cheaper, but packaging and cross-module effects are difficult to prove; this design reruns core cases for each new package and labels unselected cases as unexecuted.
 
 ## Consequences
+
+Acceptance of the original installer confirmed that the Codex host's virtualized profile and Git environment do not represent ordinary desktop processes. Windows PowerShell 5 script encoding must also be checked before profile writes. The process now checks prerequisites first: real model credentials, an old-version session, external dependencies and device fixtures. Missing prerequisites block their cases without rebuilding or fabricating passes; dependencies supplied only to a test process are recorded as environment differences. Original user data is preserved, with the test copy and original restored and retained separately.
 
 Ordinary localized releases no longer repeat the complete catalog; broadly changed runtimes can still require full acceptance, so no fixed-hour publication promise is made. Impact mappings require maintenance as modules evolve, with unknown paths falling back to full coverage. Humans must review the diff and add missing risks. Evidence must be sanitized before publication, and the owner reviews authorization authenticity.
 
