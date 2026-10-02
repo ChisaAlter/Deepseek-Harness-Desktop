@@ -9,6 +9,7 @@ const {
   ok,
   run,
   runGit,
+  resetGitExecutableProbe,
   gitFailureMessage,
   withTruncationMarker,
   inferHookName,
@@ -70,6 +71,12 @@ const { readPrTemplate, resolvePrBaseBranch, setGhDefaultBranchResolver } = requ
  * file of exactly this size is not a problem: the check is `>`.
  */
 const LARGE_FILE_WARNING_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Surfaced when git cannot be spawned from PATH or a well-known install dir.
+ * Carries install guidance so the error card is actionable, not a dead end.
+ */
+const GIT_UNAVAILABLE = 'Git is unavailable. Install Git for Windows: run "winget install Git.Git" or download https://git-scm.com/download/win';
 
 /**
  * Git-for-Windows `core.protectNTFS` rejects these device names in any path
@@ -379,7 +386,7 @@ async function gitInit(cwd) {
   // on-disk state, so no reader may keep answering from the pre-write memo.
   invalidateReadContext(root);
   const inited = await runGit(root, ['init', '-b', 'main']);
-  if (inited.missing) return fail('Git is unavailable.');
+  if (inited.missing) return fail(GIT_UNAVAILABLE);
   if (inited.timedOut) return fail('Git command timed out.');
   if (inited.code !== 0) return fail(inited.stderr.trim() || 'git init failed.');
   return ok();
@@ -445,7 +452,7 @@ async function prepareCommitContext(root, filePaths) {
   let add = selected.length > 0
     ? await runGit(root, ['--literal-pathspecs', 'add', '-A', '--', ...rels])
     : await runGit(root, ['add', '-A']);
-  if (add.missing) return { error: 'Git is unavailable.' };
+  if (add.missing) return { error: GIT_UNAVAILABLE };
   if (add.timedOut) return { error: 'Git command timed out.' };
   let stagedSummary = await runGit(root, ['diff', '--cached', '--name-status']);
   if (stagedSummary.timedOut) return { error: 'Git command timed out.' };
@@ -460,7 +467,7 @@ async function prepareCommitContext(root, filePaths) {
       return { skipped: true };
     }
     add = await runGit(root, ['--literal-pathspecs', 'add', '-A', '--', ...fallback]);
-    if (add.missing) return { error: 'Git is unavailable.' };
+    if (add.missing) return { error: GIT_UNAVAILABLE };
     if (add.timedOut) return { error: 'Git command timed out.' };
     stagedSummary = await runGit(root, ['diff', '--cached', '--name-status']);
     if (stagedSummary.timedOut) return { error: 'Git command timed out.' };
@@ -796,7 +803,7 @@ async function gitPush(cwd, onProgress) {
     upstreamBranch = `${remote}/${publishBranch}`;
     pushed = await runGitWithProgress(root, ['push', '-u', remote, `HEAD:refs/heads/${publishBranch}`], emit, limits);
   }
-  if (pushed.missing) return fail('Git is unavailable.');
+  if (pushed.missing) return fail(GIT_UNAVAILABLE);
   if (pushed.timedOut) return fail('Git command timed out.');
   if (pushed.code !== 0) return fail(gitFailureMessage(pushed, 'git push failed.'));
   return done(ok({
@@ -825,7 +832,7 @@ async function gitPull(cwd, onProgress) {
     const pulled = await runGitWithProgress(root, ['pull', '--ff-only'], emit, {
       timeoutMs: COMMIT_TIMEOUT_MS,
     });
-    if (pulled.missing) return fail('Git is unavailable.');
+    if (pulled.missing) return fail(GIT_UNAVAILABLE);
     if (pulled.timedOut) return fail('Git command timed out.');
     if (pulled.code !== 0) return fail(gitFailureMessage(pulled, 'git pull failed.'));
     const afterSha = await readHeadSha(root);
@@ -1146,7 +1153,7 @@ async function gitPathOp(cwd, relativePath, args, failVerb) {
   // before exiting non-zero; invalidate up front so failure is fail-closed.
   invalidateReadContext(root);
   const result = await runGit(root, [...args, '--', rel]);
-  if (result.missing) return fail('Git is unavailable.');
+  if (result.missing) return fail(GIT_UNAVAILABLE);
   if (result.timedOut) return fail('Git command timed out.');
   if (result.code !== 0) return fail(result.stderr.trim() || result.stdout.trim() || failVerb);
   return ok();
@@ -1184,7 +1191,7 @@ async function gitStatusEntries(cwd) {
   const root = asCwd(cwd);
   if (!root) return fail('Git status is unavailable.');
   const listed = await runGit(root, ['status', '--porcelain=v1', '-z']);
-  if (listed.missing) return fail('Git is unavailable.');
+  if (listed.missing) return fail(GIT_UNAVAILABLE);
   if (listed.timedOut) return fail('Git command timed out.');
   if (listed.code !== 0) return fail(listed.stderr.trim() || 'git status failed.');
   return ok({ entries: parsePorcelainZ(listed.stdout) });
@@ -1199,7 +1206,7 @@ async function gitBranchList(cwd) {
     'refs/heads',
     'refs/remotes',
   ]);
-  if (listed.missing) return fail('Git is unavailable.');
+  if (listed.missing) return fail(GIT_UNAVAILABLE);
   if (listed.timedOut) return fail('Git command timed out.');
   if (listed.code !== 0) return fail(listed.stderr.trim() || 'git branch list failed.');
   const branches = [];
@@ -1264,7 +1271,7 @@ async function gitSwitchBranch(cwd, ref) {
   // must not leave the old memo serving pre-checkout answers.
   invalidateReadContext(root);
   const result = await runGit(root, [...args, name]);
-  if (result.missing) return fail('Git is unavailable.');
+  if (result.missing) return fail(GIT_UNAVAILABLE);
   if (result.timedOut) return fail('Git command timed out.');
   if (result.code !== 0) return fail(result.stderr.trim() || result.stdout.trim() || 'git checkout failed.');
   const head = await runGit(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
@@ -1278,7 +1285,7 @@ async function gitCreateBranch(cwd, name) {
   if (!branch) return fail(UNSUPPORTED_REF_NAME_MESSAGE);
   invalidateReadContext(root);
   const result = await runGit(root, ['checkout', '-b', branch]);
-  if (result.missing) return fail('Git is unavailable.');
+  if (result.missing) return fail(GIT_UNAVAILABLE);
   if (result.timedOut) return fail('Git command timed out.');
   if (result.code !== 0) return fail(result.stderr.trim() || result.stdout.trim() || 'git checkout -b failed.');
   return ok({ refName: branch });
@@ -1313,7 +1320,7 @@ async function gitCheckLargeFiles(cwd) {
   const scanRoot = repoRoot ?? root;
   const useRepoPaths = repoRoot !== null;
   const listed = await runGit(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
-  if (listed.missing) return fail('Git is unavailable.');
+  if (listed.missing) return fail(GIT_UNAVAILABLE);
   if (listed.timedOut) return fail('Git command timed out.');
   if (listed.code !== 0) return fail(gitFailureMessage(listed, 'git status failed.'));
   // The path list was cut short, so "no large files" would be a lie.
@@ -1396,6 +1403,7 @@ module.exports = {
   parseUnifiedDiff,
   run,
   gitChildEnv,
+  resetGitExecutableProbe,
   resolveCurrentUpstream,
   resolvePushRemoteName,
   setWorkspaceAuthority,

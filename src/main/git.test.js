@@ -20,7 +20,7 @@ childProcess.spawn = function countingSpawn(command, args, options) {
 
 const { createWorkspaceAuthority } = require('./workspace-authority');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
-const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitCheckLargeFiles, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
+const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitCheckLargeFiles, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetGitExecutableProbe, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
 const { resetReadContexts } = require('./git-read-context.js');
 const { parseRepositoryNameWithOwnerFromNormalized } = require('./git-pullrequest');
 const { setTextGenerator } = require('./git-generate.js');
@@ -97,6 +97,42 @@ test('gitInit creates a repository the titlebar can commit into', async () => {
     const status = await gitStatus(cwd);
     assert.equal(status.isRepo, true);
   } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitStatusEntries falls back to a well-known Git install when PATH cannot spawn git', async () => {
+  // Explorer/terminals keep the PATH they started with, so Git installed
+  // mid-session is invisible to this process's children. The desktop must
+  // probe the standard install dirs before reporting Git as unavailable.
+  const standardInstall = [
+    process.env.ProgramFiles,
+    process.env['ProgramFiles(x86)'],
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Programs') : null,
+  ]
+    .filter(Boolean)
+    .map((dir) => path.join(dir, 'Git', 'cmd', 'git.exe'))
+    .find((candidate) => fs.existsSync(candidate));
+  const cwd = makeTempDir();
+  const pathKeys = Object.keys(process.env).filter((key) => key.toLowerCase() === 'path');
+  const saved = pathKeys.map((key) => [key, process.env[key]]);
+  try {
+    git(cwd, ['init', '-b', 'main']);
+    fs.writeFileSync(path.join(cwd, 'a.txt'), 'x');
+    for (const [key] of saved) process.env[key] = path.join(os.tmpdir(), 'dshd-empty-path');
+    const listed = await gitStatusEntries(cwd);
+    if (process.platform === 'win32' && standardInstall) {
+      assert.equal(listed.ok, true, JSON.stringify(listed).slice(0, 300));
+      assert.ok(listed.entries.some((entry) => entry.path === 'a.txt'));
+    } else {
+      assert.equal(listed.ok, false);
+      assert.match(listed.message, /Git is unavailable/);
+      assert.match(listed.message, /git-scm\.com|winget/);
+    }
+  } finally {
+    for (const [key, value] of saved) process.env[key] = value;
+    resetGitExecutableProbe();
     setWorkspaceAuthority(null);
     fs.rmSync(cwd, { recursive: true, force: true });
   }
