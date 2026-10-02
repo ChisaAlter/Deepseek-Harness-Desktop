@@ -23,8 +23,8 @@
 - 安装器语言 zh_CN（首位 = 兜底）+ en_US；产品中文文案走 MUI 本地化串，不烙进位图。
 - 许可页读根 `LICENSE`（MIT）原文。
 - 安装器/卸载器图标 = `assets/icon.ico`（与应用同一白色圆角底板鲸鱼头像，`icon.svg` → `npm run icon` 生成）。
-- 发布链产物验收：windows job 的 packaged smoke 位于 dist 后、上传前，首次失败即停止并保留结果，重试需先分类并改变相关前置条件，不自动重试、不设 `continue-on-error`。候选默认 Windows，macOS 显式选择；源码质量门仍在 test.yml。
-- 发布晋级遵循 [发布操作流程](../handbook/modules/release-process.md)：main 上成功候选、同 SHA 相关 CI、原始包和计划、不可变提交中的安装验收报告共同校验。生成校验和与 provenance，晋级不重建；交付 DMG 时额外核对 macOS 测试、摘要和安装结果。
+- 开发 CI 的 windows job 在 dist 后启动打包应用，成功后上传该安装包；发布阶段复用这些字节。macOS 按需选择。
+- 自动分发遵循[发布说明](../handbook/modules/release-process.md)：只接收成功 main 构建，核对资产与更新元数据，生成 SHA512SUMS；没有候选签署流程。
 - 资产核对由 `scripts/check-release-assets.mjs` 单点执行（workflow、测试、本地排障共用同一实现，禁止在 workflow 里重写一套）：恰好一个版本化 Setup + 同名 `.exe.blockmap` + `latest.yml`，三者都是普通文件且不逃出资产目录；Setup 文件名 / tag / package 版本 / 元数据版本四者一致；Setup SHA256 等于操作者摘要；`latest.yml` 的 `files[]` 只引用本地那个 Setup 且大小与 base64 sha512 与字节一致；旧式顶层 `path`/`sha512` 可缺失但存在时必须一致。校验器只读、离线、不读凭据、有界。它**不**证明 `.blockmap` 与 Setup 的密码学对应——v26 元数据没有该字段，不得发明。
 
 ## Allowed touch
@@ -34,8 +34,8 @@
 - `build/` — `installer.nsh` 与生成的 BMP
 - `scripts/render-installer-assets.js`、`scripts/run-render-installer-assets.js` — 位图生成
 - `src/main/installer-branding.test.js` — 自动门禁
-- `.github/workflows/release.yml` / `publish.yml`、`scripts/check-release-assets.mjs` 与测试 — 新发行资产名
-- `.github/workflows/release.yml` windows job 的 packaged smoke、`.github/workflows/publish.yml` 的同一候选资产晋级、手动候选的 Windows-only 默认值与 `src/main/ci-isolation.test.js` 对应钉子（2026-09-06 用户明确要求本版不要 macOS；上传 globs / SHA512SUMS 流仍在 Do not touch）
+- `.github/workflows/test.yml` 构建安装包，`.github/workflows/release.yml` 与 `scripts/publish-release.mjs` 分发原始资产。
+- `.github/workflows/test.yml` 构建安装包，`.github/workflows/release.yml` 与 `scripts/publish-release.mjs` 分发原始资产。
 - 本卡与 [build-release handbook](../handbook/modules/build-release.md)
 
 ## Do not touch

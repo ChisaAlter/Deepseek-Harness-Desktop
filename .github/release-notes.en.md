@@ -54,7 +54,7 @@ If the current Windows Explorer session has cached an older notification-generat
 
 ## Verification scope
 
-The candidate is gated by Desktop tests on the same commit, installer packaging, and packaged smoke. Promotion also requires the installer SHA256 check and manual acceptance of the production installer. Manual paths not exercised are not claimed as passed.
+Development CI runs relevant behavior tests, installer packaging and packaged smoke. Automatic publication reuses those assets and verifies update metadata and checksums. Installation, upgrade and manual paths not exercised are not claimed as passed.
 
 ## Feedback
 

@@ -1,4 +1,0 @@
-#!/bin/sh
-# Commit implementation without starting tests or documentation gates.
-# Run relevant checks explicitly after implementation; pre-push checks local QA.
-exit 0

@@ -1,143 +1,145 @@
-name: Desktop tests
-run-name: Final validation ${{ inputs.candidate_sha }}
-
+name: Development CI
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
-      candidate_sha:
-        description: Full main SHA already validated locally
-        required: true
-        type: string
-      local_qa:
-        description: Same-SHA local tests, build/locks, real operations and affected boundaries; no missing required checks
-        required: true
-        type: string
-      ci_nonpass_count:
-        description: Verified cumulative non-passing attempts for this delivery across commits, branches, workflows and sessions
-        required: true
-        type: number
-      ci_count_evidence:
-        description: Run IDs/history establishing the cumulative count; never assume zero
-        required: true
-        type: string
-      ci_recovery_decision:
-        description: 'Only after a stop; <unchanged count>: user decision reference and corrected local QA evidence'
-        required: false
-        type: string
       include_macos:
-        description: Validate macOS when shipping DMG
-        required: false
+        description: Also build the macOS installer
         type: boolean
         default: false
-
-# Least privilege: jobs only read the repo. Release/publish set their own scopes.
 permissions:
   contents: read
-  actions: read
-
 concurrency:
-  group: desktop-tests-${{ inputs.candidate_sha }}
-  cancel-in-progress: false
-
+  group: development-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  fast-checks:
-    name: Fast checks
+  scope:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    outputs:
+      product: ${{ steps.changes.outputs.product }}
+      vendor: ${{ steps.changes.outputs.vendor }}
+      tools: ${{ steps.changes.outputs.tools }}
+      motion: ${{ steps.changes.outputs.motion }}
     steps:
-      - name: Require frozen main source and completed local QA
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-          LOCAL_QA: ${{ inputs.local_qa }}
-          CI_NONPASS_COUNT: ${{ inputs.ci_nonpass_count }}
-          CI_COUNT_EVIDENCE: ${{ inputs.ci_count_evidence }}
-          CI_RECOVERY_DECISION: ${{ inputs.ci_recovery_decision }}
-        run: |
-          set -euo pipefail
-          [[ "$GITHUB_REF" == refs/heads/main && "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Use a full main SHA'; exit 1; }
-          [[ "$LOCAL_QA" =~ [^[:space:]] && "$CI_COUNT_EVIDENCE" =~ [^[:space:]] && "$CI_NONPASS_COUNT" =~ ^(0|[1-9][0-9]*)$ ]] || { echo 'Local QA and cumulative CI history are required'; exit 1; }
-          if (( CI_NONPASS_COUNT >= 4 )); then
-            [[ "$CI_RECOVERY_DECISION" == "$CI_NONPASS_COUNT:"* && "${CI_RECOVERY_DECISION#*:}" =~ [^[:space:]] ]] || { echo 'Four non-passing attempts: stop; require a user corrective decision for the unchanged count'; exit 1; }
-          fi
-          relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$CANDIDATE_SHA...main" --jq .status)
-          [[ "$relation" == ahead || "$relation" == identical ]] || { echo 'Candidate must be on main'; exit 1; }
-          printf '%s\n' "$LOCAL_QA" "$CI_COUNT_EVIDENCE" "$CI_RECOVERY_DECISION" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+      - id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci-scope.mjs
+  tools:
+    needs: scope
+    if: needs.scope.outputs.tools == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Check remote npm lock before compilation
+      - run: node node_modules/electron/install.js
+      - run: npm run test:tools
+  windows:
+    needs: scope
+    if: needs.scope.outputs.product == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      LEFTHOOK: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Check remote dependency lock
         run: npm ci --ignore-scripts --dry-run --no-audit --no-fund
         working-directory: vendor/chisacode-remote
-
-  desktop:
-    needs: fast-checks
-    name: Desktop unit tests (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON(inputs.include_macos && '["windows-latest","macos-latest"]' || '["windows-latest"]') }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.candidate_sha }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          # engines 要求 ^22.19.0 || >=24；.nvmrc 是唯一钉版来源
-          node-version-file: .nvmrc
-          cache: npm
-      - name: Install app dependencies
-        run: npm ci
-      - name: Download Electron binary
-        run: node node_modules/electron/install.js
-      - name: Install upstream bridge dependencies
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness install --frozen-lockfile
-      - name: Build upstream bridge contracts
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run build:lib
-      - name: Run desktop unit tests
+      - run: node node_modules/electron/install.js
+      - name: Build the shipped Harness profile
+        run: npm run setup:harness
+      - name: Desktop behavior tests
         run: npm test
-      - name: Native Windows shell motion contract (real Electron factories and IPC)
-        if: runner.os == 'Windows'
+      - name: GUI behavior tests
+        if: needs.scope.outputs.vendor == 'true'
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run test:gui
+      - name: Core behavior tests
+        if: needs.scope.outputs.vendor == 'true'
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run packages/core/agent-loop packages/core/session packages/core/tools packages/llm packages/api/session-controller packages/api/workspace-controller packages/fs/tool-fs packages/workspace packages/session/session-projection-cache packages/subagent/subagent --maxWorkers 2
+      - name: Malformed tool recovery
+        if: needs.scope.outputs.vendor == 'true'
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run --config vitest.snapshot.config.ts snapshots/session/headless.snapshot.ts -t "replays malformed-tool-call-retry"
+      - name: Built desktop composition
+        if: needs.scope.outputs.vendor == 'true'
+        run: node scripts/check-skip-compose-contract.js vendor/deepseek-harness
+      - name: Built desktop styling
+        if: needs.scope.outputs.vendor == 'true'
+        run: node scripts/check-built-shell.mjs
+      - name: Native window behavior
+        if: needs.scope.outputs.motion == 'true'
         run: node scripts/run-window-motion-qa.mjs
-
-  vendor-gui:
-    needs: fast-checks
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build Windows installer
+        run: npm run dist
+      - name: Start the packaged application
+        env:
+          DSH_SMOKE_TIMEOUT_MS: '600000'
+        run: npm run smoke:packaged
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          ref: ${{ inputs.candidate_sha }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+          name: Whale-Isle-windows-x64
+          path: |
+            dist/Whale-Isle-Setup-*.exe
+            dist/Whale-Isle-Setup-*.exe.blockmap
+            dist/latest.yml
+          if-no-files-found: error
+          retention-days: 30
+  macos:
+    if: github.event_name == 'workflow_dispatch' && inputs.include_macos
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      LEFTHOOK: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version-file: .nvmrc
           cache: npm
-      - name: Install app dependencies
-        run: npm ci
-      - name: Install vendor dependencies
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness install --frozen-lockfile
-      - name: Client catalog up to date
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-client-catalog --check
-      - name: Third-party notices up to date
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-third-party-notices --check
-      - name: Build vendor client + host libs
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run build:lib
-      - name: Built desktop silhouette contract
-        run: node scripts/check-built-shell.mjs
-      # 最终验证用刚构建的真实 CLI 验证 skip compose 契约（dump-config skip/full
-      # 双轮 + 用户层 canary），补上 after-pack 门禁覆盖不到的 vendor 回归面。
-      - name: Skip compose contract (real CLI dump-config)
-        run: node scripts/check-skip-compose-contract.js vendor/deepseek-harness
-      - name: GUI component suites
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run test:gui
-      - name: Core contract regression suites
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run packages/core/agent-loop packages/core/session packages/core/tools packages/llm packages/api/session-controller packages/api/workspace-controller packages/fs/tool-fs packages/workspace packages/session/session-projection-cache packages/subagent/subagent --maxWorkers 2
-      - name: Malformed tool recovery (keyless dsh replay)
-        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run --config vitest.snapshot.config.ts snapshots/session/headless.snapshot.ts -t "replays malformed-tool-call-retry"
+      - run: node scripts/check-mac-icon.js
+      - run: npm ci
+      - run: node node_modules/electron/install.js
+      - run: npm run setup:harness
+      - run: npm test
+      - run: npm run dist:mac
+      - run: npm run smoke:packaged
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: Whale-Isle-macos-arm64
+          path: dist/Whale-Isle-*.dmg
+          if-no-files-found: error
+          retention-days: 30
+  result:
+    name: CI
+    if: always()
+    needs: [scope, tools, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module -e '
+            for (const [name, job] of Object.entries(JSON.parse(process.env.RESULTS))) {
+              console.log(name + ": " + job.result);
+              if (!["success", "skipped"].includes(job.result)) process.exitCode = 1;
+            }
+          '

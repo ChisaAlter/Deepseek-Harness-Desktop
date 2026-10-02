@@ -1,77 +1,27 @@
-# 模块：构建、钉版与发版
+# 构建、钉版与发版
 
-## 职责与非目标
+本章保存装配实现；开发与发布操作见[发布说明](release-process.md)，项目维护见[维护说明](../../maintenance/README.md)。
 
-**职责：** vendor harness 钉版、官方 `build:official` 客户端、electron-builder 出包、CI 发版。  
-**非目标：** 不在手册复述完整 CI YAML；不把源码钉伪称为已发包装钉。
+## 本地开发与构建
 
-## 当前版本
+`npm ci` 安装根依赖，`npm run setup:harness` 准备锁定的上游并构建官方 profile，`npm start` 启动桌面。Windows 使用 `npm run dist`，macOS 使用 `npm run dist:mac`。这些是操作入口，不是每次修改必须顺序执行的清单。
 
-`0.3.2`（tag `v0.3.2`）是最近已发布版本；`0.3.3` 当前处于候选阶段，默认仅生成 Windows x64。Harness 钉 `dsh-v0.1.7-rc.2`（SHA `477b4f420553e8a52c2fbccc464d7561b239c443`）。候选运行完成后，必须把同一候选运行的 SHA、Desktop tests 结果和 Setup SHA256 写入发布记录，再使用 `publish.yml` 晋级；中文 / English 发布说明分别在 [release-notes.md](../../../.github/release-notes.md) / [release-notes.en.md](../../../.github/release-notes.en.md)。
+Harness 来源由 `vendor/harness-upstream.json` 记录；同步用 `npm run sync:harness -- --ref … --sha …`。整合时查看[上游合并与差异保护](../../maintenance/README.md#上游合并与差异保护)，不要覆盖已经交付的桌面能力。
 
-## 用户路径（开发者）
+## 实际装配
 
-发布执行、失败分类、核心/影响验收与机器放行统一遵循 [发布操作流程](release-process.md)。本章只持有构建和装配细节。
+- `scripts/setup-harness.js` 使用锁文件中的 pnpm 和官方 `build:official`。客户端修改后构建该 profile，随后重启桌面。
+- `package.json` 保存 Electron、NSIS、DMG、资源和 afterPack 配置。Windows 安装器品牌与静默安装行为见[安装器资料](../../features/windows-installer.md)。
+- 根 `.nvmrc` 是 CI Node 版本来源。`afterPack` 把实际构建时的 Node 打入安装包；本机版本不能冒充 CI 包内版本。
+- 生产依赖必须在 manifest 与锁文件中完整声明；实际装配保留消费者的依赖实例共享/隔离关系。实现与理由见[运行时实例布局](../../decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md)。
+- `afterPack` 对 Harness 归档计算 SHA256；提取和同版本升级通过归档内容识别变化，不能用文件长度或版本号替代。
+- 上游 `scripts/build-stage-credentials.mjs` 按 native/host/client/web 的输入与产物身份复用阶段，避免无变化时重复编译。该缓存属于构建实现，不是人工验收凭据。
+- Office runtime 通过 `prepare:office-runtime` 进入 Windows 安装包。其资源、依赖和能力边界见[Office runtime](../../features/office-runtime.md)。
 
-```powershell
-npm install
-npm run setup:harness
-npm start
-```
+## CI 产物与分发
 
-以上是开发启动入口，不是每次修改必须执行的链条。实现完成后选择必要测试与构建，真实 QA 全部通过才进入最终 CI。打包只在实际装配风险或准备交付时执行：
+`test.yml` 在开发阶段产生 `Whale-Isle-windows-x64`，包含版本化 Setup、blockmap 和 latest.yml；启动打包后的应用后上传。请求 macOS 时还产生同一次运行的 DMG。
 
-```powershell
-npm run dist          # Windows，本地装配/安装 QA
-npm run dist:mac      # macOS 真机，仅实际交付 DMG
-```
+`release.yml` 从成功的 main 开发构建下载资产。版本高于已发布版本才分发，失败上传可重试原 CI run。资产检查由 `scripts/check-release-assets.mjs` 核对文件与更新元数据；不运行候选计划或签署检查。
 
-同步上游：`npm run sync:harness -- --ref … --sha …`（以 `vendor/harness-upstream.json` 为准）。
-
-DSH 与桌面来源整合统一遵循[上游合并与差异保护](../../maintenance/README.md#上游合并与差异保护)。各来源使用各自真实仓库、基线和目标 SHA；现有 `sync:harness` 只处理 Harness vendor 树，不是桌面上游的通用合并器。功能差异由负责卡维护；既有 fork 检查只提供部分结构证据，行为保真须在实现完成后按实际影响验证。
-
-## 架构要点
-
-- 钉：`vendor/harness-upstream.json`（当前文档化基线见根 README）。  
-- Windows 安装器品牌化（欢迎/完成侧栏、header、许可页、zh_CN+en_US、`build/installer.nsh`）契约见 [windows-installer 卡](../../features/windows-installer.md)；位图用 `npm run installer:assets` 再生成，GUI 定制不得影响静默 `/S` 与 artifact 命名。  
-- 改 client 后：`vendor/deepseek-harness` 内 `pnpm run build:official` 再重启桌面（与官方发版同一 profile；不要只跑 `build:lib:client`）。`build:official` 现在按阶段凭据决定重跑范围：只改浏览器来源时仅重做 `client` + `web`，native/host 产物沿用已验证结果；`--force` 可忽略凭据全量重建。  
-- 安装包经 GitHub Actions `release.yml` **windows job** 产出。正式发行验收对象是该 artifact；本地 `npm run dist` 是触发 CI 前验证装配/安装风险的对象，不能省略必要本地实际验证，也不能把其结果自动写成 CI 原包通过。`afterPack` 会把打包时的 `node.exe` 打进包内，本机 Node 24 ≠ CI Node。
-- Node 钉版单一来源是根 `.nvmrc`（当前 24.21.0，24 系列 LTS；engines 要求 `^22.19.0 || >=24`）：CI 全部 `setup-node` 用 `node-version-file`，云端环境 `.cursor/environment.json` → `.cursor/install.sh` 在旧 Node 上自动装 `.nvmrc` 版本并跑 `npm ci` + vendor `pnpm install`。选择依据见 [Node 24 LTS 构建基线](../../decisions/implemented/process/2026-09-29-node24-release-runtime.md)。
-
-## 实现入口
-
-- `scripts/`（setup/sync/dist/QA）
-- `package.json` scripts
-- `.github/workflows/`
-
-## 不变量
-
-- 桌面账户启动链直接加载 `ws`，根生产依赖和锁文件必须显式包含它，不能依赖源码机上的额外安装。打包实例门禁不接受同字节身份合并或无法收拢的拆分；删除副本也必须触发下一轮依赖图复验，见[修复记录](../../decisions/implemented/bug-fix/2026-09-28-packaging-identity-gates-and-ws.md)。
-- 验收：对 **CI 安装包 SHA** 执行发布计划中的核心与影响场景；[production-acceptance-test-cases.md](../../qa/production-acceptance-test-cases.md) 是完整回归库。禁止把源码钉写成已发包装钉，禁止本机 dist 或旧候选继承 Pass。
-- `afterPack` 按源 realpath 收集生产依赖实例：工作区包保留原相对位置，第三方实例各有一个短目录，消费者通过链接保持共享与隔离；独立核对发布文件和每条实际解析边，测试专用包、缺失必需依赖和身份漂移均阻断。归档前移除链接，仅携带 version 1 `.dsh-runtime-links.json` 的相对清单；提取后在新根创建 Windows junction 或目录 symlink，验证完成才写运行时标记。显式 deploy 也经过同一装配检查，最后验证真实 CLI 与 Office 闭包。见[实例布局决定](../../decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md)。
-- `release.yml` 在相关 CI 成功后固定基线/影响计划，再构建、冒烟和上传；`publish.yml` 核对同 SHA 最新手动最终 CI 的依赖检查、Windows 与共享回归，交付 DMG 时还要求 macOS。它验证不可变提交中的安装验收 JSON 与原始资产，晋级不重建，报告提交不冒充候选提交。
-- `afterPack` 对最终 `deepseek-harness.tar` 计算真实 SHA-256，写 `vendor/deepseek-harness-runtime.json`，提取戳保存同一 `archiveSha256`。同版本覆盖安装按内容摘要失效，不以 tar 长度代替内容身份；旧戳刷新一次。现代包的稳态启动只读小清单，替换前异步流式校验实际归档；缺清单的旧布局流式计算摘要。摘要错误保留原运行时。
-- **阶段凭据**：`.dsh-build/build-stage-credentials.json` 记录 `native-system` / `host` / `client` / `web` 四个阶段各自的输入与产物身份（`size:mtime:ctime` manifest 摘要 + 路径绑定内容摘要）、内联的公开环境摘要与 schema 版本。复用条件是该阶段及其所有前序阶段都验证通过；manifest 命中走快路径，manifest 变动时用内容摘要兜底，所以 `touch` 与「字节相同的重建」仍算命中，而产物被篡改 / 截断 / 缺失、凭据缺失或 schema 不符一律 fail-closed 重跑。判定实现只有一份：`vendor/deepseek-harness/scripts/build-stage-credentials.mjs`，被 `scripts/build.ts`（经 `.d.mts`）与根 `scripts/prestart-ensure.mjs` 共用。输入覆盖根构建清单、`scripts/**` helper、`vendor/**` 源码与 native 声明；精确生成根从输入排除，host 拥有 vendor/native 的 `lib/**`，native 拥有当前 `platform-arch/bin/**`。缓存只在进程内，不落盘；耗时随输入规模变化。
-- **`build:lib` 不再被 `build.ts` 调用**：它必然连跑 host 与 client 两个面，会让按面复用失效；`build.ts` 直接调用 `build:lib:host` / `build:lib:client`。手工构建仍可继续用 `build:lib`。  
-- 晋级前的资产核对由 `scripts/check-release-assets.mjs` 单点完成（workflow / 测试 / 本地排障共用同一实现）。它只读、离线、不读 GitHub 凭据、有界：要求恰好一个版本化 Setup + 同名 `.exe.blockmap` + `latest.yml`（皆为非链接普通文件、不逃出资产目录），Setup 文件名 / tag / package 版本 / 元数据版本一致，Setup SHA256 等于操作者摘要，`files[]` 只引用本地 Setup 且大小与 base64 sha512 匹配字节，旧式顶层 `path`/`sha512` 可缺失但存在时不得矛盾。provenance 记录校验器**实际确认**的摘要，而不是把输入回显。它不证明 `.blockmap` 与 Setup 的密码学对应——v26 元数据没有该字段。
-- `publish.yml` 的运行时准备是 `npm ci --ignore-scripts`（尊重候选 SHA 的锁文件、禁用生命周期脚本，不用 `npx` 也不依赖 runner 上的环境包）；稀疏检出必须带上 helper、`package-lock.json` 与 `.nvmrc`，候选 SHA 缺 helper 时显式失败而不是换成别处代码。
-- macOS 策略：候选默认只构建 Windows；仅显式 `include_macos=true` 时构建 macOS。macOS 资产必须来自同一候选运行，晋级阶段不重建，也不因 tag push 触发候选。
-- 下载校验：`SHA512SUMS.txt` 使用 `sha512sum` 标准格式，随同一批 Release 资产发布；桌面更新器按清单强制校验（缺条目 / 不匹配 / 清单拉取失败均中止并删除下载文件）。`v0.2.7` 已有该清单；其它旧版本若缺少清单，当前更新器先请求明确确认，拒绝则不下载，不会静默安装未校验文件。
-- 发布不由 `v*` tag push 触发。完成候选计划和验收后，手动运行 `publish.yml`，提供候选 run ID、tag、Setup SHA256 和验收记录完整提交 SHA；原始资产、计划、验收记录及限制一同发布，tag 固定候选 SHA。
-- SQLite 等格式与 rc 版本兼容性以发版说明为准。
-- **Office 运行时闭包（P3）**：`npm run prepare:office-runtime` 驱动上游 `scripts/primary-runtime/prepare.ts`（lock.json SHA-256 钉归档）产出 `build/office-runtime/{primary-runtime,office-skills}`，经 extraResources 落 `resources/runtime/`；win32 目标 `assertOfficeRuntime` 钉 payload（runtime.json 平台/arch/payloadDigest、node.exe、python.exe、pnpm.mjs、site-packages）与 harness 内 `dsh-office-to-pdf`/`dsh-skill-office`/`workspace-dependencies`/`libreoffice-kit@0.1.1`/`libreoffice-kit-win32-x64`（exe + prebuilds.json 与 kit 同版、built）全闭包，缺失即 fail build；非 win32 目标跳过该断言（暂无 payload，为已知限制）。桌面 overlay（`desktop-office.patch.yml`）携带显式 `source/root/assetRoot/node/cli` 绝对路径，每次启动（含 skip）经 `--patch` 挂载，skip-compose 契约两轮断言两行各恰好一次。详见 [office-runtime 卡](../../features/office-runtime.md)。
-
-## 门槛
-
-- 先完成实现，再准备定向测试与实际 QA；必要本地项全部通过后才手动派发 CI。push/PR 不自动执行 CI。第四次累计未通过停止 CI/新候选，核查漏检并由用户决定恢复。详细计数口径以发布操作流程为准。
-
-- `test.yml` 在 vendor 构建后执行 GUI 与无密钥核心回归：识图路由、工具调用、会话历史、控制器、工作区和子代理。任一核心集合失败都会阻止同 SHA 的发布门禁通过。
-
-- 发布资产契约：`node --test scripts/check-release-assets.test.mjs`（32 项，含四条变异检验，证明各门确实是拦下缺陷的那一个）；`src/main/ci-isolation.test.js` 静态钉住 `publish.yml` 的晋级顺序、稀疏检出内容、`npm ci --ignore-scripts`、无 `npx` 与缺 helper 时的显式失败。
-
-- QA：每版执行固定核心与影响计划（CI 正式安装包），广泛改动执行完整适用库；见发布操作流程。本地 QA 是 CI 前提；通过本地测试不代表真实 CI/原包安装验收已完成。
-
-## 延伸阅读
-
-- [README.md](../../../README.md) 开发节
-- harness 上游 [docs/architecture.md](../../../vendor/deepseek-harness/docs/architecture.md)
+`SHA512SUMS.txt` 是桌面更新器的实际输入，发布时必须包含同批资产的 SHA512。下载、安装、用户数据迁移等变更需要相应实际操作验证；打包启动成功只证明它观察到的行为。历史候选报告不是当前流程。

@@ -1,13 +1,4 @@
-# Official home import
 
-Dest is always desktop `userData/dsh-home`. Auto-scan (read-only): `~/.dsh` (sessions, attachments, plugin list, `skills/`, `mcp-servers.yaml`, whitelisted `settings.yaml` sections, referenced `.credentials.yaml` refs, `.agent-presets/`, home `AGENTS.md`) plus `~/.agents/skills`. Extra source dirs are additional roots, not a dest picker.
+[docs/features/data-import.md](../../docs/features/data-import.md)
 
-`runImport` requires checkboxes. Empty selection writes nothing. Plugins reinstall by spec (`dsh plugin add`) through two controlled channels only: `github:owner/repo[#ref]` and registry `name@<semver>`; anything else is pre-marked `unsupported` in the scan (greyed row). Never copy `node_modules`. MCP merges by id into dest YAML (tokens on disk, never in UI/logs). Official `~/.dsh` and `~/.agents` stay read-only. A `phase:'copying'` journal is consumed at cold start: clean `.import-tmp`, hold on import tab, re-run is idempotent (conflict skip).
-
-Settings import is a **section whitelist** (`llm-deepseek`, `llm-pi-ai`, `agent-default-model`, `vision-fallback`, `ui-theme`) moved **verbatim as whole top-level blocks** — no field-level merge, non-whitelist sections never copied. Selecting an llm section also syncs the credential `refs` it references (`apiKeyEnv`, implicit `DEEPSEEK_API_KEY` for `llm-deepseek`) into dest `.credentials.yaml` (0600); secret values never reach UI/logs/journal (ref names only). `records` (OAuth state) and `storages/` are never migrated. Agent presets copy by directory (`.agent-presets/<id>` with `agent.cordis.yml`, official id charset); home `AGENTS.md` copies as one file.
-
-MCP/settings/credential reads treat only `ENOENT` as absent, during both scan and merge. Other read/inspection errors fail closed. File publication uses a random same-directory temporary file opened exclusively (`wx`, 0600), descriptor writes + fsync + close, then atomic rename. Check destination/staging files and ancestor directories for links before writing/publishing; reject symlinks, junctions and file hardlinks. On error remove only the staging inode this operation owns, preserving live bytes and unowned entries. Atomicity is per file; do not claim cross-file rollback, crash-temp recovery, or race-free protection against concurrent ancestor replacement.
-
-Cold start does not scan optional sources or hold merely because importable data exists. Interrupted-import recovery and unresolved journals still hold at import. `probeImportHold` remains a shallow import-status query; full `scanImport` is import-page only. Import list may read session header / `session/title` (plain jsonl or Node built-in zstd) for cwd and titles; checkbox and copy keys stay `rel`. Omit harness preset fixtures `_no-cwd/preset-*` from the scan list.
-
-Full card: [docs/features/data-import.md](../../docs/features/data-import.md)
+Read the linked product notes when working in this area. [Maintenance](../../docs/maintenance/README.md) owns the workflow; this entry adds no tests or approvals.
