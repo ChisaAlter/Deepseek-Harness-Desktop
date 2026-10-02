@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `task-protection` |
 | **status** | `active` |
+| **last verified (job registration)** | 2026-10-02 — 固定安装候选 36912364842 的真实模型命令轮出现 `unknown job [object Promise]`。任务准入包装器错误改变 `JobRegistry.start` 的同步合同；旧实现三条行为回归均失败，修复后插件定向 16/16 通过。源码修复尚未成为新的安装候选，不继承旧包验收；见 [候选证据](../qa/releases/v0.3.3/36912364842-evidence.json#realModel)。 |
 | **last verified (paint deadline)** | 2026-10-01 — 原 CI 36804159162 实际退出长时间卡在隐藏 boot 页双帧等待，记 Fail；修复定向 43/43，其中遮罩 9/9。隔离真实 Electron 隐藏页中旧 helper 超过 700ms 未完成，新 helper 511ms 返回并正常退出、无强杀或未处理拒绝。新 CI 安装版未验收，见 [执行记录](../qa/results/2026-10-01-release-candidate/README.md)。 |
 | **last verified (audit update)** | 2026-09-30 — 差量与整包共享 spawn commit；失败后二次准入、附属清理保留、显式下载取消令牌、macOS 手动安装回归通过，未做真实 NSIS/DMG 安装。 |
 | **last verified (installer failure)** | 2026-09-29 — 实际 update 整包调用链 + 真实协调器 + 消失安装器回归验证：spawn ENOENT 拒绝、Host release 执行、committed 保持 false；取消在安装前异步准入后仍阻止 spawn。见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，未做 CI Setup 实机安装。 |
@@ -19,6 +20,8 @@
 3. Launcher 侧的「停止桌面」与运行时装对**外部桌面**先走同义握手；旧桌面无握手时要求正常退出并确认进程结束，不回退直接 taskkill /F。launcher 发起的停止带 `preConfirmed`——点击即同意，inspect→acquire→commit 照跑但两道确认门整体跳过，永远零弹窗。
 
 ## Invariants
+
+- `jobs.start` 的准入包装保留上游同步合同：立即返回原始 JobId，锁内同步拒绝；注册成功或同步抛错都释放本次准入。运行中的任务由 jobs inspection 独立计入，不把注册返回值包装成 Promise。
 
 - 关闭遮罩绘制是尽力显示；主进程等待 CSS / 脚本 / 画帧最多 500ms 后继续既有正常关停。隐藏或无响应的 renderer 不得卡住已通过任务保护的退出；不以 app.exit / 强杀替换正常 cleanup / shutdown。
 

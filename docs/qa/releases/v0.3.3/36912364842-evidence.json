@@ -127,10 +127,11 @@
   },
   "blockers": {
     "models": {
-      "kind": "environment",
-      "defaultApiKeyConfigured": false,
-      "managedCredentialReferenceValuesFound": 0,
-      "action": "Configure a usable gateway, model and key in the actual application; never put the key in chat or Git."
+      "kind": "resolved-prerequisite",
+      "realGatewayAndModelVerified": true,
+      "credentialStoredOnlyForThisQA": true,
+      "credentialRemoved": true,
+      "action": "Use isolated test route/reference again for the replacement candidate; no key in Git or evidence."
     },
     "remainingAcceptance": {
       "selectedCases": 126,
@@ -156,10 +157,219 @@
     "legacyHelperResultNotUsedAsPass": true
   },
   "counts": {
-    "pass": 12,
-    "blocked": 12,
+    "pass": 15,
+    "blocked": 8,
     "not-run": 102,
-    "fail": 0,
+    "fail": 1,
     "na": 0
+  },
+  "realModel": {
+    "at": "2026-10-02T00:41:50.189Z",
+    "candidateUnchanged": true,
+    "method": "Installed authenticated application RPC plus embedded-page DOM; no desktop mouse/keyboard input",
+    "model": "deepseek-v4.1-flash",
+    "protocol": "openai-completions",
+    "gateway": "User-provided HTTP OpenAI-compatible gateway",
+    "registeredWorkspace": true,
+    "conversationVisibleInApplication": true,
+    "temporaryProviderRemoved": true,
+    "temporaryCredentialRemoved": true,
+    "originalDefaultModelPreserved": true,
+    "originalProfileRestored": true,
+    "rounds": [
+      {
+        "type": "assistant/message",
+        "seq": 16,
+        "turn": 1,
+        "text": "已连通，验证码：427。"
+      },
+      {
+        "type": "turn/end",
+        "seq": 18,
+        "turn": 1,
+        "text": "",
+        "reason": {
+          "kind": "completed"
+        }
+      },
+      {
+        "type": "assistant/message",
+        "seq": 24,
+        "turn": 2,
+        "text": "427"
+      },
+      {
+        "type": "turn/end",
+        "seq": 26,
+        "turn": 2,
+        "text": "",
+        "reason": {
+          "kind": "completed"
+        }
+      },
+      {
+        "type": "assistant/message",
+        "seq": 32,
+        "turn": 3,
+        "text": ""
+      },
+      {
+        "type": "tool/call",
+        "seq": 33,
+        "turn": 3,
+        "name": "glob",
+        "arguments": "{\"pattern\":\"README*\"}",
+        "text": ""
+      },
+      {
+        "type": "tool/result",
+        "seq": 34,
+        "turn": 3,
+        "text": "README.md",
+        "isError": false
+      },
+      {
+        "type": "tool/call",
+        "seq": 35,
+        "turn": 3,
+        "name": "pwsh",
+        "arguments": "{\"command\":\"Get-ChildItem -Force | Select-Object Mode,Length,Name\",\"description\":\"List workspace root contents\"}",
+        "text": ""
+      },
+      {
+        "type": "tool/result",
+        "seq": 37,
+        "turn": 3,
+        "text": "Error: unknown job [object Promise]",
+        "isError": true
+      },
+      {
+        "type": "assistant/message",
+        "seq": 42,
+        "turn": 3,
+        "text": "\n\n"
+      },
+      {
+        "type": "tool/call",
+        "seq": 43,
+        "turn": 3,
+        "name": "read",
+        "arguments": "{\"file_path\":\"README.md\"}",
+        "text": ""
+      },
+      {
+        "type": "tool/result",
+        "seq": 44,
+        "turn": 3,
+        "text": "<path>%QA_WORKSPACE%\\README.md</path>\n<type>file</type>\n<content>\n1: Whale Isle is an Electron desktop app around the official DeepSeek Harness Web UI. It provides local workspace files, browser previews, a terminal, and multi-turn assistant conversations. This repository is a disposable release acceptance workspace.\n2: Release acceptance save check 36912364842\n\n(End of file - total 2 lines)\n</content>",
+        "isError": false
+      },
+      {
+        "type": "assistant/message",
+        "seq": 47,
+        "turn": 3,
+        "text": "Whale Isle 是围绕官方 DeepSeek Harness Web UI 构建的 Electron 桌面应用。它把本地工作区文件、浏览器预览、终端和多轮助手对话集中在一个客户端里。当前这个仓库只是一个一次性的发布验收工作区，README 里还留有一条验收保存检查记录（36912364842）。"
+      },
+      {
+        "type": "turn/end",
+        "seq": 49,
+        "turn": 3,
+        "text": "",
+        "reason": {
+          "kind": "completed"
+        }
+      },
+      {
+        "type": "assistant/message",
+        "seq": 55,
+        "turn": 4,
+        "text": ""
+      },
+      {
+        "type": "tool/call",
+        "seq": 56,
+        "turn": 4,
+        "name": "pwsh",
+        "arguments": "{\"command\":\"Split-Path -Leaf (Get-Location).Path\",\"description\":\"Print current directory name\"}",
+        "text": ""
+      },
+      {
+        "type": "tool/result",
+        "seq": 58,
+        "turn": 4,
+        "text": "Error: unknown job [object Promise]",
+        "isError": true
+      },
+      {
+        "type": "assistant/message",
+        "seq": 63,
+        "turn": 4,
+        "text": ""
+      },
+      {
+        "type": "tool/call",
+        "seq": 64,
+        "turn": 4,
+        "name": "job_output",
+        "arguments": "{\"job_id\":\"pwsh-2\"}",
+        "text": ""
+      },
+      {
+        "type": "tool/result",
+        "seq": 65,
+        "turn": 4,
+        "text": "(no new output)\n[status: failed, SetNamedSecurityInfoW failed (Win32 5): grantWrite(%QA_WORKSPACE%)]",
+        "isError": false
+      },
+      {
+        "type": "assistant/message",
+        "seq": 68,
+        "turn": 4,
+        "text": "命令在沙箱初始化阶段就失败了（还没执行到命令本身），我用更宽的权限重试一次同样的命令：\n\n"
+      },
+      {
+        "type": "tool/call",
+        "seq": 69,
+        "turn": 4,
+        "name": "pwsh",
+        "arguments": "{\"command\":\"Split-Path -Leaf (Get-Location).Path\",\"description\":\"Print current directory name\",\"justification\":\"工作区写入型沙箱在初始化时无法为工作区目录设置 ACL（Win32 5 拒绝访问），导致命令根本未执行；需要一次全权限重试来真正打印当前目录名。\",\"sandbox_permissions\":\"danger-full-access\"}",
+        "text": ""
+      },
+      {
+        "type": "tool/result",
+        "seq": 72,
+        "turn": 4,
+        "text": "Error: approval for escalating to \"danger-full-access\" was cancelled",
+        "isError": true
+      },
+      {
+        "type": "turn/end",
+        "seq": 74,
+        "turn": 4,
+        "text": "",
+        "reason": {
+          "kind": "aborted",
+          "reason": {
+            "kind": "user"
+          }
+        }
+      }
+    ],
+    "productDefect": {
+      "id": "QA-JOB-ID",
+      "reproduction": "Foreground pwsh calls wrapped jobs.start, received a Promise in place of JobId and failed with unknown job [object Promise].",
+      "oldImplementationRegression": "3/3 failed, including the same unknown job [object Promise] and an admission leak after a synchronous throw.",
+      "sourceFix": "Preserve synchronous return/throw contract and release registration admission in finally.",
+      "targetedTests": "16/16 passed; installed candidate does not contain this fix."
+    },
+    "sandboxPrerequisite": {
+      "kind": "environment",
+      "observed": "SetNamedSecurityInfoW Win32 5 during grantWrite; command did not run.",
+      "basis": "QA directory grants inherited Modify but no WRITE_OWNER; upstream grantWrite requires ownership plus WRITE_OWNER.",
+      "next": "Use an application-created owned QA workspace under the normal user profile with inherited FullControl; do not widen the sandbox or change system ACLs."
+    },
+    "diagnosticSessionExcluded": "The first diagnostic session used forward slashes in cwd and could not attach to the registered Windows path; it is excluded from formal cases.",
+    "fifthRoundNotExecuted": true,
+    "approvalCasesNotCertified": true
   }
 }

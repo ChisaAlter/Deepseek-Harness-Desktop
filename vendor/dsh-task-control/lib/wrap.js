@@ -192,12 +192,15 @@ export function wrapJobs(state, jobs) {
   jobs.start = function jobsStartGuarded(...args) {
     const admission = admit(state, 'jobs.start');
     if (!admission.accepted) {
-      return Promise.reject(new AdmissionLockedError('job start refused while locked'));
+      throw new AdmissionLockedError('job start refused while locked');
     }
     try {
-      return Promise.resolve(original.apply(this, args)).finally(() => admission.done());
+      // JobRegistry.start is synchronous: shell consumers immediately use
+      // its returned JobId in wait/read/kill. Active jobs are inspected
+      // separately; admission tracks only this registration operation.
+      return original.apply(this, args);
     } finally {
-      // Sync throws settle through the promise wrapper above.
+      admission.done();
     }
   };
   jobs[WRAPPED] = true;

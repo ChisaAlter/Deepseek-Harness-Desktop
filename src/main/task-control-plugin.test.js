@@ -333,7 +333,7 @@ test('resolveAgent and jobs.start refuse while locked', async () => {
   const { wrapSessionController, wrapJobs, AdmissionLockedError } = await load('wrap.js');
   const state = createControlState();
   const controller = { resolveAgent: async (id) => ({ agent: id }) };
-  const jobs = { start: async (spec) => ({ job: spec }) };
+  const jobs = { start: () => 'pwsh-1' };
   assert.equal(wrapSessionController(state, controller), true);
   assert.equal(wrapJobs(state, jobs), true);
   const acquired = await acquireLock(state, { owner: 'desktop-quit' });
@@ -341,5 +341,39 @@ test('resolveAgent and jobs.start refuse while locked', async () => {
   const resolved = await controller.resolveAgent('s1');
   assert.ok(resolved.error instanceof AdmissionLockedError);
   assert.equal(resolved.error.code, 'session/agent-busy');
-  await assert.rejects(jobs.start({}), AdmissionLockedError);
+  assert.throws(() => jobs.start({}), AdmissionLockedError);
+});
+
+test('jobs.start preserves the synchronous id consumed by foreground shell wait', async () => {
+  const { createControlState } = await load('state.js');
+  const { wrapJobs } = await load('wrap.js');
+  const state = createControlState();
+  const running = new Map();
+  const jobs = {
+    start(spec) {
+      assert.equal(state.pending.size, 1);
+      running.set('pwsh-1', spec);
+      return 'pwsh-1';
+    },
+    wait(id) {
+      if (!running.has(id)) throw new Error(`unknown job ${id}`);
+      return { id, status: 'completed' };
+    },
+  };
+  wrapJobs(state, jobs);
+  const id = jobs.start({ command: 'Get-Location' });
+  assert.deepEqual(jobs.wait(id), { id: 'pwsh-1', status: 'completed' });
+  assert.equal(state.pending.size, 0);
+});
+
+test('jobs.start releases admission on a synchronous producer exception', async () => {
+  const { createControlState, acquireLock } = await load('state.js');
+  const { wrapJobs } = await load('wrap.js');
+  const state = createControlState();
+  const failure = new Error('job controller unavailable');
+  const jobs = { start() { throw failure; } };
+  wrapJobs(state, jobs);
+  assert.throws(() => jobs.start({}), error => error === failure);
+  assert.equal(state.pending.size, 0);
+  assert.equal((await acquireLock(state, { owner: 'desktop-quit', drainTimeoutMs: 20 })).ok, true);
 });

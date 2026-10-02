@@ -10,7 +10,7 @@
       "sha256": "ee2c8d12144e88129536ad68eac7c452353c60d3a0010afb99eb1e9ab73c6cdf"
     }
   ],
-  "state": "testing",
+  "state": "blocked",
   "scopeReview": "",
   "environment": {
     "os": "Windows 11 Pro 10.0.26200 x64",
@@ -131,15 +131,15 @@
       "id": "TC-APPROVE-001",
       "status": "blocked",
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "reason": "Real-model prerequisite is available; this case remains uncertified while the candidate contains a critical command/job defect.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-APPROVE-002",
       "status": "blocked",
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "reason": "Real-model prerequisite is available; this case remains uncertified while the candidate contains a critical command/job defect.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-APPROVE-003",
@@ -150,38 +150,38 @@
     },
     {
       "id": "TC-CHAT-001",
-      "status": "blocked",
-      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#realModel",
+      "reason": "",
+      "issueId": ""
     },
     {
       "id": "TC-CHAT-002",
-      "status": "blocked",
-      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#realModel",
+      "reason": "",
+      "issueId": ""
     },
     {
       "id": "TC-CHAT-003",
-      "status": "blocked",
-      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "status": "pass",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#realModel",
+      "reason": "",
+      "issueId": ""
     },
     {
       "id": "TC-CHAT-004",
-      "status": "blocked",
-      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "status": "fail",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#realModel",
+      "reason": "Installed foreground pwsh path violates synchronous JobId contract; separate ACL prerequisite also blocked command startup.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-CHAT-005",
       "status": "blocked",
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "reason": "Real-model prerequisite is available; this case remains uncertified while the candidate contains a critical command/job defect.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-CHAT-006",
@@ -229,8 +229,8 @@
       "id": "TC-CHAT-012",
       "status": "blocked",
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "reason": "Real-model prerequisite is available; this case remains uncertified while the candidate contains a critical command/job defect.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-CHAT-013",
@@ -586,8 +586,8 @@
       "id": "TC-MODEL-001",
       "status": "blocked",
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "reason": "Real-model prerequisite is available; this case remains uncertified while the candidate contains a critical command/job defect.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-MODEL-002",
@@ -600,8 +600,8 @@
       "id": "TC-MODEL-003",
       "status": "blocked",
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "reason": "Real-model prerequisite is available; this case remains uncertified while the candidate contains a critical command/job defect.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-MODEL-004",
@@ -768,8 +768,8 @@
       "id": "TC-SESS-003",
       "status": "blocked",
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
-      "reason": "Usable real gateway/model credential prerequisite missing; no simulated or inherited pass.",
-      "issueId": "QA-REAL-MODEL"
+      "reason": "Real-model prerequisite is available; this case remains uncertified while the candidate contains a critical command/job defect.",
+      "issueId": "QA-JOB-ID"
     },
     {
       "id": "TC-SURF-001",
@@ -910,11 +910,11 @@
       "id": "QA-REAL-MODEL",
       "kind": "environment",
       "severity": "major",
-      "status": "open",
-      "summary": "No usable real-model credentials are available for installed conversation/tool/approval acceptance.",
-      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#blockers.models",
+      "status": "resolved",
+      "summary": "A supplied gateway/model completed real conversation and README tool turns; temporary QA credentials removed afterward.",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#realModel",
       "owner": "Release owner",
-      "followUp": "Configure credentials in the application and execute the blocked cases on this exact original candidate."
+      "followUp": "Repeat only required replacement-candidate acceptance with a dedicated temporary route."
     },
     {
       "id": "QA-UPGRADE-BASELINE",
@@ -925,6 +925,16 @@
       "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#upgrade",
       "owner": "Release owner",
       "followUp": "Prepare the missing real old-stable baseline on a protected normal-profile fixture and complete TC-INST-009."
+    },
+    {
+      "id": "QA-JOB-ID",
+      "kind": "product",
+      "severity": "critical",
+      "status": "open",
+      "summary": "Desktop task-control wraps synchronous jobs.start in a Promise, breaking foreground shell JobId lookup and leaking admission after synchronous exceptions.",
+      "evidence": "docs/qa/releases/v0.3.3/36912364842-evidence.json#realModel",
+      "owner": "Release maintainer",
+      "followUp": "Source fix and old-failure regressions are ready; qualify a replacement candidate and execute the real command/tool/approval paths."
     }
   ],
   "signoff": {
