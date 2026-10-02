@@ -1,5 +1,7 @@
 # AGENTS.md — Documentation website adapter
 
+Maintenance authority: [WhaleIsle sole project policy](../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 Follow the [root instructions](../AGENTS.md), the [documentation standard](../docs/AGENTS.md), and the [documentation workflow](../.agents/skills/dsh-doc/SKILL.md).
 
 ## Keep documentation content out of this tree

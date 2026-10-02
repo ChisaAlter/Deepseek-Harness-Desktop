@@ -59,7 +59,7 @@ Do not write website-specific routes into canonical Markdown just to satisfy Vit
 
 ## Preview and validate
 
-Run local preview while editing:
+After implementation, use a local preview when the changed rendered path needs observation:
 
 ```sh
 pnpm docs:dev
@@ -67,7 +67,7 @@ pnpm docs:dev
 
 The dev server watches mapped source files and reprojects them. Restart it after changing the manifest if the new source is not picked up automatically.
 
-Run the focused website gate before treating the mapping as valid:
+For changed website projection or mapping, the focused check is:
 
 ```sh
 pnpm docs:check
@@ -75,7 +75,7 @@ pnpm docs:check
 
 If Markdown link checks pass but the site build reports a missing fragment, follow the `verify-doc-site-fragments` source and target paths. Preserve the English GitHub id with an explicit alias in authored Markdown or in the owning generator.
 
-Before committing a documentation-site change, run:
+Other available commands follow; [WhaleIsle policy](../../../../../../docs/maintenance/README.md) selects necessary checks after implementation, without a mandatory pre-commit chain:
 
 ```sh
 pnpm run test:docs

@@ -2,6 +2,8 @@
 
 面向 **GitHub Actions 打出的安装包** 的完整回归用例库。当前执行和放行规则见 [发布操作流程](../handbook/modules/release-process.md)；本文件保存具体步骤及历史记录。macOS 仅在交付 DMG 时必须完成对应实机验收。
 
+**先完成实现，之后准备并完成同版本本地严格 QA/实际操作，全部通过才手动触发最终 CI；不能等 CI 包才首次验证修复。安装/装配变更须先真实验证本地同版本包。** 本库的 CI 原包结果覆盖正式交付身份与安装环境，不替代前面的本地验证。累计第四次 CI 未通过停止，计数跨提交、版本、候选与会话，详见发布操作流程。
+
 **每版执行固定核心集与候选影响计划选中的场景；跨模块、依赖、上游或未知源码变化执行完整库的适用场景。** Setup 必须与最终 Release **同一 SHA256**。源码 `qa:*`、本机 dist、unpacked 冒烟不能替代正式安装结果。未选用例属于本轮未执行，不伪记 Pass；历史 P0/P1/P2 是覆盖优先级，缺陷严重度按实际用户影响判断。
 
 ---
@@ -27,7 +29,7 @@
 | 网络 | 可访问模型网关与壁纸源（Bing / Wallhaven） |
 | 账号 | 无需产品登录；模型密钥见 §0.4 |
 
-**发布链约束：** `release.yml` 先检查同 SHA 的相关 CI，再生成影响计划及原始 artifact。对该候选完成核心与影响场景，将脱敏结果和签字写入 `docs/qa/releases/v<version>/<run-id>.json`，提交到 main。`publish.yml` 接收 candidate run ID、tag、Setup SHA256 和报告完整提交 SHA，校验后晋级原始字节，不重新构建；报告提交不替换候选源码身份。
+**发布链约束：** `test.yml` 不由 push/PR 自动运行，只有本地必要 QA 全部通过才手动派发。`release.yml` 先检查同 SHA 最新手动最终 CI，再生成影响计划及原始 artifact。对该候选完成核心与影响场景，将脱敏结果和签字写入 `docs/qa/releases/v<version>/<run-id>.json`，提交到 main。`publish.yml` 接收 candidate run ID、tag、Setup SHA256 和报告完整提交 SHA，校验后晋级原始字节，不重新构建；报告提交不替换候选源码身份。
 
 ### 0.2 非法证据（出现则该格不得 Pass，整份报告不得勾可交付）
 
@@ -1125,7 +1127,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 2. 源码 / packaged smoke 若声称 Git/终端全绿，却只探针启动工作区，视为套件 Fail。  
 3. 无 stamp 陈旧 extract 时源码树不测 `--no-open` 覆盖。
 
-**发版：** 手动运行 `release.yml` → 下载该 run 的 CI Windows artifact → 对本 SHA 走完本表 → `docs/qa/results/<日期>/` + §16 记录 candidate run ID、Setup SHA256 并勾同一 SHA → 手动运行 `publish.yml` 晋级**该 run 的原始文件**。晋级 workflow 不重建二进制；GitHub `release.yml` **不得**跑 `qa:packaged`（那也不是本表）。
+**发版：** 实现完成 → 同版本本地必要自动与实际 QA 全部通过 → 手动最终 CI → 手动 `release.yml` → 核对/验收该 run 的原始安装包 → 唯一候选 JSON 报告 → `publish.yml` 晋级原始字节。本表是用例库；执行计划选中的场景，不重填历史 §15/§16 或新增重复报告。CI 不是诊断、补本地验证或反复换包的工具。
 
 ---
 

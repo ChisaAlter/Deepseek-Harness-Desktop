@@ -9,12 +9,12 @@
 
 ## User paths
 
-1. PR/main CI 在既有 vendor 构建后执行无密钥的模型、工具、会话及 API 关键回归。
+1. 本地必要验证通过后，手动最终 CI 在既有 vendor 构建后执行无密钥的模型、工具、会话及 API 关键回归。
 2. 核心功能回归使 CI 失败，不能只靠 GUI 全绿进入发布。
 
 ## Invariants
 
-- Desktop tests 保留完整源码矩阵；治理和生成目录前置，纯文档/验收记录提交只执行快速门禁。候选必须具有同 SHA 实际执行成功的目标平台与共享 job，不把 skipped 当成功。
+- Desktop tests 固定候选源码；纯文档/验收记录修改不触发 CI 或生成候选。候选必须具有同 SHA 实际执行成功的交付平台与共享 job，不把 skipped 当成功；维护结构不作产品 CI 前置。
 - 晋级资格按 [发布操作流程](../handbook/modules/release-process.md) 判断；Windows 交付要求快速、Windows 与共享 job 成功，交付 DMG 时额外要求 macOS。
 - 使用真实关键链路测试，不以源码字符串存在代替行为验证。
 - 冷历史测试夹具必须提供生产控制器声明的 agents 依赖。

@@ -7,9 +7,8 @@ import { standardDecoratorPlugin, vitestExecArgv } from './vitest.shared.ts'
 import { COVERAGE_EXEMPT_ENV, coverageExemptHeavySuites } from './scripts/coverage-exempt.ts'
 import { COVERAGE_PARTITION_MODE_ENV } from './scripts/coverage-partitions.ts'
 
-// Prints exact `path:line:col` records for every uncovered statement, branch
-// path, and function when a file misses the per-file 100% gate — the built-in
-// threshold ERRORs name only the file. Absolute path because istanbul-reports
+// Prints diagnostic `path:line:col` records for uncovered statements, branch
+// paths and functions without imposing a percentage gate. Absolute path because istanbul-reports
 // require()s custom reporters (which is also why the reporter is CJS).
 const uncoveredLocationsReporter = fileURLToPath(new URL('./scripts/coverage-uncovered-locations.cjs', import.meta.url))
 
@@ -78,7 +77,7 @@ const windowsUnsupportedCoveragePackages = process.platform === 'win32'
 // Windows-only packages: their sources execute exclusively on win32 (koffi
 // loads Win32 libraries), so the Linux coverage lane can never cover them.
 // The Windows dev/CI lane exercises them through the probe/runner suites; the
-// per-file 100% gate must not fail on their Linux-uncovered paths.
+// diagnostic report excludes their unexecutable Linux paths.
 const windowsOnlyCoverageExclusions = process.platform !== 'win32'
   ? [
       'packages/sandbox/sandbox-windows-acl/src/**/*.ts',
@@ -98,8 +97,8 @@ const windowsRunnerCoverageExclusions = process.platform === 'win32'
   ? [
       'packages/sandbox/sandbox-windows-acl/src/runner.ts',
       // The session write lock's POSIX face (fs-ext flock plus inode
-      // verification) executes only off-Windows: the Linux lanes hold its
-      // per-file 100%, while the Windows branch is unit-pinned by
+      // verification) executes only off-Windows: Linux checks cover that
+      // backend, while the Windows branch is unit-pinned by
       // win32.spec's injected bindings and exercised natively by every
       // Windows suite through the real backend.
       'packages/session/session-persistence-jsonl/src/lease.ts',
@@ -108,8 +107,8 @@ const windowsRunnerCoverageExclusions = process.platform === 'win32'
 
 // pwsh-local's run/start/lifecycle suites self-skip without a real pwsh
 // (executor.spec.ts hasPwsh), leaving this file
-// far below per-file 100% on pwsh-less hosts; the exemption keeps those hosts
-// green while CI runners ship pwsh and still enforce the full bar. The probe
+// unexecutable on pwsh-less hosts; diagnostic coverage omits that source.
+// Necessary operation checks still require their real prerequisites. The probe
 // runs the suites' own resolution (the dependency-free resolve.ts module),
 // so the exemption is active exactly when the suites skip — a mismatched
 // narrower probe could exempt the file on hosts whose suites actually run.
@@ -357,19 +356,8 @@ export default defineConfig({
         ...windowsRunnerCoverageExclusions,
         ...pwshCoverageExclusions,
       ],
-      // 100% or it doesn't merge (docs/testing.md: excessive tests are welcome).
-      // Per-file so a well-covered big file can't subsidize a bare one.
-      // Every v8 ignore comment must carry a reason — see the quality-gates Agent Note
-      // (.agents/notes/implemented/process/2026-06-11-quality-gates.md).
-      thresholds: coveragePartitionMode
-        ? undefined
-        : {
-            perFile: true,
-            statements: 100,
-            branches: 100,
-            functions: 100,
-            lines: 100,
-          },
+      // Coverage is diagnostic; host maintenance selects behavior and real QA.
+      // No numeric percentage can independently block or authorize delivery.
       reporter: coveragePartitionMode
         ? []
         : process.env.CI

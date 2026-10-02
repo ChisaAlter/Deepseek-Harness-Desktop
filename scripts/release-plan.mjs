@@ -15,6 +15,15 @@ export const CORE_CASES = [
   'TC-DESK-001', 'TC-DESK-004', 'TC-NEG-001', 'TC-NEG-005',
 ];
 
+const METADATA_MANIFESTS = ['package.json', 'package-lock.json', 'vendor/deepseek-harness/package.json', 'vendor/chisacode-remote/package.json'];
+const MAINTENANCE_TOOL_FILES = new Set([
+  'vendor/deepseek-harness/lefthook.yml', 'vendor/chisacode-remote/lefthook.yml',
+  'vendor/chisacode-remote/.nvmrc',
+  'vendor/deepseek-harness/scripts/install-lefthook.mjs',
+  'vendor/deepseek-harness/scripts/run-gates.ts', 'vendor/deepseek-harness/vitest.config.ts',
+  'vendor/deepseek-harness/scripts/verify-doc-budgets.ts', 'vendor/deepseek-harness/scripts/doc-budgets.manifest.json',
+]);
+
 // A match selects every case in that area; an unclassified runtime change
 // selects the full catalog. Renames are compared as deletion + addition.
 const AREAS = [
@@ -36,16 +45,18 @@ export function catalogFromMarkdown(markdown) {
 }
 
 export function metadataOnlyChange(file, before, after) {
-  if (!['package.json', 'package-lock.json'].includes(file)) return false;
+  if (!METADATA_MANIFESTS.includes(file)) return false;
   const normalize = value => {
     const copy = structuredClone(value);
     if (!copy || typeof copy !== 'object' || Array.isArray(copy)) return copy;
-    delete copy.version;
+    if (file === 'package.json' || file === 'package-lock.json') delete copy.version;
     if (file === 'package.json' && copy.scripts) {
       for (const key of Object.keys(copy.scripts)) if (/^(?:test(?::|$)|release:|check:|qa:|smoke:|doc-sync$)/.test(key)) delete copy.scripts[key];
       if (!Object.keys(copy.scripts).length) delete copy.scripts;
     }
     if (file === 'package-lock.json' && copy.packages?.['']) delete copy.packages[''].version;
+    if (file === 'vendor/deepseek-harness/package.json' && copy.scripts) delete copy.scripts['verify-doc-budgets'];
+    if (file === 'vendor/chisacode-remote/package.json' && copy.scripts?.prepare === 'lefthook install --force') delete copy.scripts.prepare;
     return copy;
   };
   return isDeepStrictEqual(normalize(before), normalize(after));
@@ -55,14 +66,18 @@ export function selectCases(changedFiles, catalog, metadataOnlyFiles = []) {
   if (!Array.isArray(changedFiles) || changedFiles.some(p => typeof p !== 'string' || !p || p.startsWith('/') || p.includes('\\') || p.split('/').includes('..'))) {
     throw new Error('Invalid changedFiles');
   }
-  if (!Array.isArray(metadataOnlyFiles) || metadataOnlyFiles.some(p => !['package.json', 'package-lock.json'].includes(p) || !changedFiles.includes(p))) throw new Error('Invalid metadata-only manifest classification');
+  if (!Array.isArray(metadataOnlyFiles) || metadataOnlyFiles.some(p => !METADATA_MANIFESTS.includes(p) || !changedFiles.includes(p))) throw new Error('Invalid metadata-only manifest classification');
   const areas = new Set();
   let full = false;
   for (const file of changedFiles) {
     if (metadataOnlyFiles.includes(file)) continue;
     if (/^(?:docs\/|\.devin\/|\.cursor\/|AGENTS\.md$|CONTRIBUTING(?:\.en)?\.md$|README(?:\.[a-z-]+)?\.md$)/.test(file)) continue;
     if (/(?:\.test\.[cm]?[jt]sx?$|\.spec\.[cm]?[jt]sx?$|\.i18n\.yaml$|(?:^|\/)README(?:\.[a-z-]+)?\.md$)/.test(file)) continue;
-    if (/^(?:\.github\/|scripts\/(?:release-|check-release-|verify-|run-gates|lib\/gate))/.test(file)) { areas.add('release-tooling'); continue; }
+    if (/^vendor\/(?:deepseek-harness|chisacode-remote|dsh-usage-panel)\/(?:.*\/)?(?:AGENTS|CLAUDE)\.md$/.test(file) && !/\/(?:tests|snapshots)\/.*\/(?:AGENTS|CLAUDE)\.md$/.test(file)) continue;
+    if (file === 'vendor/chisacode-remote/docs/testing.md') continue;
+    if (/^vendor\/deepseek-harness\/(?:docs\/.*\.(?:md|yaml)|\.agents\/notes\/implemented\/process\/2026-06-11-quality-gates\.(?:md|zh\.md|i18n\.yaml)|\.agents\/skills\/(?:dsh-doc(?:-standards)?|dsh-prose-standard|dsh-pre-push-checks|dsh-archive-agent-notes|dsh-find-simplifications|dsh-code-review)\/(?:SKILL\.md|references\/.*\.md))$/.test(file)) continue;
+    if (MAINTENANCE_TOOL_FILES.has(file)) { areas.add('release-tooling'); continue; }
+    if (/^(?:\.github\/|scripts\/(?:release-|check-release-|check-remote-flag-|verify-|run-(?:gates|final-gates|packaged-p0|packaged-smoke|source-smoke|source-qa|composer-official-qa|shell-p0-qa|in-app-appendix-a|window-motion-qa)(?:\.|\/)|git-hooks\/|install-git-integrations|lib\/gate))/.test(file)) { areas.add('release-tooling'); continue; }
     // Locks, Electron/Node changes, native/core adoption and unknown sources
     // have cross-cutting effects; no optimistic narrow classification.
     if (/(?:^|\/)(?:package(?:-lock)?\.json|pnpm-lock\.yaml)$/.test(file) || file === '.nvmrc' || file === 'vendor/harness-upstream.json') { full = true; continue; }
@@ -108,7 +123,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (git(['rev-parse', 'HEAD']).trim() !== candidateSha) throw new Error('Checkout is not the candidate SHA');
     const changedFiles = git(['diff', '--name-only', '--no-renames', '-z', baseSha, candidateSha, '--']).split('\0').filter(Boolean);
     const metadataOnlyFiles = changedFiles.filter(file => {
-      if (!['package.json', 'package-lock.json'].includes(file)) return false;
+      if (!METADATA_MANIFESTS.includes(file)) return false;
       try {
         return metadataOnlyChange(file, JSON.parse(git(['show', `${baseSha}:${file}`])), JSON.parse(git(['show', `${candidateSha}:${file}`])));
       } catch { return false; } // Added or unreadable manifests remain full-risk.

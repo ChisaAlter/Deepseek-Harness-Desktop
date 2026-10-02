@@ -1,6 +1,6 @@
 # Feature Spine（产品知识脊梁）
 
-可执行的产品契约索引：每张卡绑定用户路径、不变量、默认可改文件、测试门槛与来源链接。Agent 改产品行为时先读卡、声明 `Touching: <id>`，再动手。
+可执行的产品契约索引：每张卡绑定用户路径、不变量、默认可改文件、验证入口与来源链接。Agent 改产品行为时先读相关卡理解契约；需要时说明关联，不强制固定格式声明。
 
 蓝图与模块详解见 [产品手册](../handbook/README.md)。
 
@@ -19,6 +19,8 @@
 
 本树保存当前产品契约；架构细节链接到 handbook，历史验证链接到原记录，不重复维护同一事实。篇幅按必要内容决定，不设页数要求。
 
+卡上的 Gates 是风险对应的验证入口，不要求每次机械执行整张清单；实际必要行为与失败边界不能删减。维护执行只遵循[WhaleIsle 唯一维护准则](../maintenance/README.md)；[发布操作说明](../handbook/modules/release-process.md)细化原包流程。卡片、旧决定或旧报告不追加自动 CI、固定全量清单或提前准备测试要求。
+
 ## 何时新建 / 更新
 
 - **新建：** 产品行为已定且会被反复改（尤其易被 Agent 冲掉）时，从 [_template.md](_template.md) 复制。
@@ -26,6 +28,12 @@
 - **更新：** 不变量或关键路径变了才更新契约；完成相关验证后更新 `last verified` 的最近事实与证据链接，不叠加历次发布流水账。没有验证不改成已验证。
 - **局部修复不改契约：** 会话写明「无卡 / 不改产品契约」，diff 仍应尽量小。
 - **长期取舍**才需要 [决策记录](../decisions/README.md)；普通修复在提交 / PR 中说明原因和行为验证即可。Allowed touch 是定位信息，不是用户已授权任务的二次审批边界。
+
+## 上游差异的归属
+
+与 DSH 或桌面来源存在长期差异的功能，在自己的卡中维护保护行为、差异理由、源码/装配入口、来源基线和已有验证/决定链接；只有相关卡需要填写。DSH 树中差异的位置由 [`harness-desktop-forks.js`](../../src/shared/harness-desktop-forks.js) 登记，卡片只写行为，不复制文件清单。既有不变量、Allowed touch、Gates 和 Sources 已说明的事实直接引用，不复制。可在下次触及该功能时补齐，不要求一次性改造所有卡。合并时发现未登记差异，不能因此默认删除；先查明实际用途。
+
+当前差异说明本地保留、已融合、由上游等价接管或待裁定的事实即可，不新增状态机或独立清单。被上游接管的实现删除后，仍保留对应行为契约；明确裁剪的功能继续按现有负契约维护。冲突裁定和验证顺序统一见[维护准则](../maintenance/README.md#上游合并与差异保护)。
 
 ## 可选的工作定位
 
@@ -55,7 +63,7 @@ Gate: <卡上 gates>
 | [sidebar-mask](sidebar-mask.md) | 外观「隐藏侧栏遮罩」开关：侧栏与工作区同底，只留分割线 | `ThemeRuntime.setSidebarMask` / `SIDEBAR_UNMASKED_FILL` | vendor ui-theme client specs |
 | [marketplace-settings](marketplace-settings.md) | 设置内市场（桌面自有代码）；无独立窗 | `marketplace-install` / `ui-settings-market` | TC-EXT-001…005 |
 | [surfaces-work-loops](surfaces-work-loops.md) | 右栏工作环，非空态卡片 | preview / ui-files | TC-SURF-001…007 |
-| [tool-result-images](tool-result-images.md) | 工具结果中的 MCP/浏览器图片原位查看，走既有持久附件 gallery | vendor ui-tool / ui-attachment | focused ui-tool specs + doc-sync |
+| [tool-result-images](tool-result-images.md) | 工具结果中的 MCP/浏览器图片原位查看，走既有持久附件 gallery | vendor ui-tool / ui-attachment | focused ui-tool specs |
 | [boot-page](boot-page.md) | 海平线启动/恢复 | boot / controller | TC-INST-003…007、012、013 |
 | [desktop-welcome](desktop-welcome.md) | 欢迎 | welcome | 渲染 |
 | [terminal-drawer](terminal-drawer.md) | 底栏 PTY 工作环 | `pty.js` / ui-user-terminal | TC-TERM-001…004（TC-WS-006 仓） |

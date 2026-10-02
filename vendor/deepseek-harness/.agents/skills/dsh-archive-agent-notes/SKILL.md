@@ -5,6 +5,8 @@ description: Use when adding, auditing, pruning, archiving, restoring, or review
 
 # Archive DeepSeek Harness Agent Notes
 
+[WhaleIsle maintenance policy](../../../../../docs/maintenance/README.md) owns scope, execution order and verification. This skill supplies record-retention mechanics only; it adds no compulsory audit or check chain.
+
 Reduce the active decision corpus without erasing history that can still guide work. Judge every note semantically; word count and age are discovery aids, never archive criteria.
 
 ## Read the contracts
@@ -13,7 +15,7 @@ Read [the Agent Note rules](../../notes/README.md), [the archive instructions](.
 
 ## Check supersession when adding a note
 
-Before drafting, apply the [creation criteria](../../notes/README.md#when-to-write-one). Every new Agent Note triggers a scoped audit of active notes covering the same decision, mechanism, or rejected alternative. Classify each full or partial supersession while writing the new note: archive qualifying implemented triplets in the same PR, retain and cross-link partial supersessions or independently useful rationale, reject obsolete proposals, and delete rejected notes that no longer prevent a plausible mistake. Apply the Agent Note consolidation rule when the new owner absorbs every unique proposition; do not defer a known match to a later corpus audit.
+Use a record only for a lasting decision under the host policy, preferring its existing owner. Update known superseded references without launching an additional note audit. Authorized archival preserves unique rationale and frozen triplet mechanics; ordinary fixes need no proposal, review or new record.
 
 ## Classify by future value
 
@@ -63,6 +65,6 @@ After the triplet is sealed, never edit, move, translate, reformat, or delete it
 
 ## Validate and report
 
-Run the archive verifier's focused test, `pnpm run verify-archived-agent-notes`, `pnpm run doc-sync`, `pnpm run lint`, and `git diff --check`; select any additional evidence through [dsh-pre-push-checks](../dsh-pre-push-checks/SKILL.md).
+After implementation, select necessary checks under the host policy. Actual archival needs the archive verifier; it does not automatically require doc-sync, lint or a full test chain.
 
 Report active implemented notes kept, implemented notes deleted or archived, rejected notes kept/deleted, proposed notes rejected if any, and every genuinely borderline case with its word count and chosen outcome. Do not claim archived outbound links are valid: the archive verifier intentionally never checks them.

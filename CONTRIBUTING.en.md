@@ -2,12 +2,12 @@
 
 [中文](CONTRIBUTING.md) | English
 
-DSHD accepts external pull requests and issues. This file spells out the bar so contributors don't hit invisible rules.
+WhaleIsle accepts external pull requests and issues. This file spells out the bar so contributors don't hit invisible rules.
 
 ## Before opening a PR
 
-- **Run tests**: provide focused evidence for the changed behavior; CI runs the complete node:test, GUI, core and platform matrix. Consolidate broad regression on a stable candidate. Run `npm run doc-sync` for documentation changes; follow the [release process](docs/handbook/modules/release-process.md) for publication.
-- **Check Git integrations**: `node scripts/install-git-integrations.mjs --check` verifies actual hooks / merge-driver configuration. If missing, run it without `--check`, without reinstalling dependencies. Existing custom integrations are preserved. Hooks inspect the working directory; CI checks the actual commit.
+- **Implement before validating**: a minimal failing reproduction may precede the fix; otherwise, do not prepare tests or QA fixtures before implementation is complete, or add defensive behavior for hypothetical cases. Then run relevant automated checks, necessary builds/dependency-lock checks, and real QA of the original failure and affected paths; any incomplete necessary item prohibits CI. CI is a manual final validation of stable scope; pushes/PRs do not trigger it. Stop CI/new candidates after the fourth cumulative non-passing attempt, without resetting across SHAs/versions/sessions. Select documentation checks for actual changes; follow the [release process](docs/handbook/modules/release-process.md) for publication.
+- **Check Git integrations**: `node scripts/install-git-integrations.mjs --check` verifies actual hooks / merge-driver configuration. If missing, run it without `--check`, without reinstalling dependencies. Preserve custom integrations. Pre-commit runs no gates; pre-push checks same-HEAD QA only for automatic/unknown workflow policy, without running suites or certifying observations. Ordinary pushes under manual policy need no release record; strict local QA remains necessary before final CI. The [maintenance system](docs/maintenance/README.md) (Chinese only) owns responsibility, evidence and selection; verify whether live policy is active.
 - **Bring proof**: the PR template has a `Proof` block — paste reproducible test output, screenshots, or recordings. "Should be fine" is not accepted.
 - **Scope**: one PR does one thing. Split refactors from behavior changes.
 

@@ -1,5 +1,7 @@
 # AGENTS.md — Implemented Agent Notes
 
+Maintenance authority: [WhaleIsle sole project policy](../../../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 These Agent Notes describe shipped decisions. Follow the [root instructions](../../../AGENTS.md), [documentation standard](../../../docs/AGENTS.md), and [Agent Note format](../README.md#the-file-format); `verify-agent-note-format` gates the lifecycle-specific structure.
 
 ## Keep an implemented Agent Note current with what actually shipped

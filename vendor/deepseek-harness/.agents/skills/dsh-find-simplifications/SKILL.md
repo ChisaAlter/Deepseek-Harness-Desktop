@@ -5,6 +5,8 @@ description: Find evidence-backed simplifications in DeepSeek Harness code, APIs
 
 # Finding DeepSeek Harness Simplifications
 
+[WhaleIsle maintenance policy](../../../../../docs/maintenance/README.md) alone owns execution order, scope and verification. This skill offers diagnosis and contract-preserving simplification guidance, with no independent approval or test chain.
+
 Find changes that remove maintained obligations: APIs, representations, lifecycle states, configuration paths, dependencies, tests, or documentation. Prefer a few well-supported candidates over a count of deletions. This is guidance, not a checklist; keep the user's scope and distinguish a survey from permission to implement its proposals.
 
 ## Establish scope and constraints
@@ -13,7 +15,7 @@ Read `AGENTS.md`, [architecture](../../../docs/architecture.md) before judging p
 
 The two LLM adapters are intentional. JSONL is the sole first-party Session persistence provider, while the backend-neutral Service Definition supports out-of-tree providers. Do not propose deleting an LLM twin or the persistence seam unless the user explicitly overrides that constraint. Unused members within a protected design remain candidates when their removal preserves its purpose.
 
-For broad requests, divide independent domains among subagents: loop and persistence; model/tool assembly; Host, Client, and SDKs; subprocess and execution providers; composition, scripts, tests, and documentation. Give each agent a bounded domain and require consumer evidence and rejected alternatives. Inspect substantial production machinery as well as obvious unused symbols; do not stop after the first promising deletion.
+Keep diagnosis within the authorized domains. Delegation is optional and must follow the active user and developer rules; this skill does not require agents or a repository-wide review.
 
 ## Search for removable obligations
 
@@ -60,8 +62,8 @@ Use [dsh-prose-standard](../dsh-prose-standard/SKILL.md) when prose is in scope.
 
 A substantial proposal uses the mandatory note skeleton: `Problem`, `Proposal`, `Alternatives considered`, `Acceptance criteria`, and `Risks`. Include concrete consumer evidence, the removed maintenance cost, the capability given up, and observable acceptance conditions. An implemented decision uses the [implemented format](../../notes/README.md#the-body-skeleton) instead. Update an existing owner when the decision is the same; do not create duplicate notes to preserve candidate counts.
 
-Every new note requires a scoped supersession check through [dsh-archive-agent-notes](../dsh-archive-agent-notes/SKILL.md). That workflow owns retention, consolidation, triplet deletion, and frozen archive mechanics. A code survey does not imply a repository-wide note audit. Preserve partial supersessions and current durable, wire, compatibility, or rejected-alternative obligations.
+Ordinary fixes need no new note or supersession audit. For a lasting decision, update its existing owner; [dsh-archive-agent-notes](../dsh-archive-agent-notes/SKILL.md) supplies optional retention and frozen archive mechanics. Preserve current durable, wire and compatibility obligations.
 
 When folding another branch, compare its independent diff against the target base, port only supported non-overlapping proposals, and consolidate overlapping rationale. Closing another PR requires authorization or clear ownership of that housekeeping.
 
-For docs-only Agent Note work, run `pnpm run doc-sync`, `pnpm run lint`, and `git diff --check`; for skill or comment edits, include the applicable validator. Select other checks through [dsh-pre-push-checks](../dsh-pre-push-checks/SKILL.md). Report the surveyed areas, supported candidates, meaningful rejections or deferrals, notes added/consolidated/retained/removed, and commands actually run. Use a draft PR while the survey is expanding; do not describe an unverified search as exhaustive.
+After implementation, select necessary checks under the host policy; no fixed doc-sync/lint/test chain applies. Report the authorized areas, supported findings, changes and actual verification. A survey does not authorize a push or CI run, and an unverified search is not exhaustive.

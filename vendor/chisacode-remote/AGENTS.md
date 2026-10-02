@@ -1,25 +1,12 @@
 # ChisaCode Agent Notes
 
+Maintenance authority: [WhaleIsle sole project policy](../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 ## Sources Of Truth
 
-- Use Node.js 22 or newer from the active `PATH`; the repository does not pin an exact Node version. This is an npm workspace monorepo with `package-lock.json`, not pnpm/yarn.
+- Project build/validation Node is pinned by the enclosing WhaleIsle root `.nvmrc`; package engines describe compatibility. This is an npm workspace monorepo with `package-lock.json`, not pnpm/yarn.
 - `docs/` holds repo-specific architecture, workflow, and gotcha docs. For non-trivial work, list it and skim the relevant file before editing.
 - `CLAUDE.md` has longer standing guidance; prefer this file for the compact checklist and consult the docs it references for details.
-
-## Production-Grade Development Rules
-
-These rules apply to every development task in this repository. No minimal-plan shortcuts, no downgraded delivery.
-
-1. **Review before planning**: before any task, review the relevant code (the whole project when necessary — delegate to subagents) before producing a plan.
-2. **Complete plans only**: plans must target the fully complete, commercial, production-delivery level. Minimal plans are not allowed.
-3. **Adversarial review of plans**: every plan must pass an adversarial review (find loopholes, downgrade points, omissions) before it is shown to the user. Only the revised plan is presented.
-4. **HTML prototype gate for UI**: any UI-layout work requires an HTML prototype first (landed in `prototypes/`), reviewed and approved by the user, before implementation.
-5. **Per-module gates**: for multi-module plans, each finished module must be re-reviewed (code review + adversarial review for downgrade) before the next module starts.
-6. **Final adversarial review**: after all modules complete, one more overall adversarial review must confirm the task is truly done and not downgraded.
-7. **Real-machine verification is required**: development is not complete without real-surface verification (QA-tester-level coverage). Static checks / unit tests passing ≠ verified. Anything not verified on the real surface must be explicitly labeled as unverified. UI changes must match the approved prototype pixel-for-pixel.
-8. **Tests are still written**: unit tests follow the Testing section below; real-machine verification covers UI/end-to-end behavior. The two layers are not conflated.
-
-These align with the Quick Check before Any Change, Improvement Tracking, and Testing sections below — they do not replace them.
 
 ## Package Map
 
@@ -33,11 +20,11 @@ These align with the Quick Check before Any Change, Improvement Tracking, and Te
 
 ## Commands
 
-- Install with `npm ci`; CI uses Node 22 and npm cache.
+- Install with `npm ci`; host CI uses the enclosing root Node pin.
 - Dev all surfaces: `npm run dev` on macOS/Linux, `npm run dev:win` on Windows.
 - Focused dev: `npm run dev:server`, `npm run dev:app`, `npm run dev:desktop`.
 - Build dependency stacks instead of guessing order: `npm run build:client` (`protocol -> client`), `npm run build:server-deps` (`highlight -> relay -> protocol -> client`), `npm run build:server` (`server-deps -> server -> cli`), `npm run build:app-deps` (`highlight -> protocol -> client -> expo-two-way-audio`).
-- Verify after edits with `npm run typecheck` and `npm run lint`; format with `npm run format` or targeted `npm run format:files -- <paths>`.
+- Available checks include `npm run typecheck` and targeted lint/format scripts; choose them for the actual change under host maintenance policy, without an every-edit matrix.
 - Targeted lint accepts file paths through the npm script, e.g. `npm run lint -- packages/app/src/file.tsx`; do not call `npx oxlint`/`npx oxfmt` directly for normal checks.
 
 ## Build And Runtime Gotchas
@@ -48,38 +35,9 @@ These align with the Quick Check before Any Change, Improvement Tracking, and Te
 - Daemon logs are in `$CHISACODE_HOME/daemon.log`; set `CHISACODE_LOG_LEVEL=trace` before launch for provider/session/agent-manager traces.
 - **Desktop packaging rebuild order**: `app.asar` contains both the renderer web export and the compiled desktop main process. After changing app or desktop source, rebuild both: `expo export` to `packages/app/dist` **then** `tsc` in `packages/desktop`, before running `electron-builder`. Skipping either rebuild produces a package with stale code that fails silently at runtime (no type error, just wrong behavior).
 
-## Improvement Tracking
-
-The master improvement roadmap lives at `docs/refactors/comprehensive-improvement-roadmap.md`. It tracks known tech debt, refactors, and quality improvements across packages with priorities and status.
-
-### How to Update
-
-- When you identify a systemic issue worth tracking (not a one-line bugfix), add an entry to the roadmap: describe the problem, affected packages, suggested approach, and current status.
-- When starting work on a tracked item, move it to in-progress and link the branch/PR.
-- When completing a tracked item, move it to done with a brief note on the resolution.
-- Do not delete entries; completed items stay for historical context.
-
-### Quick Check Before Any Change
-
-- [ ] Is there already a roadmap entry for the area you're touching? Read it first.
-- [ ] Could your change create new tech debt (e.g., workaround for a known limitation)? Add a roadmap entry before moving on.
-- [ ] Did your change resolve a tracked item? Update the roadmap entry to done.
-
 ## Testing
 
-- Never run full workspace/package test suites locally unless explicitly asked; they are heavy and can freeze the machine.
-- Run the changed Vitest file only: `npx vitest run <path> --bail=1`.
-- For broad output, redirect to a file and inspect it afterward: `npx vitest run <path> --bail=1 > /tmp/test-output.txt 2>&1`.
-- Do not re-run a suite another agent already reported green; use CI for full-suite confidence.
-- Server test categories: `npm run test:unit --workspace=@chisacode/server`, `npm run test:e2e --workspace=@chisacode/server`, real-provider tests use `*.real.e2e.test.ts` and credentials.
-- App Playwright E2E is `npm run test:e2e --workspace=@chisacode/app`; do not run the full Playwright suite locally, only targeted specs when needed.
-- Tests should be either unit tests with injected real-world ports/fakes or real E2E; avoid `vi.mock`, JSDOM/component mounting, private-state assertions, and auth/env skips in normal tests.
-- Surface-specific UI verification must use the real target surface. Desktop testing means the Electron desktop app only; mobile testing means the native mobile app/device or emulator only. Do not use the web app/browser preview as a substitute for desktop or mobile verification, and do not claim desktop/mobile validation from web results.
-
-### Client Test Coverage
-
-- The `packages/client` test suite (`daemon-client.test.ts`, `daemon-client-transport.test.ts`, `terminal-stream-router.test.ts`, `index.test.ts`) currently has gaps around edge-case error paths, reconnection state machines, and binary frame encoding boundaries. When working in client code, add targeted unit tests for the changed paths.
-- Priority order for new client tests: (1) error/reconnect paths that could cause silent failures in production, (2) binary frame encode/decode edge cases, (3) public `ChisaCodeClient` method contracts that app/CLI depend on.
+Select necessary local tests and real operations under host maintenance policy, after implementation is complete. Existing server categories are test:unit/test:e2e in @chisacode/server; provider tests need their actual credentials. App/browser checks use targeted existing Playwright scenarios when relevant. Missing prerequisites and skipped required scenarios remain unverified; final CI cannot fill local gaps.
 
 ### Fixed Waits
 

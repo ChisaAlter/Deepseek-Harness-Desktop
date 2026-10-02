@@ -3,6 +3,18 @@ name: Build installers
 on:
   workflow_dispatch:
     inputs:
+      ci_nonpass_count:
+        description: Verified cumulative non-passing attempts for this same delivery; four means stop
+        required: true
+        type: number
+      ci_count_evidence:
+        description: Cross-commit/workflow/session run history establishing that count
+        required: true
+        type: string
+      ci_recovery_decision:
+        description: 'Only after a stop; <unchanged count>: user decision reference and corrected local QA evidence'
+        required: false
+        type: string
       include_macos:
         description: Build the optional macOS artifact
         required: false
@@ -29,6 +41,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Enforce cumulative CI stop rule
+        env:
+          CI_NONPASS_COUNT: ${{ inputs.ci_nonpass_count }}
+          CI_COUNT_EVIDENCE: ${{ inputs.ci_count_evidence }}
+          CI_RECOVERY_DECISION: ${{ inputs.ci_recovery_decision }}
+        run: |
+          set -euo pipefail
+          [[ "$CI_NONPASS_COUNT" =~ ^(0|[1-9][0-9]*)$ && "$CI_COUNT_EVIDENCE" =~ [^[:space:]] ]] || { echo 'Verified cumulative CI history is required'; exit 1; }
+          if (( CI_NONPASS_COUNT >= 4 )); then
+            [[ "$CI_RECOVERY_DECISION" == "$CI_NONPASS_COUNT:"* && "${CI_RECOVERY_DECISION#*:}" =~ [^[:space:]] ]] || { echo 'Four non-passing attempts: stop; require a user corrective decision for the unchanged count'; exit 1; }
+          fi
+          printf '%s\n' "$CI_COUNT_EVIDENCE" "$CI_RECOVERY_DECISION" >> "$GITHUB_STEP_SUMMARY"
       - name: Validate the frozen main commit
         env:
           GH_TOKEN: ${{ github.token }}

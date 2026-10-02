@@ -2,7 +2,9 @@
 
 [中文](README.md) | English
 
-Record lasting tradeoffs that future maintainers need to understand. Intervention points and recurrence prevention are defined by the [maintenance system](../maintenance/README.en.md).
+Record lasting tradeoffs that future maintainers need to understand. Intervention points and recurrence prevention are defined by the [maintenance system](../maintenance/README.md).
+
+This document supplies record layout and tool mechanics under [the sole WhaleIsle maintenance policy](../maintenance/README.md); it adds no separate review, documentation or testing gate. Historical execution choices do not authorize current action.
 
 ## When to write
 

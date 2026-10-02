@@ -129,7 +129,7 @@ test('release.yml is candidate-only and cannot publish from a tag push', () => {
 
 test('manual release candidates default to Windows-only', () => {
   const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
-  assert.match(yml, /workflow_dispatch:\r?\n\s+inputs:\r?\n\s+include_macos:/);
+  assert.match(yml, /workflow_dispatch:[\s\S]*?inputs:[\s\S]*?include_macos:/);
   assert.match(yml, /include_macos:[\s\S]*?type: boolean[\s\S]*?default: false/);
   const macos = yml.slice(yml.indexOf('\n  macos:'));
   assert.match(macos, /if: \$\{\{ inputs\.include_macos \}\}/);

@@ -80,7 +80,7 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `node --test src/main/package-contract.test.js src/main/installer-branding.test.js`（scripts / runtime deps / build 关键字段 / vendor filter / NSIS 字段；15/15）、`node --test scripts/source-scan.test.mjs`（构建输入谓词、目录剪枝、单次运行 memo；7/7）、`node vendor/deepseek-harness/node_modules/vitest/vitest.mjs run scripts/build-stage-credentials.client.spec.ts --environment node`（阶段凭据复用与 fail-closed 负例；11/11）、`node --test src/main/after-pack.test.js`（装配完整性判定；35/35）；`npm run check:governance` |
+| Automated | 按实际修改选择：`node --test src/main/package-contract.test.js src/main/installer-branding.test.js`（scripts / runtime deps / build 关键字段 / vendor filter / NSIS 字段）、`node --test scripts/source-scan.test.mjs`（构建输入谓词与剪枝）、`node vendor/deepseek-harness/node_modules/vitest/vitest.mjs run scripts/build-stage-credentials.client.spec.ts --environment node`（阶段凭据复用与失败拒绝）、`node --test src/main/after-pack.test.js`（装配完整性）；不追加无关全量文档治理 |
 | Manual / QA | 打包冒烟 `npm run smoke:packaged`（真实产物）；安装器实机项见 `windows-installer` 卡的 `TC-INST-*` |
 
 ## Sources

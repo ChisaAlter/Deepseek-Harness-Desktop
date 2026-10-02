@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-09-17-governance-rules-adoption.md) | English
 
+This record preserves the original official DSH adoption and tradeoffs. Execution conventions such as complete pairing, automatic hooks, new records for every non-trivial edit and gating every mechanical clause are superseded by [the sole WhaleIsle maintenance policy](../../../maintenance/README.md). They are not current instructions; original rationale and historical results remain.
+
 ## Problem
 
 DSHD already has feature cards (current contracts) and `.cursor/rules` (short invariants), but decision motivation and rejected alternatives scatter across `docs/superpowers/` working documents and rot over time; rules have no mechanically checked format; documentation has no bilingual consistency mechanism; and the external contributor surface (PR/issue templates, CONTRIBUTING, label taxonomy) is missing.

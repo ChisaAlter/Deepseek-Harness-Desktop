@@ -6,6 +6,8 @@ English | [中文](2026-06-11-quality-gates.zh.md)
 
 The hook/CI symmetry in this record is superseded by [Fast local Git hooks](../../archived/process/2026-07-22-fast-local-git-hooks.md); CI remains the exhaustive enforcement path.
 
+This record preserves the original upstream governance tradeoffs. WhaleIsle execution follows only [its sole maintenance policy](../../../../../../docs/maintenance/README.md); the exhaustive-CI, numeric-coverage and mechanical-gate requirements here are historical context, not current project instructions. Original rationale and evidence remain.
+
 ## Problem
 
 This codebase is developed primarily by coding agents. Agents follow enforced gates far more reliably than prose conventions, and "a lot of work" is not a cost argument when agents do the labor. Early evidence: tests that didn't typecheck shipped (vitest doesn't typecheck) and were only caught by a review.

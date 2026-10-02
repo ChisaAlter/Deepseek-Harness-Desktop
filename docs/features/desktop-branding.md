@@ -53,7 +53,7 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | 品牌组件定向测试、官方客户端构建、`npm run check:governance`、`npm run doc-sync` |
+| Automated | 品牌组件定向测试与必要的官方客户端构建；文档引用/配对仅在相关内容变化时核对，不默认全量治理或 doc-sync |
 | Automated / Windows | Shell 属性在首次显示前声明；源通知入口不得调用 presenter；真实 HWND 同进程读取身份与图标，保留原生窗控及透明圆角 QA；首次冷启动任务栏像素须独立验收，后续启动正确不抵消首启失败 |
 | Automated / Windows | 旧通知快捷方式严格匹配、普通文件与路径边界、备份幂等及失败保留；仅完成移动后通知精确路径，500ms 期限及 missing / error / late callback 不丢备份，超时不翻转为投递成功；恢复在首次窗口 / 通知前完成 |
 | Manual / QA | 桌面与 Web 侧栏展开/收起、浅色/深色、标题栏拖拽和新建会话 |

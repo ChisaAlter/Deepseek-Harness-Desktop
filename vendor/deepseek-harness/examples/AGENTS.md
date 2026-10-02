@@ -1,5 +1,7 @@
 # AGENTS.md — Examples
 
+Maintenance authority: [WhaleIsle sole project policy](../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 Runnable harness compositions. `examples/` is one workspace member and the module-resolution root for runnable and test Cordis configs; it is not a build target. [package.json](package.json) declares the packages loaded by those configs, while each leaf's private `package.json` remains metadata only.
 
 Extract reusable logic into `packages/`, where per-file coverage and README gates apply. Examples keep only `cordis.yml` wiring, demo artifacts, and e2e/snapshot scenarios; app package bins own boot glue.

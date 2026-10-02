@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-09-17-bilingual-pairing-contract.md) | English
 
+This record preserves the historical rationale for pairing migration. Current language scope follows the [pairing rules](../../../i18n/README.en.md); automatic hooks/CI and verification order are superseded by the [local-QA-first decision](2026-10-02-local-qa-first-release.md). The full-pairing and pre-commit migration requirements below are no longer current execution constraints.
+
 ## Problem
 
 `docs/` already carries 4 `.en.md` counterparts (README, design-language, motion, release-notes), but nothing guarantees a counterpart stays in sync with its source — drift happens silently, and English readers and English-speaking agents may consume stale contracts.

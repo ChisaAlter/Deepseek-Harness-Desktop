@@ -1,5 +1,7 @@
 # AGENTS.md — Schedule packages
 
+Maintenance authority: [WhaleIsle sole project policy](../../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 These rules supplement the repository and package instructions for `packages/schedule/*`.
 
 - The Host `schedule` storage domain owns active and ended tasks. Store each record with its original Session id and a globally unique task id; only explicit deletion removes a task. Browser and Agent management use the same service; read and delete must not activate a Session.

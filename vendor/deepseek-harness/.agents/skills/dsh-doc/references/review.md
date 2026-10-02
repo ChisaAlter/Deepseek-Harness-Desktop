@@ -21,7 +21,7 @@ A professional engineer with no repository context should answer the following a
 
 Check each material statement against its strongest owner. Use package metadata for names and entry points, public types and JSDoc for API contracts, runtime code for behavior, tests for exercised failure paths, generated catalogs for exhaustive inventories, and active Agent Notes for rationale. Never treat a prior README, discussion, or report as stronger than current code and tests.
 
-For every operational claim — a CLI command, a config snippet, a default value, an error message, a platform difference — the evidence is running it, not reading it. Execute the exact command or mount the exact configuration against the current checkout before the page may state its behavior; quote only observed output, warnings, and failures. Claims that depend on unavailable keys or networks name their verification owner instead of asserting behavior. For pre-existing pages, compare against latest `origin/master` and re-verify stale statements against code.
+Ground documented contracts in their current source. Claims of successful execution require actual observations of the necessary changed paths after implementation. State missing keys or network prerequisites as verification gaps. Use the current checkout and confirmed pairing record; unrelated upstream fetches and execution of unchanged examples are not routine prerequisites.
 
 Classify the package before reviewing its install guidance: `dsh.bundle.patch` in `package.json` makes it a bundle (installable via `dsh plugin --profile <name> add <package>`, the only shape that command activates as a layer); an `apply` export or default service export makes it a plugin (mounted as a `cordis.yml` row); a plain module API makes it a library (a dependency with no install path). Reject install guidance written for another shape.
 
@@ -50,7 +50,7 @@ The `session-persistence-jsonl` README pair ([English](../../../../packages/sess
 
 ## Verification
 
-Run the smallest focused checks while iterating, then the standing documentation checks:
+After implementation, select necessary checks under [WhaleIsle policy](../../../../../../docs/maintenance/README.md). The following are available tools, not a mandatory chain:
 
 ```sh
 pnpm run test:docs
@@ -60,7 +60,7 @@ pnpm run lint
 git diff --check
 ```
 
-Also run the repository's skill-invocation metadata check for skill changes and compare English/Chinese physical line counts for a line-aligned pair. Re-read the final diff once for factual completeness and once for brevity, navigation, and ownership.
+Choose a skill metadata check only when its metadata changes. Review changed bilingual structure and factual meaning before recording a pair; review the final changed scope for completeness and navigation.
 
 ## Dev Note
 

@@ -4,6 +4,8 @@ Status: implemented
 
 中文 | [English](2026-09-17-bilingual-pairing-contract.en.md)
 
+本文保留原配对迁移决定的历史理由。当前语言范围以[配对规则](../../../i18n/README.md)为准，自动 hooks/CI 与验证顺序已由[本地 QA 优先决定](2026-10-02-local-qa-first-release.md)替代；下文的全量配对与 pre-commit 迁移要求不再作为当前执行约束。
+
 ## Problem
 
 `docs/` 下已有 4 对 `.en.md` 副本（README、design-language、motion、release-notes），但没有任何机制保证副本与正本同步——漂移无声发生，英文读者与英文 agent 读到的可能是过期契约。

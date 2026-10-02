@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-09-19-audit-repair-evidence-gates.md) | English
 
+This record preserves the historical audit evidence and side-effect boundaries. Automatic governance/documentation gates, fixed per-stage records and test-preparation order are superseded by the [maintenance system](../../../maintenance/README.md) and [local-QA-first decision](2026-10-02-local-qa-first-release.md). The text below does not authorize early test preparation, repeated full checks or mandatory decision/evidence ledgers for ordinary fixes.
+
 ## Problem
 
 The 2026-09-19 read-only audit ran against a dirty working tree, so it cannot establish a byte-level pre-change baseline for every dirty file. Most defects it found (a lost manifest, missing cancellation propagation, an over-wide permission policy, an acceptance script that no-ops) are the kind where all local checks stay green and the problem still ships. If the repair closes on "tests passed" alone, it cannot separate environment failures, pre-existing failures, regressions from this round, and blockers introduced by concurrent work, and it cannot stop the same defect from escaping the same way again.

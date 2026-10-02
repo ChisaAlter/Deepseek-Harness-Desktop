@@ -15,10 +15,12 @@
 
 ## Invariants
 
-- Windows 壳窗遵循 [window-motion](window-motion.md)，同时保留原生动画与 20px 自绘外框；同步后运行 `node scripts/run-window-motion-qa.mjs`，不能以几何状态检查替代原生样式及可见过渡验收。
+- Windows 壳窗遵循 [window-motion](window-motion.md)，同时保留原生动画与 20px 自绘外框；同步实际影响窗口样式、Electron 或相关集成时运行 `node scripts/run-window-motion-qa.mjs`，不能以几何状态检查替代原生样式及可见过渡验收。
 
 - 使用以旧 pin 为共同祖先的三方合并，禁止整树覆盖桌面定制。
-- 上游契约优先、桌面特性保真；不弱化断言或 fork 标记来掩盖回归。
+- 依据[唯一维护准则的上游整合规则](../maintenance/README.md#上游合并与差异保护)保护 WhaleIsle 已交付行为、修复、数据与权限契约；不采用“上游永远优先”或“本地实现永远保留”的默认裁定。等价迁移允许调整旧位置/字符串标记，但须保留真实行为断言，不能借此掩盖回归。
+- 对上游增量与本地差异交集及其消费者核对语义冲突，即使 Git 自动合并成功也不省略。相关差异由各功能卡持有，`harness-desktop-forks` 只检查部分结构和源码标记，不是完整功能清单或实际运行证明；未登记差异先查清用途。
+- 技术等价适配在授权范围内直接处理；未授权的能力删减、交互/默认值、数据或权限取舍按维护准则给出具体方案，由用户裁定。上游等价接管后移除冗余实现并更新差异归属；明确裁剪的功能和已修复缺陷不得随同步恢复。
 - pin 仅在合并树成功应用后更新；未完成验证不得称为可发布版本。
 - 不创建分支或发布；仅在用户明确要求时提交同步结果。保留任务开始时本地修改的原始快照及其他任务后续的独立更新。
 - 设计语言、关闭按钮在标题右侧、独立桌面家目录和插件恢复契约保持。
@@ -41,8 +43,8 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | sync/upstream/forks 单测、vendor 构建和 GUI/核心契约测试、`npm test`、Windows `node scripts/run-window-motion-qa.mjs`、`npm run doc-sync` |
-| Manual / QA | `npm run smoke:source` 与源码应用重启 |
+| Automated | 实现及冲突裁定完成后，按维护准则的[合并后验证选择](../maintenance/README.md#合并后验证选择)表选择实际影响项并去重；文档只核对相关引用/配对，不默认全量 doc-sync |
+| Manual / QA | 启动链或跨层集成受影响时执行 `npm run smoke:source` 与源码应用重启；UI、文件、权限等路径按实际影响直接观察 |
 
 ## Sources
 

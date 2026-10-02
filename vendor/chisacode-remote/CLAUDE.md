@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+Maintenance authority: [WhaleIsle sole project policy](../../docs/maintenance/README.md). Use this document for module contracts and operation details, not an independent maintenance workflow.
+
 ChisaCode is a local-first app for monitoring and controlling local AI coding agents from desktop, mobile, web, and CLI clients. It connects to your actual development environment; the daemon is local-first; selected providers/gateways may receive prompts.
 
 **Built-in providers:** Claude, Codex, OpenCode, Pi, Kimi Code, and Grok Build. Custom providers can extend those providers or use `extends: "acp"` for Agent Client Protocol commands.
@@ -41,7 +43,7 @@ At the start of non-trivial work, list `docs/` and skim anything relevant to the
 | [docs/custom-providers.md](docs/custom-providers.md)           | Custom provider config: Z.AI, Alibaba/Qwen, ACP agents, profiles, custom binaries                                              |
 | [docs/development.md](docs/development.md)                     | Dev server, build sync gotchas, CLI reference, agent state, Playwright MCP                                                     |
 | [docs/rpc-namespacing.md](docs/rpc-namespacing.md)             | WebSocket RPC naming convention — dotted namespaces and `.request`/`.response` pairs                                           |
-| [docs/testing.md](docs/testing.md)                             | TDD workflow, determinism, real dependencies over mocks, test organization                                                     |
+| [docs/testing.md](docs/testing.md)                             | Test mechanics, evidence scope and test organization under host maintenance policy                                           |
 | [docs/mobile-testing.md](docs/mobile-testing.md)               | Maestro and mobile test workflows                                                                                              |
 | [docs/ad-hoc-daemon-testing.md](docs/ad-hoc-daemon-testing.md) | Isolated in-process daemon test harness                                                                                        |
 | [docs/android.md](docs/android.md)                             | App variants, local/cloud builds, EAS workflows                                                                                |
@@ -54,8 +56,8 @@ At the start of non-trivial work, list `docs/` and skim anything relevant to the
 npm run dev                          # Start daemon + Expo in Tmux
 npm run cli -- ls -a -g              # List all agents
 npm run cli -- daemon status         # Check daemon status
-npm run typecheck                    # Always run after changes
-npm run lint                         # Always run after changes
+npm run typecheck                    # Select when type contracts are affected
+npm run lint                         # Select affected files when needed
 npm run format                       # Auto-format with oxfmt
 npm run format:check                 # Check formatting without writing
 ```
@@ -66,19 +68,12 @@ See [docs/development.md](docs/development.md) for full setup, build sync requir
 
 - **NEVER restart the main ChisaCode daemon on port 6767 without permission** — it manages all running agents. If you're an agent, restarting it kills your own process.
 - **NEVER assume a timeout means the service needs restarting** — timeouts can be transient.
-- **NEVER add auth checks to tests** — agent providers handle their own auth.
-- **NEVER run the full test suite locally.** The test suites are heavy and will freeze the machine, especially if multiple agents run them in parallel. Rules:
-  - Run only the specific test file you changed: `npx vitest run <file> --bail=1`
-  - Never run `npm run test` for an entire workspace unless explicitly asked.
-  - If you must run a broad suite, pipe output to a file and read it afterward: `npx vitest run <file> --bail=1 > /tmp/test-output.txt 2>&1` then read the file.
-  - Never re-run a test suite that another agent already ran and reported green — trust the result.
-  - For full suite verification, push to CI and check GitHub Actions instead.
-- **Always run typecheck and lint after every change.**
+- Verification order and scope follow the sole WhaleIsle maintenance policy. Complete implementation first, validate required behavior locally and observe real operations before final CI; skipped or unexecuted required paths remain blocked.
 - **Build workspace packages before diagnosing cross-package type errors.** This repo consumes generated declarations across workspaces. If typecheck fails in a package that depends on another workspace, rebuild the owning stack first so `dist` declarations are current:
   - `npm run build:client` — rebuild protocol and client declarations.
   - `npm run build:server` — rebuild highlight, relay, protocol, client, server, and CLI when server/CLI types may be stale.
   - Do not patch inferred callback parameters or add local duplicate types just to silence stale declaration errors.
-- **Run `npm run format` before committing.** This repo uses oxfmt for formatting. Do not manually fix formatting — let the formatter handle it.
+- Use targeted formatting when the changed content requires it; committing does not automatically require a workspace-wide formatter.
 - **Always use npm scripts for linting and formatting.** Do not run tools directly with `npx eslint`, `npx oxfmt`, `npx oxlint`, or package-local binaries. For targeted checks, pass file paths through the npm script:
   - `npm run lint -- packages/app/src/components/message.tsx`
   - `npm run format:files -- CLAUDE.md packages/app/src/components/message.tsx`

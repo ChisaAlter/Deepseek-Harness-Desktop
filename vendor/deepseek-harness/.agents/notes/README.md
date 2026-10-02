@@ -2,6 +2,8 @@
 
 English | [中文](README.zh.md)
 
+Inside WhaleIsle, [the sole host maintenance policy](../../../../docs/maintenance/README.md) owns record selection, execution order and verification. This page supplies record layout and frozen-history mechanics; it imposes no additional proposal approval, audit or test chain. Ordinary fixes need no new note.
+
 One kind of design doc lives here. An **Agent Note** records a decision or proposal that affects this codebase — the *why* and *what we gave up*, the parts code and docs can't carry. This file defines where Agent Notes live, when to write one, and [the in-file format](#the-file-format).
 
 ## Layout and naming
@@ -9,7 +11,7 @@ One kind of design doc lives here. An **Agent Note** records a decision or propo
 Every Agent Note has two axes, both encoded in its **path** — `{lifecycle}/{class}/yyyy-mm-dd-topic-title.md`:
 
 - **Lifecycle** (the top-level folder) is the Agent Note's status, and an Agent Note moves between folders as that status changes:
-  - **`proposed/`** — proposals reviewed before implementation; not yet built (or only partly).
+  - **`proposed/`** — unresolved proposals; not yet built (or only partly). Authorized decisions do not require a separate proposal approval.
   - **`implemented/`** — the decision shipped. The file records what was decided and what was rejected, and is **kept current with what actually shipped**: when the code later moves a file, renames a package, or changes a key/default, the Agent Note is updated in the same change to match (facts only — paths, names, structure — not the decision itself). See [implemented/AGENTS.md](implemented/AGENTS.md).
   - **`rejected/`** — the proposal was considered and declined. Keep it only while its rationale prevents a tempting, meaningful mistake; otherwise delete the complete triplet.
 - **Class** (the nested folder) is the *kind* of decision — see [Classification](#classification) below.

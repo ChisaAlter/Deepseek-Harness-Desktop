@@ -5,6 +5,8 @@ description: Use when reviewing a pull request in the deepseek-harness repo — 
 
 # Reviewing a DeepSeek-Harness PR
 
+[WhaleIsle maintenance policy](../../../../../docs/maintenance/README.md) owns scope, verification selection and delivery. Apply this guidance to an authorized review; it adds no mandatory review round, approval or CI matrix.
+
 **This skill is guidance, not a complete checklist.** Verify and fetch the PR's live base and exact head, then run `pnpm --silent run change-scope --base <verified-base-ref> --head <verified-head-ref>` before reading the diff and enough surrounding code to understand the design. The report identifies paths and dirty layers but does not replace semantic review. Re-establish the base and rerun it after a retarget or merge. Prioritize correctness, lifecycle, security, and broken required behavior over style; a short review with one substantiated blocker is better than a list of nits.
 
 ## Sources of truth
@@ -15,7 +17,7 @@ description: Use when reviewing a pull request in the deepseek-harness repo — 
 - [dsh-prose-standard](../dsh-prose-standard/SKILL.md): required coverage and editorial judgment for comments, docs, prompts, and visible strings.
 - [dsh-ci-test-reliability](../dsh-ci-test-reliability/SKILL.md): isolation and regression-proof rules for resource-owning, asynchronous, or flaky tests and fixtures.
 - [dsh-client-ui-ux](../dsh-client-ui-ux/SKILL.md): feedback-surface choice, overlay safety, platform window adaptation, and visual token discipline for product-user-visible GUI changes.
-- [docs/testing.md](../../../docs/testing.md) and the [quality-gates Agent Note](../../notes/implemented/process/2026-06-11-quality-gates.md): required test tiers and gates.
+- [docs/testing.md](../../../docs/testing.md): existing test mechanisms; the [quality-gates Agent Note](../../notes/implemented/process/2026-06-11-quality-gates.md) preserves upstream history without imposing current gates.
 - [Agent Notes](../../notes/README.md): design rationale. Treat disagreement with an Agent Note as a design discussion, not an automatic veto.
 - For bilingual changes, read [translation-rules.md](../../../docs/i18n/translation-rules.md) and [terminology.md](../../../docs/i18n/terminology.md); the extended translation skill is outside automatic review and runs only on explicit user invocation.
 
@@ -26,7 +28,7 @@ description: Use when reviewing a pull request in the deepseek-harness repo — 
 3. **Core type docs match.** Changes to spine or seam vocabulary update the appropriate [subsystems](../../../docs/subsystems/README.md) page and any `type-equiv` entry. Internal types need no catalog entry.
 4. **Registrations clean up.** Verify each new registry contribution passes the disposal tests required by [packages/AGENTS.md](../../../packages/AGENTS.md).
 5. **Invariant companions are semantic.** For every touched `./invariant`, require an owner event-stream or mutable-data relationship with independent observations at the point where that package can observe it; service or method presence, plugin metadata or effects, fixed pure examples, and probes that call the same operation they claim to verify belong in load, behavior, or unit tests. When no plausible relationship exists, require the package to omit the companion and publication wiring and record its package-specific reason in the README. Reject empty installers and invented checks ([repository rule](../../../AGENTS.md#conventions); [package invariant rules](../../../packages/AGENTS.md)).
-6. **Required evidence exists.** Verify the author ran the [relevant local checks](../../../AGENTS.md#run-relevant-checks-locally) for the diff and that CI covers the exhaustive matrix; review the semantic gaps neither can detect.
+6. **Required evidence exists.** Assess same-version local QA and actual operations under the host policy. CI is final verification; an exhaustive CI matrix cannot fill necessary local gaps.
 7. **Client UI copy is locale-owned.** Reject product text embedded in JSX, templates, helper returns, accessibility attributes, or primitive defaults. Require typed dictionary keys, the standard `t` seat or explicit localized props, `verify-client-ui-i18n`, and behavior evidence in each affected locale; preserve user/model/wire data and code tokens verbatim.
 
 ## Manual checks

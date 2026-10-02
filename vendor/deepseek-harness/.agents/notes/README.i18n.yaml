@@ -3,11 +3,11 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/README.md
 /agent-notes:
-  en: a10991a192c7b55d
-  zh: c2e5b938ece4f366
+  en: e9a43745971b55ef
+  zh: d04b6b528cc6a4f4
 /agent-notes/layout-and-naming:
-  en: 6b38cb0eb38c2baf
-  zh: 535234fb23fc8921
+  en: 247cac548537f4d3
+  zh: e0a2cd04a7c9188a
 /agent-notes/classification:
   en: 055a5e49f9af3dc2
   zh: 9f7c78409cccfded

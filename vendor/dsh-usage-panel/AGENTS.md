@@ -1,5 +1,7 @@
 # AGENTS.md — dsh-usage-panel
 
+Maintenance authority: [WhaleIsle sole project policy](../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 DeepSeek Harness 的 Token 用量统计插件（设置页「消耗统计」）。Host 半只读重扫会话日志 + RPC，Client 半渲染 KPI / 热力图 / 堆叠柱图 / 环形图。本文档是给 AI 与协作者的项目说明书：开发策略 + 踩坑记录。**新坑踩到后必须即时回填本文档。**
 
 ## 1. 仓库与迭代规范

@@ -4,6 +4,8 @@ Status: implemented
 
 [中文](2026-10-02-release-convergence.md) | English
 
+Execution order, automatic CI and governance prerequisites are superseded by the [local-QA-first decision](2026-10-02-local-qa-first-release.md). The original rationale, original-artifact identity constraints and historical evidence below do not authorize the former execution policy.
+
 ## Problem
 
 Repeated successful 0.3.3 builds did not reach publication. Candidate replacement, complete manual regression, faulty observers and environmental state shared one loop. Source tests miss installation defects, while repeating every scenario after each local repair prevents convergence. Releases need executable scope, real quality evidence and accountable signoff.

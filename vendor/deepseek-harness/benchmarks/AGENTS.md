@@ -1,5 +1,7 @@
 # AGENTS.md — Performance Benchmarks
 
+Maintenance authority: [WhaleIsle sole project policy](../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 This tree owns required, repository-level performance gates whose measured user path crosses package ownership. Package-local diagnostics remain beside their owners and use the `.perf.ts` suffix instead of joining `test:bench`.
 
 - Organize benchmarks by measured user path, one directory per path. Do not mirror the package tree.

@@ -1,128 +1,120 @@
 #!/usr/bin/env node
-'use strict'
-/**
- * Final delivery gate matrix. Runs every gate sequentially in its own cwd and
- * records the TRUE exit code — no shell pipes anywhere, so a failure can never
- * be masked the way `pnpm run typecheck | tail` hides exit 2. The script exits
- * non-zero unless every selected gate reports 0.
- *
- * Usage: node scripts/run-final-gates.mjs [--only name,name] [--skip name,name]
- * Logs land in .final-gates/<name>.log (also streamed live for progress).
- */
-import { spawnSync } from 'node:child_process'
-import { mkdirSync, openSync, closeSync, existsSync, rmSync } from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+// Explicit local checks, not a default matrix or a product acceptance certificate.
+import { execFileSync, spawnSync } from 'node:child_process';
+import { readFileSync, mkdirSync, openSync, closeSync } from 'node:fs';
+import { resolve, delimiter } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const VENDOR = path.join(ROOT, 'vendor', 'deepseek-harness')
-const LOGDIR = path.join(ROOT, '.final-gates')
-
-/** Vendor .ts/.tsx files this changeset touches (tracked-modified + untracked). */
-function changedVendorFiles() {
-  const out = []
-  const push = line => {
-    const rel = line.replace(/^[ADRM?]+\s+/, '').replace(/"/g, '')
-    if (rel.startsWith('vendor/deepseek-harness/') && /\.(ts|tsx)$/.test(rel)) {
-      out.push(rel.replace('vendor/deepseek-harness/', ''))
-    }
-  }
-  for (const line of spawnSync('git', ['-C', ROOT, 'status', '--porcelain=v1'], { encoding: 'utf8' }).stdout.split('\n')) {
-    if (line.trim()) push(line)
-  }
-  return out
-}
-
-const CHANGED_VENDOR_FILES = changedVendorFiles()
-
+const ROOT = resolve(import.meta.dirname, '..');
+const VENDOR = resolve(ROOT, 'vendor/deepseek-harness');
 const GATES = [
   { name: 'desktop-tests', cwd: ROOT, cmd: 'npm', args: ['test'] },
   { name: 'typecheck', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'typecheck'] },
-  // Blocking: this changeset's own files must lint clean (the repo carries a
-  // pre-existing baseline of lint errors that this delivery must not extend).
-  {
-    name: 'lint-changed',
-    cwd: VENDOR,
-    cmd: 'node',
-    args: ['node_modules/oxlint/bin/oxlint', '-c', '.oxlintrc.json', ...CHANGED_VENDOR_FILES],
-    skipReason: CHANGED_VENDOR_FILES.length === 0 ? 'no changed vendor TypeScript files' : '',
-  },
-  // Observational: full-repo oxlint for the baseline record; failures here are
-  // pre-existing debt outside this changeset and do not block delivery.
-  { name: 'lint-full-baseline', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'lint'], observational: true },
-  { name: 'test-gui-1', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'test:gui'] },
-  { name: 'test-gui-2', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'test:gui'] },
-  { name: 'test-gui-3', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'test:gui'] },
-  { name: 'agent-note-format', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'verify-agent-note-format'] },
-  { name: 'translation-pairing', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'verify-translation-pairing'] },
-  { name: 'md-wrap', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'verify-md-wrap'] },
-  { name: 'cordis-config', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'verify-cordis-config'] },
+  { name: 'test-gui', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'test:gui'] },
   { name: 'test-web', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'test:web'] },
+  { name: 'cordis-config', cwd: VENDOR, cmd: 'pnpm', args: ['run', 'verify-cordis-config'] },
   { name: 'pack', cwd: ROOT, cmd: 'npm', args: ['run', 'dist'] },
   { name: 'packaged-smoke', cwd: ROOT, cmd: 'npm', args: ['run', 'smoke:packaged'] },
-]
+];
 
-function parseArgv(argv) {
-  const only = []
-  const skip = []
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--only' && argv[i + 1]) { only.push(...argv[i + 1].split(',')); i++ }
-    else if (argv[i] === '--skip' && argv[i + 1]) { skip.push(...argv[i + 1].split(',')); i++ }
+const nonempty = value => typeof value === 'string' && value.trim().length > 0;
+
+// Conservatively recognize our ordinary workflow syntax; unfamiliar syntax is
+// not evidence that automation is disabled. This is not a general YAML parser.
+export function hasAutomaticWorkflow(source) {
+  const on = source.match(/^on:[ \t]*([^\r\n]*)$/m);
+  if (!on) return true;
+  const inline = on[1].replace(/\s+#.*$/, '').trim();
+  if (inline) return !['workflow_dispatch', 'workflow_call'].includes(inline);
+  const tail = source.slice(on.index + on[0].length).split(/\n(?=[^\s#])/)[0];
+  const events = [...tail.matchAll(/^  ([a-z_]+):/gm)].map(match => match[1]);
+  return !events.length || events.some(event => !['workflow_dispatch', 'workflow_call'].includes(event));
+}
+
+export function validateCiHistory(state) {
+  if (!Number.isSafeInteger(state.ciNonpassCount) || state.ciNonpassCount < 0 || !nonempty(state.ciCountEvidence)) {
+    throw new Error('Push blocked: verified cumulative CI count/history is required; unknown is not zero');
   }
-  return { only, skip }
-}
-
-const { only, skip } = parseArgv(process.argv.slice(2))
-const selected = GATES.filter(g => (only.length === 0 || only.includes(g.name)) && !skip.includes(g.name))
-
-// cmd.exe PATH resolution can pick a corepack-shimmed pnpm that refuses the
-// vendor pin; pin the shell to the desktop dependency's direct pnpm binary and
-// keep vendor packageManager aligned with it (both 11.8.0).
-const PNPM_DIR = path.join(ROOT, 'node_modules', '.bin')
-const gateEnv = extraPath => ({
-  ...process.env,
-  PATH: extraPath ? `${extraPath}${path.delimiter}${process.env.PATH}` : process.env.PATH,
-})
-
-mkdirSync(LOGDIR, { recursive: true })
-console.log(`final gates: ${selected.map(g => g.name).join(', ')}`)
-
-const results = []
-for (const gate of selected) {
-  const logPath = path.join(LOGDIR, `${gate.name}.log`)
-  const fd = openSync(logPath, 'w')
-  if (gate.skipReason) {
-    closeSync(fd)
-    console.log(`[gate] SKIP ${gate.name} (${gate.skipReason})`)
-    results.push({ ...gate, code: 0, ms: 0, skipped: true })
-    continue
+  if (state.ciNonpassCount >= 4) {
+    const prefix = `${state.ciNonpassCount}:`;
+    if (!state.ciRecoveryDecision?.startsWith(prefix) || !nonempty(state.ciRecoveryDecision.slice(prefix.length))) {
+      throw new Error('Push blocked: CI stopped after four non-passes; require a user corrective decision bound to the unchanged cumulative count');
+    }
   }
-  const started = Date.now()
-  console.log(`[gate] START ${gate.name}`)
-  const child = spawnSync(gate.cmd, gate.args, {
-    cwd: gate.cwd,
-    shell: true,
-    stdio: ['ignore', fd, fd],
-    env: gate.cmd === 'pnpm' ? gateEnv(PNPM_DIR) : gateEnv(),
-  })
-  closeSync(fd)
-  // spawnSync preserves the child's real exit code in `status` (shell:true does
-  // NOT mask it to 1); status is null only on signal/spawn error, then use -1/1.
-  const code = child.status ?? (child.error ? -1 : 1)
-  const ms = Date.now() - started
-  console.log(`[gate] ${gate.name} EXIT=${code} (${(ms / 1000).toFixed(1)}s)`)
-  results.push({ ...gate, code, ms })
 }
 
-console.log('\n===== FINAL GATE MATRIX =====')
-let failed = 0
-for (const r of results) {
-  const mark = r.skipped ? 'SKIP' : (r.code === 0 ? 'PASS' : (r.observational ? 'BASE' : 'FAIL'))
-  if (r.code !== 0 && !r.observational) failed++
-  console.log(`${mark}  ${r.name.padEnd(20)} exit=${r.code}  ${(r.ms / 1000).toFixed(1)}s`)
+// Reuses the single existing ignored status file. It checks record consistency,
+// not the truth of human observations, and is not a permissions boundary.
+export function validateLocalQa(state, sha) {
+  const qa = state?.localQa;
+  if (!/^[a-f0-9]{40}$/.test(sha) || qa?.sourceSha !== sha || qa?.implementationComplete !== true || qa?.status !== 'pass') {
+    throw new Error('Push blocked: implementation and local QA must be complete for this exact commit');
+  }
+  if (!nonempty(qa.environment) || !nonempty(qa.actualResult) || !nonempty(qa.scope)) {
+    throw new Error('Push blocked: real environment, observed result and affected scope are required');
+  }
+  if (!Array.isArray(qa.checks) || !qa.checks.length || qa.checks.some(check => !nonempty(check.name) || check.status !== 'pass' || !nonempty(check.evidence))) {
+    throw new Error('Push blocked: every necessary local check needs passing evidence; blocked/skip/not-run cannot pass');
+  }
+  if (new Set(qa.checks.map(check => check.name.trim())).size !== qa.checks.length) throw new Error('Push blocked: duplicate check names are not additional coverage');
+  validateCiHistory(state);
+  return qa;
 }
-console.log(`===== ${results.length - failed}/${results.length} gates passed =====`)
-if (existsSync(path.join(ROOT, 'dist'))) {
-  console.log('pack artifact: dist/ present')
+
+export function selectGates(argv) {
+  if (argv.length !== 2 || argv[0] !== '--only' || !argv[1]) {
+    throw new Error('Choose necessary checks explicitly: --only name,name. No default full matrix; --skip is unsupported');
+  }
+  const names = argv[1].split(',');
+  if (new Set(names).size !== names.length) throw new Error('Duplicate checks are forbidden');
+  return names.map(name => {
+    const gate = GATES.find(g => g.name === name);
+    if (!gate) throw new Error(`Unknown check: ${name}`);
+    return gate;
+  });
 }
-process.exit(failed === 0 ? 0 : 1)
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  try {
+    const argv = process.argv.slice(2);
+    const git = args => execFileSync('git', ['-C', ROOT, ...args], { encoding: 'utf8' });
+    const checkQa = sha => {
+      if (git(['rev-parse', 'HEAD']).trim() !== sha) throw new Error('Push blocked: this local record only certifies HEAD, not another ref');
+      if (git(['status', '--porcelain']).trim()) throw new Error('Push blocked: uncommitted changes invalidate the recorded commit validation');
+      validateLocalQa(JSON.parse(readFileSync(resolve(ROOT, '.tmp/release/current-state.json'), 'utf8')), sha);
+      console.log(`Local QA record matches ${sha}; this is not independent certification of observations`);
+    };
+    if (argv.length === 1 && argv[0] === '--list') {
+      console.log(GATES.map(g => g.name).join('\n'));
+    } else if (argv.length === 2 && argv[0] === '--check-local-qa') {
+      checkQa(argv[1]);
+    } else if (argv.length === 3 && argv[0] === '--check-push') {
+      const [, sha, remoteSha] = argv;
+      if (![sha, remoteSha].every(value => /^[a-f0-9]{40}$/.test(value))) throw new Error('Push blocked: expected full Git object IDs');
+      const automatic = revision => {
+        try {
+          const paths = git(['ls-tree', '-r', '--name-only', revision, '.github/workflows']).trim().split(/\r?\n/).filter(path => /\.ya?ml$/.test(path));
+          return paths.some(path => hasAutomaticWorkflow(git(['show', `${revision}:${path}`])));
+        } catch { return true; } // An unfetched remote tip cannot establish a manual-only policy.
+      };
+      if (automatic(sha) || (remoteSha !== '0'.repeat(40) && automatic(remoteSha))) checkQa(sha);
+      else console.log('Manual-only workflow policy: push starts no QA or release gate; final CI still requires completed local QA');
+    } else {
+      const selected = selectGates(argv); // validate all input before starting any command
+      mkdirSync(resolve(ROOT, '.final-gates'), { recursive: true });
+      for (const gate of selected) {
+        const fd = openSync(resolve(ROOT, '.final-gates', `${gate.name}.log`), 'w');
+        console.log(`START ${gate.name}`);
+        let child;
+        try {
+          child = spawnSync(gate.cmd, gate.args, {
+            cwd: gate.cwd, shell: true, stdio: ['ignore', fd, fd],
+            env: { ...process.env, PATH: `${resolve(ROOT, 'node_modules/.bin')}${delimiter}${process.env.PATH}` },
+          });
+        } finally { closeSync(fd); }
+        if (child.status !== 0) throw new Error(`${gate.name} failed (exit=${child.status ?? 'not started'}); stop and diagnose before retrying`);
+        console.log(`PASS ${gate.name} (command only; real operations require separate observation)`);
+      }
+    }
+  } catch (error) { console.error(error.message); process.exitCode = 1; }
+}

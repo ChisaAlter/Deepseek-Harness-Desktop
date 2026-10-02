@@ -1,5 +1,7 @@
 # AGENTS.md
 
+Maintenance authority: [WhaleIsle sole project policy](../../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 This workspace owns `@deepseek-ai/node-addon-system`: the Linux `landlock-run` confinement executable and the POSIX `system.node` binding. It shares the root pnpm workspace and lockfile; native packages have one independent version and release workflow.
 
 ## Runtime rules

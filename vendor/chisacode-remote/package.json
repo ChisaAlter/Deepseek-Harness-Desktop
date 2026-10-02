@@ -46,7 +46,6 @@
     "dev:server:raw": "npm run dev --workspace=@chisacode/server",
     "dev:app": "npm run start --workspace=@chisacode/app",
     "postinstall": "node scripts/postinstall-patches.mjs",
-    "prepare": "lefthook install --force",
     "build": "npm run build --workspaces --if-present",
     "build:highlight": "npm run build --workspace=@chisacode/highlight",
     "build:relay": "npm run build --workspace=@chisacode/relay",
@@ -141,7 +140,7 @@
     "ws": "8.21.0"
   },
   "overrides": {
-    "@types/node": "^22.10.0",
+    "@types/node": "22.20.4",
     "@xmldom/xmldom": "0.8.13",
     "ajv@8.11.0": "8.20.0",
     "anymatch": {

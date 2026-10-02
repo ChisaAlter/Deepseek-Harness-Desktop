@@ -1,25 +1,14 @@
 # Testing
 
+Inside this checkout, [WhaleIsle maintenance policy](../../../docs/maintenance/README.md) alone selects development order, necessary verification and delivery. Complete implementation before preparing tests. This page describes test mechanics; it adds no gates, approvals or CI shortcuts.
+
 ## Philosophy
 
 Tests prove behavior, not structure. Every test should answer: "what user-visible or API-visible behavior does this verify?"
 
-## Test-driven development
+## Development order
 
-Work in vertical slices: one test, one implementation, repeat. Each test responds to what you learned from the previous cycle.
-
-```
-RIGHT (vertical):
-  RED→GREEN: test1→impl1
-  RED→GREEN: test2→impl2
-  RED→GREEN: test3→impl3
-
-WRONG (horizontal):
-  RED:   test1, test2, test3, test4, test5
-  GREEN: impl1, impl2, impl3, impl4, impl5
-```
-
-Writing all tests first then all implementation produces bad tests — you end up testing imagined behavior instead of actual behavior.
+Read existing code and observe the fault during diagnosis. Complete the authorized implementation, then prepare necessary tests, verify affected paths and observe real operations. Missing local evidence cannot be deferred to CI.
 
 ## Determinism first
 
@@ -55,7 +44,7 @@ Never remove a test because it's flaky. Find the variance source (time, randomne
 
 ## Real dependencies over mocks
 
-Mocks are not the default. They require an explicit decision.
+Choose the observation needed to detect the fault. Isolated tests can use existing adapters; they do not certify a real external operation. No separate approval is required for a routine test implementation choice.
 
 - **Database**: real test database, not a mock
 - **APIs**: real APIs with test/sandbox credentials, not request mocks
@@ -65,7 +54,7 @@ Ask: "will this still hold with real dependencies at runtime?" If no, don't mock
 
 ### Use swappable adapters instead
 
-When you need test isolation, design code so dependencies are injectable:
+Reuse an existing injectable dependency for isolation where available. Do not introduce product abstractions solely for test convenience. An existing adapter can be exercised as follows:
 
 ```typescript
 interface EmailSender {
@@ -122,19 +111,11 @@ Live provider smoke tests belong in `*.real.e2e.test.ts`, not `*.test.ts`, even 
 
 ## Running tests locally
 
-Test suites in this repo are heavy. Running them in bulk freezes the machine, especially with multiple agents in parallel.
-
-- Run only the file you changed: `npx vitest run <path> --bail=1`
-- Never run `npm run test` for a whole workspace unless asked.
-- For a broad sweep, redirect to a file and read it after: `npx vitest run <path> --bail=1 > /tmp/test-output.txt 2>&1`
-- Never re-run a suite another agent already reported green.
-- For full-suite confidence, push to CI and check GitHub Actions.
-- Never run the full Playwright E2E suite locally — defer whole-suite verification to CI. Targeted Playwright specs are allowed when you changed or need to prove that specific flow.
+Select checks for the actual changed behavior after implementation. A targeted command is `npx vitest run <path> --bail=1`; broader checks are necessary only when the changed risk warrants them. Record resource-intensive commands and their results, and reuse evidence for the same version. Missing tools or credentials remain blocking for necessary checks. CI is final verification after all necessary local QA and actual operations pass.
 
 ### Chain entrypoints
 
-Use these entrypoints when a change affects desktop or Android user flows across
-package boundaries:
+These entrypoints locate existing checks. Select the affected paths under the host policy rather than running a fixed chain for every change:
 
 - `npm run test:desktop-chain` — builds the server stack, runs protocol/client
   tests, desktop package tests, and the desktop-critical Playwright specs.
@@ -153,7 +134,7 @@ verify discovery without building or running the suite.
 
 ## Agent authentication in tests
 
-Agent providers handle their own auth. Do not add auth checks, environment variable gates, or conditional skips to tests. If auth fails, report it.
+Agent providers own their authentication. Verify authentication when it is part of the changed boundary, without adding unrelated login probes or skips to make missing prerequisites appear successful. Report authentication failures accurately.
 
 ## Debugging with tests
 
@@ -165,24 +146,12 @@ Use the test as your debugging ground:
 4. Confirm each assumption with actual output
 5. Remove logging when done
 
-The test output is the source of truth, not your reading of the code.
+Tests supply behavior evidence; source inspection explains implementation. Neither substitutes for observing a necessary real user operation.
 
 ## Design for testability
 
-If code isn't testable, refactor it. Signs:
+Reuse current public interfaces and existing helpers. Do not refactor product architecture merely to simplify testing or add hypothetical boundaries. A product change needs an authorized requirement or evidence of a real fault.
 
-- You want to reach for a mock
-- You can't inject a dependency
-- You need to test private internals
-- Setup requires too much global state
+## Evidence scope
 
-Aim for deep modules: small interface, deep implementation. Fewer methods = fewer tests needed, simpler params = simpler setup.
-
-## Two test categories, no others
-
-Every test in this repo lives in exactly one of these shapes:
-
-1. **Unit tests with ports and adapters** — production code receives its real-world dependencies (DB, HTTP, CLI process, clock, randomness, filesystem, other modules) through an injected interface. Tests wire a typed in-memory fake colocated with the production module. **No `vi.mock`, `vi.hoisted`, `vi.spyOn` of own exports, JSDOM, `@testing-library` component mounting, RN test renderer, monkey-patched globals, or fake-server fixtures.** If a test needs any of those, the production module is missing a port — fix the seam, then write the test against a fake adapter.
-2. **Real end-to-end tests** — real daemon, real network, real browser (Playwright for app code) or a real isolated server instance (for daemon code). No JSDOM, no mocked transport.
-
-Anything in between — component tests in JSDOM, vitest tests that mock the module under test, tests that assert on private state — is slop on its way out.
+Unit, component and protocol tests may each detect concrete failures. Keep assertions on observable behavior and do not weaken them to clear a failure. A real end-to-end claim requires the real daemon, network and browser or isolated service. A mock or component test alone cannot certify that path.

@@ -6,6 +6,8 @@ Status: implemented
 
 本记录中的钩子/CI 对称设计已由[快速本地 Git 钩子](../../archived/process/2026-07-22-fast-local-git-hooks.md)取代；CI 仍是执行完整检查的路径。
 
+本文保留官方上游最初的治理取舍。WhaleIsle 的执行只遵循[唯一维护准则](../../../../../../docs/maintenance/README.md)；本文的完整 CI、数字覆盖率及机械门槛要求不作为当前项目指令，原始理由和历史证据保留。
+
 ## 问题
 
 本代码库主要由 coding agent（智能体）开发。相比行文约定，agent 遵守强制门禁的可靠性远高得多；而当劳动由 agent 承担时，「工作量大」不构成成本论据。早期证据：未通过类型检查的测试被提交（vitest 不做类型检查），仅在评审中才被发现。

@@ -614,6 +614,10 @@ async function main() {
   const probe = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' })
   if (probe.status !== 0) return
   const root = stripGitLineTerminator(probe.stdout)
+  if (existsSync(join(root, 'docs', 'maintenance', 'README.md'))) {
+    console.log('[install-lefthook] host maintenance owns Git hooks; no upstream hooks installed')
+    return
+  }
   const isWindows = process.platform === 'win32'
   const lefthook = join(root, 'node_modules', '.bin', isWindows ? 'lefthook.cmd' : 'lefthook')
   if (!existsSync(lefthook)) return

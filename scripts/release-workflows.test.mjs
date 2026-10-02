@@ -3,26 +3,56 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { makeFixture } from './lib/fixture.mjs';
 const require = createRequire(import.meta.url);
 const yaml = require('js-yaml');
 const read = name => readFileSync(resolve(import.meta.dirname, '../.github/workflows', name), 'utf8');
+
+test('actual workflow shell guards reject the fourth non-pass and missing local facts', t => {
+  const shell = process.platform === 'win32'
+    ? resolve(execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim(), '../../../usr/bin/sh.exe') : 'bash';
+  const root = makeFixture(t, {});
+  for (const name of ['test.yml', 'release.yml', 'publish.yml']) {
+    const workflow = yaml.load(read(name));
+    const guard = Object.values(workflow.jobs)[0].steps[0].run;
+    const baseEnv = { ...process.env, GITHUB_REF: 'refs/heads/main', GITHUB_REPOSITORY: 'fixture/local-only', CANDIDATE_SHA: 'a'.repeat(40),
+      LOCAL_QA: 'fixture local QA', CI_COUNT_EVIDENCE: 'fixture run history',
+      CI_RECOVERY_DECISION: '',
+      GITHUB_STEP_SUMMARY: resolve(root, 'summary.txt') };
+    const invoke = extra => spawnSync(shell, ['-c', `gh() { printf '%s\\n' identical; }\n${guard}`], {
+      encoding: 'utf8', env: { ...baseEnv, ...extra }, windowsHide: true,
+    });
+    for (const count of ['0', '3']) {
+      const result = invoke({ CI_NONPASS_COUNT: count });
+      assert.equal(result.status, 0, `${name}: ${result.stderr}`);
+    }
+    for (const extra of [ { CI_NONPASS_COUNT: '4' }, { CI_NONPASS_COUNT: '' }, { CI_NONPASS_COUNT: '04' },
+      { CI_NONPASS_COUNT: '4', CI_RECOVERY_DECISION: '4: ' },
+      { CI_NONPASS_COUNT: '5', CI_RECOVERY_DECISION: '4: earlier fixture decision' },
+      { CI_NONPASS_COUNT: '0', CI_COUNT_EVIDENCE: ' ' },
+      ...(name === 'test.yml' ? [{ CI_NONPASS_COUNT: '0', LOCAL_QA: '' }, { CI_NONPASS_COUNT: '0', GITHUB_REF: 'refs/heads/other' }] : []),
+    ]) assert.notEqual(invoke(extra).status, 0, `${name} must reject ${JSON.stringify(extra)}`);
+    const resumed = invoke({ CI_NONPASS_COUNT: '4', CI_RECOVERY_DECISION: '4: fixture user decision reference and corrected local QA evidence' });
+    assert.equal(resumed.status, 0, `${name}: ${resumed.stderr}`);
+  }
+});
 test('workflows parse and fast checks precede expensive tests and packaging', () => {
   const tests = yaml.load(read('test.yml'));
   const release = yaml.load(read('release.yml'));
   assert.equal(tests.jobs.desktop.needs, 'fast-checks');
   assert.equal(tests.jobs['vendor-gui'].needs, 'fast-checks');
-  const maintenance = tests.jobs['fast-checks'].steps.find(s => s.name === 'Maintenance validator behavior');
-  assert.match(maintenance.run, /archive-decision\.test\.mjs/);
-  assert.match(maintenance.run, /verify-feature-cards\.test\.mjs/);
-  assert.doesNotMatch(maintenance.run, /verify-\*|verify-remote|verify-real/);
+  // These regressions already belong to npm test; no duplicate Fast checks copy.
+  assert.equal(tests.jobs['fast-checks'].steps.some(s => s.name === 'Maintenance validator behavior'), false);
+  assert.ok(tests.jobs.desktop.steps.some(s => s.run === 'npm test'));
   const steps = tests.jobs['vendor-gui'].steps;
   assert.ok(steps.findIndex(s => s.name === 'Client catalog up to date') < steps.findIndex(s => s.name === 'Build vendor client + host libs'));
   assert.equal(release.jobs.windows.needs, 'preflight');
   assert.equal(release.jobs.macos.needs, 'preflight');
   assert.equal(release.concurrency['cancel-in-progress'], false);
   assert.equal(release.concurrency.queue, 'max');
-  assert.equal(tests.concurrency['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}");
-  assert.match(tests.concurrency.group, /github\.sha/);
+  assert.equal(tests.concurrency['cancel-in-progress'], false);
+  assert.match(tests.concurrency.group, /inputs\.candidate_sha/);
   for (const job of Object.values(release.jobs)) {
     const checkout = job.steps.find(s => s.uses?.startsWith('actions/checkout@'));
     assert.equal(checkout.with.ref, '${{ inputs.candidate_sha }}');
@@ -53,15 +83,23 @@ test('promotion requires immutable acceptance and verifies it after downloading 
   assert.match(read('publish.yml'), /candidate_sha=\$\(jq -r '\.candidateSha'/);
 });
 
-test('documentation scope includes translation records but never hides runtime or workflow changes', () => {
+test('all CI is explicit final validation and every test job freezes the candidate', () => {
+  for (const name of ['test.yml', 'release.yml', 'publish.yml']) {
+    const workflow = yaml.load(read(name));
+    assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch']);
+    for (const input of ['ci_nonpass_count', 'ci_count_evidence']) {
+      assert.equal(workflow.on.workflow_dispatch.inputs[input].required, true);
+    }
+    assert.equal(workflow.on.workflow_dispatch.inputs.ci_recovery_decision.required, false);
+  }
   const workflow = yaml.load(read('test.yml'));
-  const script = workflow.jobs['fast-checks'].steps.find(s => s.id === 'scope').run;
-  const source = script.match(/grep -qEv '([^']+)'/)[1];
-  const docsOnly = new RegExp(source);
-  for (const file of ['docs/qa/releases/v0.3.3/123.json', 'CONTRIBUTING.en.md', 'CONTRIBUTING.i18n.yaml', 'README.i18n.yaml', 'AGENTS.md']) {
-    assert.equal(docsOnly.test(file), true, file);
+  assert.equal(workflow.on.workflow_dispatch.inputs.local_qa.required, true);
+  assert.equal(workflow.on.workflow_dispatch.inputs.candidate_sha.required, true);
+  assert.equal(workflow.on.workflow_dispatch.inputs.include_macos.default, false);
+  assert.equal(workflow['run-name'], 'Final validation ${{ inputs.candidate_sha }}');
+  for (const job of Object.values(workflow.jobs)) {
+    const checkout = job.steps.find(s => s.uses?.startsWith('actions/checkout@'));
+    assert.equal(checkout.with.ref, '${{ inputs.candidate_sha }}');
   }
-  for (const file of ['src/main/index.js', '.github/workflows/publish.yml', 'package.json', 'README.js', 'vendor/deepseek-harness/package.json']) {
-    assert.equal(docsOnly.test(file), false, file);
-  }
+  assert.equal(workflow.jobs['fast-checks'].steps.some(s => (s.run ?? '').includes('doc-sync')), false);
 });

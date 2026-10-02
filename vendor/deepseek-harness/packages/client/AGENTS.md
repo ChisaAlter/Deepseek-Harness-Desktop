@@ -1,5 +1,7 @@
 # AGENTS.md — Web client stack
 
+Maintenance authority: [WhaleIsle sole project policy](../../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 Rules for `packages/client/*` (the browser side of the dsh web GUI) plus its build entry `apps/web`. They supplement the repo-wide [conventions](../../AGENTS.md#conventions) and the [package rules](../README.md). Read the current [Web Client architecture](../../docs/subsystems/web-client.md), [Slots reference](../../docs/subsystems/slots.md), and [Conversation reference](../../docs/subsystems/conversation.md) before changing the corresponding layer.
 
 Packages here are named with the directory prefix: `@deepseek-ai/dsh-client-<name>`.
@@ -120,20 +122,14 @@ Every product-visible string—including text, accessibility names, tooltips, pl
 
 The GUI test structure (three tiers, lane map) is settled in the [GUI testing system note](../../.agents/notes/implemented/process/2026-07-20-gui-testing-system.md); repo-wide policy in [docs/testing.md](../../docs/testing.md).
 
-- Client source packages are inside the per-file 100% coverage gate (`pnpm run test:coverage`). Genuinely unreachable defensive arms take a `/* v8 ignore -- <reason> */` comment with a real reason, never a bare ignore.
+- Coverage reports diagnose missing execution; they do not impose percentage targets or justify defensive arms. Keep existing behavior assertions and truthful coverage annotations.
 - Component specs render with realistic props or a driven fixture runtime and assert user-visible behavior, not class names, hook internals, or render counts.
 - The jsdom environment comes from a per-file `// @vitest-environment jsdom` pragma on the spec's first line; the shared config stays node-env.
 - Each tier asserts its own layer. Data-layer semantics belong to the runtime and host suites; component specs cover presentation behavior.
 
-## Before you push: the local check ladder
+## Verification entry
 
-Run the narrowest rung that covers what you touched; escalate only when the change surface demands it.
-
-1. **Every GUI code change** — `pnpm run test:gui` (seconds; no browser, no server): the client suites plus the host-side GUI packages. This is the inner loop; run it as freely as a typecheck.
-2. **Any change that can alter the assembled browser or visible conversation/UI output** (client components or copy, `apps/web`, Vite, `dsh-host-webserver`, connection/handler/SSE) — additionally `DSH_SNAPSHOT=replay pnpm run test:web`: rebuilds the frontend dist, then runs the browser smoke pair (the real-host case self-skips without `DEEPSEEK_API_KEY`) plus the keyless replayed e2e scenarios. Linux PR CI uses the same read-only replay mode. Use `DSH_SNAPSHOT=refresh` only after confirming an intentional output change, or `DSH_SNAPSHOT=record` with a key to re-record fixtures.
-3. **Before a PR** — use [dsh-pre-push-checks](../../.agents/skills/dsh-pre-push-checks/SKILL.md) to select the narrow checks for the outgoing diff; there is no repo-wide pre-push aggregate.
-
-If `test:gui` is red on code you did not touch, neither silently fix nor ignore it: note it in your handoff so it lands in the next PR window's sweep.
+[WhaleIsle maintenance](../../../../docs/maintenance/README.md) selects verification after implementation for the stable affected scope. GUI components, assembled browser paths and actual desktop operations cover different risks; do not rerun a fixed ladder after every small edit. Missing-key self-skips do not certify required real-host behavior. No independent pre-push or Agent Note requirement applies here.
 
 ## New plugin package checklist
 
@@ -154,5 +150,5 @@ Bringing up a new `packages/client/<name>` plugin package (ui-workspace is a com
 3. Type ordinary props from the five shares (`PropsRuntime` & `PropsRenderSlots` & `PropsRenderFactories` & `PropsStore` & inject face), and use the derived `Factory*PropsOf` aliases for Factory Components. Shared or remount-surviving state goes in a declared store; component-private state stays local.
 4. Component tests feed props directly (`createXXXStore().create()` for the store data; plain stubs for framework hooks) and assert behavior without render machinery.
 5. Tokens only in CSS; product copy follows the localization rule above; English comments.
-6. `pnpm run test:gui` green; if the component changes visible assembled output, also run `DSH_SNAPSHOT=replay pnpm run test:web`.
-7. Non-trivial change? It needs an Agent Note in the same PR (repo-wide rule) — the GUI notes above are the precedents to extend.
+6. After implementation, choose existing component/browser checks and actual operations for the affected contract under host maintenance policy.
+7. Update current owning facts; a lasting tradeoff may need its existing decision, without mandatory new notes for ordinary fixes.

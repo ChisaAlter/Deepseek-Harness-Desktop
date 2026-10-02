@@ -4,6 +4,8 @@ Status: implemented
 
 中文 | [English](2026-09-17-governance-rules-adoption.en.md)
 
+本记录保存最初的官方 DSH 移植来源和取舍。全量配对、自动 hooks、每项非琐碎修改新增记录及机械条款全部进门禁等执行约定已由[WhaleIsle 唯一维护准则](../../../maintenance/README.md)替代，不作为现行指令；原始理由和历史结果保留。
+
 ## Problem
 
 DSHD 已有 feature 卡（现行契约）与 `.cursor/rules`（短不变量），但决策的动机与被否方案散落在 `docs/superpowers/` 工作稿里随时间腐烂；规则没有可机检的格式约束；文档无双语一致性机制；外部贡献者入口（PR/issue 模板、CONTRIBUTING、label 分类）缺失。

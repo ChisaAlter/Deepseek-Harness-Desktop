@@ -208,6 +208,27 @@ function runInstaller(
 // Rationale and the paired hook budget are in
 // .agents/notes/archived/testing/2026-08-29-windows-lane-hook-and-lefthook-budget.md.
 describe('worktree-local Lefthook installer', { timeout: 90_000 }, () => {
+  it('preserves host hooks and Git configuration when WhaleIsle owns maintenance', async () => {
+    const fixture = createFixture()
+    const common = commonDirectory(fixture)
+    write(join(fixture.main, 'docs/maintenance/README.md'), '# WhaleIsle maintenance\n')
+    const hostHooks = join(fixture.main, 'scripts/git-hooks')
+    const hook = join(hostHooks, 'pre-push')
+    const hostScript = '#!/bin/sh\n# host final CI policy\n'
+    write(hook, hostScript, 0o755)
+    git(fixture, fixture.main, ['config', '--local', 'core.hooksPath', hostHooks])
+    const before = readFileSync(join(common, 'config'), 'utf8')
+
+    const result = await runInstaller(fixture, fixture.main)
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('host maintenance owns Git hooks')
+    expect(readFileSync(join(common, 'config'), 'utf8')).toBe(before)
+    expect(readFileSync(hook, 'utf8')).toBe(hostScript)
+    expect(existsSync(join(common, 'dsh-hooks'))).toBe(false)
+    expect(existsSync(join(common, 'config.worktree'))).toBe(false)
+  })
+
   for (const [label, extraEnv] of [
     ['CI', { CI: 'true' }],
     ['GitHub Actions', { GITHUB_ACTIONS: 'true' }],

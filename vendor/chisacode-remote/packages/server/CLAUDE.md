@@ -1,5 +1,7 @@
 # AGENTS.md — ChisaCode Server Development Guide
 
+Maintenance authority: [WhaleIsle sole project policy](../../../../docs/maintenance/README.md). Use this document for module contracts and operation details, not an independent maintenance workflow.
+
 For AI coding agents working in `packages/server`. Supplements [CLAUDE.md](../../CLAUDE.md) at the repo root.
 
 ## Project Overview
@@ -136,7 +138,7 @@ type FetchState =
 
 Tests prove behavior, not structure. Every test should answer: "what user-visible or API-visible behavior does this verify?"
 
-- **TDD**: Work in vertical slices — one test, one implementation, repeat
+- **Order**: Complete implementation before preparing tests, following the host maintenance policy.
 - **Determinism first**: No conditional assertions, no timing/randomness, no weak assertions
 - **Real deps over mocks**: Database, APIs, file system — real in tests
 - **Flaky tests are a bug**: Never remove a test because it's flaky; fix the variance source
@@ -147,8 +149,8 @@ Tests prove behavior, not structure. Every test should answer: "what user-visibl
 
 1. **NEVER restart the daemon on port 6767** — it kills your own process
 2. **NEVER assume timeouts need a restart** — they can be transient
-3. **Always run `npm run typecheck` after changes**
-4. **NEVER add auth checks to tests** — agent providers handle their own auth
+3. Select affected checks and actual operations after implementation under the host maintenance policy.
+4. Agent providers own their authentication; verify the changed authentication boundary when required, without adding unrelated provider login probes.
 5. **NEVER make breaking WebSocket/message schema changes** — always backward-compatible
 
 ---
@@ -192,5 +194,5 @@ npm run db:query -- "SELECT * FROM agent_timeline_rows..."
 | [../../CLAUDE.md](../../CLAUDE.md)                               | Repository overview, critical rules, quick start |
 | [../../docs/architecture.md](../../docs/architecture.md)         | System design, WebSocket protocol, data flow     |
 | [../../docs/coding-standards.md](../../docs/coding-standards.md) | Type hygiene, error handling, React patterns     |
-| [../../docs/testing.md](../../docs/testing.md)                   | TDD workflow, determinism, real deps over mocks  |
+| [../../docs/testing.md](../../docs/testing.md)                   | Test mechanics and evidence scope under host policy |
 | [../../SECURITY.md](../../SECURITY.md)                           | Relay threat model, E2E encryption               |

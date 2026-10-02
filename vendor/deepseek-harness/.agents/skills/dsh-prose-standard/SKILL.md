@@ -5,7 +5,9 @@ description: Use when writing, reviewing, restoring, trimming, or auditing prose
 
 # DeepSeek Harness Prose Standard
 
-Write enough to preserve the contract, then remove reasoning transcripts, repetition, and decoration. A contract is an obligation, invariant, precondition, postcondition, or compatibility promise that a caller, callee, implementer, producer, or consumer relies on. This skill owns editorial judgment and required prose coverage; use [dsh-doc](../dsh-doc/SKILL.md) for placement, budgets, bilingual pairs, and documentation gates, and [dsh-trim-cot-leakage](../dsh-trim-cot-leakage/SKILL.md) for hunting and fixing reasoning-transcript leakage. It is guidance, not a script.
+Maintenance execution follows only [WhaleIsle policy](../../../../../docs/maintenance/README.md). This skill supplies optional writing mechanics; it adds no gates, approvals, test preparation order or numeric targets.
+
+Write enough to preserve the contract, then remove reasoning transcripts, repetition, and decoration. A contract is an obligation, invariant, precondition, postcondition, or compatibility promise that a caller, callee, implementer, producer, or consumer relies on. This skill owns editorial judgment and required prose coverage; use [dsh-doc](../dsh-doc/SKILL.md) for placement, bilingual pairs, and documentation gates, and [dsh-trim-cot-leakage](../dsh-trim-cot-leakage/SKILL.md) for hunting and fixing reasoning-transcript leakage. It is guidance, not a script.
 
 Treat `contract`, `boundary`, `shape`, `surface`, `seam`, `gate`, and `vocabulary` as terms to check before use, not banned words. First ask whether the exact rule, API, field set, type, validation, timing point, component split, or failure states the fact better. Keep a term when it names the exact technical subject, including caller/callee contracts and security/process boundaries.
 
@@ -13,13 +15,13 @@ Comments describe non-obvious contracts or rationale that code cannot express; t
 
 ## Inputs and exclusions
 
-Require an explicit `scope`. If it is missing, report the required input and stop; do not infer a repository-wide scope or begin an interview.
+Use the scope authorized by the current user request. Ask only when a material scope decision is missing; do not expand a local edit into a repository-wide audit.
 
 Accept `mode: automatic | interactive`; default to `automatic`. Enter interactive mode only when the user explicitly requests questions or calibration.
 
 `mode` controls questions, not write authority. Review and audit tasks report findings without editing; explicitly requested write, fix, or trim tasks apply clear changes.
 
-Always exclude `vendor/` from discovery, review, and edits, even when the requested scope is the whole repository. Do not follow a symlink into it. Put exclusions after inclusion globs so a later include cannot re-admit it: for example, end ripgrep commands with `--glob '!vendor/**'`, and give Git commands an explicit `:(exclude)vendor/**` pathspec. If the requested scope contains only `vendor/`, report that no eligible files remain.
+Follow the authorized scope, including vendored instructions when the user requests their maintenance. Exclude unrelated dependencies and generated content; do not follow a symlink beyond the requested owner.
 
 Also exclude `.agents/notes/archived/` from prose review and edits. Archived Agent Notes are frozen snapshots; inspect an exact target only to understand a historical inbound citation, never to modernize its prose or outbound links.
 
@@ -55,7 +57,7 @@ This is not a one-way shortening pass. Add or restore prose when code, types, an
 - **Postmortems:** retain the incident sequence, evidence, causal chain, impact, and prevention. Remove repeated persuasion or implementation detail that does not establish causality.
 - **Skills and agent instructions:** state behavioral guardrails and explicit scope limitations such as “guidance, not a script/checklist.” Keep the workflow concise and link its source of truth.
 - **Examples and configuration comments:** explain access limits, non-obvious wiring or load order, security stance, replay behavior, exceptions, and likely misuse. Do not narrate entries that the configuration already shows.
-- **Prompts and visible strings:** treat wording as behavior. Client UI copy belongs in typed locale dictionaries and reaches Cordis-free primitives as explicit localized props; inspect text, accessibility names, tooltips, placeholders, and format templates together, then run `verify-client-ui-i18n`. Update the owning runnable snapshot for model-visible text and repository-required GUI evidence. If the authorized scope has no owning scenario, leave the wording unchanged and report the deferral; do not silently fold it into a prose-only edit.
+- **Prompts and visible strings:** treat wording as behavior. Client UI copy belongs in typed locale dictionaries and reaches Cordis-free primitives as explicit localized props; inspect text, accessibility names, tooltips, placeholders and format templates together. Complete authorized implementation, then select necessary localization checks, existing scenarios and real UI operations under the host policy. A missing scenario is a verification gap to address after implementation, not a reason to refuse an authorized edit or require a new snapshot for every string.
 - **Diagnostics:** name the failing subject or path, violated rule, and correction when it is non-obvious. Remove internal execution narration.
 
 Preserve searchable mechanism names and meaningful modal, temporal, or negative emphasis. Normalize decorative emphasis only.
@@ -67,7 +69,7 @@ Preserve searchable mechanism names and meaningful modal, temporal, or negative 
 3. Inspect the requested scope, not only the largest files. Use searches and word counts to find candidates, then judge passages semantically.
 4. Classify each candidate as keep, add, trim, restore, restructure, or defer. Apply clear changes only when the task authorizes edits; do not manufacture edits to satisfy a deletion target.
 5. Update the owner before derivative artifacts. Re-check analogous passages after learning a new rule.
-6. Run the narrow relevant checks, documentation gates, `git diff --check`, and behavior tests for visible strings. Verify the final diff contains no `vendor/` path and report any accidental vendor match rather than claiming a clean exclusion history.
+6. After implementation, select necessary checks and actual behavior verification under WhaleIsle policy. Review the diff against the authorized scope; no independent documentation gate chain applies.
 7. Report the inspected scope, clear changes, deliberate keeps, deferred cases, and checks actually run.
 
 ## Borderline decisions

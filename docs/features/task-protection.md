@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `task-protection` |
 | **status** | `active` |
-| **last verified (job registration)** | 2026-10-02 — 固定安装候选 36912364842 的真实模型命令轮出现 `unknown job [object Promise]`。任务准入包装器错误改变 `JobRegistry.start` 的同步合同；旧实现三条行为回归均失败，修复后插件定向 16/16 通过。源码修复尚未成为新的安装候选，不继承旧包验收；见 [候选证据](../qa/releases/v0.3.3/36912364842-evidence.json#realModel)。 |
+| **last verified (job registration)** | 2026-10-02 — 固定安装候选 36912364842 的真实模型命令轮出现 `unknown job [object Promise]`。任务准入包装器错误改变 `JobRegistry.start` 的同步合同；旧实现三条行为回归均失败，修复后插件定向 16/16 通过。当前源码隔离 CLI Host 挂载同一任务保护 overlay，真实 pwsh 执行 `Write-Output` 返回字符串 `pwsh-1`，输出匹配，观察 running → completed / exit code 0，无 Promise JobId 错误；未使用桌面输入。llm-replay 导入有警告，该 CLI 结果只认证 registry/pwsh 路径；随后源码隔离桌面在 Node24.21.0 下完成四轮真实 MiniMax 会话，模型经桌面调用 pwsh，工具输出和最终回答均为 `workspace`，持久会话记录 4/4 正常结束，见 `.tmp/release/source-model-ui-result.json`。仍不认证新安装候选，不继承旧包验收；原失败见 [候选证据](../qa/releases/v0.3.3/36912364842-evidence.json#realModel)。 |
 | **last verified (paint deadline)** | 2026-10-01 — 原 CI 36804159162 实际退出长时间卡在隐藏 boot 页双帧等待，记 Fail；修复定向 43/43，其中遮罩 9/9。隔离真实 Electron 隐藏页中旧 helper 超过 700ms 未完成，新 helper 511ms 返回并正常退出、无强杀或未处理拒绝。新 CI 安装版未验收，见 [执行记录](../qa/results/2026-10-01-release-candidate/README.md)。 |
 | **last verified (audit update)** | 2026-09-30 — 差量与整包共享 spawn commit；失败后二次准入、附属清理保留、显式下载取消令牌、macOS 手动安装回归通过，未做真实 NSIS/DMG 安装。 |
 | **last verified (installer failure)** | 2026-09-29 — 实际 update 整包调用链 + 真实协调器 + 消失安装器回归验证：spawn ENOENT 拒绝、Host release 执行、committed 保持 false；取消在安装前异步准入后仍阻止 spawn。见 [QA](../qa/results/2026-09-29-installation-recovery/README.md)，未做 CI Setup 实机安装。 |

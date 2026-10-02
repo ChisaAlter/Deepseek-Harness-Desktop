@@ -17,19 +17,25 @@
 npm install
 npm run setup:harness
 npm start
-npm test
-npm run dist          # Windows
-npm run dist:mac      # macOS 真机
+```
+
+以上是开发启动入口，不是每次修改必须执行的链条。实现完成后选择必要测试与构建，真实 QA 全部通过才进入最终 CI。打包只在实际装配风险或准备交付时执行：
+
+```powershell
+npm run dist          # Windows，本地装配/安装 QA
+npm run dist:mac      # macOS 真机，仅实际交付 DMG
 ```
 
 同步上游：`npm run sync:harness -- --ref … --sha …`（以 `vendor/harness-upstream.json` 为准）。
+
+DSH 与桌面来源整合统一遵循[上游合并与差异保护](../../maintenance/README.md#上游合并与差异保护)。各来源使用各自真实仓库、基线和目标 SHA；现有 `sync:harness` 只处理 Harness vendor 树，不是桌面上游的通用合并器。功能差异由负责卡维护；既有 fork 检查只提供部分结构证据，行为保真须在实现完成后按实际影响验证。
 
 ## 架构要点
 
 - 钉：`vendor/harness-upstream.json`（当前文档化基线见根 README）。  
 - Windows 安装器品牌化（欢迎/完成侧栏、header、许可页、zh_CN+en_US、`build/installer.nsh`）契约见 [windows-installer 卡](../../features/windows-installer.md)；位图用 `npm run installer:assets` 再生成，GUI 定制不得影响静默 `/S` 与 artifact 命名。  
 - 改 client 后：`vendor/deepseek-harness` 内 `pnpm run build:official` 再重启桌面（与官方发版同一 profile；不要只跑 `build:lib:client`）。`build:official` 现在按阶段凭据决定重跑范围：只改浏览器来源时仅重做 `client` + `web`，native/host 产物沿用已验证结果；`--force` 可忽略凭据全量重建。  
-- 安装包经 GitHub Actions `release.yml` **windows job** 产出。验收对象是该 artifact，不是本地 `npm run dist`。`afterPack` 会把打包时的 `node.exe` 打进包内，本机 Node 24 ≠ CI Node。
+- 安装包经 GitHub Actions `release.yml` **windows job** 产出。正式发行验收对象是该 artifact；本地 `npm run dist` 是触发 CI 前验证装配/安装风险的对象，不能省略必要本地实际验证，也不能把其结果自动写成 CI 原包通过。`afterPack` 会把打包时的 `node.exe` 打进包内，本机 Node 24 ≠ CI Node。
 - Node 钉版单一来源是根 `.nvmrc`（当前 24.21.0，24 系列 LTS；engines 要求 `^22.19.0 || >=24`）：CI 全部 `setup-node` 用 `node-version-file`，云端环境 `.cursor/environment.json` → `.cursor/install.sh` 在旧 Node 上自动装 `.nvmrc` 版本并跑 `npm ci` + vendor `pnpm install`。选择依据见 [Node 24 LTS 构建基线](../../decisions/implemented/process/2026-09-29-node24-release-runtime.md)。
 
 ## 实现入口
@@ -43,7 +49,7 @@ npm run dist:mac      # macOS 真机
 - 桌面账户启动链直接加载 `ws`，根生产依赖和锁文件必须显式包含它，不能依赖源码机上的额外安装。打包实例门禁不接受同字节身份合并或无法收拢的拆分；删除副本也必须触发下一轮依赖图复验，见[修复记录](../../decisions/implemented/bug-fix/2026-09-28-packaging-identity-gates-and-ws.md)。
 - 验收：对 **CI 安装包 SHA** 执行发布计划中的核心与影响场景；[production-acceptance-test-cases.md](../../qa/production-acceptance-test-cases.md) 是完整回归库。禁止把源码钉写成已发包装钉，禁止本机 dist 或旧候选继承 Pass。
 - `afterPack` 按源 realpath 收集生产依赖实例：工作区包保留原相对位置，第三方实例各有一个短目录，消费者通过链接保持共享与隔离；独立核对发布文件和每条实际解析边，测试专用包、缺失必需依赖和身份漂移均阻断。归档前移除链接，仅携带 version 1 `.dsh-runtime-links.json` 的相对清单；提取后在新根创建 Windows junction 或目录 symlink，验证完成才写运行时标记。显式 deploy 也经过同一装配检查，最后验证真实 CLI 与 Office 闭包。见[实例布局决定](../../decisions/implemented/architecture/2026-09-28-runtime-instance-layout.md)。
-- `release.yml` 在相关 CI 成功后固定基线/影响计划，再构建、冒烟和上传；`publish.yml` 核对同 SHA 最新 main push 的快速门禁、Windows 与共享回归，交付 DMG 时还要求 macOS。它验证不可变提交中的安装验收 JSON 与原始资产，晋级不重建，报告提交不冒充候选提交。
+- `release.yml` 在相关 CI 成功后固定基线/影响计划，再构建、冒烟和上传；`publish.yml` 核对同 SHA 最新手动最终 CI 的依赖检查、Windows 与共享回归，交付 DMG 时还要求 macOS。它验证不可变提交中的安装验收 JSON 与原始资产，晋级不重建，报告提交不冒充候选提交。
 - `afterPack` 对最终 `deepseek-harness.tar` 计算真实 SHA-256，写 `vendor/deepseek-harness-runtime.json`，提取戳保存同一 `archiveSha256`。同版本覆盖安装按内容摘要失效，不以 tar 长度代替内容身份；旧戳刷新一次。现代包的稳态启动只读小清单，替换前异步流式校验实际归档；缺清单的旧布局流式计算摘要。摘要错误保留原运行时。
 - **阶段凭据**：`.dsh-build/build-stage-credentials.json` 记录 `native-system` / `host` / `client` / `web` 四个阶段各自的输入与产物身份（`size:mtime:ctime` manifest 摘要 + 路径绑定内容摘要）、内联的公开环境摘要与 schema 版本。复用条件是该阶段及其所有前序阶段都验证通过；manifest 命中走快路径，manifest 变动时用内容摘要兜底，所以 `touch` 与「字节相同的重建」仍算命中，而产物被篡改 / 截断 / 缺失、凭据缺失或 schema 不符一律 fail-closed 重跑。判定实现只有一份：`vendor/deepseek-harness/scripts/build-stage-credentials.mjs`，被 `scripts/build.ts`（经 `.d.mts`）与根 `scripts/prestart-ensure.mjs` 共用。输入覆盖根构建清单、`scripts/**` helper、`vendor/**` 源码与 native 声明；精确生成根从输入排除，host 拥有 vendor/native 的 `lib/**`，native 拥有当前 `platform-arch/bin/**`。缓存只在进程内，不落盘；耗时随输入规模变化。
 - **`build:lib` 不再被 `build.ts` 调用**：它必然连跑 host 与 client 两个面，会让按面复用失效；`build.ts` 直接调用 `build:lib:host` / `build:lib:client`。手工构建仍可继续用 `build:lib`。  
@@ -57,11 +63,13 @@ npm run dist:mac      # macOS 真机
 
 ## 门槛
 
+- 先完成实现，再准备定向测试与实际 QA；必要本地项全部通过后才手动派发 CI。push/PR 不自动执行 CI。第四次累计未通过停止 CI/新候选，核查漏检并由用户决定恢复。详细计数口径以发布操作流程为准。
+
 - `test.yml` 在 vendor 构建后执行 GUI 与无密钥核心回归：识图路由、工具调用、会话历史、控制器、工作区和子代理。任一核心集合失败都会阻止同 SHA 的发布门禁通过。
 
 - 发布资产契约：`node --test scripts/check-release-assets.test.mjs`（32 项，含四条变异检验，证明各门确实是拦下缺陷的那一个）；`src/main/ci-isolation.test.js` 静态钉住 `publish.yml` 的晋级顺序、稀疏检出内容、`npm ci --ignore-scripts`、无 `npx` 与缺 helper 时的显式失败。
 
-- QA：每版执行固定核心与影响计划（CI 正式安装包），广泛改动执行完整适用库；见发布操作流程。新流程的本地测试不代表真实 CI/安装验收已完成。
+- QA：每版执行固定核心与影响计划（CI 正式安装包），广泛改动执行完整适用库；见发布操作流程。本地 QA 是 CI 前提；通过本地测试不代表真实 CI/原包安装验收已完成。
 
 ## 延伸阅读
 

@@ -1,5 +1,7 @@
 # AGENTS.md — Experimental packages
 
+Maintenance authority: [WhaleIsle sole project policy](../../../../docs/maintenance/README.md). This file locates module contracts and mechanics; it cannot add independent maintenance gates, approvals or execution order.
+
 These rules supplement the [package rules](../AGENTS.md). The [experimental publication decision](../../.agents/notes/implemented/process/2026-09-12-experimental-publication-denylist.md) owns the publication policy; the [Agent Teams package decision](../../.agents/notes/implemented/architecture/2026-08-18-experimental-agent-teams-packages.md) owns dependency isolation and promotion rationale.
 
 - A package belongs here only when its complete public contract is experimental or internal-only. An experimental option inside a release package stays with its owning product role.
