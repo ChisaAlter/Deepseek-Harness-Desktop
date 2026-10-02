@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `release-process` |
 | **status** | `active` |
-| **last verified** | 2026-10-02 — Windows / Node 24.21.0 / npm 11.19.0：维护工具既有定向行为和真实 hook 结果保留；当前 CI 资格、工作流接线、隔离 Git 工具检查通过。临时 RunAs token 下资产校验的真实文件符号链接路径通过，无 skip。远程 `@types/node` override 固定为锁内 22.20.4 后原失败 dry-run 与隔离干净 `npm ci --ignore-scripts` 均通过，锁文件未改；此前代理断连失败保留。当前源码构建、Files 保存、Git、PTY 工作环与后台真实任务保护/pwsh 路径通过。续验 Windows / Node 24.19.0 的隔离 CLI Host：MiniMax 两轮真实响应及同会话 pwsh-1 字符串任务 ID、exit 0、输出匹配通过；观察器误要求每轮新增 request/header，已按继承语义核对同一次保存会话，无重复模型请求。证据 `.tmp/release/minimax-real-model-20261002-reviewed.json`；原 529 与观察器失败保留，不认证桌面模型 UI 或原包验收。累计同目标 CI 未通过次数已核实为 23，未清零；用户已明确恢复前台验收；隔离源码桌面 Node24.21.0 已观察四轮真实模型回复：连通、上下文回忆、README 文件读取和模型驱动 pwsh。命令 `(Get-Item .).Name` 的工具输出及最终回复均为 `workspace`，四轮持久会话全部正常结束；证据 `.tmp/release/source-model-ui-result.json`。旧原包的失败与未验收状态不变。无推送、CI、新候选或发布。 |
+| **last verified** | 2026-10-02 — v0.3.3 的 3897ce69b 已由 ChisaAlter 推送到 main；此前依赖锁与隔离干净安装、发布工具定向检查、源码桌面四轮真实模型对话已通过，见 .tmp/release/current-state.json 与 .tmp/release/source-model-ui-result.json。最终 CI [36984178966](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/36984178966) 的 Fast checks 与 vendor-gui 通过，Windows 单测 3020 Pass / 1 Fail / 6 Skip；唯一失败是 packaged-p0.test.js 检查故障提示包含 `npm run dist`，而 3897ce69b 修改提示时误删了这个仍有效的构建命令。本地现已在两条诊断提示中恢复适用时的 `npm run dist` 指引，同时保留根 `.nvmrc` 的 Node 版本指引与原断言；Node 24.21.0 定向单测 10/10 通过，真实缺失 EXE 路径退出 1 并输出修正后的提示。此前只改断言的方案不构成充分修复。该次 CI 仍失败；同目标累计未通过 24 次，已停止推送、CI 与新候选，旧候选验收不能继承，尚未发布。 |
 
 ## User paths
 

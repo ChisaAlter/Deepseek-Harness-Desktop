@@ -198,6 +198,7 @@ test('qa:packaged is a local rehearsal script and not a GitHub Release job', () 
   assert.match(runner, /createdAt/);
   assert.match(runner, /Quit Whale Isle\.exe first/);
   assert.match(runner, /npm run dist/);
+  assert.match(runner, /Node version in root \.nvmrc/);
   const sourceQa = fs.readFileSync(path.join(__dirname, '..', '..', 'scripts', 'run-source-qa.mjs'), 'utf8');
   assert.doesNotMatch(sourceQa, /DSH_SMOKE_SIBLING/);
 });
