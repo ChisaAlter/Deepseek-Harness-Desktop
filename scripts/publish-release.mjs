@@ -31,6 +31,15 @@ async function hash(file, algorithm) {
   for await (const chunk of createReadStream(file)) digest.update(chunk)
   return digest.digest('hex')
 }
+async function findRelease(request, prefix, tag) {
+  // The tag endpoint is documented for published releases. List releases also
+  // includes drafts for this workflow's write token, so interrupted uploads resume.
+  for (let page = 1; ; page += 1) {
+    const releases = await request(prefix + '/releases?per_page=100&page=' + page)
+    const found = releases.find(release => release.tag_name === tag)
+    if (found || releases.length < 100) return found || null
+  }
+}
 export async function publish({ repo, runId, request, gh, sha, root = process.cwd(), output = console.log }) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !/^\d+$/.test(String(runId))) throw new Error('Repository and numeric CI run ID are required')
   const prefix = 'repos/' + repo
@@ -39,7 +48,7 @@ export async function publish({ repo, runId, request, gh, sha, root = process.cw
   const tag = 'v' + version
   const [latest, existing, artifactList] = await Promise.all([
     request(prefix + '/releases/latest', { missing: true }),
-    request(prefix + '/releases/tags/' + tag, { missing: true }),
+    findRelease(request, prefix, tag),
     request(prefix + '/actions/runs/' + runId + '/artifacts?per_page=100'),
   ])
   const decision = releaseDecision({ run, repo, sha, version, latest, existing, artifacts: artifactList.artifacts })

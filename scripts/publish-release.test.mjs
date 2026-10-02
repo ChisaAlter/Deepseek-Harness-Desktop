@@ -49,7 +49,7 @@ function fixture(t, { corrupt = false, failUpload = false, existing = null, tagS
     calls.push([path, options])
     if (path.endsWith('/actions/runs/12')) return run
     if (path.endsWith('/releases/latest')) return { tag_name: 'v1.2.2' }
-    if (path.endsWith('/releases/tags/v1.2.3')) return existing
+    if (path.includes('/releases?')) return existing ? [{ ...existing, tag_name: 'v1.2.3' }] : []
     if (path.includes('/artifacts?')) return { artifacts: [artifact] }
     if (path.endsWith('/commits/v1.2.3')) return tagSha ? { sha: tagSha } : null
     if (options.method === 'POST') {
