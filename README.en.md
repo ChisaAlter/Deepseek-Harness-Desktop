@@ -5,7 +5,7 @@
 <h1 align="center">Whale Isle</h1>
 
 <p align="center">
-  An open-source desktop client for DeepSeek Harness<br />
+  An open-source, community-enhanced desktop client for DeepSeek Harness<br />
   Chat with AI, explore projects, run commands, and manage Git in one window.
 </p>
 
@@ -29,7 +29,16 @@
   <img src="assets/screenshot-home.jpg" alt="Whale Isle main window" width="920" />
 </p>
 
-Whale Isle is an independently maintained Electron desktop client, not an official DeepSeek product. It brings the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI, tool calls, and plugin system to the local desktop, with a launcher, workspaces, window and tray integration, and updates. Installed builds do not require a separate Node.js installation or a manual `dsh web` setup.
+**Whale Isle is an open-source, community-enhanced desktop client built on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), independently maintained and not an official DeepSeek product.** The official Harness's core features are also available here: AI conversations, tool calls, Agent Teams, terminal and Git, MCP, skills, and plugins.
+
+Whale Isle builds on these capabilities with an expanded desktop experience:
+
+- **More appearance options**: Transparent themes, custom wallpapers, frosted glass, and animated backgrounds to make the workspace your own.
+- **Whale-girl desktop pet**: An interactive companion with head pats, feeding, and growth tied to actual token usage.
+- **Extended usage statistics**: Cross-session token totals, activity heatmaps, cost estimates, and data export for a clearer view of usage.
+- **Mobile remote access**: Enable it when needed and scan a QR code to access desktop sessions from a mobile browser.
+
+Sessions and settings live in a separate data directory, with official CLI data import and plugin troubleshooting available through the launcher.
 
 ## Features
 

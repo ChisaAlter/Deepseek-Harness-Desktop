@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="assets/icon.png" width="88" alt="Whale Isle" />
+  <img src="assets/icon.png" width="88" alt="鲸屿 Whale Isle" />
 </p>
 
-<h1 align="center">Whale Isle</h1>
+<h1 align="center">鲸屿 Whale Isle</h1>
 
 <p align="center">
-  基于 DeepSeek Harness 的开源桌面客户端<br />
+  基于 DeepSeek Harness 的开源社区增强桌面客户端<br />
   在同一个窗口里与 AI 对话、浏览项目、运行终端和管理 Git。
 </p>
 
@@ -26,10 +26,19 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshot-home.jpg" alt="Whale Isle 主界面" width="920" />
+  <img src="assets/screenshot-home.jpg" alt="鲸屿 Whale Isle 主界面" width="920" />
 </p>
 
-Whale Isle 是社区独立维护的 Electron 桌面客户端，非 DeepSeek 官方产品。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web UI、工具调用和插件体系带到本地桌面，并补充启动器、工作区、窗口、托盘和更新等桌面能力。安装版无需自行配置 Node.js 或启动 `dsh web`。
+**鲸屿 Whale Isle 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的开源社区增强桌面客户端，由社区独立维护，非 DeepSeek 官方产品。** 官方 Harness 的 AI 对话、工具调用、Agent 团队、终端与 Git、MCP、技能和插件等核心功能，这里同样齐备。
+
+在官方能力的基础上，鲸屿 Whale Isle 进一步扩展桌面体验：
+
+- **更丰富的个性化外观**：透明主题、自定义壁纸、毛玻璃与动态背景，让工作界面更符合自己的习惯。
+- **鲸鱼娘桌宠**：常驻桌面的互动伙伴，支持摸头、投喂和随实际 Token 用量成长。
+- **扩展用量统计**：跨会话 Token 汇总、使用热力图、费用估算与数据导出，让用量更直观。
+- **手机远程连接**：按需开启，通过扫码在手机浏览器访问桌面会话。
+
+会话与配置保存在独立的数据目录中，并提供官方 CLI 数据导入和插件故障排查入口。
 
 ## 功能
 
