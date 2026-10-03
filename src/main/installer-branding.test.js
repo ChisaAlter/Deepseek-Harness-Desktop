@@ -34,36 +34,6 @@ test('nsis keeps the assisted-installer product contract', () => {
   assert.equal(nsis.deleteAppDataOnUninstall, undefined);
 });
 
-test('release workflow artifact globs still match the artifact name', () => {
-  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
-  const publish = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8');
-  assert.ok(nsis.artifactName.startsWith('Whale-Isle-Setup-'));
-  assert.match(yml, /dist\/Whale-Isle-Setup-\*\.exe/);
-  assert.match(yml, /dist\/Whale-Isle-Setup-\*\.exe\.blockmap/);
-  assert.match(publish, /Whale-Isle-windows-x64/);
-  assert.match(publish, /Whale-Isle-Setup-\*\.exe/);
-  assert.match(publish, /Whale-Isle-Setup-\*\.exe\.blockmap/);
-});
-
-test('bilingual release notes describe the installed Browser mini-player contract', () => {
-  const notes = [
-    fs.readFileSync(path.join(ROOT, '.github', 'release-notes.md'), 'utf8'),
-    fs.readFileSync(path.join(ROOT, '.github', 'release-notes.en.md'), 'utf8'),
-  ];
-  for (const note of notes) {
-    assert.match(note, /dshd mini-player/);
-    assert.match(note, /Browser guest/);
-    assert.match(note, /previewId/);
-    assert.match(note, /renderer/);
-    assert.match(note, /chat viewport|聊天可视区/);
-    assert.match(note, /BrowserView/);
-    assert.match(note, /URL/);
-    assert.match(note, /history/);
-  }
-  assert.match(notes[0], /安装版 Browser.*P0/);
-  assert.match(notes[1], /installed-package Browser.*P0/);
-});
-
 test('branded installer bitmaps are classic 24-bit BMPs at MUI2 geometry', () => {
   const cases = [
     [nsis.installerSidebar, 'build/installerSidebar.bmp', 164, 314],

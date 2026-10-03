@@ -28,8 +28,7 @@ test('manifest keeps the documented npm entry points', () => {
     'smoke:packaged',
     'qa:source',
     'qa:packaged',
-    'check:governance',
-    'doc-sync',
+    'test:tools',
     'dist',
   ];
   assert.equal(typeof pkg.scripts, 'object', 'scripts block is missing');

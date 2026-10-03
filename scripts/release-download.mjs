@@ -5,7 +5,14 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, open, lstat, rename } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { fileDigest } from './check-release-acceptance.mjs';
+import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+
+async function fileDigest(file) {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
+}
 
 export async function downloadArtifact({ artifact, directory, resolveUrl, fetchImpl = fetch, idleMs = 30000, attempts = 3 }) {
   if (!/^sha256:[a-f0-9]{64}$/.test(artifact.digest) || !Number.isSafeInteger(artifact.id) || artifact.id < 1) throw new Error('Artifact lacks a verifiable identity');

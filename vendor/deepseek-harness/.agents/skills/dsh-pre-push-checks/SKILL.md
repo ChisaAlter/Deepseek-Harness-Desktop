@@ -9,4 +9,4 @@ description: Locate relevant Harness checks under the sole WhaleIsle maintenance
 
 Inspect the owning module and outgoing diff to locate existing behavior, build and integration commands. Their selection, development order and completion conditions come from that policy. Use the host [verification entry](../../../../../.devin/skills/dshd-checks/SKILL.md) and [release operations](../../../../../docs/handbook/modules/release-process.md).
 
-No standalone pre-push typecheck, full doc-sync/lint ladder, automatic CI or `gh stack sync` before-validation exception applies. History and upstream workflow descriptions explain provenance without authorizing execution. Host hooks and actual local QA remain separate evidence.
+Development CI is enabled on PRs and main. No local-QA certificate, full doc-sync/lint ladder or candidate approval is required. Historical workflow instructions do not reinstate retired gates.
