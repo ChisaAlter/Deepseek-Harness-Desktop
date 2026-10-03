@@ -69,9 +69,9 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路 rehearsal）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可 rehearsal 兄弟仓 `gitBranchList`（**不能**当发版 Pass） |
+| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可验证 unpacked 应用的兄弟仓 `gitBranchList` |
 | Automated UI | `vendor/deepseek-harness/packages/client/ui-git/tests/git-actions.client.spec.tsx`：无 cwd、状态 `null`/拒绝、登记恢复、非仓库初始化及有效仓库菜单 |
-| Manual / QA | 每次发布前生产表 `TC-WS-006`、`TC-GIT-001`…`007`；已装 CI 包 + 真实 `dsh-home` |
+| Manual / QA | Git 菜单、工作区或随包 Git 行为改变时，参考 `TC-WS-006`、`TC-GIT-001`…`007`，观察登记兄弟仓及相关真实操作；随包行为使用对应打包或安装版本 |
 
 ## Sources
 

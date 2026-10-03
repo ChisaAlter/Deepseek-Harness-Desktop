@@ -27,9 +27,9 @@
 - 不另做一套聊天页皮肤；视觉跟 `dsh web`。
 - npx 官方包路径不承诺桌面 surfaces / Git / 终端。
 
-## 门槛
+## 验证与发布
 
-- 发版总门禁：每次发布前走完 [production-acceptance-test-cases.md](../../qa/production-acceptance-test-cases.md)。对象是 `release.yml` windows artifact，与即将上传的 Setup **同一 SHA**；本机 dist / `qa:*` 不能顶替。
+- 按[维护说明](../../maintenance/README.md)选择实际受影响的检查；[历史 QA 场景库](../../qa/production-acceptance-test-cases.md)用于查找步骤，不要求每次发布执行全表。`test.yml` 构建安装包，`release.yml` 自动分发同次成功 main CI 的原始产物，具体操作见[发布说明](release-process.md)。
 
 ## 延伸阅读
 

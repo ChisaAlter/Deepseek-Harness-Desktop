@@ -1,60 +1,26 @@
 # 历史 QA 场景库
 
-以下保留旧场景步骤与历史结果，供具体故障排查时选择。旧候选、固定核心集、全表、签署和停止规则均已退役，不是当前发布要求。当前流程见[发布说明](../handbook/modules/release-process.md)。
+这里保留可复用的场景步骤和历史结果。按[维护说明](../maintenance/README.md)选择本次实际受影响的检查；开发 CI 与自动分发见[发布说明](../handbook/modules/release-process.md)。旧候选、固定核心集、全表、签署和停止规则已退役，本文件不规定发布门槛。
 
-## 0. 验收约定
+## 0. 使用场景库
 
-### 0.1 产物：必须是 CI windows job
+### 0.1 选择验证环境
 
-合法对象只有 [`.github/workflows/release.yml`](../../.github/workflows/release.yml) **windows** job 上传的 artifact `Whale-Isle-windows-x64` 里的 `Whale-Isle-Setup-*.exe`（及 `.blockmap`）。
+源码行为使用源码应用；分发树行为使用打包应用；安装、升级、快捷方式与用户数据迁移使用对应安装版本。下文保留的旧场景可能指定已安装 CI 包，应按本次问题选择真实环境并说明差异。
 
-该 job 步骤为：`actions/checkout` → `actions/setup-node` **`node-version-file: .nvmrc`**（当前 24.21.0）→ `npm ci` → `node node_modules/electron/install.js` → `node scripts/setup-harness.js` → `npm run dist`。`afterPack` 把当时的 `process.execPath` 打进安装目录 `resources/node.exe`；即使本机使用相同 Node 版本，本机包与 CI 包仍**不是同一份产物**。
+Windows 安装包由 [Development CI](../../.github/workflows/test.yml) 的 windows job 生成，artifact 名为 `Whale-Isle-windows-x64`。`release.yml` 分发同次成功 main CI 的原始资产，不构建安装包。源码、本机包与 CI 包的结果各自绑定实际执行的版本，不互相替代。
 
-| 项 | 要求 |
-| --- | --- |
-| 下载 | 从该 Actions run 下载 artifact，记录 **run URL**、文件名、SHA256 |
-| 安装 | 用**该文件**默认路径安装或 `/S`；启动用开始菜单/桌面快捷方式 |
-| 家目录 | `%APPDATA%\Deepseek-Harness-Desktop\dsh-home`。不读官方 `~/.dsh`。见 [handbook/modules/dsh-home.md](../handbook/modules/dsh-home.md) |
-| 发布同一性 | GitHub Release / 对外分发的 exe SHA256 **必须等于**本表已测文件。测完禁止再 `npm run dist` 或再跑 workflow **换包**后再上传 |
-| 禁装 | 已撤回的 v0.2.0；已知坏包 0.2.4 / 0.2.5 |
-| 版本钉 | Release 说明里的 harness 基线必须等于 **该 SHA 包内** pin（与 `vendor/harness-upstream.json` 在打该包时的内容一致）。禁止用源码树超前钉给包打 Pass，禁止再写已过期的 `0.1.0-rc.7` |
-| 系统 | Windows 10/11 x64；测前退出已运行的同名应用（勿杀 Cursor） |
-| 工作区 | 启动目录可以是 Documents 默认仓；**Git/终端/附录**必须再打开 `workspace.json` 已登记、且不是启动目录子路径的仓库（见 TC-WS-006） |
-| 网络 | 可访问模型网关与壁纸源（Bing / Wallhaven） |
-| 账号 | 无需产品登录；模型密钥见 §0.4 |
+### 0.2 记录实际观察
 
-**发布链约束：** `test.yml` 不由 push/PR 自动运行，只有本地必要 QA 全部通过才手动派发。`release.yml` 先检查同 SHA 最新手动最终 CI，再生成影响计划及原始 artifact。对该候选完成核心与影响场景，将脱敏结果和签字写入 `docs/qa/releases/v<version>/<run-id>.json`，提交到 main。`publish.yml` 接收 candidate run ID、tag、Setup SHA256 和报告完整提交 SHA，校验后晋级原始字节，不重新构建；报告提交不替换候选源码身份。
+在 PR 中说明版本、环境、操作和结果即可；涉及 CI 安装包时说明 run 与文件摘要。自动化启动检查只能证明其观察到的路径，不能代替安装器操作、正常用户数据或可见窗口行为。§15、§16 是历史记录，不重填、不继承其 Pass 或签字。
 
-### 0.2 非法证据（出现则该格不得 Pass，整份报告不得勾可交付）
+### 0.3 失败与数据边界
 
-- `electron .` / `npm start` / 源码 `qa:source` / `qa:composer` / `qa:shell` / `qa:appendix`
-- 本机 `npm run dist`、`dist/` 下 Setup、`dist/win-unpacked`、`smoke:packaged`、`qa:packaged`（允许当 rehearsal，**禁止**写入本表 Pass）
-- `--user-data-dir` 冒烟目录顶替真实 `%APPDATA%\Deepseek-Harness-Desktop`
-- 只测 `config.json` 启动工作区，不打开 harness `storages/workspace.json` 里登记的兄弟目录
-- 源码 Electron 双开顶替「已装快捷方式第二次启动」
+区分产品故障、测试工具错误和环境缺失；未执行不记为通过。保护用户数据、权限和密钥，造障使用获准的隔离环境。源码检查通过不能否定安装版真实故障。dshbot 的随包、默认关闭、启用重启和 Bots 页签行为见 [dshbot 功能说明](../features/dshbot.md)。
 
-**失败归因：** 安装版用户路径真实失败必须记录产品缺陷，源码绿灯不能否定它；先排除选择器、观察器和环境问题，再评价测试覆盖漏洞。工具或环境故障记 Blocked，原因未知保持阻塞。本机 dist 不能代替 CI 包。
+### 0.4 历史模型网关配置示例
 
-### 0.3 缺陷分级与发版硬门禁
-
-| 级 | 定义 | 门禁 |
-| --- | --- | --- |
-| **Blocker** | 无法安装、无法进入主界面、Harness 持续崩溃、附录多轮对话失败、数据明显损坏 | **禁止发版** |
-| **Critical** | 主路径不可用（Git 提交失败、Files/终端送对话失败、图库/本地壁纸无法设置、市场/插件拖垮启动、托盘/退出失控） | **禁止发版** |
-| **Major** | 次要路径坏、可绕过、文案严重误导 | 发版需书面豁免 |
-| **Minor** | 视觉/动效/文案瑕疵 | 可进发版备注 |
-
-**每次发布前**：执行该 CI 候选计划，填写唯一 JSON 报告与真实签字，只用 `publish.yml` 晋级。缺少绑定候选 SHA/run/资产摘要的报告禁止发版；§15/§16 的旧签字仅作历史，不要求重填另一份全表。
-
-**「可交付」= 核心全部 Pass、影响场景有完整结果、无未解决的 Blocker/Critical 产品缺陷、限制按规则审阅且签字绑定原始包。** 核心项不允许豁免；非核心项的 N/A 需要真实不适用依据，Fail/Blocked 需要明确限制及相应风险接受。dshbot 的随包、默认关闭、启用重启和 Bots 页签契约保持，见 [dshbot feature 卡](../features/dshbot.md)；影响计划选中时执行完整步骤，不能以默认关闭冒充启用成功。
-
-**造障场景**在隔离的真实安装环境执行；无法安全造障记 Blocked，并按发布操作流程决定是否可接受该未验证边界，不能静默写 Pass。
-
-每条步骤默认在 **已安装的 CI 包**和专用交互式测试用户的正常默认 profile 里做；升级夹具保留旧版数据。涉及用户实际 profile 时明确恢复边界。附录 A 必须在该安装包会话里跑，不得用冒烟 `userData`。
-
-### 0.4 本轮模型网关（多轮对话必测）
-
-在 **设置 → 模型 → 添加自定义提供方** 配置：
+以下是旧验证使用的配置，不要求沿用该服务或模型。需要验证提供方配置时，在 **设置 → 模型 → 添加自定义提供方** 配置实际获准使用的路由：
 
 | 字段 | 值 |
 | --- | --- |
@@ -67,9 +33,9 @@
 
 密钥保存后只显示脱敏描述符。若网关拒绝 `developer` role 或 `max_completion_tokens`，按官方「配置模型」指南在桌面 `$DSH_HOME/settings.yaml`（应用数据目录下的 `dsh-home/settings.yaml`，不是官方 `~/.dsh`）对该路由补 `compat` 后重测。
 
-**多轮对话 P0 门禁（唯一标准）：** 同一会话内 **附录 A 五轮脚本全部成功**（含记忆、读文件工具、终端/命令工具、综合汇总）。消耗不设上限。不得用「随便聊两句」代替附录。
+多轮对话受影响时，附录 A 提供记忆、读文件、命令工具和汇总的可复用步骤；执行范围与模型消耗按当前问题选择，记录实际失败轮次。
 
-### 0.5 用例记录格式
+### 0.5 可选的用例记录格式
 
 ```text
 用例 ID:
@@ -77,22 +43,14 @@
 实际结果:
 证据: 截图路径 / 日志路径 / **CI Actions run URL** / 安装包文件名与 SHA256 / About 版本
 缺陷编号:（Fail 时必填）
-豁免单号:（Blocked 且申请发版时必填）
 执行人 / 日期:
 ```
 
-Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
+证据说明实际执行的源码、打包或安装环境；不把一种环境的结果写成另一种环境的通过。
 
-### 0.6 完整回归顺序（跨模块候选；原估计 2～2.5 人日）
+### 0.6 场景导航
 
-普通候选只执行计划选中的核心与影响场景。此完整库估计不是每个局部修复的强制成本，也不是允许超时放行的期限。
-
-0. 从 Actions 下载 windows artifact，记录 SHA256；退出已装 `Deepseek-Harness-Desktop.exe`；用该文件安装。`qa:packaged` 仅 rehearsal，**不是**本步的放行条件。  
-1. §1 安装/升级/卸载抽检（含 TC-INST-012 同版本 overlay、TC-INST-013 bundled node）→ §2 模型 → §3 工作区（含 TC-WS-006）  
-2. §4 附录多轮对话（最长，优先；在 TC-WS-006 仓库会话里）  
-3. §5～§8 会话 / 审批 / Git / Surfaces / 终端  
-4. §9 外观与壁纸 → §10 扩展与 dshbot → §11 托盘/关闭/更新
-5. §12 负向、远程与韧性；SSH 用例需另备获准的隔离 fixture → §13 已知不测核对 → §16 签字
+按影响查找 §1 安装与升级、§2 模型、§3 工作区、§4 对话、§5～§8 会话与工具、§9 外观、§10 扩展、§11 生命周期、§12 负向与远程场景。SSH 场景需要获准的隔离 fixture；§13 记录旧轮次的未覆盖范围，不定义当前验证范围。
 
 ---
 
@@ -104,7 +62,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 **步骤：**
 
-1. 打开该次 `release.yml` windows job 的 Actions run，下载 artifact `Whale-Isle-windows-x64`。
+1. 验证 CI 安装包时，打开对应 `test.yml` windows job 的 Actions run，下载 artifact `Whale-Isle-windows-x64`。
 2. 记录 run URL、文件名、SHA256。此文件即拟发布文件。  
 3. 用**该文件**默认路径安装；确认桌面与开始菜单快捷方式。  
 4. 从快捷方式启动；观察启动页仪器画布（品牌名、状态章、日志）。  
@@ -1102,32 +1060,23 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ---
 
-## 14. 自动化对照（全部不能顶替本表）
+## 14. 自动化与实际操作的边界
 
-本表 Pass **只能**来自 CI windows artifact + 已装快捷方式。下表说明现有命令实际测了什么；用它们填本表 = 套件与本表同时失效。
+| 入口 | 观察范围与限制 |
+| --- | --- |
+| `qa:source`、`qa:composer`、`qa:appendix`、`qa:shell` | 源码应用的对应行为；不证明安装器、快捷方式或安装目录运行时正常 |
+| `smoke:packaged` | unpacked 分发树的启动与脚本覆盖路径；不证明安装与升级操作 |
+| `qa:packaged` | unpacked 应用的相关 UI、登记工作区、Git、PTY 和运行时行为；隔离 profile 不证明用户实际数据迁移 |
+| `node scripts/verify-remote-workspace-live.cjs --require-live` | 获准 SSH fixture 上的 API 操作与清理；缺配置时为 NOT RUN，不覆盖 picker、设置和侧栏 UI |
+| `npm run dist` | 本机安装包构建；包身份和操作结果绑定该文件，不能当作 CI 原始产物 |
 
-| 命令 | 实际测了什么 | 为何不能顶替本表 |
-| --- | --- | --- |
-| `qa:source` | 源码 Electron、隔离 `userData`、`initGitWorkspace` 作为**唯一** `config.workspace`；PTY/Git 走 `loadConfig().workspace` | 不是 CI 包；**覆盖不了** 已登记兄弟仓、NSIS overlay、打包 `runtime/<ver>` stamp、安装目录 `node.exe`。2026-08-23 用它给 TC-GIT-001 / 终端 / INST 打 Pass 后，真实安装包在兄弟仓上失败 |
-| `qa:composer` / `qa:appendix` / `qa:shell` | 同源码 Electron；附录即使五轮绿 | 不构成 TC-CHAT-* / 托盘 / 恢复的**安装包** Pass |
-| `smoke:packaged` | `dist/win-unpacked` + 单 Git 工作区 UI/PTY | 不是 CI artifact；捕不到兄弟仓 Git/PTY |
-| `qa:packaged` | 本机 `win-unpacked`：无戳 extract、预写 `workspace.json` 兄弟仓、`gitBranchList`、PTY、Ghostty 200、`--no-open` | rehearsal 可以；**GREEN 也不能**填本表 Pass，更不能把本机包当 CI 包发布 |
-| `node scripts/verify-remote-workspace-live.cjs --require-live` | 在配置 `DSHR_TEST_*` 后对真实 Harness / SSH fixture 执行 API 路由验收并清理临时状态；没配环境时明确输出 `NOT RUN (not PASS)` | 只有配置已获准 fixture 且记录该 CI artifact SHA 才能证明 API 级实机步骤；不覆盖安装包 picker、设置 toggle、侧栏文件 UI 或视觉验收 |
-| 本机 `npm run dist` | 本机 Node + afterPack `process.execPath` | 与 `release.yml` windows job **不是同一 SHA** |
-
-**源码套件缺陷（修 walker 的待办，不在走本表时改代码）：**
-
-1. 生产表 Pass 不得由上表任何命令写入。  
-2. 源码 / packaged smoke 若声称 Git/终端全绿，却只探针启动工作区，视为套件 Fail。  
-3. 无 stamp 陈旧 extract 时源码树不测 `--no-open` 覆盖。
-
-**发版：** 实现完成 → 同版本本地必要自动与实际 QA 全部通过 → 手动最终 CI → 手动 `release.yml` → 核对/验收该 run 的原始安装包 → 唯一候选 JSON 报告 → `publish.yml` 晋级原始字节。本表是用例库；执行计划选中的场景，不重填历史 §15/§16 或新增重复报告。CI 不是诊断、补本地验证或反复换包的工具。
+同一缺陷应验证对应用户路径，包括实际受影响的登记兄弟工作区。报告已观察的行为和剩余问题，不以脚本成功替代未执行的操作。发布流程不读取本表，也不要求候选 JSON 或签字。
 
 ---
 
 ## 15. 执行记录总表
 
-每条 Pass 的**证据种类**必须是 `CI artifact SHA + 已装 exe`。空着或写成 `qa:source` 等则该格无效。本表已按 **2026-09-01 CI run 33455954068 / SHA256 `F2C571D2…`（Node 22.22.2，树 `cc430e8562`）** 重写。首包 `45EEC4AA` / 本机 Node 24 pack `49BD62B5` **不得**当作本轮发版 SHA。**不得**沿用 2026-08-23/24 旧 SHA 的 Pass。
+以下是原轮次的记录与证据约定，保留结果，不用于当前版本放行。本表当时按 **2026-09-01 CI run 33455954068 / SHA256 `F2C571D2…`（Node 22.22.2，树 `cc430e8562`）** 重写。首包 `45EEC4AA` / 本机 Node 24 pack `49BD62B5` **不得**当作本轮发版 SHA。**不得**沿用 2026-08-23/24 旧 SHA 的 Pass。
 
 证据目录：[results/2026-08-31/EXECUTION-REPORT.md](results/2026-08-31/EXECUTION-REPORT.md)
 
@@ -1263,7 +1212,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ## 16. 签字
 
-本节保留 `0.2.7` 的历史签字，不再覆盖或继承。新候选使用 [候选验收记录](releases/README.md) 的 JSON 签字，机器核对 run、SHA、原始资产和计划。`TC-SURF-008` 在工作区/Browser 影响集或完整回归中执行；不使用源码或旧包结果替代。
+本节保留 `0.2.7` 的历史签字，不再覆盖或继承。[历史候选记录](releases/README.md)也不作为当前发布输入；新流程不生成验收 JSON 或签字。
 
 | 项 | 内容 |
 | --- | --- |
@@ -1271,13 +1220,13 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | Artifact 名 | `DeepSeek-Harness-windows-x64` |
 | 安装包文件名 | `Deepseek-Harness-Desktop-Setup-0.2.7.exe` |
 | SHA256（已测文件） | `F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856` |
-| Release 将上传同一 SHA | ☑（该表对应历史 CI 文件；新候选必须由 `publish.yml` 上传同一 run 的原始文件） |
+| Release 将上传同一 SHA | ☑（该表对应历史 CI 文件） |
 | 应用 About 版本 | `0.2.7` |
 | 该包内 harness 基线（勿混源码钉） | stamp `0.1.2-alpha.2` / `dsh-v0.1.2-alpha.2` / sha `0a53fb55bea101816fa226bb964ae2bed71c343b` |
 | Windows 版本 / 机型 | Windows 10.0.26200 x64 |
 | 模型：`ayase` / `grok-4.6` @ `https://ayase.cn/v1` | 已配置 ☑ |
 | 附录 A 五轮（安装包会话，TC-WS-006 仓） | 1–5 过 ☑；reject ☑ vision ☑ editUser ☑ |
-| P0 结果 | 全 Pass □ / 有 Fail □ / 有 Blocked+负责人忽略 □ — 历史实测 P0（含 MODEL-004 / SESS-003 / TERM-002 / NEG-005）Pass；造障 INST-004/005/006/011/011b、LAUNCH-005/008、NEG-002 **Blocked**（未注入）。`0.3.1` 新候选还必须单独记录 `TC-SURF-008`，不继承本行历史结果 |
+| P0 结果 | 全 Pass □ / 有 Fail □ / 有 Blocked+负责人忽略 □ — 历史实测 P0（含 MODEL-004 / SESS-003 / TERM-002 / NEG-005）Pass；造障 INST-004/005/006/011/011b、LAUNCH-005/008、NEG-002 **Blocked**（未注入）。此行不证明后续版本 |
 | P1 豁免/发布说明 | 见 [results/2026-08-31/EXECUTION-REPORT.md](results/2026-08-31/EXECUTION-REPORT.md) §7 |
 | 结论 | **可交付** □ / **不可交付** □（CI Node 22 同树包已测） / **负责人忽略剩余 Blocked** □ — 测试已绑定该 SHA；产品负责人未签；未 tag / 未发 Release |
 | 测试负责人 / 日期 | Trent · 2026-09-01 |
@@ -1285,9 +1234,9 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ---
 
-## 附录 A · 多轮对话脚本（P0 唯一标准）
+## 附录 A · 多轮对话场景步骤
 
-同一会话按序发送（已安装 CI 包、TC-WS-006 工作区）：
+验证多轮记忆和工具调用时，在同一会话按序发送；使用本次实际验证版本与相应工作区：
 
 1. `用一句话回复：你已连通，并给出一个三位数验证码。`  
 2. `刚才的验证码是多少？只回答数字。`  
