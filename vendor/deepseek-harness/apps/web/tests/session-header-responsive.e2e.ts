@@ -44,7 +44,7 @@ describe('session header responsive actions', () => {
     }, { surfaceOp: 'append' })
     agent.session.append('step/end', { turn: 1, step: 1 })
     agent.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
-    agent.session.append('session/title', { title: '创建智能体并检查较长的会话标题', source: { kind: 'user' } })
+    agent.session.append('session/title', { title: '创建智能体并检查较长的会话标题', messageSeqs: [], source: { kind: 'user' } })
     for (const child of ['one', 'two']) agent.session.append('subagent/catalog', {
       version: 0, childId: SessionId(`header-${child}`), childCreatedAt: Date.now(), mode: 'one-shot', label: child,
     })
