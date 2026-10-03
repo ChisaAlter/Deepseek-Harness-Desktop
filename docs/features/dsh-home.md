@@ -45,8 +45,8 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `dsh-home` / `official-deepseek-env` / spawnEnv / workspace-authority / `open-dsh-home` / ipc `open-dsh-home` / AboutSection 单测；冒烟不得注入 `DSH_HOME`；`qa:packaged` 可 rehearsal 预写兄弟仓（**不能**当发版 Pass） |
-| Manual / QA | 每次发布前 `TC-INST-009`、`TC-INST-011`、`TC-WS-006`、`TC-DESK-009` |
+| Automated | `dsh-home` / `official-deepseek-env` / spawnEnv / workspace-authority / `open-dsh-home` / ipc `open-dsh-home` / AboutSection 单测；冒烟不得注入 `DSH_HOME`；`qa:packaged` 可验证预写兄弟仓，不覆盖真实用户数据迁移 |
+| Manual / QA | 数据目录、迁移或工作区解析改变时，参考 `TC-INST-009`、`TC-INST-011`、`TC-WS-006`、`TC-DESK-009`，在对应真实环境观察结果 |
 
 ## Sources
 

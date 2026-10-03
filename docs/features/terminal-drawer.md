@@ -43,8 +43,8 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `pty.test.js` / `dsh.test.js` / `ghostty-assets.test.js`；`qa:packaged` 可 rehearsal 兄弟仓 PTY + wasm 200（**不能**当发版 Pass） |
-| Manual / QA | 每次发布前生产表 `TC-TERM-001`…`004`、`TC-CHAT-004`；已装 CI 包、TC-WS-006 仓 |
+| Automated | `pty.test.js` / `dsh.test.js` / `ghostty-assets.test.js`；`qa:packaged` 可验证 unpacked 应用的兄弟仓 PTY 与 wasm 加载 |
+| Manual / QA | 终端、工作区或工具调用改变时，参考 `TC-TERM-001`…`004`、`TC-CHAT-004`，在登记兄弟仓观察相应真实操作；随包行为使用对应打包或安装版本 |
 
 ## Sources
 

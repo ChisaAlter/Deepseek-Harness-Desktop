@@ -63,8 +63,8 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | boot / harness-controller / plugin-recovery 单测；`qa:packaged` 可 rehearsal overlay stamp（**不能**当发版 Pass） |
-| Manual / QA | 每次发布前 [production-acceptance](../qa/production-acceptance-test-cases.md)：`TC-INST-003`…`007`、`TC-INST-012`、`TC-INST-013`；对象=CI Setup |
+| Automated | boot / harness-controller / plugin-recovery 单测；`qa:packaged` 可验证 unpacked 应用的 overlay stamp，不覆盖安装器操作 |
+| Manual / QA | 启动、恢复或升级行为改变时，参考[历史 QA 场景库](../qa/production-acceptance-test-cases.md)的 `TC-INST-003`…`007`、`TC-INST-012`、`TC-INST-013`，实际观察相应源码、打包或安装路径 |
 
 ## Sources
 

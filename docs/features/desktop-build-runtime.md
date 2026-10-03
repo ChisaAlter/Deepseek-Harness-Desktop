@@ -15,13 +15,13 @@
 
 ## User paths
 
-1. 维护者在仓库根执行任一文档记载的入口（`npm start`、`npm test`、`npm run setup:harness`、`npm run pack`、`npm run dist`、`npm run check:governance`、`npm run doc-sync`）都能找到对应脚本。
+1. 维护者在仓库根执行文档记载的入口（`npm start`、`npm test`、`npm run test:tools`、`npm run setup:harness`、`npm run pack`、`npm run dist`、`npm run docs:check`）都能找到对应脚本；文档链接检查按需执行。
 2. 打包流程按 `build.extraResources` 装配 `vendor/dsh-remote` 等内置插件，`scripts/after-pack.js` 在打包期完成资源断言。
 3. 应用更新读取 `build.publish` 的 GitHub 元数据与 `dependencies.electron-updater`，与安装器 artifact 命名保持一致。
 
 ## Invariants
 
-- 发布范围、候选影响计划、安装验收和晋级按 [发布操作流程](../handbook/modules/release-process.md) 执行；本卡的历史验证不替代当前候选。纯报告提交不重建，跨模块/依赖变化保留完整适用回归。
+- 开发 CI 与自动分发按[发布操作流程](../handbook/modules/release-process.md)执行；本卡的历史验证不证明当前版本。按真实影响选择构建、测试及实际操作，文档修改不启动产品构建。
 
 - 阶段输入覆盖根构建清单、`scripts/**` 构建 helper、`vendor/**` 源与 native 声明；`vendor/*/lib/**`、`native/system/packages/*/lib/**` 是 host 产物，native 二进制按当前 `platform-arch/bin` 归属。精确产物根不计为源输入；位于 `src/lib/**` 的真实源码仍须失效。
 
@@ -35,7 +35,7 @@
 
 - 每个运行时源 realpath 对应一个物理包目录；消费者经根内链接解析到相同或隔离的源实例。version 1 `.dsh-runtime-links.json` 仅记录相对路径，归档前移除链接、解压后恢复，实际解析边与发布文件都须通过验证。
 - 账户启动依赖 `ws` 必须在根生产 dependencies 与锁文件中声明，不能依赖本机额外安装。工作区依赖同源拆分与异源合并均阻断打包，字节相同不豁免；删除副本后的依赖树必须复验，正确收拢不能因复制计数不变而失败。
-- `package.json` 必须保留 `scripts`（至少含 start / test / setup:harness / sync:harness / pack / dist / check:governance / doc-sync）、`devDependencies`（electron / electron-builder / semver / pnpm）、`dependencies.electron-updater`、engines、overrides 与完整 `build` 块（asarUnpack / electronDist / extraMetadata / afterPack / publish / win / nsis / mac / dmg）。
+- `package.json` 必须保留 `scripts`（至少含 start / test / test:tools / setup:harness / sync:harness / pack / dist / docs:check）、`devDependencies`（electron / electron-builder / semver / pnpm）、`dependencies.electron-updater`、engines、overrides 与完整 `build` 块（asarUnpack / electronDist / extraMetadata / afterPack / publish / win / nsis / mac / dmg）。
 - `build.extraResources` 的首个 vendor filter 必须包含全部内置插件目录，含 `dsh-remote/**`；`vendor/chisacode-remote/.tmp/desktop-runtime/node_modules → vendor/dshd-remote/node_modules` 的第二条资源映射不得丢。
 - NSIS 品牌契约（artifact 名、installerLanguages、`build/installer.nsh`）由 `windows-installer` 卡定义，本卡只保证字段存活，不重复定义取值。
 - 结构约束由 `src/main/package-contract.test.js` 机检；清单残缺时该测试本身必须失败，而不是让测试在模块加载期崩溃。`npm test` 目前是单一 glob，不额外前置 manifest preflight；维护者排查时应先直接运行该契约测试。

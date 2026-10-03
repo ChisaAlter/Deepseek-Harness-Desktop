@@ -23,8 +23,8 @@
 - 凭据只通过安全通道输入。截图、终端记录和验收报告不得包含密码、私钥、token 或完整连接 URI。
 - 运行 API 级用例时，每轮使用独立临时 HOME 和远端 fixture 目录；必须确认 teardown 已删除临时对象。脚本缺配置时输出 `NOT RUN (not PASS)`，不能记作 Pass。
 
-## 门槛
+## 验证入口
 
-- 手动用例：[`production-acceptance-test-cases.md` 的 TC-RW-*](../../qa/production-acceptance-test-cases.md)。必须在表中记录实际 CI artifact SHA 和证据。
+- 手动场景可参考[历史 QA 场景库的 TC-RW-*](../../qa/production-acceptance-test-cases.md)，按本次影响选择。PR 说明实际验证版本、环境和观察结果，不重填旧验收表。
 - 自动化 live runner：[`scripts/verify-remote-workspace-live.cjs`](../../../scripts/verify-remote-workspace-live.cjs)；缺少 SSH fixture 时为 NOT RUN。
 - 契约：[remote-workspace Feature 卡](../../features/remote-workspace.md)。
