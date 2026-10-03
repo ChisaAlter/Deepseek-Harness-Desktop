@@ -12,16 +12,16 @@
 <p align="center">
   中文 · <a href="README.en.md">English</a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest">下载</a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/releases/latest">下载</a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases">更新日志</a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/releases">更新日志</a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues">反馈问题</a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/issues">反馈问题</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest"><img src="https://img.shields.io/github/v/release/ChisaAlter/Deepseek-Harness-Desktop" alt="Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/ChisaAlter/Deepseek-Harness-Desktop" alt="License" /></a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/releases/latest"><img src="https://img.shields.io/github/v/release/ChisaAlter/WhaleIsle" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/ChisaAlter/WhaleIsle" alt="License" /></a>
   <img src="https://img.shields.io/badge/Windows-x64-0A66C2" alt="Windows x64" />
 </p>
 
@@ -29,7 +29,7 @@
   <img src="assets/screenshot-home.jpg" alt="Whale Isle 主界面" width="920" />
 </p>
 
-这是一个由社区独立维护的 Electron 桌面壳，非 DeepSeek 官方客户端。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web UI、工具调用和插件体系带到本地桌面，并补充启动器、工作区、窗口、托盘和更新等桌面能力。安装版无需自行配置 Node.js 或启动 `dsh web`。
+Whale Isle 是社区独立维护的 Electron 桌面客户端，非 DeepSeek 官方产品。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web UI、工具调用和插件体系带到本地桌面，并补充启动器、工作区、窗口、托盘和更新等桌面能力。安装版无需自行配置 Node.js 或启动 `dsh web`。
 
 ## 功能
 
@@ -65,9 +65,9 @@
 
 | 平台 | 下载 |
 | --- | --- |
-| Windows 10 及以上 · x64 | [下载最新公开版](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest) |
+| Windows 10 及以上 · x64 | [下载最新公开版](https://github.com/ChisaAlter/WhaleIsle/releases/latest) |
 
-公开分发以 Windows x64 安装包为主；其他平台可按下方说明从源码运行或构建。版本和变更记录见 [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases)。
+公开分发以 Windows x64 安装包为主；其他平台可按下方说明从源码运行或构建。版本和变更记录见 [Releases](https://github.com/ChisaAlter/WhaleIsle/releases)。
 
 > [!NOTE]
 > Windows 安装包尚未进行数字签名，系统可能显示安全提示。请仅从本仓库下载；发布页提供 `SHA512SUMS.txt` 供核对文件完整性。
@@ -75,7 +75,7 @@
 ### 开始使用
 
 1. 安装并打开应用，等待启动器进入主界面。
-2. 在设置中配置模型服务与 API 密钥。
+2. 在「设置 → 模型」中选择模型服务，配置 API 密钥；使用自定义服务时，核对 API 地址与协议是否匹配。
 3. 选择项目目录作为工作区，或新建无工作区会话，开始对话。
 
 如果你使用过官方 CLI，可在启动器的「导入」页面选择需要迁移的数据。
@@ -85,6 +85,12 @@
 ### 需要自己准备 API 密钥吗？
 
 需要配置所使用模型服务的 API 密钥。本项目不提供模型额度，调用费用由对应服务商收取。
+
+### 对话提示 `DeepSeek Messages request failed (404)` 怎么办？
+
+先确认使用的是[最新公开版](https://github.com/ChisaAlter/WhaleIsle/releases/latest)，再核对「设置 → 模型」中的服务、API 地址和协议。DeepSeek 接入使用 Messages 接口，第三方服务仅支持 Chat Completions 时，不能直接使用相同配置。
+
+如果仍然失败，请[提交 Issue](https://github.com/ChisaAlter/WhaleIsle/issues/new/choose)，附上版本、服务名称、API 地址（隐藏敏感参数）、所选协议和完整错误信息；不要附上 API 密钥。仅凭 404 无法确定是配置错误还是服务端问题。
 
 ### 如何升级？
 
@@ -101,28 +107,34 @@
 | Windows | `%APPDATA%\Deepseek-Harness-Desktop\dsh-home` |
 | macOS（源码运行） | `~/Library/Application Support/Deepseek-Harness-Desktop/dsh-home` |
 
+### 清理会话日志后，桌宠无法投喂怎么办？
+
+请升级到 v0.3.3 或更新版本。v0.3.3 已修复历史投喂累计值阻塞新增用量的问题，保留成长值与累计投喂记录；升级后的新增用量可继续投喂，恢复旧日志不会重复产生食物。如果仍有异常，请附上应用版本和操作步骤提交 Issue。
+
 ### 安装插件后无法启动怎么办？
 
 在启动器的插件排查中禁用出错插件，再重新启动。旧版 dshbot 可能与新版 Harness 不兼容，也可用此方式单独禁用，无需删除配置或会话。
 
 ## 从源码运行
 
-开发环境：Windows 10+ 或 macOS 14+（Apple Silicon），Node.js 22.19+（22.x）或 24+，pnpm 11。
+开发环境：Windows 10+ 或 macOS 14+（Apple Silicon）、Git，以及 Node.js 22.19+（22.x）或 24+。CI 使用的 Node.js 版本见 [`.nvmrc`](.nvmrc)；pnpm 由根依赖提供，无需另行全局安装。
 
 ```shell
-git clone https://github.com/ChisaAlter/Deepseek-Harness-Desktop.git
-cd Deepseek-Harness-Desktop
-npm install
+git clone https://github.com/ChisaAlter/WhaleIsle.git
+cd WhaleIsle
+npm ci
 npm run setup:harness
 npm start
 ```
 
-首次运行会构建仓库内的 Harness，耗时较长。源码版与安装版共用单实例锁，启动前请先退出已安装的应用，包括托盘进程。
+`setup:harness` 会安装仓库内 Harness 的锁定依赖并构建桌面使用的 profile，首次执行耗时较长。`npm start` 会在客户端产物过期时先重建再启动。源码版与安装版共用单实例锁，启动前请先退出已安装的应用，包括托盘进程。
 
 ```shell
-npm test          # 桌面单元测试
-npm run dist      # 构建 Windows 安装包
-npm run dist:mac  # 构建 macOS 安装包，需在 macOS 上运行
+npm test            # 桌面与移动端行为测试
+npm run test:tools  # 构建、发布与维护工具测试
+npm run docs:check  # 文档相对链接检查
+npm run dist        # 构建 Windows 安装包
+npm run dist:mac    # 构建 macOS 安装包，需在 macOS 上运行
 ```
 
 ## 文档
@@ -130,11 +142,14 @@ npm run dist:mac  # 构建 macOS 安装包，需在 macOS 上运行
 - [产品与架构手册](docs/handbook/README.md)
 - [界面设计规范](docs/design-language.md) · [动效规范](docs/motion.md)
 - [功能契约](docs/features/README.md)
-- [构建与发布指南](docs/handbook/modules/build-release.md)
+- [开发与维护流程](docs/maintenance/README.md)
+- [构建指南](docs/handbook/modules/build-release.md) · [CI 与自动发布](docs/handbook/modules/release-process.md)
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request，参与功能开发、问题修复或文档改进。报告问题时，请附上应用版本、操作系统、复现步骤和必要截图，并移除日志中的密钥等敏感信息。
+欢迎提交 Issue 和 Pull Request，参与功能开发、问题修复或文档改进。请在工作分支修改并提 PR，说明需求、实际变化和相关验证；由维护者决定合并。开发 CI 自动提供反馈，成功的 main 构建在版本增加时自动发布，纯文档修改不启动产品构建。详见[贡献指南](CONTRIBUTING.md)。
+
+报告问题时，请附上应用版本、操作系统、复现步骤、预期与实际结果，以及必要截图或日志，并移除密钥等敏感信息。
 
 ## 社区
 
@@ -142,7 +157,7 @@ npm run dist:mac  # 构建 macOS 安装包，需在 macOS 上运行
   <img src="assets/wechat-group.png" alt="微信交流群二维码" width="240" />
 </p>
 
-欢迎扫码加入微信交流群。二维码失效时，请通过 [Issue](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues) 联系维护者。
+欢迎扫码加入微信交流群。二维码失效时，请通过 [Issue](https://github.com/ChisaAlter/WhaleIsle/issues) 联系维护者。
 
 ## 致谢
 

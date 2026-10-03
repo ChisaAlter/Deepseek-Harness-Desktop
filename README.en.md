@@ -12,16 +12,16 @@
 <p align="center">
   <a href="README.md">中文</a> · English
   &nbsp;·&nbsp;
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest">Download</a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/releases/latest">Download</a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases">Changelog</a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/releases">Changelog</a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues">Report an issue</a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/issues">Report an issue</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest"><img src="https://img.shields.io/github/v/release/ChisaAlter/Deepseek-Harness-Desktop" alt="Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/ChisaAlter/Deepseek-Harness-Desktop" alt="License" /></a>
+  <a href="https://github.com/ChisaAlter/WhaleIsle/releases/latest"><img src="https://img.shields.io/github/v/release/ChisaAlter/WhaleIsle" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/ChisaAlter/WhaleIsle" alt="License" /></a>
   <img src="https://img.shields.io/badge/Windows-x64-0A66C2" alt="Windows x64" />
 </p>
 
@@ -29,7 +29,7 @@
   <img src="assets/screenshot-home.jpg" alt="Whale Isle main window" width="920" />
 </p>
 
-This is an independently maintained Electron desktop shell, not an official DeepSeek client. It brings the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI, tool calls, and plugin system to the local desktop, with a launcher, workspaces, window and tray integration, and updates. Installed builds do not require a separate Node.js installation or a manual `dsh web` setup.
+Whale Isle is an independently maintained Electron desktop client, not an official DeepSeek product. It brings the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI, tool calls, and plugin system to the local desktop, with a launcher, workspaces, window and tray integration, and updates. Installed builds do not require a separate Node.js installation or a manual `dsh web` setup.
 
 ## Features
 
@@ -65,9 +65,9 @@ This is an independently maintained Electron desktop shell, not an official Deep
 
 | Platform | Download |
 | --- | --- |
-| Windows 10 or later · x64 | [Download latest public release](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest) |
+| Windows 10 or later · x64 | [Download latest public release](https://github.com/ChisaAlter/WhaleIsle/releases/latest) |
 
-Public distribution currently focuses on a Windows x64 installer. Other platforms can run or build from source as described below. See [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) for versions and release notes.
+Public distribution currently focuses on a Windows x64 installer. Other platforms can run or build from source as described below. See [Releases](https://github.com/ChisaAlter/WhaleIsle/releases) for versions and release notes.
 
 > [!NOTE]
 > The Windows installer is not digitally signed, so Windows may display a security warning. Download only from this repository. The release page provides `SHA512SUMS.txt` for integrity checks.
@@ -75,7 +75,7 @@ Public distribution currently focuses on a Windows x64 installer. Other platform
 ### Getting Started
 
 1. Install and open the app. Wait for the launcher to open the main window.
-2. Configure your model provider and API key in Settings.
+2. Choose a provider and configure its API key in Settings → Models. For a custom provider, check that its API URL matches the selected protocol.
 3. Select a project directory as your workspace, or start a conversation without a workspace.
 
 If you have used the official CLI, choose the data you want to migrate on the launcher's Import page.
@@ -85,6 +85,12 @@ If you have used the official CLI, choose the data you want to migrate on the la
 ### Do I need my own API key?
 
 You need to configure an API key for your chosen model provider. This project does not include model credits; usage is billed by the provider.
+
+### What if a conversation fails with `DeepSeek Messages request failed (404)`?
+
+Confirm that you are using the [latest public release](https://github.com/ChisaAlter/WhaleIsle/releases/latest), then check the provider, API URL, and protocol in Settings → Models. The DeepSeek integration uses the Messages API; a third-party service that only supports Chat Completions needs a matching provider configuration.
+
+If it still fails, [open an issue](https://github.com/ChisaAlter/WhaleIsle/issues/new/choose) with the app version, provider name, API URL (remove sensitive parameters), selected protocol, and complete error message. Do not include your API key. A 404 alone cannot identify whether the cause is configuration or the service.
 
 ### How do I upgrade?
 
@@ -101,28 +107,34 @@ The desktop app uses a separate data directory and does not directly read the of
 | Windows | `%APPDATA%\Deepseek-Harness-Desktop\dsh-home` |
 | macOS (source builds) | `~/Library/Application Support/Deepseek-Harness-Desktop/dsh-home` |
 
+### What if the desktop pet cannot be fed after clearing session logs?
+
+Update to v0.3.3 or later. Version 0.3.3 fixes lifetime feeding totals blocking newly earned food, while preserving growth and lifetime feeding records. New usage after upgrading can be fed, and restoring old logs does not generate food twice. If the problem persists, open an issue with your app version and reproduction steps.
+
 ### What if a plugin prevents startup?
 
 Disable the affected plugin in the launcher's troubleshooting tools, then restart. Older dshbot versions may be incompatible with the newer Harness and can be disabled individually the same way, without deleting settings or conversations.
 
 ## Run from Source
 
-Requirements: Windows 10+ or macOS 14+ (Apple Silicon), Node.js 22.x starting at 22.19 or version 24+, and pnpm 11.
+Requirements: Windows 10+ or macOS 14+ (Apple Silicon), Git, and Node.js 22.x starting at 22.19 or version 24+. See [`.nvmrc`](.nvmrc) for the CI Node.js version. The root dependencies provide pnpm; a separate global installation is unnecessary.
 
 ```shell
-git clone https://github.com/ChisaAlter/Deepseek-Harness-Desktop.git
-cd Deepseek-Harness-Desktop
-npm install
+git clone https://github.com/ChisaAlter/WhaleIsle.git
+cd WhaleIsle
+npm ci
 npm run setup:harness
 npm start
 ```
 
-The initial setup builds the vendored Harness and may take a while. Source and installed builds share a single-instance lock, so quit the installed app, including its tray process, before starting a source build.
+`setup:harness` installs the vendored Harness dependencies from its lockfile and builds the profile used by the desktop app, which may take a while initially. `npm start` rebuilds stale client output before launching. Source and installed builds share a single-instance lock, so quit the installed app, including its tray process, before starting a source build.
 
 ```shell
-npm test          # Desktop unit tests
-npm run dist      # Build the Windows installer
-npm run dist:mac  # Build the macOS installer; requires macOS
+npm test            # Desktop and mobile behavior tests
+npm run test:tools  # Build, release, and maintenance tool tests
+npm run docs:check  # Check relative documentation links
+npm run dist        # Build the Windows installer
+npm run dist:mac    # Build the macOS installer; requires macOS
 ```
 
 ## Documentation
@@ -130,11 +142,14 @@ npm run dist:mac  # Build the macOS installer; requires macOS
 - [Product and architecture handbook](docs/handbook/README.md) (Chinese)
 - [Design guidelines](docs/design-language.en.md) · [Motion guidelines](docs/motion.en.md)
 - [Feature contracts](docs/features/README.md) (Chinese)
-- [Build and release guide](docs/handbook/modules/build-release.md) (Chinese)
+- [Development and maintenance](docs/maintenance/README.md) (Chinese)
+- [Build guide](docs/handbook/modules/build-release.md) · [CI and automatic releases](docs/handbook/modules/release-process.md) (Chinese)
 
 ## Contributing
 
-Issues and pull requests are welcome, whether for features, bug fixes, or documentation. When reporting a problem, include the app version, operating system, reproduction steps, and relevant screenshots. Remove API keys and other sensitive information from logs before sharing them.
+Issues and pull requests are welcome for features, bug fixes, and documentation. Use a work branch and explain the request, changes, and relevant validation in your PR; the maintainer decides whether to merge. Development CI runs automatically, and successful main builds publish when the version increases. Documentation-only changes do not start product builds. See the [contribution guide](CONTRIBUTING.en.md).
+
+When reporting a problem, include the app version, operating system, reproduction steps, expected and actual behavior, and relevant screenshots or logs. Remove API keys and other sensitive information before sharing them.
 
 ## Community
 
@@ -142,7 +157,7 @@ Issues and pull requests are welcome, whether for features, bug fixes, or docume
   <img src="assets/wechat-group.png" alt="WeChat community QR code" width="240" />
 </p>
 
-Scan to join the Chinese-language WeChat group. If the QR code has expired, contact the maintainer through an [Issue](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues).
+Scan to join the Chinese-language WeChat group. If the QR code has expired, contact the maintainer through an [Issue](https://github.com/ChisaAlter/WhaleIsle/issues).
 
 ## Acknowledgments
 
