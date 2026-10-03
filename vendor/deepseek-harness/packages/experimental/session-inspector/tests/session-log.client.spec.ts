@@ -8,6 +8,7 @@ import { expect, it, onTestFinished, vi } from 'vitest'
 import { SessionLogModel } from '../src/client/views/session-log/model.ts'
 import { InspectorTableHierarchy } from '../src/client/views/table-model.ts'
 import { SessionLogGroups } from '../src/client/views/session-log/groups.ts'
+import { sessionLogChatTarget } from '../src/client/views/session-log/chat-target.ts'
 
 const attemptId = 'attempt-1' as LlmAttemptId
 const durable = (seq: number): SessionEventLikeEntry => ({
@@ -16,6 +17,17 @@ const durable = (seq: number): SessionEventLikeEntry => ({
 const delta = (seq: number, text: string): SessionEventLikeEntry => ({
   type: 'transient', event: { type: 'assistant/live-chunk', seq, time: seq,
     data: { attemptId, turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text } } },
+})
+
+it('keeps a cleared desktop presentation in the log without inventing Turn or Step coordinates', () => {
+  const source = new MutableSessionEventSource()
+  const event = { type: 'session/presentation' as const, seq: SessionSeq(2), time: 2, data: null }
+  source.replace([durable(1), { type: 'event', event }], false)
+  const model = new SessionLogModel(source)
+  expect(model.getSnapshot().some(row => row.key === 'event:2')).toBe(true)
+  expect(model.pick({ turn: 9, step: 1 })).toBeUndefined()
+  expect(model.chatAnchor('event:2')).toEqual({ event })
+  expect(sessionLogChatTarget({ event })).toEqual({ anchorSeq: 2 })
 })
 
 it('reuses published historical rows and groups only new roots while appending deltas', () => {

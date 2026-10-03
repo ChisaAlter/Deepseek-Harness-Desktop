@@ -68,7 +68,7 @@ export class SessionLogModel implements ObservableSnapshot<readonly InspectorRow
     this.accept(window)
     const entries = window.entries
     const sameStep = (entry: SessionEventLikeEntry): boolean => {
-      const data = entry.event.data
+      const data = entry.event.data ?? {}
       return target.turn !== undefined && 'turn' in data && data.turn === target.turn
         && (target.step === undefined || ('step' in data && data.step === target.step))
     }
@@ -180,7 +180,7 @@ export class SessionLogModel implements ObservableSnapshot<readonly InspectorRow
     }
     const event = entry.event
     const key = this.settledRoots.get(event.seq) ?? `event:${event.seq}`
-    const data = event.data
+    const data = event.data ?? {}
     const location = 'turn' in data ? `${data.turn}${'step' in data ? `/${data.step}` : ''}` : ''
     this.put(key, { type: event.type, identity: String(event.seq), time: event.time, location, value: event })
     if (entry.event.type === 'assistant/message' || entry.event.type === 'assistant/attempt') {

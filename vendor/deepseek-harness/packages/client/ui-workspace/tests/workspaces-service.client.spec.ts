@@ -1008,20 +1008,27 @@ describe('UiWorkspaceService', () => {
       },
     )
 
-    it('requests a Workspace without clearing the current selection when no Workspace is available', () => {
+    it('prepares the no-directory draft before replacing the current selection when no Workspace is available', async () => {
       const backing = persistSelection({})
-      const b = bench()
+      const b = bench({ workspaces: workspaceState(), sessions: sessionState() })
+      const opening = vi.spyOn(b.uiWorkspace, 'openNoDirectory')
       b.uiWorkspace.openSession(sid('ungrouped'))
       b.selectPanel.mockClear()
 
       b.uiWorkspace.startSession(undefined, { prompt: 'unsent' })
-
-      expect(b.notify).toHaveBeenCalledExactlyOnceWith({ kind: 'createFailed', message: 'Choose a workspace first.' })
-      expect(b.sessions.create).not.toHaveBeenCalled()
+      // Selection and its retained binding remain intact while creation waits.
       expect(b.requestDraftInitialization).not.toHaveBeenCalled()
       expect(b.sessions.retained[0]!.release).not.toHaveBeenCalled()
       expect(JSON.parse(backing.get('dsh.sessions.current')!)).toEqual({ sessionId: sid('ungrouped') })
       expect(b.selectPanel).not.toHaveBeenCalled()
+      await opening.mock.results[0]!.value
+      expect(b.notify).not.toHaveBeenCalled()
+      expect(b.sessions.create).toHaveBeenCalledOnce()
+      expect(b.requestDraftInitialization).toHaveBeenCalledExactlyOnceWith(
+        b.sessions.retained[1]!.reference.binding, { prompt: 'unsent' },
+      )
+      expect(b.sessions.retained[0]!.release).toHaveBeenCalledOnce()
+      expect(JSON.parse(backing.get('dsh.sessions.current')!)).toEqual({ sessionId: sid('created-none') })
     })
 
     it('reports an unknown explicit Workspace without preparing a draft or changing selection', async () => {

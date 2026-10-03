@@ -27,6 +27,11 @@ type Props = Parameters<typeof TodoRow>[0] & Parameters<typeof ReadImageRow>[0] 
 function preparation(name: string, args = new PartialArguments()): Extract<Props, { phase: 'preparing' }> {
   return {
     phase: 'preparing', callId: 'call', toolName: name,
+    sessionId: 'preparing-session' as Props['sessionId'],
+    useConversation: vi.fn(), useInput: vi.fn(), inputActions: {} as Props['inputActions'], useSessions: vi.fn(),
+    useChat: vi.fn(), useTrajectory: vi.fn(),
+    usePanelInfo: vi.fn(), useSessionStatus: vi.fn(), useSessionRetainInfo: vi.fn(),
+    useWorkspaces: vi.fn(), useResource: vi.fn(),
     block: { phase: 'preparing', args, callId: 'call', name, turn: 1, step: 1, time: 1, subCalls: [] },
     t: makeTranslate(en, common), useDisclosure, openFile: vi.fn(), loadImage: vi.fn(),
     useTodoHistory: vi.fn(), useSession: vi.fn(() => false), renderSlot: vi.fn(() => null),

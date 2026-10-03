@@ -33,7 +33,7 @@ export function UploadRow({ useUpload, useMutation, setEnabled, t }: PropsRuntim
     </div>
     <Switch checked={upload.value?.enabled === true} label={t('title')}
       disabled={busy || upload.status !== 'ready' || !upload.writable}
-      onChange={(enabled) => { void setEnabled(enabled) }} />
+      onChange={(enabled: boolean) => { void setEnabled(enabled) }} />
   </div>
 }
 

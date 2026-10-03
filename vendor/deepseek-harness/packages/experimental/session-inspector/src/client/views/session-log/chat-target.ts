@@ -24,7 +24,7 @@ function partOf(chunk: StreamChunk | undefined): string | undefined {
  */
 export function sessionLogChatTarget(anchor: SessionLogAnchor): InspectorChatTarget {
   const { event, chunk } = anchor
-  const data = event.data
+  const data = event.data ?? {}
   const turn = 'turn' in data && typeof data.turn === 'number' ? data.turn : undefined
   const step = 'step' in data && typeof data.step === 'number' ? data.step : undefined
   const callId = event.type === 'tool/call' ? event.data.callId

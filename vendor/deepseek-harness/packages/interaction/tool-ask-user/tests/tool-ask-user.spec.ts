@@ -253,6 +253,7 @@ describe('ask_user_question tool', () => {
     })
     const agent = stubAgent('legacy-agent')
     ctx.agents.enter(agent, undefined)
+    agent.session.append('turn/start', { turn: 1 })
     const detailed = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('ask-legacy-detailed'),

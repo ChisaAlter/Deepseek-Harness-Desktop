@@ -99,7 +99,7 @@ describe('ModelSelect reasoning effort', () => {
     const selectModel = vi.fn()
     const mount = () => {
       const directory = new ModelDirectory(
-        { selectModel }, 'saved-session' as SessionId, () => true, catalog, projected,
+        { selectModel }, 'saved-session' as SessionId, () => true, catalog, projected, () => false,
       )
       const load = vi.fn(() => { void directory.load() })
       const props = {
