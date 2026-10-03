@@ -43,7 +43,7 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | 实现及冲突裁定完成后，按维护准则的[合并后验证选择](../maintenance/README.md#合并后验证选择)表选择实际影响项并去重；文档只核对相关引用/配对，不默认全量 doc-sync |
+| Automated | 实现及冲突裁定完成后，按维护说明的[上游合并与差异保护](../maintenance/README.md#上游合并与差异保护)验证实际受影响的用户路径，复用相关检查；文档修改按需核对链接 |
 | Manual / QA | 启动链或跨层集成受影响时执行 `npm run smoke:source` 与源码应用重启；UI、文件、权限等路径按实际影响直接观察 |
 
 ## Sources
