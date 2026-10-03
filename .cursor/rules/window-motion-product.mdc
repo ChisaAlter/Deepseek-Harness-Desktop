@@ -1,12 +1,7 @@
 ---
-description: Preserve native Windows maximize/minimize/restore animations across shell edits and upstream sync
-alwaysApply: true
+description: Native window behavior and implementation references
+globs: src/main/*window*,src/main/native-window-motion*,src/main/chrome-theme*
+alwaysApply: false
 ---
 
-# Window motion
-
-Windows main and launcher windows retain transparent, page-painted 20px corners and the edge ring. `native-window-motion` restores WS_CAPTION / WS_THICKFRAME before show so DWM transitions work without replacing the silhouette. `roundedCorners: false` prevents a smaller OS mask. Use ShowWindowAsync to maximize/restore and IsZoomed for state: Electron transparent-window maximize may only set bounds. Disable DWM non-client rendering after restoring styles: no rectangular border/fill outside the alpha silhouette. The ring is one physical pixel, adjusted for DPR, with browser alpha antialiasing. Never sacrifice corners for animation or animation for corners. Pets/overlays are separate. Respect OS preferences.
-
-Run `node scripts/run-window-motion-qa.mjs` on Windows when shell changes, Electron upgrades or upstream integration affect the main/launcher window contract, with the relevant focused tests; scope and order follow [WhaleIsle maintenance](../../docs/maintenance/README.md). Also run with `--composed` on an interactive desktop to inspect all four corners after activation, blur, resize and restoration. The gate must check 20px alpha corner pixels, disabled DWM non-client rendering AND HWND styles/real IPC state; neither replaces visible transition acceptance. Update the feature card and decisions if the contract changes.
-
-Full card: [docs/features/window-motion.md](../../docs/features/window-motion.md)
+Read [native window behavior](../../docs/features/window-motion.md) when changing these files. [Maintenance](../../docs/maintenance/README.md) owns check selection; this rule adds no workflow.

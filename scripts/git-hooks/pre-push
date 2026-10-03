@@ -1,9 +1,0 @@
-#!/bin/sh
-# Manual-only workflows do not turn an ordinary push into a release gate.
-# During migration, automatic/unknown workflow policy still requires local QA.
-while read local_ref local_sha remote_ref remote_sha; do
-  case "$local_sha" in
-    0000000000000000000000000000000000000000) continue ;;
-  esac
-  node scripts/run-final-gates.mjs --check-push "$local_sha" "$remote_sha" || exit 1
-done

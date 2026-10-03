@@ -1,198 +1,65 @@
-name: Build installers
-
+name: Release
 on:
+  workflow_run:
+    workflows: [Development CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
-      ci_nonpass_count:
-        description: Verified cumulative non-passing attempts for this same delivery; four means stop
-        required: true
-        type: number
-      ci_count_evidence:
-        description: Cross-commit/workflow/session run history establishing that count
-        required: true
+      run_id:
+        description: Successful main Development CI run (reuse its installers)
         type: string
-      ci_recovery_decision:
-        description: 'Only after a stop; <unchanged count>: user decision reference and corrected local QA evidence'
-        required: false
-        type: string
-      include_macos:
-        description: Build the optional macOS artifact
-        required: false
-        type: boolean
-        default: false
-      candidate_sha:
-        description: Full tested main commit SHA to build; remains fixed if main advances
         required: true
-        type: string
-
 permissions:
   contents: read
   actions: read
-
-# Never cancel a candidate being downloaded/accepted. Duplicate builds of the
-# same SHA queue; different candidates remain explicit release-owner decisions.
 concurrency:
-  group: candidate-${{ inputs.candidate_sha }}
-  queue: max
+  group: release
   cancel-in-progress: false
-
 jobs:
-  preflight:
+  publish:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
     steps:
-      - name: Enforce cumulative CI stop rule
-        env:
-          CI_NONPASS_COUNT: ${{ inputs.ci_nonpass_count }}
-          CI_COUNT_EVIDENCE: ${{ inputs.ci_count_evidence }}
-          CI_RECOVERY_DECISION: ${{ inputs.ci_recovery_decision }}
-        run: |
-          set -euo pipefail
-          [[ "$CI_NONPASS_COUNT" =~ ^(0|[1-9][0-9]*)$ && "$CI_COUNT_EVIDENCE" =~ [^[:space:]] ]] || { echo 'Verified cumulative CI history is required'; exit 1; }
-          if (( CI_NONPASS_COUNT >= 4 )); then
-            [[ "$CI_RECOVERY_DECISION" == "$CI_NONPASS_COUNT:"* && "${CI_RECOVERY_DECISION#*:}" =~ [^[:space:]] ]] || { echo 'Four non-passing attempts: stop; require a user corrective decision for the unchanged count'; exit 1; }
-          fi
-          printf '%s\n' "$CI_COUNT_EVIDENCE" "$CI_RECOVERY_DECISION" >> "$GITHUB_STEP_SUMMARY"
-      - name: Validate the frozen main commit
+      - name: Resolve successful main build
+        id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF" == refs/heads/main && "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Use a full main candidate SHA'; exit 1; }
-          relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$CANDIDATE_SHA...main" --jq .status)
-          [[ "$relation" == ahead || "$relation" == identical ]] || { echo 'Candidate must be on main'; exit 1; }
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .status == "completed" and .conclusion == "success" and
+            .path == ".github/workflows/test.yml" and .head_branch == "main" and
+            .head_repository.full_name == $repo and
+            (.event == "push" or .event == "workflow_dispatch")
+          ' <<< "$run" >/dev/null
+          sha=$(jq -r .head_sha <<< "$run")
+          relation=$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...main" --jq .status)
+          [[ "$relation" == ahead || "$relation" == identical ]] || exit 1
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.candidate_sha }}
+          ref: ${{ steps.source.outputs.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version-file: .nvmrc
-      - name: Require completed platform and shared CI before expensive packaging
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Publish checked assets
         env:
           GH_TOKEN: ${{ github.token }}
-          INCLUDE_MACOS: ${{ inputs.include_macos }}
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-        run: |
-          set -euo pipefail
-          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo 'Candidates must come from main'; exit 1; }
-          node scripts/check-release-ci.mjs "$GITHUB_REPOSITORY" "$CANDIDATE_SHA" "$INCLUDE_MACOS"
-      - name: Freeze the baseline and impact plan
-        env:
-          GH_TOKEN: ${{ github.token }}
-          INCLUDE_MACOS: ${{ inputs.include_macos }}
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
-        run: |
-          set -euo pipefail
-          baseline_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
-          [[ "$baseline_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'No stable release baseline'; exit 1; }
-          baseline_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$baseline_tag" --jq .sha)
-          [[ "$baseline_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
-          git fetch --no-tags --depth=1 origin "$baseline_sha"
-          node scripts/release-plan.mjs "$baseline_sha" "$CANDIDATE_SHA" "$GITHUB_RUN_ID" "$INCLUDE_MACOS" release-plan.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: Whale-Isle-release-plan
-          path: release-plan.json
-          retention-days: 30
-          if-no-files-found: error
-
-  windows:
-    needs: preflight
-    runs-on: windows-latest
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.candidate_sha }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          # engines 要求 ^22.19.0 || >=24（node:sqlite 等）；.nvmrc 是唯一钉版来源
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install app dependencies
-        run: npm ci
-
-      # .npmrc 设置了 electron_skip_binary_download，CI 需显式拉取 Electron 二进制
-      - name: Download Electron binary
-        run: node node_modules/electron/install.js
-
-      - name: Prepare vendored harness (clone + pnpm install + build)
-        run: node scripts/setup-harness.js
-
-      - name: Build NSIS setup installer
-        run: npm run dist
-
-      # Release acceptance for the actual artifact: boot dist/win-unpacked —
-      # the exact tree the NSIS Setup installs — with the embedded DSH_SMOKE
-      # assertions (window + titlebar hit-testing + PTY echo + dsh-home
-      # isolation). This is NOT a repeat of test.yml quality gates: it can
-      # only exist after `npm run dist` produced the artifact, so it lives in
-      # the release chain and BLOCKS publishing — a Setup that cannot boot
-      # must not ship, and a red gate here never blocks PR merges (release is
-      # dispatch-triggered).
-      # A failed observation needs classification; a blind retry can hide a
-      # first-boot defect by warming caches. Preserve it and stop the candidate.
-      - name: Packaged smoke gate (win-unpacked, blocking, one observation)
-        shell: pwsh
-        env:
-          # CI cold starts are slower than the 300s local default.
-          DSH_SMOKE_TIMEOUT_MS: '600000'
-        run: |
-          npm run smoke:packaged
-          exit $LASTEXITCODE
-
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: Whale-Isle-windows-x64
-          path: |
-            dist/Whale-Isle-Setup-*.exe
-            dist/Whale-Isle-Setup-*.exe.blockmap
-            dist/latest.yml
-          if-no-files-found: error
-          retention-days: 30
-
-  macos:
-    needs: preflight
-    # Manual candidate builds are Windows-only unless explicitly requested.
-    # macOS remains an optional artifact from the same candidate run.
-    if: ${{ inputs.include_macos }}
-    runs-on: macos-latest
-    timeout-minutes: 120
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.candidate_sha }}
-
-      - name: Reject macOS icon below electron-builder minimum
-        run: node scripts/check-mac-icon.js
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install app dependencies
-        run: npm ci
-
-      - name: Download Electron binary
-        run: node node_modules/electron/install.js
-
-      - name: Prepare vendored harness (clone + pnpm install + build)
-        run: node scripts/setup-harness.js
-
-      - name: Build macOS DMG
-        run: npm run dist:mac
-
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: Whale-Isle-macos-arm64
-          path: dist/Whale-Isle-*.dmg
-          if-no-files-found: error
-          retention-days: 30
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+        run: node scripts/publish-release.mjs

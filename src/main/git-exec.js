@@ -1,4 +1,6 @@
 const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 const { loadWorkspaceAuthority, isPathInside } = require('./workspace-authority');
 
 let workspaceAuthority = null;
@@ -225,8 +227,49 @@ function run(command, args, cwd, limits = {}) {
  * resolves a cache implicitly, a write can never be answered from memory and a
  * stale context cannot leak into an unrelated call chain.
  */
-function runGitUncached(cwd, args, limits) {
-  return run('git', args, cwd, limits);
+/**
+ * Well-known Git for Windows install dirs probed when PATH resolution fails.
+ * A long-lived parent (Explorer, terminal) keeps the PATH snapshot it started
+ * with, so Git installed mid-session stays invisible to spawned children even
+ * though it exists on disk.
+ */
+function gitProbeCandidates() {
+  const roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)']]
+    .filter(Boolean)
+    .map((dir) => [dir]);
+  if (process.env.LOCALAPPDATA) roots.push([process.env.LOCALAPPDATA, 'Programs']);
+  return roots.map((parts) => path.join(...parts, 'Git', 'cmd', 'git.exe'));
+}
+
+/** Absolute git path confirmed by a fallback probe; null until one hits. */
+let probedGitExe = null;
+
+/**
+ * Probe the well-known Git install dirs after PATH spawn failed. Returns the
+ * cached/absolute path on success, null when none exist.
+ */
+function probeGitExecutable() {
+  if (probedGitExe) return probedGitExe;
+  for (const candidate of gitProbeCandidates()) {
+    if (fs.existsSync(candidate)) {
+      probedGitExe = candidate;
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/** Test seam: drop the cached fallback path so spawn counting stays clean. */
+function resetGitExecutableProbe() {
+  probedGitExe = null;
+}
+
+async function runGitUncached(cwd, args, limits) {
+  const result = await run(probedGitExe || 'git', args, cwd, limits);
+  if (!result.missing) return result;
+  probedGitExe = null; // PATH spawn failed or a cached fallback path vanished
+  const fallback = probeGitExecutable();
+  return fallback ? run(fallback, args, cwd, limits) : result;
 }
 
 function runGit(cwd, args, limits) {
@@ -305,6 +348,8 @@ module.exports = {
   OUTPUT_TRUNCATED_MARKER,
   withTruncationMarker,
   gitChildEnv,
+  probeGitExecutable,
+  resetGitExecutableProbe,
   run,
   runGit,
   runGitUncached,

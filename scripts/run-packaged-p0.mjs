@@ -174,7 +174,7 @@ function assertPackagedP0Result(result, extractRoot) {
   const packagedP0 = result.packagedP0
   if (!packagedP0) {
     throw new Error(
-      'dshd-smoke.json has no packagedP0. Build dist/win-unpacked with the Node version in root .nvmrc so the asar includes DSH_SMOKE_SIBLING. Diagnose the missing payload before repeating qa:packaged. Quit Whale Isle.exe first.',
+      'dshd-smoke.json has no packagedP0. Diagnose the missing payload before repeating qa:packaged. If rebuilding is needed, run npm run dist with the Node version in root .nvmrc so the asar includes DSH_SMOKE_SIBLING. Quit Whale Isle.exe first.',
     )
   }
   if (packagedP0.ok !== true) {
@@ -217,7 +217,7 @@ try {
   const executable = packagedExecutable()
   if (!existsSync(executable)) {
     throw new Error(
-      `Packaged executable not found: ${executable}. When local packaging QA is required after implementation, build using the Node version in root .nvmrc.`,
+      `Packaged executable not found: ${executable}. For the default dist/win-unpacked path, run npm run dist with the Node version in root .nvmrc before qa:packaged.`,
     )
   }
 

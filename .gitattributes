@@ -1,7 +1,4 @@
-# Pairing records merge through the dshd-translation-pairing driver:
-# auto-composed when both owner files merge cleanly, fail-closed otherwise.
-*.i18n.yaml merge=dshd-translation-pairing
-
-# Shell scripts and hooks must keep LF on Windows checkouts.
+# Shell scripts must keep LF on Windows checkouts.
+*.sh text eol=lf
 scripts/git-hooks/* text eol=lf
 docs/decisions/archived/** text eol=lf

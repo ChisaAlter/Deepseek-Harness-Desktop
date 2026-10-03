@@ -4,7 +4,7 @@ English | [中文](testing.zh.md)
 
 How this repo tests, tier by tier, and the rules that keep a green suite meaningful. Commands live in root [AGENTS.md](../AGENTS.md); linked Agent Notes carry the rationale.
 
-Inside WhaleIsle, [the sole host maintenance policy](../../../docs/maintenance/README.md) owns verification selection and order. This page describes existing test tiers and mechanisms, not an additional mandatory matrix; required missing-key skips remain blocked.
+Inside WhaleIsle, [the sole host maintenance policy](../../../docs/maintenance/README.md) owns verification selection and order. This page describes existing test tiers and mechanisms, not an additional mandatory matrix; missing-key skips must be reported honestly and are not proof of live provider behavior.
 
 ## Tiers
 

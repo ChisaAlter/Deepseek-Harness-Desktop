@@ -4,7 +4,7 @@ Maintenance authority: [WhaleIsle sole project policy](../../docs/maintenance/RE
 
 ## WhaleIsle integration execution scope
 
-Inside the enclosing WhaleIsle checkout, [the host maintenance system](../../docs/maintenance/README.md) owns development order, verification selection, hooks and delivery. Complete implementation before preparing tests; local necessary QA and actual operations precede final manual CI. Upstream commands and coverage targets locate checks, without imposing an additional mandatory matrix. Product, architecture and released-data contracts below remain applicable. All maintenance execution inside this checkout follows the host policy.
+Inside the enclosing WhaleIsle checkout, [the host maintenance system](../../docs/maintenance/README.md) owns development order, verification selection, hooks and delivery. Use a work branch and PR with development CI; successful main builds release when the version increases. No local-QA certificate or candidate signoff is required. Upstream commands and coverage targets locate checks, without imposing an additional mandatory matrix. Product, architecture and released-data contracts below remain applicable. All maintenance execution inside this checkout follows the host policy.
 
 DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
 

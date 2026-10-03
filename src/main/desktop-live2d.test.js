@@ -597,6 +597,7 @@ test('personality changes mirror into the whale assistant catalog', async (t) =>
 });
 
 test('personality mirror retries an answered rejection a bounded number of times', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const posts = [];
   const originalFetch = globalThis.fetch;
   // The endpoint answers but refuses (e.g. a snapshot-conflict write) — the
@@ -615,7 +616,14 @@ test('personality mirror retries an answered rejection a bounded number of times
   const manager = createLive2dPetManager(deps);
   t.after(() => manager.dispose());
   manager.show();
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 80));
+  const settle = async () => {
+    // Let each async response settle, then advance the retry clock. Wall-clock
+    // sleeps race CPU contention when the complete desktop suite is running.
+    for (let step = 0; step < 6; step += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+      t.mock.timers.tick(5);
+    }
+  };
   await settle();
   const mirrors = () => posts.filter((p) => p.url.endsWith('/dsh-whale/settings/update'));
   // Startup heal posted once; the rejection earned three bounded retries.

@@ -3,8 +3,6 @@ description: Harness rejects malformed tool-call identities before persistence o
 alwaysApply: true
 ---
 
-# Harness tool-call integrity
+[docs/features/dsh-tools.md](../../docs/features/dsh-tools.md)
 
-Tool-call ids are non-empty and function names match `[A-Za-z0-9_-]{1,64}` before committing an assistant message or executing a tool. Raw chunks remain diagnostic evidence. Malformed model tool calls use retry-eligible `MALFORMED_RESPONSE`; transcript repair changes derived provider history only, never the append-only session log. Tool registration enforces the same name grammar.
-
-Full card: [docs/features/dsh-tools.md](../../docs/features/dsh-tools.md)
+Read the linked product notes when working in this area. [Maintenance](../../docs/maintenance/README.md) owns the workflow; this entry adds no tests or approvals.

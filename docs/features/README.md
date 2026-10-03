@@ -1,8 +1,6 @@
-# Feature Spine（产品知识脊梁）
+# 产品功能资料
 
-可执行的产品契约索引：每张卡绑定用户路径、不变量、默认可改文件、验证入口与来源链接。Agent 改产品行为时先读相关卡理解契约；需要时说明关联，不强制固定格式声明。
-
-蓝图与模块详解见 [产品手册](../handbook/README.md)。
+记录用户行为、负责代码和桌面差异。相关检查是可选定位入口，不能自动展开为每次修改的执行清单。普通修复无需新卡片或刷新验证日期；没有格式门槛。当前工作方式见[维护说明](../maintenance/README.md)。
 
 ## 与其他文档的分工
 
@@ -12,40 +10,20 @@
 | [docs/handbook/](../handbook/README.md) | 蓝图、流程、模块当前态 | 否；卡片挂手册章 |
 | [design-language.md](../design-language.md) / [motion.md](../motion.md) | 视觉与动效语言 | 否；卡片只链接 |
 | [superpowers/specs](../superpowers/specs/) / [plans](../superpowers/plans/) | 设计与施工过程 | 否；定稿后把**不变量**收进卡片 |
-| [qa/production-acceptance-test-cases.md](../qa/production-acceptance-test-cases.md) | 完整用例库：按候选核心/影响计划验收 CI 安装包 | 否；卡片 `gates` 挂用例 ID |
+| [qa/production-acceptance-test-cases.md](../qa/production-acceptance-test-cases.md) | 历史用例库：需要时查找相关操作步骤 | 否；卡片 `gates` 挂用例 ID |
 | [docs/decisions/](../decisions/README.md) | 决策记录：动机、被否方案、代价（含 rejected/archived 生命周期） | 否；卡只写「是什么」，「为什么」链到决策记录 |
 | harness Agent Notes | 上游决策记录 | 否；桌面相关卡可链接 |
-| `.cursor/rules/*.mdc` | 短 always-on 不变量 | 否；文末链到本卡，细节以卡为准 |
+| `.cursor/rules/*.mdc` | 负责资料的导航入口 | 否；文末链到本卡，细节以卡为准 |
 
 本树保存当前产品契约；架构细节链接到 handbook，历史验证链接到原记录，不重复维护同一事实。篇幅按必要内容决定，不设页数要求。
 
-卡上的 Gates 是风险对应的验证入口，不要求每次机械执行整张清单；实际必要行为与失败边界不能删减。维护执行只遵循[WhaleIsle 唯一维护准则](../maintenance/README.md)；[发布操作说明](../handbook/modules/release-process.md)细化原包流程。卡片、旧决定或旧报告不追加自动 CI、固定全量清单或提前准备测试要求。
+卡上的 Gates 是风险对应的验证入口，不要求每次机械执行整张清单；实际必要行为与失败边界不能删减。维护执行只遵循[WhaleIsle 唯一维护准则](../maintenance/README.md)；[发布操作说明](../handbook/modules/release-process.md)细化原包流程。卡片、旧决定或旧报告不追加固定全量清单、候选审批或禁止开发 CI 的要求。
 
-## 何时新建 / 更新
+## 更新方式
 
-- **新建：** 产品行为已定且会被反复改（尤其易被 Agent 冲掉）时，从 [_template.md](_template.md) 复制。
-- **status 取值：** `active` 现行契约；`proposed` 方案已定未落地；`killed` 负契约（防复活的死亡名单，文件名带 `_` 前缀）。被否提案不建卡，进 [decisions/rejected/](../decisions/README.md)。
-- **更新：** 不变量或关键路径变了才更新契约；完成相关验证后更新 `last verified` 的最近事实与证据链接，不叠加历次发布流水账。没有验证不改成已验证。
-- **局部修复不改契约：** 会话写明「无卡 / 不改产品契约」，diff 仍应尽量小。
-- **长期取舍**才需要 [决策记录](../decisions/README.md)；普通修复在提交 / PR 中说明原因和行为验证即可。Allowed touch 是定位信息，不是用户已授权任务的二次审批边界。
+资料用于理解长期行为。实际行为改变时更新负责页面；普通实现修复只需 PR。现有模板可参考，没有必填字段、日期刷新、状态格式或新卡片前置要求。历史验证结果保持原样，不冒充本次验证。
 
-## 上游差异的归属
-
-与 DSH 或桌面来源存在长期差异的功能，在自己的卡中维护保护行为、差异理由、源码/装配入口、来源基线和已有验证/决定链接；只有相关卡需要填写。DSH 树中差异的位置由 [`harness-desktop-forks.js`](../../src/shared/harness-desktop-forks.js) 登记，卡片只写行为，不复制文件清单。既有不变量、Allowed touch、Gates 和 Sources 已说明的事实直接引用，不复制。可在下次触及该功能时补齐，不要求一次性改造所有卡。合并时发现未登记差异，不能因此默认删除；先查明实际用途。
-
-当前差异说明本地保留、已融合、由上游等价接管或待裁定的事实即可，不新增状态机或独立清单。被上游接管的实现删除后，仍保留对应行为契约；明确裁剪的功能继续按现有负契约维护。冲突裁定和验证顺序统一见[维护准则](../maintenance/README.md#上游合并与差异保护)。
-
-## 可选的工作定位
-
-```text
-Touching: wallpaper-gallery
-Goal: <一句>
-Do not: Appearance 图源、邻域重构
-Gate: <卡上 gates>
-```
-
-提交说明建议：`feature(<id>): …`。协议全文见仓库根 [AGENTS.md](../../AGENTS.md#feature-spine)。
-
+长期上游差异由相关功能页说明行为和原因，位置见 src/shared/harness-desktop-forks.js；整合方法见维护说明。Allowed touch 和 Gates 用于导航，不是审批边界或必跑清单。
 ## 索引
 
 | id | 一句话 | 主入口 | gates 摘要 |
